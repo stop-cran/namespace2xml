@@ -1,9 +1,0 @@
-{
-  "profiles": {
-    "namespace2xml": {
-      "commandName": "Project",
-      "commandLineArgs": "-i ..\\SW\\config\\common.properties common.properties dev\\int.properties -s erp-solace-deployment.schema -o out1",
-      "workingDirectory": "C:\\Users\\r.konstantinovskiy\\Documents\\git\\direct"
-    }
-  }
-}
