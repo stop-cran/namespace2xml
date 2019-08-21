@@ -287,6 +287,7 @@ namespace Namespace2Xml.Semantics
                                        valueSubstituteCount,
                                        refSubstituteCount
                                    })
+                .Reverse()
                 .ToList())
             {
                 int nameCnt = tuple.nameSubstituteCount;
@@ -310,7 +311,8 @@ namespace Namespace2Xml.Semantics
                                             .ToList()),
                                     tuple.pattern.SourceMark),
                                 MatchInfo = matches.GetMatchSummary()
-                            }))
+                            })
+                            .Reverse())
                             if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                             {
                                 logger.Debug(new
@@ -332,7 +334,8 @@ namespace Namespace2Xml.Semantics
                                 tuple.pattern.SourceMark,
                                 true),
                             MatchInfo = p.Payload.GetSummary()
-                        }))
+                        })
+                        .Reverse())
                         if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                         {
                             logger.Debug(new
@@ -367,7 +370,8 @@ namespace Namespace2Xml.Semantics
                                             .ToList()),
                                     tuple.pattern.SourceMark),
                                 MatchInfo = matches.GetMatchSummary()
-                            }))
+                            })
+                            .Reverse())
                             if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                             {
                                 logger.Debug(new
@@ -381,7 +385,7 @@ namespace Namespace2Xml.Semantics
                                 hasSubstitutes = true;
                             }
 
-                    foreach (var pair in from p in entries.ToList().GetLeftMatches(tuple.pattern)
+                    foreach (var pair in (from p in entries.ToList().GetLeftMatches(tuple.pattern)
                                          where p.Match
                                             .Batch(valCnt)
                                             .SequenceDistinct()
@@ -394,7 +398,7 @@ namespace Namespace2Xml.Semantics
                                                  tuple.pattern.SourceMark,
                                                  true),
                                              MatchInfo = p.Payload.GetSummary()
-                                         })
+                                         }).Reverse())
                         if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                         {
                             logger.Debug(new
@@ -413,7 +417,7 @@ namespace Namespace2Xml.Semantics
                     valCnt % nameCnt == 0)
                 {
                     if (tuple.valueSubstituteCount == 0)
-                        foreach (var pair in from matches in tuple.pattern.Value
+                        foreach (var pair in (from matches in tuple.pattern.Value
                                                 .GetFullMatchesByReferences(entries.ToList())
                                              where matches
                                                  .Select(match => match.Match)
@@ -430,7 +434,7 @@ namespace Namespace2Xml.Semantics
                                                              .ToList()),
                                                   tuple.pattern.SourceMark),
                                                  MatchInfo = matches.GetMatchSummary()
-                                             })
+                                             }).Reverse())
                             if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                             {
                                 logger.Debug(new
@@ -456,7 +460,8 @@ namespace Namespace2Xml.Semantics
                                 tuple.pattern.SourceMark,
                                 true),
                             MatchInfo = p.Payload.GetSummary()
-                        }))
+                        })
+                        .Reverse())
                         if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                         {
                             logger.Debug(new

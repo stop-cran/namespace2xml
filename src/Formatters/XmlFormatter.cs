@@ -145,7 +145,16 @@ namespace Namespace2Xml.Formatters
                         var elem = xx.Select(pair => pair.node).OfType<XElement>().Single();
 
                         foreach (var item in ToXmlValue(key, child.NameString, newPrefix, xmlNamespaces))
-                            elem.Add(item);
+                            if (item is XAttribute attr)
+                            {
+                                var attibutes = elem.Attributes().ToList();
+
+                                attibutes.Insert(0, attr);
+
+                                elem.ReplaceAttributes(attibutes);
+                            }
+                            else
+                                elem.AddFirst(item);
 
                         return xx;
                     });

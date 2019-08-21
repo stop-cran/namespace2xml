@@ -56,7 +56,7 @@ namespace Namespace2Xml.Tests
             await CreateFormatter().Write(
                 Helpers.ToTree(new { a = new { b = new { x = "11" } } }), default);
 
-            CheckXml("<a x=\"11\" test=\"b\" />");
+            CheckXml("<a test=\"b\" x=\"11\" />");
         }
 
         [Test]

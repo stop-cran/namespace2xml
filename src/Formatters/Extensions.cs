@@ -69,23 +69,17 @@ namespace Namespace2Xml.Formatters
         public static ProfileTree Ignore(this ProfileTree tree, HashSet<QualifiedName> ignore) =>
             tree.Ignore(ignore, new string[0]).Single();
 
-        private static IEnumerable<ProfileTree> Ignore(this ProfileTree tree, HashSet<QualifiedName> ignore, string[] prefix)
+        private static IEnumerable<ProfileTree> Ignore(this ProfileTree tree, HashSet<QualifiedName> ignore, IEnumerable<string> prefix)
         {
-            var newPrefix = prefix.Concat(new[] { tree.NameString }).ToArray();
-
-            if (ignore.Contains(newPrefix.ToQualifiedName()))
-                return Enumerable.Empty<ProfileTree>();
+            var newPrefix = prefix.Concat(new[] { tree.NameString });
 
             if (tree is ProfileTreeNode node)
-                return new[]
-                {
-                    new ProfileTreeNode(
-                        node.Name,
-                        node.Children
-                            .SelectMany(child => child.Ignore(ignore, newPrefix)))
-                };
-
-            return new[] { tree };
+                yield return new ProfileTreeNode(
+                    node.Name,
+                    node.Children
+                        .SelectMany(child => child.Ignore(ignore, newPrefix)));
+            else if (!ignore.Contains(newPrefix.ToQualifiedName()))
+                yield return tree;
         }
     }
 }

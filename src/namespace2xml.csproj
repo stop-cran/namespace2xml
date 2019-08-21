@@ -11,7 +11,7 @@
     <RootNamespace>Namespace2Xml</RootNamespace>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackAsTool>true</PackAsTool>
-    <Version>0.5.0</Version>
+    <Version>0.6.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
