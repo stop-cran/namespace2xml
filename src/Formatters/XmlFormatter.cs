@@ -75,22 +75,23 @@ namespace Namespace2Xml.Formatters
                     .WriteToAsync(xmlWriter, cancellationToken);
         }
 
-        private IEnumerable<XObject> ToXmlValue(string name, string value, string[] prefix,
+        private IEnumerable<XObject> ToXmlValue(string name, string value, string[] prefix, string parentXmlns,
             IReadOnlyDictionary<string, XNamespace> xmlNamespaces)
         {
             var childPrefix = prefix.Concat(new[] { name }).ToArray();
 
             return csvArrays.Contains(childPrefix.ToQualifiedName())
-                ? value.Split(",").Select(part => ToXmlValueSingle(name, part, prefix, xmlNamespaces))
-                : new[] { ToXmlValueSingle(name, value, prefix, xmlNamespaces) };
+                ? value.Split(",").Select(part => ToXmlValueSingle(name, part, prefix, parentXmlns, xmlNamespaces))
+                : new[] { ToXmlValueSingle(name, value, prefix, parentXmlns, xmlNamespaces) };
         }
 
-        private XObject ToXmlValueSingle(string name, string value, string[] prefix,
+        private XObject ToXmlValueSingle(string name, string value, string[] prefix, string parentXmlns,
             IReadOnlyDictionary<string, XNamespace> xmlNamespaces)
         {
             var childPrefix = prefix.Concat(new[] { name }).ToArray();
 
             XName xName;
+            bool isElement = xmlElements.Contains(childPrefix.ToQualifiedName());
 
             if (name.StartsWith("xmlns:"))
                 xName = XNamespace.Xmlns + name.Substring(6);
@@ -101,9 +102,11 @@ namespace Namespace2Xml.Formatters
                 xName = xmlNamespaces[parts[0]] + parts[1];
             }
             else
-                xName = name;
+                xName = !isElement || string.IsNullOrEmpty(parentXmlns)
+                    ? XName.Get(name)
+                    : XName.Get(name, parentXmlns);
 
-            return xmlElements.Contains(childPrefix.ToQualifiedName())
+            return isElement
                 ? new XElement(xName, value)
                 : (XObject)new XAttribute(xName, value);
         }
@@ -112,7 +115,7 @@ namespace Namespace2Xml.Formatters
             IReadOnlyDictionary<string, XNamespace> xmlNamespaces)
         {
             if (tree1 is ProfileTreeLeaf leaf)
-                return ToXmlValue(leaf.NameString, leaf.Value, prefix, xmlNamespaces)
+                return ToXmlValue(leaf.NameString, leaf.Value, prefix, parentXmlns, xmlNamespaces)
                     .Select(obj => (obj, leaf.SourceMark))
                     .ToArray();
 
@@ -141,10 +144,10 @@ namespace Namespace2Xml.Formatters
                     .SelectMany(child =>
                     {
                         var xx = ToXml(new ProfileTreeNode(tree.Name, child.Children),
-                            newPrefix, xmlns, xmlNamespaces);
+                            newPrefix.Concat(new[] { child.NameString }).ToArray(), xmlns, xmlNamespaces);
                         var elem = xx.Select(pair => pair.node).OfType<XElement>().Single();
 
-                        foreach (var item in ToXmlValue(key, child.NameString, newPrefix, xmlNamespaces))
+                        foreach (var item in ToXmlValue(key, child.NameString, newPrefix, parentXmlns, xmlNamespaces))
                             if (item is XAttribute attr)
                             {
                                 var attibutes = elem.Attributes().ToList();
@@ -163,7 +166,7 @@ namespace Namespace2Xml.Formatters
                     .OfType<ProfileTreeNode>()
                     .SelectMany(child =>
                         ToXml(new ProfileTreeNode(tree.Name, child.Children),
-                            newPrefix, xmlns, xmlNamespaces));
+                            newPrefix.Concat(new[] { child.NameString }).ToArray(), xmlns, xmlNamespaces));
             else
             {
                 nodes = tree.Children

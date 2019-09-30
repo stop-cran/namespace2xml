@@ -11,7 +11,8 @@
     <RootNamespace>Namespace2Xml</RootNamespace>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackAsTool>true</PackAsTool>
-    <Version>0.6.0</Version>
+    <Version>0.7.0</Version>
+    <Description>Namespace2xml is a tool for generating, templating and merging files in XML, JSON, YAML and INI formats.</Description>
   </PropertyGroup>
 
   <ItemGroup>
