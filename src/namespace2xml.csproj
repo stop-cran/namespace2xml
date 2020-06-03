@@ -11,7 +11,6 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Namespace2Xml</RootNamespace>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackAsTool>true</PackAsTool>
     <Version>2.0.0</Version>
     <Description>Namespace2xml is a tool for generating, templating and merging files in XML, JSON, YAML and INI formats.</Description>
     <PostInstallScript>/bin/chmod +x /usr/bin/$(MSBuildProjectName)</PostInstallScript>
