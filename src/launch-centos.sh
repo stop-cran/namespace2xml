@@ -1,0 +1,1 @@
+/opt/rh/rh-dotnet21/root/usr/bin/dotnet /usr/share/namespace2xml/namespace2xml.dll $@

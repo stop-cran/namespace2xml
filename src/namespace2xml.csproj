@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.1</TargetFramework>
+    <RuntimeIdentifiers>win7-x64;centos.7-x64;linux-x64</RuntimeIdentifiers>
     <Copyright>Apache License 2.0 (stop-cran, 2019)</Copyright>
     <Authors>stop-cran &lt;stop-cran@list.ru&gt;</Authors>
     <Company>stop-cran &lt;stop-cran@list.ru&gt;</Company>
@@ -11,12 +12,14 @@
     <RootNamespace>Namespace2Xml</RootNamespace>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackAsTool>true</PackAsTool>
-    <Version>0.7.0</Version>
+    <Version>2.0.0</Version>
     <Description>Namespace2xml is a tool for generating, templating and merging files in XML, JSON, YAML and INI formats.</Description>
+    <PostInstallScript>/bin/chmod +x /usr/bin/$(MSBuildProjectName)</PostInstallScript>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.4.3" />
+    <PackageReference Include="Packaging.Targets" Version="0.1.57-fxprobeta1" />
     <PackageReference Include="Equals.Fody" Version="1.9.5" />
     <PackageReference Include="Fody" Version="4.2.1">
       <PrivateAssets>all</PrivateAssets>
@@ -35,6 +38,33 @@
     <None Update="log4net.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="launch-linux.sh" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <RpmDependency Include="libunwind" Version="1.1" />
+    <RpmDependency Include="libicu" Version="50.1.2" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'centos.7-x64'">
+    <Content Include="launch-centos.sh" CopyToPublishDirectory="PreserveNewest">
+      <LinuxPath>/usr/bin/$(MSBuildProjectName)</LinuxPath>
+    </Content>
+    <RpmDependency Include="rh-dotnet21" Version="2.1" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <Content Include="launch-linux.sh" CopyToPublishDirectory="PreserveNewest">
+      <LinuxPath>/usr/bin/$(MSBuildProjectName)</LinuxPath>
+    </Content>
+    <RpmDependency Include="dotnet-sdk-2.1" Version="2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <DotNetCliToolReference Include="dotnet-rpm" Version="0.1.1-*" />
   </ItemGroup>
 
 </Project>
