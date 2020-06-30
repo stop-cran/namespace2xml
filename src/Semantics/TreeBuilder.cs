@@ -29,7 +29,8 @@ namespace Namespace2Xml.Semantics
                                     ConcatTextTokens(
                                         FlattenUnmatchedRightSubstitutes(
                                             ApplySubstitutes(
-                                                TreatSubstitutesAsText(entries, substituteTypes))))))).ToList())));
+                                                TreatSubstitutesAsText(entries, substituteTypes))))))).ToList())),
+                new QualifiedName(Array.Empty<NamePart>()));
 
         private IEnumerable<IProfileEntry> ConcatTextTokensStrict(IEnumerable<IProfileEntry> entries) =>
             entries.Select(entry => entry is Payload payload ? payload.ConcatTextTokensStrict() : entry);
@@ -66,7 +67,8 @@ namespace Namespace2Xml.Semantics
                                 RemoveUnmatchedReferenceSubstitutes(
                                     ConcatTextTokens(
                                         ApplySchemeSubstitutes(
-                                            enties, profileNames.ToList().AsReadOnly()))))))))
+                                            enties, profileNames.ToList().AsReadOnly()))))))),
+                new QualifiedName(Array.Empty<NamePart>()))
             .Select(ToScheme)
             .Cast<SchemeNode>();
 
@@ -135,7 +137,7 @@ namespace Namespace2Xml.Semantics
             {
                 case ProfileTreeLeaf leaf:
                     return Enum.TryParse<EntryType>(leaf.NameString, out var type)
-                        ? (ISchemeEntry)new SchemeLeaf(type, leaf.Value)
+                        ? (ISchemeEntry)new SchemeLeaf(type, leaf.Value, leaf.OriginalEntry)
                         : new SchemeError($"Unsupported entry type: {leaf.NameString}.", leaf.SourceMark);
 
                 case ProfileTreeNode node:
@@ -149,15 +151,15 @@ namespace Namespace2Xml.Semantics
             }
         }
 
-        private IEnumerable<ProfileTree> ToTree(IEnumerable<(NamedProfileEntry payload, IReadOnlyList<Comment> leadingComments)> enties) =>
+        private IEnumerable<ProfileTree> ToTree(IEnumerable<(NamedProfileEntry payload, IReadOnlyList<Comment> leadingComments)> enties,
+            QualifiedName prefix) =>
             (from entry in enties
              where entry.payload.Name.Parts.Count == 1
              select entry.payload is Payload payload
                 ? (ProfileTree)new ProfileTreeLeaf(
-                 payload.Name.Parts.First(),
+                 payload,
                  entry.leadingComments,
-                 payload.SourceMark,
-                 string.Join("", payload.Value.Cast<TextValueToken>()))
+                 prefix)
                 : entry.payload is ProfileError error
                     ? new ProfileTreeError(
                         entry.payload.Name.Parts.First(),
@@ -170,7 +172,8 @@ namespace Namespace2Xml.Semantics
                     .GroupBy(entry => entry.payload.Name.Parts.First())
                     .Select(group => new ProfileTreeNode(group.Key,
                         ToTree(group.Select(entry =>
-                            (entry.payload.SkipLeftNamespace(), entry.leadingComments))))));
+                            (entry.payload.SkipLeftNamespace(), entry.leadingComments)),
+                            new QualifiedName(prefix.Parts.Concat(new[] { group.Key }))))));
 
         private IEnumerable<IProfileEntry> ApplyOverrides(IEnumerable<IProfileEntry> entries) =>
                 ApplyOverridesReversed(entries.Reverse()).Reverse();

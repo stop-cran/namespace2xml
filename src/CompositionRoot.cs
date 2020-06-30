@@ -1,5 +1,6 @@
 ﻿using log4net;
 using Namespace2Xml.Formatters;
+using Namespace2Xml.Scheme;
 using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using Sprache;
@@ -33,15 +34,19 @@ namespace Namespace2Xml
             var profiles = await profileReader.ReadFiles(arguments.Inputs, cancellationToken);
             var input = profiles.Concat(profileReader.ReadVariables(arguments.Variables));
             var schemes = await profileReader.ReadFiles(arguments.Schemes, cancellationToken);
+            var usedNames = input.OfType<Payload>()
+                        .Select(p => p.Name)
+                        .Distinct()
+                        .ToList();
 
             await Task.WhenAll(
-                from scheme in treeBuilder.BuildScheme(
-                    schemes,
-                    input.OfType<Payload>()
-                        .Select(p => p.Name)
-                        .Distinct())
-                from pair in formatterBuilder.Build(scheme)
+                from scheme in treeBuilder.BuildScheme(schemes, usedNames)
                 from tree in treeBuilder.Build(input, scheme.GetSubstituteTypes())
+                let alteredScheme = treeBuilder.BuildScheme(
+                    scheme.WithImplicitHiddenKeys(tree),
+                    usedNames)
+                .Single()
+                from pair in formatterBuilder.Build(alteredScheme)
                 from subTree in tree.GetSubTrees(pair.prefix) // RK TODO: Logging if no suitable subtrees.
                 select pair.formatter.Write(subTree, cancellationToken));
         }

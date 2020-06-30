@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Namespace2Xml.Syntax
@@ -15,5 +16,7 @@ namespace Namespace2Xml.Syntax
 
         public override string ToString() =>
             string.Join('.', Parts);
+
+        public static readonly QualifiedName Empty = new QualifiedName(Array.Empty<NamePart>());
     }
 }

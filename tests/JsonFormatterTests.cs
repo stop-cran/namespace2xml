@@ -3,6 +3,7 @@ using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using NUnit.Framework;
 using Shouldly;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;

@@ -41,7 +41,7 @@ namespace Namespace2Xml.Tests
                 new ProfileTreeNode("a".ToNamePart(),
                 new[]
                 {
-                    new ProfileTreeLeaf("x.y".ToNamePart(), new Comment[0],new SourceMark(0, "<test>", 1), "1")
+                    new ProfileTreeLeaf(Helpers.CreatePayload("x.y", "1"), System.Array.Empty<Comment>(), QualifiedName.Empty)
                 }), default);
 
             CheckNamespace("x\\.y=1");
@@ -54,7 +54,7 @@ namespace Namespace2Xml.Tests
                 new ProfileTreeNode("a".ToNamePart(),
                 new[]
                 {
-                    new ProfileTreeLeaf("x".ToNamePart(), new [] { new Comment("test") },new SourceMark(0, "<test>", 1), "1")
+                    new ProfileTreeLeaf(Helpers.CreatePayload("x", "1"), new [] { new Comment("test") }, QualifiedName.Empty)
                 }), default);
 
             CheckNamespace("# test\nx=1");

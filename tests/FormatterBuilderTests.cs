@@ -31,7 +31,7 @@ namespace Namespace2Xml.Tests
                 new SchemeNode("a".ToNamePart(),
                 new[]
                 {
-                    new SchemeLeaf(EntryType.output, "xml,json,yaml,namespace,ini")
+                    new SchemeLeaf(EntryType.output, "xml,json,yaml,namespace,ini", Helpers.CreatePayload("", ""))
                 }))
                 .ToList();
 
@@ -59,7 +59,7 @@ namespace Namespace2Xml.Tests
                 new SchemeNode("a".ToNamePart(),
                 new ISchemeEntry[]
                 {
-                    new SchemeLeaf(EntryType.output, "xml"),
+                    new SchemeLeaf(EntryType.output, "xml", Helpers.CreatePayload("", "")),
                     new SchemeError("error1", new SourceMark(0,"testfile", 12)),
                 })).ToList());
             logger.Verify(l => l.Error(It.IsAny<object>()));
@@ -72,7 +72,7 @@ namespace Namespace2Xml.Tests
                 new SchemeNode("a".ToNamePart(),
                 new ISchemeEntry[]
                 {
-                    new SchemeLeaf(EntryType.filename, "xxx"),
+                    new SchemeLeaf(EntryType.filename, "xxx", Helpers.CreatePayload("", "")),
                 }))
                 .ShouldBeEmpty();
         }

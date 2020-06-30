@@ -1,4 +1,5 @@
-﻿using Namespace2Xml.Syntax;
+﻿using Namespace2Xml.Scheme;
+using Namespace2Xml.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -36,6 +37,16 @@ namespace Namespace2Xml.Semantics
             let leaf = tuple.tree as ProfileTreeLeaf
             where leaf != null
             select (tuple.prefix, leaf);
+
+        public static IEnumerable<Payload> GetOriginalPayload(this SchemeNode node) =>
+            node.GetAllChildren().OfType<SchemeLeaf>().Select(l => l.OriginalEntry);
+
+        public static IEnumerable<ISchemeEntry> GetAllChildren(this ISchemeEntry tree) =>
+            tree is SchemeNode node
+                ? new [] { tree }
+                    .Concat(node.Children.SelectMany(child =>
+                        GetAllChildren(child)))
+                : new [] { tree };
 
         public static IEnumerable<(QualifiedName prefix, ProfileTree tree)> GetAllChildren(this ProfileTree tree) =>
             tree is ProfileTreeNode node

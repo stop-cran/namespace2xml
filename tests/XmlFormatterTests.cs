@@ -66,13 +66,11 @@ namespace Namespace2Xml.Tests
                 new ProfileTreeNode("a".ToNamePart(),
                 new ProfileTree[]
                 {
-                    new ProfileTreeLeaf("xmlns:ddd".ToNamePart(), new Comment[0],
-                    new SourceMark(0, "<test>", 1), "http://example.com"),
+                    new ProfileTreeLeaf(Helpers.CreatePayload("xmlns:ddd", "http://example.com"), System.Array.Empty<Comment>(), QualifiedName.Empty),
                     new ProfileTreeNode("b".ToNamePart(),
                     new[]
                     {
-                        new ProfileTreeLeaf("ddd:x".ToNamePart(), new Comment[0],
-                        new SourceMark(0, "<test>", 1), "11")
+                        new ProfileTreeLeaf(Helpers.CreatePayload("ddd:x", "11"), System.Array.Empty<Comment>(), QualifiedName.Empty)
                     })
                 }), default);
 
