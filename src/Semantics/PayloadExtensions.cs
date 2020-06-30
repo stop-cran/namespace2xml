@@ -261,6 +261,7 @@ namespace Namespace2Xml.Semantics
 
                 if (match.Success)
                     return match.Groups
+                        .Cast<Group>()
                         .Skip(1)
                         .Select(group => group.Value);
             }
