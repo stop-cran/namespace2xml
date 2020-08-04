@@ -39,17 +39,11 @@ namespace Namespace2Xml
                         .Distinct()
                         .ToList();
 
-            logger.Info("Analyzing...");
-
-            var treesAndSchemes = await Task.WhenAll(
-                treeBuilder.BuildScheme(schemes, usedNames)
-                .Select(scheme => Task.Run(() => (scheme, trees: treeBuilder.Build(input, scheme.GetSubstituteTypes())))));
-
             await Task.WhenAll(
-                from treesAndScheme in treesAndSchemes
-                from tree in treesAndScheme.trees
+                from scheme in treeBuilder.BuildScheme(schemes, usedNames).AsParallel()
+                from tree in treeBuilder.Build(input, scheme.GetSubstituteTypes())
                 from alteredScheme in treeBuilder.BuildScheme(
-                    treesAndScheme.scheme.WithImplicitHiddenKeys(tree),
+                    scheme.WithImplicitHiddenKeys(tree),
                     usedNames)
                 from pair in formatterBuilder.Build(alteredScheme)
                 from subTree in tree.GetSubTrees(pair.prefix) // RK TODO: Logging if no suitable subtrees.
