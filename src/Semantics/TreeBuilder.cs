@@ -255,7 +255,7 @@ namespace Namespace2Xml.Semantics
 
         private IEnumerable<IProfileEntry> ApplySubstitutes(IEnumerable<IProfileEntry> entries)
         {
-            var entriesList = entries.ToList();
+            var entriesList = new ProfileEntryList(entries);
 
             while (ApplySubstitutesStep(entriesList)) ;
 
@@ -264,7 +264,7 @@ namespace Namespace2Xml.Semantics
                 p.GetValueRefSubstitutesCount() == 0);
         }
 
-        private bool ApplySubstitutesStep(List<IProfileEntry> entries)
+        private bool ApplySubstitutesStep(ProfileEntryList entries)
         {
             bool hasSubstitutes = false;
 
@@ -274,7 +274,7 @@ namespace Namespace2Xml.Semantics
             return hasSubstitutes;
         }
 
-        private bool ApplySubstitutesStepNonStrict(List<IProfileEntry> entries)
+        private bool ApplySubstitutesStepNonStrict(ProfileEntryList entries)
         {
             bool hasSubstitutes = false;
 
@@ -493,7 +493,7 @@ namespace Namespace2Xml.Semantics
             return hasSubstitutes;
         }
 
-        private bool ApplyStrictSubstitutesStep(List<IProfileEntry> entries)
+        private bool ApplyStrictSubstitutesStep(ProfileEntryList entries)
         {
             bool hasSubstitutes = false;
 

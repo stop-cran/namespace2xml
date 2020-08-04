@@ -18,12 +18,10 @@ namespace Namespace2Xml
         public static IEnumerable<IEnumerable<T>> SequenceDistinct<T>(this IEnumerable<IEnumerable<T>> source) =>
             source.Distinct(new SequenceEqualityComparer<T>());
 
-        public static bool InsertAfterIfNotExists(this IList<IProfileEntry> entries, Payload originalItem, Payload newItem)
+        public static bool InsertAfterIfNotExists(this ProfileEntryList entries, Payload originalItem, Payload newItem)
         {
             if (ReferenceEquals(originalItem, newItem) ||
-                entries.OfType<Payload>().Any(entry =>
-                    entry.Name.Equals(newItem.Name) &&
-                    entry.Value.SequenceEqual(newItem.Value)))
+                entries.ContainsPayload(newItem))
                 return false;
 
             entries.Insert(entries.IndexOf(originalItem) + 1, newItem);

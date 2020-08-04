@@ -16,7 +16,6 @@ namespace Namespace2Xml.Scheme
                                          new QualifiedName(pair.prefix.Parts.Append(new NamePart(new[] { new TextNameToken("type") }))),
                                          new[] { new TextValueToken("hiddenKey") }, pair.tree.GetFirstSourceMark())).ToList();
 
-
             return originalPayload.Concat(implicitHiddenKeys);
         }
 

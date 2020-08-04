@@ -205,7 +205,7 @@ namespace Namespace2Xml.Semantics
 
             var matches = new List<string>();
 
-            foreach (var m in input.Zip(pattern, GetMatch))
+            foreach (var m in input.Zip(pattern, (i,p) => p.GetMatch(i)))
                 if (m == null)
                     return null;
                 else
@@ -221,52 +221,17 @@ namespace Namespace2Xml.Semantics
         [return: NullGuard.AllowNull]
         public static IReadOnlyList<string> GetLeftMatch(this QualifiedName input, QualifiedName pattern)
         {
-            var leftParts = pattern.Parts
-                .AsEnumerable()
-                .Reverse()
-                .SkipWhile(part => part.Tokens.All(t => t is TextNameToken))
-                .Reverse()
-                .ToList();
+            int leftPartsCount = pattern.Parts.Count;
 
-            return input.Parts.Count >= leftParts.Count
+            while (leftPartsCount >= 0 && pattern.Parts[leftPartsCount - 1].Tokens.All(t => t is TextNameToken))
+                leftPartsCount--;
+
+            return input.Parts.Count >= leftPartsCount
                 ? input.Parts
-                .Take(leftParts.Count)
+                .Take(leftPartsCount)
                 .ToList()
-                .GetFullMatch(leftParts)
+                .GetFullMatch(pattern.Parts.Take(leftPartsCount).ToList())
                 : null;
-        }
-
-        [return: NullGuard.AllowNull]
-        private static IEnumerable<string> GetMatch(NamePart input, NamePart pattern)
-        {
-            if (input.Tokens.Count == 1 &&
-                input.Tokens[0] is TextNameToken textToken)
-            {
-                var match = Regex.Match(
-                    textToken.Text,
-                    "^" + string.Join("", pattern.Tokens.Select(p =>
-                    {
-                        switch (p)
-                        {
-                            case TextNameToken t:
-                                return Regex.Escape(t.Text);
-
-                            case SubstituteNameToken s:
-                                return "(.+)";
-
-                            default:
-                                throw new NotSupportedException();
-                        }
-                    })) + "$");
-
-                if (match.Success)
-                    return match.Groups
-                        .Cast<Group>()
-                        .Skip(1)
-                        .Select(group => group.Value);
-            }
-
-            return null;
         }
     }
 }
