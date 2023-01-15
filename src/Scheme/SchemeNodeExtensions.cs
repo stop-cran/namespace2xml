@@ -7,16 +7,16 @@ namespace Namespace2Xml.Scheme
 {
     public static class SchemeNodeExtensions
     {
-        public static IEnumerable<IProfileEntry> WithImplicitHiddenKeys(this SchemeNode node, ProfileTree tree)
+        public static IEnumerable<IProfileEntry> WithImplicitArrays(this SchemeNode node, ProfileTree tree)
         {
             var originalPayload = node.GetOriginalPayload().ToList();
-            var implicitHiddenKeys = (from pair in tree.GetAllChildren()
-                                     where IsArray(pair.tree)
-                                     select new Payload(
-                                         new QualifiedName(pair.prefix.Parts.Append(new NamePart(new[] { new TextNameToken("type") }))),
-                                         new[] { new TextValueToken("hiddenKey") }, pair.tree.GetFirstSourceMark())).ToList();
+            var implicitArrays = (from pair in tree.GetAllChildren()
+                                  where IsArray(pair.tree)
+                                  select new Payload(
+                                      new QualifiedName(pair.prefix.Parts.Append(new NamePart(new[] { new TextNameToken("type") }))),
+                                      new[] { new TextValueToken("array") }, pair.tree.GetFirstSourceMark())).ToList();
 
-            return originalPayload.Concat(implicitHiddenKeys);
+            return originalPayload.Concat(implicitArrays);
         }
 
         private static bool IsArray(ProfileTree tree)

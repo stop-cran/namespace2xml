@@ -1,4 +1,5 @@
-﻿using log4net;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Namespace2Xml.Formatters;
 using Namespace2Xml.Scheme;
@@ -16,7 +17,6 @@ namespace Namespace2Xml.Tests
     {
         private string tempDirectoryName;
         private FileStreamFactory fileStreamFactory;
-        private Mock<ILog> logger;
 
         [SetUp]
         public void Setup()
@@ -25,8 +25,8 @@ namespace Namespace2Xml.Tests
 
             Directory.CreateDirectory(tempDirectoryName);
 
-            logger = new Mock<ILog>();
-            fileStreamFactory = new FileStreamFactory(tempDirectoryName, logger.Object);
+            fileStreamFactory = new FileStreamFactory(new OptionsWrapper<FileStreamFactoryOptions>(new FileStreamFactoryOptions { BaseOutputDirectory = tempDirectoryName }),
+                Mock.Of< ILogger<FileStreamFactory>>());
         }
 
         [TearDown]

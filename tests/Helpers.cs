@@ -1,6 +1,7 @@
 ﻿using Namespace2Xml;
 using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
+using Sprache;
 using System.Linq;
 
 namespace Namespace2Xml.Tests

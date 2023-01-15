@@ -1,4 +1,5 @@
-﻿using Namespace2Xml.Semantics;
+﻿using Microsoft.Extensions.Logging;
+using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using System;
 using System.Collections.Generic;
@@ -14,8 +15,8 @@ namespace Namespace2Xml.Formatters
         private readonly IReadOnlyList<string> outputPrefix;
         private readonly string delimiter;
 
-        public NamespaceFormatter(Func<Stream> outputStreamFactory, IReadOnlyList<string> outputPrefix, string delimiter)
-            : base(outputStreamFactory)
+        public NamespaceFormatter(Func<Stream> outputStreamFactory, IReadOnlyList<string> outputPrefix, string delimiter, ILogger<NamespaceFormatter> logger)
+            : base(outputStreamFactory, logger)
         {
             this.outputPrefix = outputPrefix;
             this.delimiter = delimiter;

@@ -4,8 +4,7 @@
     {
         @default,
         ignore,
-        hiddenKey,
-        csv,
+        array,
         @string,
         element
     }

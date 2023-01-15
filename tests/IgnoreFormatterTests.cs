@@ -1,4 +1,6 @@
-﻿using Namespace2Xml.Formatters;
+﻿using Microsoft.Extensions.Logging;
+using Moq;
+using Namespace2Xml.Formatters;
 using Namespace2Xml.Syntax;
 using NUnit.Framework;
 using Shouldly;
@@ -13,21 +15,22 @@ namespace Namespace2Xml.Tests
     public class IgnoreFormatterTests
     {
         private MemoryStream stream;
-        private List<QualifiedName> ignoreList;
+        private QualifiedNameMatchList ignoreList;
 
         [SetUp]
         public void Setup()
         {
             stream = new MemoryStream();
-            ignoreList = new List<QualifiedName>();
+            ignoreList = new QualifiedNameMatchList();
         }
 
         private IgnoreFormatter CreateFormatter() =>
             new IgnoreFormatter(
                 new NamespaceFormatter(
                     () => stream,
-                    new string[0],
-                    "."), ignoreList);
+                    Array.Empty<string>(),
+                    ".",
+                    Mock.Of<ILogger<NamespaceFormatter>>()), ignoreList);
 
         [Test]
         public async Task ShouldIgnore()

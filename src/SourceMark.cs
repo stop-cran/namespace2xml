@@ -2,7 +2,7 @@
 
 namespace Namespace2Xml
 {
-    [Equals]
+    [Equals(DoNotAddEqualityOperators = true)]
     public class SourceMark : IComparable<SourceMark>
     {
         public SourceMark(int fileNumber, string fileName, int lineNumber)

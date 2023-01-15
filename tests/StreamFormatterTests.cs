@@ -1,5 +1,5 @@
-﻿using Moq;
-using Namespace2Xml;
+﻿using Microsoft.Extensions.Logging;
+using Moq;
 using Namespace2Xml.Formatters;
 using Namespace2Xml.Semantics;
 using NUnit.Framework;
@@ -19,7 +19,7 @@ namespace Namespace2Xml.Tests
         public void Setup()
         {
             outputStreamFactory = new Mock<Func<Stream>>();
-            formatter = new Mock<StreamFormatter>(outputStreamFactory.Object);
+            formatter = new Mock<StreamFormatter>(outputStreamFactory.Object, Mock.Of<ILogger<StreamFormatter>>());
         }
 
         [Test]

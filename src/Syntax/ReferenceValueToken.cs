@@ -1,6 +1,6 @@
 ﻿namespace Namespace2Xml.Syntax
 {
-    [Equals]
+    [Equals(DoNotAddEqualityOperators = true)]
     public sealed class ReferenceValueToken : IValueToken
     {
         public ReferenceValueToken(QualifiedName name)

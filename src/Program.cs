@@ -1,45 +1,23 @@
 ﻿using CommandLine;
-using log4net;
-using log4net.Config;
-using log4net.Repository.Hierarchy;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Namespace2Xml.Formatters;
 using Namespace2Xml.Semantics;
+using NullGuard;
 using System;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using Unity;
-using Unity.Injection;
-using Unity.log4net;
 
 namespace Namespace2Xml
 {
-    public static class Program
+    public class Program
     {
-        public static IUnityContainer Container { get; } =
-            new UnityContainer()
-                .AddNewExtension<Log4NetExtension>()
-                .RegisterType<IStreamFactory, FileStreamFactory>()
-                .RegisterType<IProfileReader, ProfileReader>()
-                .RegisterType<ITreeBuilder, TreeBuilder>()
-                .RegisterType<IFormatterBuilder, FormatterBuilder>();
+        [AllowNull]
+        public static Action<IServiceCollection> ServiceOverrides { get; set; }
 
         public static async Task<int> Main(string[] args)
         {
-            var loggerRepository = LogManager.GetRepository(
-                typeof(Program).Assembly);
-
-            XmlConfigurator.Configure(
-                loggerRepository,
-                new FileInfo(
-                    Path.Combine(
-                        Path.GetDirectoryName(
-                            Assembly.GetExecutingAssembly().Location),
-                        "log4net.config")));
-
-            var logger = LogManager.GetLogger(typeof(Program));
-
             try
             {
                 return await Parser.Default
@@ -47,26 +25,29 @@ namespace Namespace2Xml
                     .MapResult(
                         async arguments =>
                         {
-                            loggerRepository.Threshold = arguments.LoggingLevel;
+                            var servicerCollection = new ServiceCollection()
+                                .AddLogging(logging => logging.AddConsole().SetMinimumLevel(arguments.LoggingLevel))
+                                .AddTransient<IStreamFactory, FileStreamFactory>()
+                                .AddTransient<IProfileReader, ProfileReader>()
+                                .AddTransient<ITreeBuilder, TreeBuilder>()
+                                .AddTransient<IFormatterBuilder, FormatterBuilder>()
+                                .AddTransient<CompositionRoot>()
+                                .Configure<FileStreamFactoryOptions>(options => options.BaseOutputDirectory = arguments.OutputDirectory);
 
-                            logger.Info(new
-                            {
-                                message = "namespace2xml",
-                                version = Assembly
+                            ServiceOverrides?.Invoke(servicerCollection);
+
+                            var servicerProvider = servicerCollection.BuildServiceProvider();
+                            var logger = servicerProvider.GetRequiredService<ILogger<Program>>();
+                            logger.LogInformation("namespace2xml, version {0}",
+                                Assembly
                                     .GetEntryAssembly()
                                     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-                                    ?.InformationalVersion
-                            });
+                                    ?.InformationalVersion);
 
-                            await Container
-                            .RegisterType<FileStreamFactory>(
-                                new InjectionConstructor(
-                                    arguments.OutputDirectory,
-                                    new ResolvedParameter<ILog>()))
-                            .Resolve<CompositionRoot>()
-                            .Write(arguments, default);
+                            await servicerProvider.GetRequiredService<CompositionRoot>()
+                                .Write(arguments, default);
 
-                            logger.Info("Success! Exiting...");
+                            logger.LogInformation("Success! Exiting...");
 
                             return 0;
                         },
@@ -74,13 +55,9 @@ namespace Namespace2Xml
                             errors.OfType<HelpRequestedError>().Any() ? 0 : 1));
             }
             catch (ApplicationException)
-            { }
-            catch (Exception ex)
             {
-                logger.Error("Unexpected error", ex);
+                return 1;
             }
-
-            return 1;
         }
     }
 }

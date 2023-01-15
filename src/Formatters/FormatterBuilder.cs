@@ -1,4 +1,4 @@
-﻿using log4net;
+﻿using Microsoft.Extensions.Logging;
 using Namespace2Xml.Scheme;
 using Namespace2Xml.Syntax;
 using System;
@@ -11,12 +11,14 @@ namespace Namespace2Xml.Formatters
     public class FormatterBuilder : IFormatterBuilder
     {
         private readonly IStreamFactory streamFactory;
-        private readonly ILog logger;
+        private readonly ILoggerFactory loggerFactory;
+        private readonly ILogger<FormatterBuilder> logger;
 
-        public FormatterBuilder(IStreamFactory streamFactory, ILog logger)
+        public FormatterBuilder(IStreamFactory streamFactory, ILoggerFactory loggerFactory)
         {
             this.streamFactory = streamFactory;
-            this.logger = logger;
+            this.loggerFactory = loggerFactory;
+            this.logger = loggerFactory.CreateLogger<FormatterBuilder>();
         }
 
         private Func<Stream> CreateOutputStream(string name, OutputType type) =>
@@ -53,13 +55,10 @@ namespace Namespace2Xml.Formatters
             if (errors.Any())
             {
                 foreach (var error in errors)
-                    logger.Error(new
-                    {
-                        message = "Error reading scheme",
-                        error = error.Error,
-                        fileName = error.SourceMark.FileName,
-                        line = error.SourceMark.LineNumber
-                    });
+                    logger.LogError("Error reading scheme: {0}, file name: {1}, line: {2}",
+                        error.Error,
+                        error.SourceMark.FileName,
+                        error.SourceMark.LineNumber);
 
                 throw new ApplicationException();
             }
@@ -67,17 +66,11 @@ namespace Namespace2Xml.Formatters
             var fileName = node.SingleOrDefaultValue(EntryType.filename);
             var root = node.SingleOrDefaultValue(EntryType.root)?.Split('.') ?? new string[0];
             var delimiter = node.SingleOrDefaultValue(EntryType.delimiter) ?? ".";
-            var keys = (from child in node.GetAllChildren()
-                        let leaf = child.entry as SchemeLeaf
-                        where leaf?.Type == EntryType.key
-                        select new
-                        {
-                            child.prefix,
-                            leaf.Value
-                        }).ToDictionary(
-                            tuple => tuple.prefix,
-                            tuple => tuple.Value);
-            var hiddenKeys = node.GetNamesOfType(Scheme.ValueType.hiddenKey);
+            var keys = new QualifiedNameMatchDictionary<string>(from child in node.GetAllChildren()
+                                                                let leaf = child.entry as SchemeLeaf
+                                                                where leaf?.Type == EntryType.key
+                                                                select new KeyValuePair<QualifiedName, string>(child.prefix, leaf.Value));
+            var arrays = node.GetNamesOfType(Scheme.ValueType.array);
 
             switch (outputType)
             {
@@ -85,16 +78,17 @@ namespace Namespace2Xml.Formatters
                     return new NamespaceFormatter(
                         CreateOutputStream(fileName ?? node.Name + ".properties", outputType),
                         root,
-                        delimiter);
+                        delimiter,
+                        loggerFactory.CreateLogger<NamespaceFormatter>());
 
                 case OutputType.json:
                     return new JsonFormatter(
                         CreateOutputStream(fileName ?? node.Name + ".json", outputType),
                         root,
                         keys,
-                        hiddenKeys,
-                        node.GetNamesOfType(Scheme.ValueType.csv),
-                        node.GetNamesOfType(Scheme.ValueType.@string));
+                        arrays,
+                        node.GetNamesOfType(Scheme.ValueType.@string),
+                        loggerFactory.CreateLogger<JsonFormatter>());
 
                 case OutputType.xml:
                     var xmlOptions = node.SingleOrDefaultValue(EntryType.xmloptions);
@@ -108,24 +102,25 @@ namespace Namespace2Xml.Formatters
                                 ? options
                                 : throw new ArgumentException($"Unsupported XML options: {xmlOptions}."),
                         keys,
-                        hiddenKeys,
-                        node.GetNamesOfType(Scheme.ValueType.csv),
-                        node.GetNamesOfType(Scheme.ValueType.element));
+                        arrays,
+                        node.GetNamesOfType(Scheme.ValueType.element),
+                        loggerFactory.CreateLogger<XmlFormatter>());
 
                 case OutputType.yaml:
                     return new YamlFormatter(
                         CreateOutputStream(fileName ?? node.Name + ".yml", outputType),
                         root,
                         keys,
-                        hiddenKeys,
-                        node.GetNamesOfType(Scheme.ValueType.csv),
-                        node.GetNamesOfType(Scheme.ValueType.@string));
+                        arrays,
+                        node.GetNamesOfType(Scheme.ValueType.@string),
+                        loggerFactory.CreateLogger<YamlFormatter>());
 
                 case OutputType.ini:
                     return new IniFormatter(
                         CreateOutputStream(fileName ?? node.Name + ".ini", outputType),
                         root,
-                        delimiter);
+                        delimiter,
+                        loggerFactory.CreateLogger<IniFormatter>());
 
                 default:
                     throw new ArgumentException($"Ouput type {outputType} is not supported.");

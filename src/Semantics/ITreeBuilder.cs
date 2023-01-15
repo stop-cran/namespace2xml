@@ -8,7 +8,7 @@ namespace Namespace2Xml.Semantics
     {
         IEnumerable<ProfileTree> Build(
             IEnumerable<IProfileEntry> entries,
-            IReadOnlyDictionary<QualifiedName, SubstituteType> substituteTypes);
+            IQualifiedNameMatchDictionary<SubstituteType> substituteTypes);
 
         IEnumerable<SchemeNode> BuildScheme(
             IEnumerable<IProfileEntry> enties,

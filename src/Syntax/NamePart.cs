@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Namespace2Xml.Syntax
 {
-    [Equals]
+    [Equals(DoNotAddEqualityOperators = true)]
     public sealed class NamePart
     {
         private readonly Lazy<Regex> match;
@@ -31,19 +31,15 @@ namespace Namespace2Xml.Syntax
                     })) + "$"));
         }
 
+        public bool IsMatch(string s) =>
+            match.Value.IsMatch(s);
+
         [return: NullGuard.AllowNull]
         public IEnumerable<string> GetMatch(NamePart p)
         {
-            //var texts = p.Tokens.OfType<TextNameToken>().Select(t => t.Text).ToList();
-
-            //if (texts.Count == p.Tokens.Count)
-            //{
-            //    var m = match.Value.Match(string.Join("", texts));
-
-            if (p.Tokens.Count == 1 &&
-                p.Tokens[0] is TextNameToken textToken)
+            if (p.Tokens.All(t => t is TextNameToken))
             {
-                var m = match.Value.Match(textToken.Text);
+                var m = match.Value.Match(p.ToString());
 
                 if (m.Success)
                     return m.Groups

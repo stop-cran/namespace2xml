@@ -1,5 +1,4 @@
-﻿using log4net.Core;
-using Namespace2Xml;
+﻿using Microsoft.Extensions.Logging;
 using NUnit.Framework;
 using Shouldly;
 using System;
@@ -15,11 +14,11 @@ namespace Namespace2Xml.Tests
                 null,
                 null,
                 "",
-                "trace",
+                "debug",
                 null);
 
-            arguments.Verbosity.ShouldBe("trace");
-            arguments.LoggingLevel.ShouldBe(Level.Trace);
+            arguments.Verbosity.ShouldBe("debug");
+            arguments.LoggingLevel.ShouldBe(LogLevel.Debug);
         }
 
         [Test]

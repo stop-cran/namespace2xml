@@ -1,4 +1,4 @@
-﻿using log4net;
+﻿using Microsoft.Extensions.Logging;
 using Namespace2Xml.Semantics;
 using System;
 using System.IO;
@@ -10,13 +10,13 @@ namespace Namespace2Xml.Formatters
 {
     public abstract class StreamFormatter : IFormatter
     {
-        private readonly ILog logger;
+        private readonly ILogger<StreamFormatter> logger;
         protected readonly Func<Stream> outputStreamFactory;
 
-        protected StreamFormatter(Func<Stream> outputStreamFactory)
+        protected StreamFormatter(Func<Stream> outputStreamFactory, ILogger<StreamFormatter> logger)
         {
             this.outputStreamFactory = outputStreamFactory;
-            logger = LogManager.GetLogger(GetType()); // RK TODO: Inject
+            this.logger = logger;
         }
 
         public async Task Write(ProfileTree tree, CancellationToken cancellationToken)
@@ -33,19 +33,16 @@ namespace Namespace2Xml.Formatters
             if (errors.Count > 0)
             {
                 foreach (var error in errors)
-                    logger.Error(new
-                    {
-                        message = "Error reading input",
-                        error = error.Error,
-                        fileName = error.SourceMark.FileName,
-                        line = error.SourceMark.LineNumber
-                    });
+                    logger.LogError("Error reading input: {0}, file: {1}, line: {2}",
+                        error.Error,
+                        error.SourceMark.FileName,
+                        error.SourceMark.LineNumber);
 
                 throw new ApplicationException();
             }
 
-            using (var stream = outputStreamFactory())
-                await DoWrite(tree, stream, cancellationToken);
+            using var stream = outputStreamFactory();
+            await DoWrite(tree, stream, cancellationToken);
         }
 
         protected abstract Task DoWrite(ProfileTree tree, Stream stream, CancellationToken cancellationToken);

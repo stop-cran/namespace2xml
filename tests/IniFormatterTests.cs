@@ -1,6 +1,6 @@
-﻿using Namespace2Xml.Formatters;
-using Namespace2Xml.Semantics;
-using Namespace2Xml.Syntax;
+﻿using Microsoft.Extensions.Logging;
+using Moq;
+using Namespace2Xml.Formatters;
 using NUnit.Framework;
 using Shouldly;
 using System.IO;
@@ -21,7 +21,8 @@ namespace Namespace2Xml.Tests
             formatter = new IniFormatter(
                 () => stream,
                 new string[0],
-                ".");
+                ".",
+                Mock.Of<ILogger<IniFormatter>>());
         }
 
         [Test]

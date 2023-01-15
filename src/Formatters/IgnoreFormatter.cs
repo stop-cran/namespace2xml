@@ -9,12 +9,12 @@ namespace Namespace2Xml.Formatters
     public class IgnoreFormatter : IFormatter
     {
         private readonly IFormatter inner;
-        private readonly HashSet<QualifiedName> ignore;
+        private readonly IQualifiedNameMatchList ignore;
 
-        public IgnoreFormatter(IFormatter inner, IReadOnlyList<QualifiedName> ignore)
+        public IgnoreFormatter(IFormatter inner, IQualifiedNameMatchList ignore)
         {
             this.inner = inner;
-            this.ignore = new HashSet<QualifiedName>(ignore);
+            this.ignore = ignore;
         }
 
         public async Task Write(ProfileTree tree, CancellationToken cancellationToken) =>

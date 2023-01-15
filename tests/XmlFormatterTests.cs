@@ -1,4 +1,6 @@
-﻿using Namespace2Xml.Formatters;
+﻿using Microsoft.Extensions.Logging;
+using Moq;
+using Namespace2Xml.Formatters;
 using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using NUnit.Framework;
@@ -13,7 +15,7 @@ namespace Namespace2Xml.Tests
 {
     public class XmlFormatterTests
     {
-        private List<string> outputPrefix, hiddenKeys;
+        private List<string> outputPrefix, arrays;
         private Dictionary<string, string> keys;
         private MemoryStream stream;
 
@@ -21,7 +23,7 @@ namespace Namespace2Xml.Tests
         public void Setup()
         {
             keys = new Dictionary<string, string>();
-            hiddenKeys = new List<string>();
+            arrays = new List<string>();
             outputPrefix = new List<string>();
             stream = new MemoryStream();
         }
@@ -31,12 +33,11 @@ namespace Namespace2Xml.Tests
                 () => stream,
                 outputPrefix,
                 Scheme.XmlOptions.NoIndent,
-                keys.ToDictionary(x => x.Key.Split('.').ToQualifiedName(), x => x.Value),
-                hiddenKeys
-                    .Select(x => x.Split('.').ToQualifiedName())
-                    .ToList().AsReadOnly(),
-                new List<QualifiedName>(),
-                new List<QualifiedName>());
+                new QualifiedNameMatchDictionary<string>(keys.ToDictionary(x => x.Key.Split('.').ToQualifiedName(), x => x.Value)),
+                new QualifiedNameMatchList(arrays
+                    .Select(x => x.Split('.').ToQualifiedName())),
+                new QualifiedNameMatchList(),
+                Mock.Of<ILogger<XmlFormatter>>());
 
         [Test]
         public async Task ShouldFormatSimpleXml()
@@ -78,9 +79,9 @@ namespace Namespace2Xml.Tests
         }
 
         [Test]
-        public async Task ShouldFormatHiddenKeys()
+        public async Task ShouldFormatArrays()
         {
-            hiddenKeys.Add("a");
+            arrays.Add("a");
 
             await CreateFormatter().Write(
                 Helpers.ToTree(new { a = new { b = new { x = "11" } } }),

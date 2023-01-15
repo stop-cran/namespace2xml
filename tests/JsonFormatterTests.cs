@@ -1,4 +1,6 @@
-﻿using Namespace2Xml.Formatters;
+﻿using Microsoft.Extensions.Logging;
+using Moq;
+using Namespace2Xml.Formatters;
 using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using NUnit.Framework;
@@ -13,25 +15,23 @@ namespace Namespace2Xml.Tests
 {
     public class JsonFormatterTests
     {
-        private List<QualifiedName> csvArrays;
-        private List<QualifiedName> strings;
+        private QualifiedNameMatchList strings;
         private MemoryStream stream;
 
         [SetUp]
         public void Setup()
         {
-            csvArrays = new List<QualifiedName>();
-            strings = new List<QualifiedName>();
+            strings = new QualifiedNameMatchList();
             stream = new MemoryStream();
         }
 
         private JsonFormatter CreateFormatter() => new JsonFormatter(
                 () => stream,
                 new string[0],
-                new Dictionary<QualifiedName, string>(),
-                new List<QualifiedName>(),
-                csvArrays,
-                strings);
+                new QualifiedNameMatchDictionary<string>(),
+                new QualifiedNameMatchList(),
+                strings,
+                Mock.Of<ILogger<JsonFormatter>>());
 
         [Test]
         public async Task ShouldFormatSimpleJson()
@@ -61,17 +61,6 @@ namespace Namespace2Xml.Tests
                 Helpers.ToTree(new { a = new { x = "1" } }), default);
 
             CheckJson("{\"x\":\"1\"}");
-        }
-
-        [Test]
-        public async Task ShouldFormatCsvArray()
-        {
-            csvArrays.Add(new[] { "a", "x" }.ToQualifiedName());
-
-            await CreateFormatter().Write(
-                Helpers.ToTree(new { a = new { x = "1,2,3" } }), default);
-
-            CheckJson("{\"x\":[1,2,3]}");
         }
 
         private void CheckJson(string expectedXml) =>

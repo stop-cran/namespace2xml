@@ -1,4 +1,5 @@
-﻿using Moq;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using Namespace2Xml.Formatters;
 using Namespace2Xml.Scheme;
 using NUnit.Framework;
@@ -8,7 +9,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using Unity;
 
 namespace Namespace2Xml.Tests
 {
@@ -35,9 +35,9 @@ namespace Namespace2Xml.Tests
                 .Setup(f => f.CreateOutputStream("a.yml", It.IsAny<OutputType>()))
                 .Returns(output);
 
-            Program.Container
-                .RegisterType<IProfileReader, ProfileReader>()
-                .RegisterInstance(streamFactory.Object);
+            Program.ServiceOverrides = serviceCollection =>
+                serviceCollection.AddTransient<IProfileReader, ProfileReader>()
+                .AddSingleton(streamFactory.Object);
         }
 
         [Test]
@@ -77,15 +77,14 @@ namespace Namespace2Xml.Tests
             reader.Setup(r => r.ReadFiles(It.IsAny<IEnumerable<string>>(), default))
                 .Throws<TestException>();
 
-            Program.Container.RegisterInstance(reader.Object);
+            Program.ServiceOverrides = serviceCollection => serviceCollection.AddSingleton(reader.Object);
 
-            var exitCode = await Program.Main(new[]
+            await Program.Main(new[]
             {
                 "-i", "input.properties",
                 "-s", "scheme.properties"
-            });
+            }).ShouldThrowAsync<TestException>();
 
-            exitCode.ShouldBe(1);
             output.Length.ShouldBe(0);
         }
 

@@ -1,9 +1,9 @@
-﻿using Namespace2Xml.Formatters;
-using Namespace2Xml.Semantics;
+﻿using Microsoft.Extensions.Logging;
+using Moq;
+using Namespace2Xml.Formatters;
 using Namespace2Xml.Syntax;
 using NUnit.Framework;
 using Shouldly;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -27,10 +27,10 @@ namespace Namespace2Xml.Tests
             new YamlFormatter(
                 () => stream,
                 new string[0],
-                new Dictionary<QualifiedName, string>(),
-                new List<QualifiedName>(),
-                new List<QualifiedName>(),
-                strings);
+                new QualifiedNameMatchDictionary<string>(),
+                new QualifiedNameMatchList(),
+                new QualifiedNameMatchList(strings),
+                Mock.Of<ILogger<YamlFormatter>>());
 
         [Test]
         [TestCase("1", "1")]

@@ -1,6 +1,7 @@
-﻿using log4net;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
+using Microsoft.Extensions.Options;
 using Moq;
-using Namespace2Xml;
 using Namespace2Xml.Formatters;
 using Namespace2Xml.Scheme;
 using Namespace2Xml.Semantics;
@@ -20,7 +21,7 @@ namespace Namespace2Xml.Tests
         private Mock<IProfileReader> profileReader;
         private Mock<ITreeBuilder> treeBuilder;
         private Mock<IFormatterBuilder> formatterBuilder;
-        private Mock<ILog> logger;
+        private LoggerFactory loggerFactory;
         private MemoryStream output;
 
         [SetUp]
@@ -31,7 +32,7 @@ namespace Namespace2Xml.Tests
             streamFactory = new Mock<IStreamFactory>();
             treeBuilder = new Mock<ITreeBuilder>();
             formatterBuilder = new Mock<IFormatterBuilder>();
-            logger = new Mock<ILog>();
+            loggerFactory = new LoggerFactory();
 
             profileReader.Setup(r => r.ReadFiles(new[] { "input" }, default))
                 .Returns(Task.FromResult<IReadOnlyList<IProfileEntry>>(new[]
@@ -57,6 +58,8 @@ namespace Namespace2Xml.Tests
             streamFactory
                 .Setup(f => f.CreateOutputStream("a.yml", It.IsAny<OutputType>()))
                 .Returns(output);
+
+            loggerFactory.AddProvider(new ConsoleLoggerProvider(Mock.Of<IOptionsMonitor<ConsoleLoggerOptions>>(f => f.CurrentValue == new ConsoleLoggerOptions())));
         }
 
         [Test]
@@ -64,9 +67,8 @@ namespace Namespace2Xml.Tests
         {
             await new CompositionRoot(
                 profileReader.Object,
-                new TreeBuilder(logger.Object),
-                new FormatterBuilder(streamFactory.Object, logger.Object),
-                logger.Object).Write(
+                new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>()),
+                new FormatterBuilder(streamFactory.Object, loggerFactory)).Write(
                 new Arguments(
                     new[] { "input" },
                     new[] { "scheme" },
@@ -94,9 +96,8 @@ namespace Namespace2Xml.Tests
 
             await new CompositionRoot(
                 profileReader.Object,
-                new TreeBuilder(logger.Object),
-                new FormatterBuilder(streamFactory.Object, logger.Object),
-                logger.Object).Write(
+                new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>()),
+                new FormatterBuilder(streamFactory.Object, loggerFactory)).Write(
                 new Arguments(
                     new[] { "input" },
                     new[] { "scheme" },

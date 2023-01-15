@@ -1,8 +1,11 @@
-﻿using Namespace2Xml.Formatters;
+﻿using Microsoft.Extensions.Logging;
+using Moq;
+using Namespace2Xml.Formatters;
 using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using NUnit.Framework;
 using Shouldly;
+using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,8 +23,9 @@ namespace Namespace2Xml.Tests
             stream = new MemoryStream();
             formatter = new NamespaceFormatter(
                 () => stream,
-                new string[0],
-                ".");
+                Array.Empty<string>(),
+                ".",
+                Mock.Of<ILogger<NamespaceFormatter>>());
         }
 
         [Test]

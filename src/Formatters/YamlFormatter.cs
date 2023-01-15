@@ -1,5 +1,5 @@
-﻿using Namespace2Xml.Semantics;
-using Namespace2Xml.Syntax;
+﻿using Microsoft.Extensions.Logging;
+using Namespace2Xml.Semantics;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,16 +17,16 @@ namespace Namespace2Xml.Formatters
         public YamlFormatter(
             Func<Stream> outputStreamFactory,
             [NullGuard.AllowNull] IReadOnlyList<string> outputPrefix,
-            IReadOnlyDictionary<QualifiedName, string> keys,
-            IReadOnlyList<QualifiedName> hiddenKeys,
-            IReadOnlyList<QualifiedName> csvArrays,
-            IReadOnlyList<QualifiedName> strings)
+            IQualifiedNameMatchDictionary<string> keys,
+            IQualifiedNameMatchList arrays,
+            IQualifiedNameMatchList strings,
+            ILogger<YamlFormatter> logger)
             : base(outputStreamFactory,
                   outputPrefix,
                   keys,
-                  hiddenKeys,
-                  csvArrays,
-                  strings)
+                  arrays,
+                  strings,
+                  logger)
         { }
 
         protected override async Task DoWrite(ProfileTree tree, Stream stream, CancellationToken cancellationToken)
@@ -35,12 +35,13 @@ namespace Namespace2Xml.Formatters
                 .WithEventEmitter(nextEmitter => new QuoteStringEventEmitter(nextEmitter))
                 .Build();
 
-            using (var writer = new StreamWriter(stream))
-                await writer.WriteAsync(
-                    serializer
-                        .Serialize(ToObject(tree, new string[0]))
-                        .ToCharArray(),
-                    cancellationToken);
+            using var writer = new StreamWriter(stream);
+
+            await writer.WriteAsync(
+                serializer
+                    .Serialize(ToObject(tree, new string[0]))
+                    .ToCharArray(),
+                cancellationToken);
         }
 
         private object ToObject(ProfileTree tree, string[] prefix)
@@ -49,36 +50,29 @@ namespace Namespace2Xml.Formatters
                                 .Concat(new[] { tree.NameString })
                                 .ToArray();
 
-            switch (tree)
+            return tree switch
             {
-                case ProfileTreeNode node:
-                    return hiddenKeys.Contains(newPrefix.ToQualifiedName())
-                        ? (object)node.Children.Select(
-                            child => ToObject(child, newPrefix)).ToArray()
-                        : node.Children.ToDictionary(
-                            child => child.NameString,
-                            child => ToObject(child, newPrefix));
-
-                case ProfileTreeLeaf leaf:
-                    return ToObjectValue(leaf.Value, newPrefix);
-
-                default:
-                    throw new NotSupportedException();
-            }
+                ProfileTreeNode node => arrays.IsMatch(newPrefix.ToQualifiedName())
+                                        ? node.Children.Select(
+                                            child => ToObject(child, newPrefix)).ToArray()
+                                        : node.Children.ToDictionary(
+                                            child => child.NameString,
+                                            child => ToObject(child, newPrefix)),
+                ProfileTreeLeaf leaf => ToObjectSingleValue(leaf.Value, newPrefix),
+                _ => throw new NotSupportedException(),
+            };
         }
-
-        private object ToObjectValue(string value, string[] prefix) =>
-            csvArrays.Contains(prefix.ToQualifiedName())
-                ? value
-                    .Split(',')
-                    .Select(part => ToObjectSingleValue(part, prefix))
-                    .ToArray()
-                : ToObjectSingleValue(value, prefix);
 
         private object ToObjectSingleValue(string value, string[] prefix)
         {
-            if (strings.Contains(prefix.ToQualifiedName()))
+            if (strings.IsMatch(prefix.ToQualifiedName()))
                 return value;
+
+            if (value == "[]")
+                return new string[0];
+
+            if (value == "{}")
+                return new Dictionary<string, string>();
 
             (var typedValue, var success) = TryParse(value);
 

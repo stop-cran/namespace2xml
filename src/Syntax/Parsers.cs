@@ -5,8 +5,9 @@ namespace Namespace2Xml.Syntax
 {
     public static class Parsers
     {
-        public static Parser<IEnumerable<IProfileEntry>> GetProfile(int fileNumber, string fileName)
+        public static Parser<NamePart> GetNamePartParser()
         {
+
             var nameChar = Parse.Char('\\')
                     .Then(_ => Parse.Chars("\\*.}"))
                     .Or(Parse.CharExcept("*.=}")
@@ -22,17 +23,22 @@ namespace Namespace2Xml.Syntax
                 .Return((INameToken)new SubstituteNameToken())
                 .Named("name substitute");
 
-            var namePart = substituteNameToken
+            return substituteNameToken
                 .Or(textNameToken)
                 .AtLeastOnce()
                 .Select(tokens => new NamePart(tokens))
                 .Named("name part");
+        }
 
-            var qualifiedName = namePart
+        public static Parser<QualifiedName> GetQualifiedNameParser() =>
+            GetNamePartParser()
                 .DelimitedBy(Parse.Char('.'))
                 .Select(parsedName => new QualifiedName(parsedName))
                 .Named("qualified name");
 
+        public static Parser<IEnumerable<IValueToken>> GetValueParser()
+        {
+            var qualifiedName = GetQualifiedNameParser();
             var textValueToken = Parse.CharExcept("*")
                 .Except(Parse.LineTerminator)
                 .Except(Parse.String("${"))
@@ -52,11 +58,17 @@ namespace Namespace2Xml.Syntax
                 .Return((IValueToken)new SubstituteValueToken())
                 .Named("* substitute value");
 
-            var value = referenceValueToken
+            return referenceValueToken
                 .Or(substituteValueToken)
                 .Or(textValueToken)
                 .Many()
                 .Named("value");
+        }
+
+        public static Parser<IEnumerable<IProfileEntry>> GetProfileParser(int fileNumber, string fileName)
+        {
+            var qualifiedName = GetQualifiedNameParser();
+            var value = GetValueParser();
 
             var comment = Parse.Char('#').Token()
                 .Then(_ => Parse.AnyChar
@@ -78,7 +90,7 @@ namespace Namespace2Xml.Syntax
                     (IProfileEntry)new Payload(
                         span.Value.parsedName,
                         span.Value.parsedValue,
-                        new SourceMark( fileNumber, fileName, span.Start.Line)));
+                        new SourceMark(fileNumber, fileName, span.Start.Line)));
 
             return comment
                 .Or(payloadSpan)

@@ -1,5 +1,6 @@
 ﻿using IniFileParser;
 using IniFileParser.Model;
+using Microsoft.Extensions.Logging;
 using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using System;
@@ -16,8 +17,8 @@ namespace Namespace2Xml.Formatters
         private readonly IReadOnlyList<string> outputPrefix;
         private readonly string delimiter;
 
-        public IniFormatter(Func<Stream> outputStreamFactory, IReadOnlyList<string> outputPrefix, string delimiter)
-            : base(outputStreamFactory)
+        public IniFormatter(Func<Stream> outputStreamFactory, IReadOnlyList<string> outputPrefix, string delimiter, ILogger<IniFormatter> logger)
+            : base(outputStreamFactory, logger)
         {
             this.outputPrefix = outputPrefix;
             this.delimiter = delimiter;
@@ -25,35 +26,33 @@ namespace Namespace2Xml.Formatters
 
         protected override async Task DoWrite(ProfileTree tree, Stream stream, CancellationToken cancellationToken)
         {
-            using (var memoryStream = new MemoryStream())
-            using (var writer = new StreamWriter(stream))
+            using var memoryStream = new MemoryStream();
+            using var writer = new StreamWriter(stream);
+            var parser = new IniStreamParser();
+            var data = new IniData();
+
+            foreach (var (prefix, leaf) in tree.GetLeafs())
             {
-                var parser = new IniStreamParser();
-                var data = new IniData();
+                var names = prefix.Parts
+                    .Select(part => part.Tokens.Cast<TextNameToken>().Single().Text)
+                    .Skip(1);
 
-                foreach (var (prefix, leaf) in tree.GetLeafs())
-                {
-                    var names = prefix.Parts
-                        .Select(part => part.Tokens.Cast<TextNameToken>().Single().Text)
-                        .Skip(1);
+                if (outputPrefix != null)
+                    names = outputPrefix.Concat(names);
 
-                    if (outputPrefix != null)
-                        names = outputPrefix.Concat(names);
+                if (delimiter == ".")
+                    names = names.Select(name => name.Replace(".", "\\."));
 
-                    if (delimiter == ".")
-                        names = names.Select(name => name.Replace(".", "\\."));
-
-                    data[names.First()][string.Join(delimiter, names.Skip(1))] = leaf.Value;
-                }
-
-                parser.WriteData(writer, data);
-
-                await writer.FlushAsync();
-
-                memoryStream.Seek(0, SeekOrigin.Begin);
-
-                await memoryStream.CopyToAsync(stream);
+                data[names.First()][string.Join(delimiter, names.Skip(1))] = leaf.Value;
             }
+
+            parser.WriteData(writer, data);
+
+            await writer.FlushAsync();
+
+            memoryStream.Seek(0, SeekOrigin.Begin);
+
+            await memoryStream.CopyToAsync(stream, cancellationToken);
         }
     }
 }

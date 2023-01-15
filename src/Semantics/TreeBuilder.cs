@@ -1,4 +1,4 @@
-﻿using log4net;
+﻿using Microsoft.Extensions.Logging;
 using MoreLinq.Extensions;
 using Namespace2Xml.Scheme;
 using Namespace2Xml.Syntax;
@@ -10,16 +10,16 @@ namespace Namespace2Xml.Semantics
 {
     public class TreeBuilder : ITreeBuilder
     {
-        private readonly ILog logger;
+        private readonly ILogger<TreeBuilder> logger;
 
-        public TreeBuilder(ILog logger)
+        public TreeBuilder(ILogger<TreeBuilder> logger)
         {
             this.logger = logger;
         }
 
         public IEnumerable<ProfileTree> Build(
             IEnumerable<IProfileEntry> entries,
-            IReadOnlyDictionary<QualifiedName, SubstituteType> substituteTypes) =>
+            IQualifiedNameMatchDictionary<SubstituteType> substituteTypes) =>
             ToTree(
                 PrependComments(
                     ConcatTextTokensStrict(
@@ -29,7 +29,7 @@ namespace Namespace2Xml.Semantics
                                     ConcatTextTokens(
                                         FlattenUnmatchedRightSubstitutes(
                                             ApplySubstitutes(
-                                                TreatSubstitutesAsText(entries, substituteTypes))))))).ToList())),
+                                                TreatSubstitutesAsText(entries, substituteTypes).ToList()).ToList()).ToList()).ToList()).ToList()).ToList()).ToList())),
                 new QualifiedName(Array.Empty<NamePart>()));
 
         private IEnumerable<IProfileEntry> ConcatTextTokensStrict(IEnumerable<IProfileEntry> entries) =>
@@ -38,12 +38,15 @@ namespace Namespace2Xml.Semantics
         private IEnumerable<IProfileEntry> ConcatTextTokens(IEnumerable<IProfileEntry> entries) =>
             entries.Select(entry => entry is Payload payload ? payload.ConcatTextTokens() : entry);
 
+        private IEnumerable<IProfileEntry> ConcatTextTokensScheme(IEnumerable<IProfileEntry> entries) =>
+            entries.Select(entry => entry is Payload payload && ShouldApplySchemeSubstitute(payload) ? payload.ConcatTextTokens() : entry);
+
         private IEnumerable<IProfileEntry> TreatSubstitutesAsText(
             IEnumerable<IProfileEntry> entries,
-            IReadOnlyDictionary<QualifiedName, SubstituteType> substituteTypes) =>
+            IQualifiedNameMatchDictionary<SubstituteType> substituteTypes) =>
             from entry in entries
             select entry is Payload payload
-                ? substituteTypes.TryGetValue(payload.Name, out var substitute)
+                ? substituteTypes.TryMatch(payload.Name, out var substitute)
                 ? new Payload(
                     (substitute & SubstituteType.Key) == SubstituteType.None
                     ? new QualifiedName(payload.Name.Parts.Select(part =>
@@ -61,21 +64,39 @@ namespace Namespace2Xml.Semantics
         public IEnumerable<SchemeNode> BuildScheme(IEnumerable<IProfileEntry> enties, IEnumerable<QualifiedName> profileNames) =>
             ToTree(
                 PrependComments(
-                    ConcatTextTokensStrict(
+                    ConcatTextTokensScheme(
                         ApplyReferences(
                             ApplyOverrides(
                                 RemoveUnmatchedReferenceSubstitutes(
-                                    ConcatTextTokens(
+                                    ConcatTextTokensScheme(
                                         ApplySchemeSubstitutes(
                                             enties, profileNames.ToList().AsReadOnly()))))))),
                 new QualifiedName(Array.Empty<NamePart>()))
             .Select(ToScheme)
             .Cast<SchemeNode>();
 
+        private bool ShouldApplySchemeSubstitute(Payload p)
+        {
+            if (!Enum.TryParse<EntryType>(p.Name.Parts.Last().ToString(), out var type))
+                return false;
+
+            switch (type)
+            {
+                case EntryType.root:
+                case EntryType.filename:
+                case EntryType.output:
+                case EntryType.delimiter:
+                case EntryType.xmloptions:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         private IEnumerable<IProfileEntry> ApplySchemeSubstitutes(IEnumerable<IProfileEntry> entries, IReadOnlyList<QualifiedName> profileNames) =>
-            entries.SelectMany(entry => entry is Payload p ? ApplySchemeSubstitutes(p, profileNames) : new[] { entry })
-                .Where(entry => !(entry is Payload p &&
-                    p.GetNameSubstitutesCount() + p.GetValueSubstitutesCount() + p.GetValueRefSubstitutesCount() > 0));
+            entries.SelectMany(entry => entry is Payload p && ShouldApplySchemeSubstitute(p) ? ApplySchemeSubstitutes(p, profileNames) : new[] { entry })
+                .Where(entry => !(entry is Payload p) || !ShouldApplySchemeSubstitute(p) ||
+                    p.GetNameSubstitutesCount() + p.GetValueSubstitutesCount() + p.GetValueRefSubstitutesCount() == 0);
 
         private IEnumerable<IProfileEntry> ApplySchemeSubstitutes(Payload p, IReadOnlyList<QualifiedName> profileNames)
         {
@@ -188,13 +209,10 @@ namespace Namespace2Xml.Semantics
                     case Payload payload:
                         if (visitedNames.TryGetValue(payload.Name, out var tuple))
                         {
-                            logger.Debug(new
-                            {
-                                message = "Entry has been overridden",
-                                name = payload.Name,
-                                fileName = tuple.FileName,
-                                line = tuple.LineNumber
-                            });
+                            logger.LogDebug("Entry has been overridden, name: {0}, file: {1}, line: {2}",
+                                payload.Name,
+                                tuple.FileName,
+                                tuple.LineNumber);
                         }
                         else
                         {
@@ -229,7 +247,8 @@ namespace Namespace2Xml.Semantics
 
         private IEnumerable<IProfileEntry> RemoveUnmatchedReferenceSubstitutes(IEnumerable<IProfileEntry> entries)
         {
-            var keys = new HashSet<QualifiedName>(entries.OfType<Payload>().Select(entry => entry.Name));
+            var names = entries.OfType<Payload>().Select(entry => entry.Name).ToList();
+            var keys = new HashSet<QualifiedName>(names);
 
             return entries.Where(entry =>
             {
@@ -240,14 +259,11 @@ namespace Namespace2Xml.Semantics
                     .All(reference => keys.Contains(reference.Name)))
                     return true;
 
-                logger.Debug(new
-                {
-                    message = "Substitute skipped",
-                    patternName = payload.Name,
-                    patternValue = payload.ValueToString(),
-                    fileName = payload.SourceMark.FileName,
-                    line = payload.SourceMark.LineNumber
-                });
+                logger.LogDebug("Substitute skipped, name: {0}, value: {1}, file: {2}, line: {3}",
+                    payload.Name,
+                    payload.ValueToString(),
+                    payload.SourceMark.FileName,
+                    payload.SourceMark.LineNumber);
 
                 return false;
             });
@@ -318,13 +334,11 @@ namespace Namespace2Xml.Semantics
                             .Reverse())
                             if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                             {
-                                logger.Debug(new
-                                {
-                                    message = "Substitute one-to-one by references",
-                                    patternName = tuple.pattern.Name,
-                                    fileName = tuple.pattern.SourceMark,
-                                    matches = pair.MatchInfo,
-                                });
+                                logger.LogDebug("Substitute one-to-one by references, name: {0}, file: {1}, line: {2}, matches: {3}",
+                                    tuple.pattern.Name,
+                                    tuple.pattern.SourceMark.FileName,
+                                    tuple.pattern.SourceMark.LineNumber,
+                                    pair.MatchInfo);
                                 hasSubstitutes = true;
                             }
 
@@ -341,14 +355,11 @@ namespace Namespace2Xml.Semantics
                         .Reverse())
                         if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                         {
-                            logger.Debug(new
-                            {
-                                message = "Substitute one-to-one by name",
-                                patternName = tuple.pattern.Name,
-                                fileName = tuple.pattern.SourceMark.FileName,
-                                line = tuple.pattern.SourceMark.LineNumber,
-                                matches = pair.MatchInfo,
-                            });
+                            logger.LogDebug("Substitute one-to-one by name: {0}, file: {1}, line: {2}, matches: {3}",
+                                tuple.pattern.Name,
+                                tuple.pattern.SourceMark.FileName,
+                                tuple.pattern.SourceMark.LineNumber,
+                                pair.MatchInfo);
                             hasSubstitutes = true;
                         }
                 }
@@ -377,41 +388,35 @@ namespace Namespace2Xml.Semantics
                             .Reverse())
                             if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                             {
-                                logger.Debug(new
-                                {
-                                    message = "Substitute many-to-one by references",
-                                    patternName = tuple.pattern.Name,
-                                    fileName = tuple.pattern.SourceMark.FileName,
-                                    line = tuple.pattern.SourceMark.LineNumber,
-                                    matches = pair.MatchInfo,
-                                });
+                                logger.LogDebug("Substitute many-to-one by references, name: {0}, file: {1}, line: {2}, matches: {3}",
+                                    tuple.pattern.Name,
+                                    tuple.pattern.SourceMark.FileName,
+                                    tuple.pattern.SourceMark.LineNumber,
+                                    pair.MatchInfo);
                                 hasSubstitutes = true;
                             }
 
                     foreach (var pair in (from p in entries.ToList().GetLeftMatches(tuple.pattern)
-                                         where p.Match
-                                            .Batch(valCnt)
-                                            .SequenceDistinct()
-                                            .Count() == 1
-                                         select new
-                                         {
-                                             MatchedPayload = new Payload(
-                                                 tuple.pattern.Name.ApplyFullMatch(p.Match),
-                                                 tuple.pattern.Value.ApplyFullMatch(p.Match.Take(valCnt).ToList()),
-                                                 tuple.pattern.SourceMark,
-                                                 true),
-                                             MatchInfo = p.Payload.GetSummary()
-                                         }).Reverse())
+                                          where p.Match
+                                             .Batch(valCnt)
+                                             .SequenceDistinct()
+                                             .Count() == 1
+                                          select new
+                                          {
+                                              MatchedPayload = new Payload(
+                                                  tuple.pattern.Name.ApplyFullMatch(p.Match),
+                                                  tuple.pattern.Value.ApplyFullMatch(p.Match.Take(valCnt).ToList()),
+                                                  tuple.pattern.SourceMark,
+                                                  true),
+                                              MatchInfo = p.Payload.GetSummary()
+                                          }).Reverse())
                         if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                         {
-                            logger.Debug(new
-                            {
-                                message = "Substitute many-to-one by name",
-                                patternName = tuple.pattern.Name,
-                                fileName = tuple.pattern.SourceMark.FileName,
-                                line = tuple.pattern.SourceMark.LineNumber,
-                                matches = pair.MatchInfo,
-                            });
+                            logger.LogDebug("Substitute many-to-one by name, name: {0}, file: {1}, line: {2}, matches: {3}",
+                                tuple.pattern.Name,
+                                tuple.pattern.SourceMark.FileName,
+                                tuple.pattern.SourceMark.LineNumber,
+                                pair.MatchInfo);
                             hasSubstitutes = true;
                         }
                 }
@@ -422,32 +427,29 @@ namespace Namespace2Xml.Semantics
                     if (tuple.valueSubstituteCount == 0)
                         foreach (var pair in (from matches in tuple.pattern.Value
                                                 .GetFullMatchesByReferences(entries.ToList())
-                                             where matches
-                                                 .Select(match => match.Match)
-                                                 .SequenceDistinct()
-                                                 .Count() == 1
-                                             select new
-                                             {
-                                                 MatchedPayload = new Payload(
-                                                     tuple.pattern.Name
-                                                         .ApplyFullMatch(matches.First().Match),
-                                                     tuple.pattern.Value
-                                                         .ApplyFullReferenceMatch(matches
-                                                             .Select(x => x.Payload.Name)
-                                                             .ToList()),
-                                                  tuple.pattern.SourceMark),
-                                                 MatchInfo = matches.GetMatchSummary()
-                                             }).Reverse())
+                                              where matches
+                                                  .Select(match => match.Match)
+                                                  .SequenceDistinct()
+                                                  .Count() == 1
+                                              select new
+                                              {
+                                                  MatchedPayload = new Payload(
+                                                      tuple.pattern.Name
+                                                          .ApplyFullMatch(matches.First().Match),
+                                                      tuple.pattern.Value
+                                                          .ApplyFullReferenceMatch(matches
+                                                              .Select(x => x.Payload.Name)
+                                                              .ToList()),
+                                                   tuple.pattern.SourceMark),
+                                                  MatchInfo = matches.GetMatchSummary()
+                                              }).Reverse())
                             if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                             {
-                                logger.Debug(new
-                                {
-                                    message = "Substitute one-to-many by references",
-                                    patternName = tuple.pattern.Name,
-                                    fileName = tuple.pattern.SourceMark.FileName,
-                                    line = tuple.pattern.SourceMark.LineNumber,
-                                    matches = pair.MatchInfo,
-                                });
+                                logger.LogDebug("Substitute one-to-many by references, name: {0}, file: {1}, line: {2}, matches: {3}",
+                                    tuple.pattern.Name,
+                                    tuple.pattern.SourceMark.FileName,
+                                    tuple.pattern.SourceMark.LineNumber,
+                                    pair.MatchInfo);
                                 hasSubstitutes = true;
                             }
 
@@ -467,14 +469,11 @@ namespace Namespace2Xml.Semantics
                         .Reverse())
                         if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                         {
-                            logger.Debug(new
-                            {
-                                message = "Substitute one-to-many by name",
-                                patternName = tuple.pattern.Name,
-                                fileName = tuple.pattern.SourceMark.FileName,
-                                line = tuple.pattern.SourceMark.LineNumber,
-                                matches = pair.MatchInfo,
-                            });
+                            logger.LogDebug("Substitute one-to-many by name, name: {0}, file: {1}, line: {2}, matches: {3}",
+                                tuple.pattern.Name,
+                                tuple.pattern.SourceMark.FileName,
+                                tuple.pattern.SourceMark.LineNumber,
+                                pair.MatchInfo);
                             hasSubstitutes = true;
                         }
                 }
@@ -556,7 +555,7 @@ namespace Namespace2Xml.Semantics
                     default:
                         throw new NotSupportedException($"An entry {entry} has unsupported type {entry.GetType()}.");
                 }
-            });
+            }).ToList();
         }
 
         private IEnumerable<TextValueToken> ApplyReferences(

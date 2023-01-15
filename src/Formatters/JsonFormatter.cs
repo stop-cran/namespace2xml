@@ -1,4 +1,5 @@
-﻿using Namespace2Xml.Semantics;
+﻿using Microsoft.Extensions.Logging;
+using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -16,27 +17,27 @@ namespace Namespace2Xml.Formatters
         public JsonFormatter(
             Func<Stream> outputStreamFactory,
             [NullGuard.AllowNull] IReadOnlyList<string> outputPrefix,
-            IReadOnlyDictionary<QualifiedName, string> keys,
-            IReadOnlyList<QualifiedName> hiddenKeys,
-            IReadOnlyList<QualifiedName> csvArrays,
-            IReadOnlyList<QualifiedName> strings)
+            IQualifiedNameMatchDictionary<string> keys,
+            IQualifiedNameMatchList arrays,
+            IQualifiedNameMatchList strings,
+            ILogger<JsonFormatter> logger)
             : base(outputStreamFactory,
                   outputPrefix,
                   keys,
-                  hiddenKeys,
-                  csvArrays,
-                  strings)
+                  arrays,
+                  strings,
+                  logger)
         { }
 
         protected override async Task DoWrite(ProfileTree tree, Stream stream, CancellationToken cancellationToken)
         {
-            using (var writer = new StreamWriter(stream))
-            using (var jsonWriter = new JsonTextWriter(writer)
+            using var writer = new StreamWriter(stream);
+            using var jsonWriter = new JsonTextWriter(writer)
             {
                 Formatting = Formatting.Indented
-            })
-                await ToJson(tree, new string[0])
-                    .WriteToAsync(jsonWriter);
+            };
+            await ToJson(tree, Array.Empty<string>())
+                .WriteToAsync(jsonWriter);
         }
 
         private JToken ToJson(ProfileTree tree, string[] prefix)
@@ -48,7 +49,7 @@ namespace Namespace2Xml.Formatters
             switch (tree)
             {
                 case ProfileTreeNode node:
-                    return hiddenKeys.Contains(newPrefix.ToQualifiedName())
+                    return arrays.IsMatch(newPrefix.ToQualifiedName())
                         ? (JToken)new JArray(node.Children
                         .Select(child =>
                                 ToJson(
@@ -64,25 +65,23 @@ namespace Namespace2Xml.Formatters
                         .ToArray());
 
                 case ProfileTreeLeaf leaf:
-                    return ToJsonValue(leaf.Value, newPrefix);
+                    return ToJsonSingleValue(leaf.Value, newPrefix);
 
                 default:
                     throw new NotSupportedException();
             }
         }
 
-        private JToken ToJsonValue(string value, string[] prefix)
-        {
-            if (csvArrays.Contains(prefix.ToQualifiedName()))
-                return new JArray(value.Split(',').Select(part => ToJsonSingleValue(part, prefix)));
-
-            return ToJsonSingleValue(value, prefix);
-        }
-
         private JToken ToJsonSingleValue(string value, string[] prefix)
         {
-            if (strings.Contains(prefix.ToQualifiedName()))
+            if (strings.IsMatch(prefix.ToQualifiedName()))
                 return new JValue(value);
+
+            if (value == "[]")
+                return new JArray();
+
+            if (value == "{}")
+                return new JObject();
 
             (var typedValue, var success) = TryParse(value);
 

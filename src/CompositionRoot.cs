@@ -1,5 +1,4 @@
-﻿using log4net;
-using Namespace2Xml.Formatters;
+﻿using Namespace2Xml.Formatters;
 using Namespace2Xml.Scheme;
 using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
@@ -15,18 +14,15 @@ namespace Namespace2Xml
         private readonly IProfileReader profileReader;
         private readonly ITreeBuilder treeBuilder;
         private readonly IFormatterBuilder formatterBuilder;
-        private readonly ILog logger;
 
         public CompositionRoot(
             IProfileReader profileReader,
             ITreeBuilder treeBuilder,
-            IFormatterBuilder formatterBuilder,
-            ILog logger)
+            IFormatterBuilder formatterBuilder)
         {
             this.profileReader = profileReader;
             this.treeBuilder = treeBuilder;
             this.formatterBuilder = formatterBuilder;
-            this.logger = logger;
         }
 
         public async Task Write(Arguments arguments, CancellationToken cancellationToken)
@@ -39,11 +35,12 @@ namespace Namespace2Xml
                         .Distinct()
                         .ToList();
 
+            // RK TODO: armTemplates.*.resources.type=array
             await Task.WhenAll(
                 from scheme in treeBuilder.BuildScheme(schemes, usedNames).AsParallel()
                 from tree in treeBuilder.Build(input, scheme.GetSubstituteTypes())
                 from alteredScheme in treeBuilder.BuildScheme(
-                    scheme.WithImplicitHiddenKeys(tree),
+                    scheme.WithImplicitArrays(tree),
                     usedNames)
                 from pair in formatterBuilder.Build(alteredScheme)
                 from subTree in tree.GetSubTrees(pair.prefix) // RK TODO: Logging if no suitable subtrees.

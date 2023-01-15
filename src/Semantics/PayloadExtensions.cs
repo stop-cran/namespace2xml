@@ -54,7 +54,10 @@ namespace Namespace2Xml.Semantics
                         texts = new List<string>();
                     }
 
-                    yield return token;
+                    if (token is ReferenceValueToken reference && reference.Name.Parts.Any(p => p.Tokens.Count > 1))
+                        yield return new ReferenceValueToken(new QualifiedName(reference.Name.Parts.Select(ConcatTextTokensStrict)));
+                    else
+                        yield return token;
                 }
 
             if (texts.Count > 0)
@@ -112,6 +115,12 @@ namespace Namespace2Xml.Semantics
 
         public static FormattableString GetSummary(this Payload payload) =>
             $"name: {payload.Name}, file: {payload.SourceMark.FileName}, line: {payload.SourceMark.LineNumber}";
+
+        public static bool IsTextOnly(this NamePart namePart) =>
+            namePart.Tokens.All(token => token is TextNameToken);
+
+        public static bool IsTextOnly(this QualifiedName qualifiedName) =>
+            qualifiedName.Parts.All(part => part.IsTextOnly());
 
         public static QualifiedName ApplyFullMatch(this QualifiedName name, IReadOnlyList<string> match)
         {
@@ -174,27 +183,25 @@ namespace Namespace2Xml.Semantics
 
         public static IReadOnlyList<IValueToken> ApplyFullReferenceMatch(this IReadOnlyList<IValueToken> value, IReadOnlyList<QualifiedName> referenceMatch)
         {
-            using (var enumerator = referenceMatch.GetEnumerator())
+            using var enumerator = referenceMatch.GetEnumerator();
+            var result = value.Select(token =>
             {
-                var result = value.Select(token =>
+                if (token is ReferenceValueToken reference)
                 {
-                    if (token is ReferenceValueToken reference)
-                    {
-                        if (!enumerator.MoveNext())
-                            throw new ArgumentException($"Match count too small at {string.Join("", value)}: {string.Join(", ", referenceMatch)}.");
-                        if (enumerator.Current.Parts.GetFullMatch(reference.Name.Parts) == null)
-                            throw new ArgumentException($"{enumerator.Current} does not match {reference.Name}.");
-                        return new ReferenceValueToken(enumerator.Current);
-                    }
+                    if (!enumerator.MoveNext())
+                        throw new ArgumentException($"Match count too small at {string.Join("", value)}: {string.Join(", ", referenceMatch)}.");
+                    if (enumerator.Current.Parts.GetFullMatch(reference.Name.Parts) == null)
+                        throw new ArgumentException($"{enumerator.Current} does not match {reference.Name}.");
+                    return new ReferenceValueToken(enumerator.Current);
+                }
 
-                    return token;
-                }).ToList();
+                return token;
+            }).ToList();
 
-                if (enumerator.MoveNext())
-                    throw new ArgumentException($"Match count too big at {string.Join("", value)}: {string.Join(", ", referenceMatch)}.");
+            if (enumerator.MoveNext())
+                throw new ArgumentException($"Match count too big at {string.Join("", value)}: {string.Join(", ", referenceMatch)}.");
 
-                return result;
-            }
+            return result;
         }
 
         [return: NullGuard.AllowNull]

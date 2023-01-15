@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Namespace2Xml.Syntax
 {
-    [Equals]
+    [Equals(DoNotAddEqualityOperators = true)]
     public sealed class QualifiedName
     {
         public QualifiedName(IEnumerable<NamePart> parts)
