@@ -8,6 +8,7 @@ using Shouldly;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -25,11 +26,11 @@ namespace Namespace2Xml.Tests
             stream = new MemoryStream();
         }
 
-        private JsonFormatter CreateFormatter() => new JsonFormatter(
+        private JsonFormatter CreateFormatter(params string[] arrays) => new JsonFormatter(
                 () => stream,
                 new string[0],
                 new QualifiedNameMatchDictionary<string>(),
-                new QualifiedNameMatchList(),
+                new QualifiedNameMatchList(arrays.Select(a => a.Split('.').ToQualifiedName())),
                 strings,
                 Mock.Of<ILogger<JsonFormatter>>());
 
@@ -44,12 +45,26 @@ namespace Namespace2Xml.Tests
         }
 
         [Test]
-        public async Task ShouldFormatString()
+        [TestCase("y", "{\"x\":\"y\"}")]
+        [TestCase("{}", "{\"x\":{}}")]
+        [TestCase("{}", "{\"x\":{}}")]
+        [TestCase("[]", "{\"x\":[]}")]
+        [TestCase("null", "{\"x\":null}")]
+        public async Task ShouldFormatString(string y, string expected)
         {
             await CreateFormatter().Write(
-                Helpers.ToTree(new { a = new { x = "y" } }), default);
+                Helpers.ToTree(new { a = new { x = y } }), default);
 
-            CheckJson("{\"x\":\"y\"}");
+            CheckJson(expected);
+        }
+
+        [Test]
+        public async Task ShouldFormatArray()
+        {
+            await CreateFormatter("a.x").Write(
+                Helpers.ToTree(new { a = new { x = new[] { "a", "b", "c" } } }), default);
+
+            CheckJson("{\"x\":[\"a\",\"b\",\"c\"]}");
         }
 
         [Test]

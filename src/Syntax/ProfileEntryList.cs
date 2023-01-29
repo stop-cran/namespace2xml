@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Namespace2Xml.Syntax
 {
-    public sealed class ProfileEntryList : IList<IProfileEntry>
+    public sealed class ProfileEntryList : IReadOnlyList<IProfileEntry>
     {
         private readonly List<IProfileEntry> content;
         private readonly Dictionary<QualifiedName, List<Payload>> payloadsByName;
@@ -21,30 +21,10 @@ namespace Namespace2Xml.Syntax
 
         public int Count => content.Count;
 
-        public bool IsReadOnly => false;
-
-        public void Add(IProfileEntry item)
-        {
-            content.Add(item);
-            if (item is Payload p)
-                if (payloadsByName.TryGetValue(p.Name, out var l))
-                    l.Add(p);
-                else
-                    payloadsByName.Add(p.Name, new List<Payload> { p });
-        }
-
-        public void Clear()
-        {
-            content.Clear();
-            payloadsByName.Clear();
-        }
-
         public bool Contains(IProfileEntry item) => (!(item is Payload p) || payloadsByName.ContainsKey(p.Name)) && content.Contains(item);
 
         public bool ContainsPayload(Payload p) => payloadsByName.TryGetValue(p.Name, out var payload) &&
             payload.Any(pp => pp.Value.SequenceEqual(p.Value));
-
-        public void CopyTo(IProfileEntry[] array, int arrayIndex) => content.CopyTo(array, arrayIndex);
 
         public IEnumerator<IProfileEntry> GetEnumerator() => content.GetEnumerator();
 
@@ -59,10 +39,6 @@ namespace Namespace2Xml.Syntax
                 else
                     payloadsByName.Add(p.Name, new List<Payload> { p });
         }
-
-        public bool Remove(IProfileEntry item) => throw new NotImplementedException();
-
-        public void RemoveAt(int index) => throw new NotImplementedException();
 
         IEnumerator IEnumerable.GetEnumerator() => content.GetEnumerator();
     }

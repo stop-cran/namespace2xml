@@ -23,9 +23,18 @@ namespace Namespace2Xml.Tests
                 CreatePayload(name, s),
                 Enumerable.Empty<Comment>(),
                 QualifiedName.Empty)
+            : value is string[] ss
+            ? new ProfileTreeNode(
+                name.ToNamePart(),
+                ss.Select((p, i) => ToTree(i.ToString(), p)).ToList())
+            : value == null
+            ? (ProfileTree)new ProfileTreeLeaf(
+                CreatePayload(name, "null"),
+                Enumerable.Empty<Comment>(),
+                QualifiedName.Empty)
             : new ProfileTreeNode(
                 name.ToNamePart(),
-                value.GetType().GetProperties().Select(p => ToTree(p.Name, p.GetValue(value))));
+                value.GetType().GetProperties().Select(p => ToTree(p.Name, p.GetValue(value))).ToList());
 
         public static NamePart ToNamePart(this string name) =>
             new NamePart(new[] { new TextNameToken(name) });

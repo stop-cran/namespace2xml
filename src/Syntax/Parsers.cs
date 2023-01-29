@@ -9,9 +9,8 @@ namespace Namespace2Xml.Syntax
         {
 
             var nameChar = Parse.Char('\\')
-                    .Then(_ => Parse.Chars("\\*.}"))
-                    .Or(Parse.CharExcept("*.=}")
-                        .Except(Parse.LineTerminator));
+                .Or(Parse.CharExcept("*.=}")
+                    .Except(Parse.LineTerminator));
 
             var textNameToken = nameChar
                 .AtLeastOnce()

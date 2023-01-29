@@ -22,8 +22,10 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="7.0.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
-    <PackageReference Include="CommandLineParser" Version="2.8.0" />
-    <PackageReference Include="Equals.Fody" Version="4.0.2" />
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Equals.Fody" Version="4.0.2">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Fody" Version="6.6.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
@@ -31,37 +33,11 @@
     <PackageReference Include="IniFileParserStandard" Version="1.0.1" />
     <PackageReference Include="morelinq" Version="3.3.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
-    <PackageReference Include="NullGuard.Fody" Version="3.1.0" />
+	<PackageReference Include="NullGuard.Fody" Version="3.1.1">
+      <PrivateAssets>all</PrivateAssets>
+	</PackageReference>
     <PackageReference Include="Sprache" Version="2.3.1" />
     <PackageReference Include="YamlDotNet" Version="12.3.1" />
-    <Reference Include="netstandard" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Remove="launch-linux.sh" />
-  </ItemGroup>
-  
-  <ItemGroup>
-    <RpmDependency Include="libunwind" Version="1.1" />
-    <RpmDependency Include="libicu" Version="50.1.2" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'centos.7-x64'">
-    <Content Include="launch-centos.sh" CopyToPublishDirectory="PreserveNewest">
-      <LinuxPath>/usr/bin/$(MSBuildProjectName)</LinuxPath>
-    </Content>
-    <RpmDependency Include="rh-dotnet21" Version="2.1" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
-    <Content Include="launch-linux.sh" CopyToPublishDirectory="PreserveNewest">
-      <LinuxPath>/usr/bin/$(MSBuildProjectName)</LinuxPath>
-    </Content>
-    <RpmDependency Include="dotnet-sdk-2.1" Version="2.1" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <DotNetCliToolReference Include="dotnet-rpm" Version="0.1.1-*" />
   </ItemGroup>
 
 </Project>

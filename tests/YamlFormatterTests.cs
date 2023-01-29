@@ -36,10 +36,14 @@ namespace Namespace2Xml.Tests
         [TestCase("1", "1")]
         [TestCase("0.5", "0.5")]
         [TestCase("null", "")]
+        [TestCase(null, "")]
         [TestCase("true", "true")]
         [TestCase("00:05:36", "00:05:36")]
-        [TestCase("2018-01-19", "2018-01-19T00:00:00.0000000")]
-        public async Task ShouldFormatSimpleJson(string value, string expectedValue)
+        [TestCase("2018-01-19", "2018-01-19")]
+        [TestCase("01-02-2020", "01-02-2020")]
+        [TestCase("[]", "[]")]
+        [TestCase("{}", "{}")]
+        public async Task ShouldFormatValues(string value, string expectedValue)
         {
             await CreateFormatter().Write(
                 Helpers.ToTree(new { a = new { x = value } }),
