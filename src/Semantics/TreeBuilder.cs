@@ -19,29 +19,32 @@ namespace Namespace2Xml.Semantics
 
         public IEnumerable<ProfileTree> Build(
             IEnumerable<IProfileEntry> entries,
-            IQualifiedNameMatchDictionary<SubstituteType> substituteTypes) =>
-            ToTree(
-                PrependComments(
-                    ConcatTextTokensStrict(
-                        ApplyReferences(
-                            ApplyOverrides(
-                                RemoveUnmatchedReferenceSubstitutes(
-                                    ConcatTextTokens(
-                                        FlattenUnmatchedRightSubstitutes(
-                                            ApplySubstitutes(
-                                                TreatSubstitutesAsText(entries, substituteTypes).ToList()).ToList()).ToList()).ToList()).ToList()).ToList()).ToList())),
-                new QualifiedName(Array.Empty<NamePart>()));
+            IQualifiedNameMatchDictionary<SubstituteType> substituteTypes)
+        {
+            entries = TreatSubstitutesAsText(entries, substituteTypes).ToList();
+            entries = ApplySubstitutes(entries).ToList();
+            entries = FlattenUnmatchedRightSubstitutes(entries).ToList();
+            entries = ConcatTextTokens(entries).ToList();
+            entries = RemoveUnmatchedReferenceSubstitutes(entries).ToList();
+            entries = ApplyOverrides(entries).ToList();
+            entries = ApplyReferences(entries).ToList();
+            entries = ConcatTextTokensStrict(entries).ToList();
 
-        private IEnumerable<IProfileEntry> ConcatTextTokensStrict(IEnumerable<IProfileEntry> entries) =>
+            return ToTree(
+                PrependComments(entries).ToList(),
+                new QualifiedName(Array.Empty<NamePart>()));
+        }
+
+        private static IEnumerable<IProfileEntry> ConcatTextTokensStrict(IEnumerable<IProfileEntry> entries) =>
             entries.Select(entry => entry is Payload payload ? payload.ConcatTextTokensStrict() : entry);
 
-        private IEnumerable<IProfileEntry> ConcatTextTokens(IEnumerable<IProfileEntry> entries) =>
+        private static IEnumerable<IProfileEntry> ConcatTextTokens(IEnumerable<IProfileEntry> entries) =>
             entries.Select(entry => entry is Payload payload ? payload.ConcatTextTokens() : entry);
 
-        private IEnumerable<IProfileEntry> ConcatTextTokensScheme(IEnumerable<IProfileEntry> entries) =>
+        private static IEnumerable<IProfileEntry> ConcatTextTokensScheme(IEnumerable<IProfileEntry> entries) =>
             entries.Select(entry => entry is Payload payload && ShouldApplySchemeSubstitute(payload) ? payload.ConcatTextTokens() : entry);
 
-        private IEnumerable<IProfileEntry> TreatSubstitutesAsText(
+        private static IEnumerable<IProfileEntry> TreatSubstitutesAsText(
             IEnumerable<IProfileEntry> entries,
             IQualifiedNameMatchDictionary<SubstituteType> substituteTypes) =>
             from entry in entries
@@ -61,44 +64,36 @@ namespace Namespace2Xml.Semantics
                 : entry
                 : entry;
 
-        public IEnumerable<SchemeNode> BuildScheme(IEnumerable<IProfileEntry> enties, IEnumerable<QualifiedName> profileNames) =>
-            ToTree(
-                PrependComments(
-                    ConcatTextTokensScheme(
-                        ApplyReferences(
-                            ApplyOverrides(
-                                RemoveUnmatchedReferenceSubstitutes(
-                                    ConcatTextTokensScheme(
-                                        ApplySchemeSubstitutes(
-                                            enties, profileNames.ToList().AsReadOnly()))))))),
+        public IEnumerable<SchemeNode> BuildScheme(IEnumerable<IProfileEntry> entries, IEnumerable<QualifiedName> profileNames)
+        {
+            entries = ApplySchemeSubstitutes(entries, profileNames.ToList().AsReadOnly());
+            entries = ConcatTextTokensScheme(entries).ToList();
+            entries = RemoveUnmatchedReferenceSubstitutes(entries).ToList();
+            entries = ApplyOverrides(entries).ToList();
+            entries = ApplyReferences(entries).ToList();
+            entries = ConcatTextTokensScheme(entries).ToList();
+
+            return ToTree(
+                PrependComments(entries),
                 new QualifiedName(Array.Empty<NamePart>()))
             .Select(ToScheme)
             .Cast<SchemeNode>();
-
-        private bool ShouldApplySchemeSubstitute(Payload p)
-        {
-            if (!Enum.TryParse<EntryType>(p.Name.Parts.Last().ToString(), out var type))
-                return false;
-
-            switch (type)
-            {
-                case EntryType.root:
-                case EntryType.filename:
-                case EntryType.output:
-                case EntryType.delimiter:
-                case EntryType.xmloptions:
-                    return true;
-                default:
-                    return false;
-            }
         }
 
-        private IEnumerable<IProfileEntry> ApplySchemeSubstitutes(IEnumerable<IProfileEntry> entries, IReadOnlyList<QualifiedName> profileNames) =>
+        private static bool ShouldApplySchemeSubstitute(Payload p) =>
+            Enum.TryParse<EntryType>(p.Name.Parts.Last().ToString(), out var type) &&
+                type switch
+                {
+                    EntryType.root or EntryType.filename or EntryType.output or EntryType.delimiter or EntryType.xmloptions => true,
+                    _ => false,
+                };
+
+        private static IEnumerable<IProfileEntry> ApplySchemeSubstitutes(IEnumerable<IProfileEntry> entries, IReadOnlyList<QualifiedName> profileNames) =>
             entries.SelectMany(entry => entry is Payload p && ShouldApplySchemeSubstitute(p) ? ApplySchemeSubstitutes(p, profileNames) : new[] { entry })
-                .Where(entry => !(entry is Payload p) || !ShouldApplySchemeSubstitute(p) ||
+                .Where(entry => entry is not Payload p || !ShouldApplySchemeSubstitute(p) ||
                     p.GetNameSubstitutesCount() + p.GetValueSubstitutesCount() + p.GetValueRefSubstitutesCount() == 0);
 
-        private IEnumerable<IProfileEntry> ApplySchemeSubstitutes(Payload p, IReadOnlyList<QualifiedName> profileNames)
+        private static IEnumerable<IProfileEntry> ApplySchemeSubstitutes(Payload p, IReadOnlyList<QualifiedName> profileNames)
         {
             var nameSubCount = p.GetNameSubstitutesCount();
             var valueSubCount = p.GetValueSubstitutesCount() + p.GetValueRefSubstitutesCount();
@@ -154,22 +149,15 @@ namespace Namespace2Xml.Semantics
 
         private ISchemeEntry ToScheme(ProfileTree tree)
         {
-            switch (tree)
+            return tree switch
             {
-                case ProfileTreeLeaf leaf:
-                    return Enum.TryParse<EntryType>(leaf.NameString, out var type)
-                        ? (ISchemeEntry)new SchemeLeaf(type, leaf.Value, leaf.OriginalEntry)
-                        : new SchemeError($"Unsupported entry type: {leaf.NameString}.", leaf.SourceMark);
-
-                case ProfileTreeNode node:
-                    return new SchemeNode(node.Name, node.Children.Select(ToScheme));
-
-                case ProfileTreeError error:
-                    return new SchemeError(error.Error, error.SourceMark);
-
-                default:
-                    throw new NotSupportedException();
-            }
+                ProfileTreeLeaf leaf => Enum.TryParse<EntryType>(leaf.NameString, out var type)
+                                        ? (ISchemeEntry)new SchemeLeaf(type, leaf.Value, leaf.OriginalEntry)
+                                        : new SchemeError($"Unsupported entry type: {leaf.NameString}.", leaf.SourceMark),
+                ProfileTreeNode node => new SchemeNode(node.Name, node.Children.Select(ToScheme)),
+                ProfileTreeError error => new SchemeError(error.Error, error.SourceMark),
+                _ => throw new NotSupportedException(),
+            };
         }
 
         private IEnumerable<ProfileTree> ToTree(IEnumerable<(NamedProfileEntry payload, IReadOnlyList<Comment> leadingComments)> enties,
@@ -209,7 +197,7 @@ namespace Namespace2Xml.Semantics
                     case Payload payload:
                         if (visitedNames.TryGetValue(payload.Name, out var tuple))
                         {
-                            logger.LogDebug("Entry has been overridden, name: {0}, file: {1}, line: {2}",
+                            logger.LogDebug("Entry has been overridden, name: {name}, file: {fileName}, line: {lineNumber}",
                                 payload.Name,
                                 tuple.FileName,
                                 tuple.LineNumber);
@@ -231,7 +219,7 @@ namespace Namespace2Xml.Semantics
                 }
         }
 
-        private IEnumerable<IProfileEntry> FlattenUnmatchedRightSubstitutes(IEnumerable<IProfileEntry> entries) =>
+        private static IEnumerable<IProfileEntry> FlattenUnmatchedRightSubstitutes(IEnumerable<IProfileEntry> entries) =>
             from entry in entries
             let payload = entry as Payload
             select
@@ -252,14 +240,14 @@ namespace Namespace2Xml.Semantics
 
             return entries.Where(entry =>
             {
-                if (!(entry is Payload payload) || !payload.IgnoreMissingReferences)
+                if (entry is not Payload payload || !payload.IgnoreMissingReferences)
                     return true;
 
                 if (payload.Value.OfType<ReferenceValueToken>()
                     .All(reference => keys.Contains(reference.Name)))
                     return true;
 
-                logger.LogDebug("Substitute skipped, name: {0}, value: {1}, file: {2}, line: {3}",
+                logger.LogDebug("Substitute skipped, name: {name}, value: {value}, file: {file}, line: {line}",
                     payload.Name,
                     payload.ValueToString(),
                     payload.SourceMark.FileName,
@@ -275,7 +263,7 @@ namespace Namespace2Xml.Semantics
 
             while (ApplySubstitutesStep(entriesList)) ;
 
-            return entriesList.Where(entry => !(entry is Payload p) ||
+            return entriesList.Where(entry => entry is not Payload p ||
                 p.GetNameSubstitutesCount() == 0 &&
                 p.GetValueRefSubstitutesCount() == 0);
         }
@@ -334,7 +322,7 @@ namespace Namespace2Xml.Semantics
                             .Reverse())
                             if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                             {
-                                logger.LogDebug("Substitute one-to-one by references, name: {0}, file: {1}, line: {2}, matches: {3}",
+                                logger.LogDebug("Substitute one-to-one by references, name: {name}, file: {file}, line: {line}, matches: {matches}",
                                     tuple.pattern.Name,
                                     tuple.pattern.SourceMark.FileName,
                                     tuple.pattern.SourceMark.LineNumber,
@@ -355,7 +343,7 @@ namespace Namespace2Xml.Semantics
                         .Reverse())
                         if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                         {
-                            logger.LogDebug("Substitute one-to-one by name: {0}, file: {1}, line: {2}, matches: {3}",
+                            logger.LogDebug("Substitute one-to-one by name: {name}, file: {file}, line: {line}, matches: {matches}",
                                 tuple.pattern.Name,
                                 tuple.pattern.SourceMark.FileName,
                                 tuple.pattern.SourceMark.LineNumber,
@@ -363,8 +351,7 @@ namespace Namespace2Xml.Semantics
                             hasSubstitutes = true;
                         }
                 }
-                else if (nameCnt > valCnt &&
-                    nameCnt % valCnt == 0)
+                else if (nameCnt > valCnt && nameCnt % valCnt == 0)
                 {
                     if (tuple.valueSubstituteCount == 0)
                         foreach (var pair in tuple.pattern.Value
@@ -388,7 +375,7 @@ namespace Namespace2Xml.Semantics
                             .Reverse())
                             if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                             {
-                                logger.LogDebug("Substitute many-to-one by references, name: {0}, file: {1}, line: {2}, matches: {3}",
+                                logger.LogDebug("Substitute many-to-one by references, name: {name}, file: {file}, line: {line}, matches: {matches}",
                                     tuple.pattern.Name,
                                     tuple.pattern.SourceMark.FileName,
                                     tuple.pattern.SourceMark.LineNumber,
@@ -412,7 +399,7 @@ namespace Namespace2Xml.Semantics
                                           }).Reverse())
                         if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                         {
-                            logger.LogDebug("Substitute many-to-one by name, name: {0}, file: {1}, line: {2}, matches: {3}",
+                            logger.LogDebug("Substitute many-to-one by name, name: {name}, file: {file}, line: {line}, matches: {matches}",
                                 tuple.pattern.Name,
                                 tuple.pattern.SourceMark.FileName,
                                 tuple.pattern.SourceMark.LineNumber,
@@ -420,9 +407,7 @@ namespace Namespace2Xml.Semantics
                             hasSubstitutes = true;
                         }
                 }
-                else if (nameCnt > 0 &&
-                    nameCnt < valCnt &&
-                    valCnt % nameCnt == 0)
+                else if (nameCnt > 0 && nameCnt < valCnt && valCnt % nameCnt == 0)
                 {
                     if (tuple.valueSubstituteCount == 0)
                         foreach (var pair in (from matches in tuple.pattern.Value
@@ -445,7 +430,7 @@ namespace Namespace2Xml.Semantics
                                               }).Reverse())
                             if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                             {
-                                logger.LogDebug("Substitute one-to-many by references, name: {0}, file: {1}, line: {2}, matches: {3}",
+                                logger.LogDebug("Substitute one-to-many by references, name: {name}, file: {file}, line: {line}, matches: {matches}",
                                     tuple.pattern.Name,
                                     tuple.pattern.SourceMark.FileName,
                                     tuple.pattern.SourceMark.LineNumber,
@@ -469,7 +454,7 @@ namespace Namespace2Xml.Semantics
                         .Reverse())
                         if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
                         {
-                            logger.LogDebug("Substitute one-to-many by name, name: {0}, file: {1}, line: {2}, matches: {3}",
+                            logger.LogDebug("Substitute one-to-many by name, name: {name}, file: {file}, line: {line}, matches: {matches}",
                                 tuple.pattern.Name,
                                 tuple.pattern.SourceMark.FileName,
                                 tuple.pattern.SourceMark.LineNumber,
@@ -492,7 +477,7 @@ namespace Namespace2Xml.Semantics
             return hasSubstitutes;
         }
 
-        private bool ApplyStrictSubstitutesStep(ProfileEntryList entries)
+        private static bool ApplyStrictSubstitutesStep(ProfileEntryList entries)
         {
             bool hasSubstitutes = false;
 
@@ -594,7 +579,7 @@ namespace Namespace2Xml.Semantics
                 }
             });
 
-        private IEnumerable<(NamedProfileEntry payload, IReadOnlyList<Comment> leadingComments)> PrependComments(IEnumerable<IProfileEntry> entries)
+        private static IEnumerable<(NamedProfileEntry payload, IReadOnlyList<Comment> leadingComments)> PrependComments(IEnumerable<IProfileEntry> entries)
         {
             var leadingComments = new List<Comment>();
 
