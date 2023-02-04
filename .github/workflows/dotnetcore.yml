@@ -32,8 +32,7 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         path-to-lcov: ./tests/coverage.info
     - name: Publish Nuget
-      uses: brandedoutcast/publish-nuget@v2.5.5
-      with:
-        PROJECT_FILE_PATH: src/namespace2xml.csproj
-        TAG_COMMIT: true
-        NUGET_KEY: ${{secrets.NUGETAPIKEY}}
+      run: >
+        dotnet build -c Release &&
+        dotnet pack -c Release -o out &&
+        dotnet nuget push ./out/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ secrets.NUGETAPIKEY }} --skip-duplicate
