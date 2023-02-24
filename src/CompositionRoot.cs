@@ -1,4 +1,6 @@
-﻿using Namespace2Xml.Formatters;
+﻿using System;
+using System.Collections.Generic;
+using Namespace2Xml.Formatters;
 using Namespace2Xml.Scheme;
 using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
@@ -36,7 +38,7 @@ namespace Namespace2Xml
                         .ToList();
 
             // RK TODO: armTemplates.*.resources.type=array
-            await Task.WhenAll(
+            var resultsToWrite =
                 from scheme in treeBuilder.BuildScheme(schemes, usedNames).AsParallel()
                 from tree in treeBuilder.Build(input, scheme.GetSubstituteTypes())
                 from alteredScheme in treeBuilder.BuildScheme(
@@ -44,7 +46,12 @@ namespace Namespace2Xml
                     usedNames)
                 from pair in formatterBuilder.Build(alteredScheme)
                 from subTree in tree.GetSubTrees(pair.prefix) // RK TODO: Logging if no suitable subtrees.
-                select pair.formatter.Write(subTree, cancellationToken));
+                select (tree: subTree, pair.formatter);
+
+            foreach (var pair in resultsToWrite)
+            {
+                await pair.formatter.Write(pair.tree, cancellationToken);
+            }
         }
     }
 }
