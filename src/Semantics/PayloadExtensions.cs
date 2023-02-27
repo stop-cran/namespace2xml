@@ -122,6 +122,12 @@ namespace Namespace2Xml.Semantics
         public static bool IsTextOnly(this QualifiedName qualifiedName) =>
             qualifiedName.Parts.All(part => part.IsTextOnly());
 
+        public static bool HasSubstitute(this NamePart namePart) =>
+            namePart.Tokens.Any(token => token is SubstituteNameToken);
+
+        public static bool HasSubstitute(this QualifiedName qualifiedName) =>
+            qualifiedName.Parts.Any(part => part.HasSubstitute());
+
         public static QualifiedName ApplyFullMatch(this QualifiedName name, IReadOnlyList<string> match)
         {
             using (var enumerator = match.GetEnumerator())
@@ -219,6 +225,12 @@ namespace Namespace2Xml.Semantics
                     matches.AddRange(m);
 
             return matches.AsReadOnly();
+        }
+
+        [return: NullGuard.AllowNull]
+        public static IReadOnlyList<string> GetFullMatch(this QualifiedName input, QualifiedName pattern)
+        {
+            return input.Parts.GetFullMatch(pattern.Parts);
         }
 
         [return: NullGuard.AllowNull]

@@ -4,6 +4,8 @@ using NullGuard;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MoreLinq;
+using Namespace2Xml.Formatters;
 
 namespace Namespace2Xml
 {
@@ -69,7 +71,10 @@ namespace Namespace2Xml
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
             if (key.Parts.Count == 0)
-                throw new ArgumentException("The key is empty", nameof(key));
+            {
+                value = default;
+                return false;
+            }
 
             if (strict.TryGetValue(key.ToString(), out value))
                 return true;
@@ -86,6 +91,20 @@ namespace Namespace2Xml
                     middlePattern.IsMatch(keyHead.Substring(prefix.Length, keyHead.Length - prefix.Length - suffix.Length)) &&
                     nested.TryMatch(keyTail, out value))
                     return true;
+
+            if (key.HasSubstitute() && strict.Keys.Any())
+            {
+                foreach (var kvp in strict)
+                {
+                    var strictName = kvp.Key.Split('.').ToQualifiedName();
+                    var match = strictName.GetFullMatch(key);
+                    if (match != null)
+                    {
+                        value = kvp.Value;
+                        return true;
+                    }
+                }
+            }
 
             return false;
         }
