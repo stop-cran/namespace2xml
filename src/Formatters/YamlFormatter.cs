@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Namespace2Xml.Syntax;
 using YamlDotNet.Core;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.EventEmitters;
@@ -50,17 +51,43 @@ namespace Namespace2Xml.Formatters
                                 .Concat(new[] { tree.NameString })
                                 .ToArray();
 
-            return tree switch
+            switch (tree)
             {
-                ProfileTreeNode node => arrays.IsMatch(newPrefix.ToQualifiedName())
-                                        ? node.Children.Select(
-                                            child => ToObject(child, newPrefix)).ToArray()
-                                        : node.Children.ToDictionary(
-                                            child => child.NameString,
-                                            child => ToObject(child, newPrefix)),
-                ProfileTreeLeaf leaf => ToObjectSingleValue(leaf.Value, newPrefix),
-                _ => throw new NotSupportedException(),
-            };
+                case ProfileTreeNode node:
+                    if (keys.TryMatch(newPrefix.ToQualifiedName(), out var key))
+                    {
+                        var nodes = node.Children
+                            .OfType<ProfileTreeNode>()
+                            .Select(child =>
+                            {
+                                var keyPayload = new Payload(
+                                    new[] { key }.ToQualifiedName(),
+                                    new IValueToken[] { new TextValueToken(child.NameString) },
+                                    tree.GetFirstSourceMark());
+                                var keyLeaf = new ProfileTreeLeaf(
+                                    keyPayload,
+                                    Enumerable.Empty<Comment>(),
+                                    newPrefix.ToQualifiedName());
+
+                                return ToObject(
+                                    new ProfileTreeNode(node.Name, new [] { keyLeaf }.Concat(child.Children)),
+                                    newPrefix.Concat(new[] { child.NameString }).ToArray());
+                            }).ToList();
+                        return nodes;
+                    }
+
+                    if (arrays.IsMatch(newPrefix.ToQualifiedName()))
+                        return node.Children.Select(child => ToObject(child, newPrefix)).ToArray();
+
+                    return node.Children.ToDictionary(child => child.NameString,
+                        child => ToObject(child, newPrefix));
+
+                case ProfileTreeLeaf leaf:
+                    return ToObjectSingleValue(leaf.Value, newPrefix);
+
+                default:
+                    throw new NotSupportedException();
+            }
         }
 
         private object ToObjectSingleValue(string value, string[] prefix)
