@@ -13,5 +13,7 @@ namespace Namespace2Xml.Semantics
         IEnumerable<SchemeNode> BuildScheme(
             IEnumerable<IProfileEntry> enties,
             IEnumerable<QualifiedName> profileNames);
+
+        IEnumerable<IProfileEntry> ApplyNameSubstitutesLoop(IEnumerable<IProfileEntry> entries);
     }
 }
