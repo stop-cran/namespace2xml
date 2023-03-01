@@ -505,7 +505,7 @@ namespace Namespace2Xml.Semantics
         {
             var entriesList = new ProfileEntryList(entries);
 
-            while (ApplySubstitutesStep(entriesList)) ;
+            while (ApplyNameSubstitutes(entriesList)) ;
 
             return entriesList.Where(entry =>
                 entry is not Payload p
@@ -543,12 +543,12 @@ namespace Namespace2Xml.Semantics
                 {
                     if (entries.InsertAfterIfNotExists(pattern, result.MatchedPayload))
                     {
-                        logger.LogDebug(
-                            "Substitute one-to-one by name: {name}, file: {file}, line: {line}, matches: {matches}",
-                            pattern.Name,
-                            pattern.SourceMark.FileName,
-                            pattern.SourceMark.LineNumber,
-                            result.MatchInfo);
+                        // logger.LogDebug(
+                        //     "Substitute one-to-one by name: {name}, file: {file}, line: {line}, matches: {matches}",
+                        //     pattern.Name,
+                        //     pattern.SourceMark.FileName,
+                        //     pattern.SourceMark.LineNumber,
+                        //     result.MatchInfo);
                         hasSubstitutes = true;
                     }
                 }
