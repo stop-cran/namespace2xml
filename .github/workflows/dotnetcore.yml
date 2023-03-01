@@ -25,4 +25,4 @@ jobs:
       run: >
         dotnet build -c Release &&
         dotnet pack -c Release &&
-        dotnet nuget push ./bin/Release/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ secrets.NUGETAPIKEY }} --skip-duplicate
+        dotnet nuget push ./src/bin/Release/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ secrets.NUGETAPIKEY }} --skip-duplicate
