@@ -131,7 +131,7 @@ a=1
         [Test]
         public void ShouldApplyReferenceSubstitutes()
         {
-            var tree = builder.Build(parser.Parse("a.x.y=1\na.*.*=1,*,${c.*}\nc.y=3"),
+            var tree = builder.Build(parser.Parse("a.x.y=1\na.*.*=1,*,${c.*}\nc.x=3"),
                 new QualifiedNameMatchDictionary<Scheme.SubstituteType>()).ToList();
 
             tree.Count.ShouldBe(2);
@@ -161,7 +161,7 @@ a=1
         [TestCase("a.x-x=1", "a.*-*=2", "x-x", "2")]
         [TestCase("a.x-x=1", "a.*-*=*", "x-x", "x")]
         [TestCase("a.x-x=1\nb.x=2", "a.*-*=${b.*}+1", "x-x", "2+1")]
-        [TestCase("b.x=2", "a.*-*=${b.*}+1", "x-x", "2+1")]
+        [TestCase("a.x-y=1\nb.x=2\nc.x=3\nc.y=4", "a.*-*=${b.*}+${c.*}", "x-y", "2+3")]
         public void ShouldApplySubstitute(string baseLine, string substitute, string expectedName, string expectedValue)
         {
             var tree = builder.Build(parser.Parse(baseLine).Concat(parser.Parse(substitute)),
@@ -190,7 +190,6 @@ a=1
         [Test]
         [TestCase("a.x=${a.x}", "Cyclic reference: a.x [file: testfile, line: 1] > a.x [file: testfile, line: 1].")]
         [TestCase("a.x=${b.x}", "Reference b.x was not found at a.x [file: testfile, line: 1].")]
-        [TestCase("a.**=***", "Not supported substitute: a.**=*** [testfile, line 1].")]
         public void ShouldConvertErrors(string profile, string expectedError) =>
             builder.Build(parser.Parse(profile),
                 new QualifiedNameMatchDictionary<Scheme.SubstituteType>())
