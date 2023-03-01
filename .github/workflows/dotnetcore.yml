@@ -21,16 +21,6 @@ jobs:
       run: dotnet build
     - name: Test with dotnet
       run: dotnet test --no-build /p:CollectCoverage=true /p:CoverletOutputFormat=lcov
-    - name: Collect coverage
-      uses: Nef10/lcov-reporter-action@v0.3.0
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        lcov-file: ./tests/coverage.info
-    - name: Publish coverage report to coveralls.io
-      uses: coverallsapp/github-action@master
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        path-to-lcov: ./tests/coverage.info
     - name: Publish Nuget
       run: >
         dotnet build -c Release &&
