@@ -153,7 +153,12 @@ namespace Namespace2Xml.Semantics
             return tree switch
             {
                 ProfileTreeLeaf leaf => Enum.TryParse<EntryType>(leaf.NameString, out var type)
-                                        ? (ISchemeEntry)new SchemeLeaf(type, leaf.Value, leaf.OriginalEntry)
+                                        ? (ISchemeEntry)new SchemeLeaf(
+                                            type,
+                                            type == EntryType.substitute && string.Equals(leaf.Value, "keyOnly", StringComparison.InvariantCultureIgnoreCase) // For "keyOnly" backward compatibility
+                                                ? "Key"
+                                                : leaf.Value,
+                                            leaf.OriginalEntry)
                                         : new SchemeError($"Unsupported entry type: {leaf.NameString}.", leaf.SourceMark),
                 ProfileTreeNode node => new SchemeNode(node.Name, node.Children.Select(ToScheme)),
                 ProfileTreeError error => new SchemeError(error.Error, error.SourceMark),
