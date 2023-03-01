@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System;
+using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Namespace2Xml.Scheme;
 using System.IO;
@@ -9,6 +11,8 @@ namespace Namespace2Xml.Formatters
     {
         private readonly string baseOutputDirectory;
         private readonly ILogger<FileStreamFactory> logger;
+
+        private readonly Dictionary<string, OutputType> outputFileNamesCache = new();
 
         public FileStreamFactory(IOptions<FileStreamFactoryOptions> options, ILogger<FileStreamFactory> logger)
         {
@@ -29,11 +33,40 @@ namespace Namespace2Xml.Formatters
         {
             var fileName = Path.IsPathRooted(name) ? name : Path.Combine(baseOutputDirectory, name);
 
-            logger.LogInformation("Writing output {0} {1}...", fileName, outputType);
-
             Directory.CreateDirectory(Path.GetDirectoryName(fileName));
 
-            return new FileStream(fileName, FileMode.Create, FileAccess.Write);
+            switch (outputType)
+            {
+                case OutputType.@namespace:
+                case OutputType.yaml:
+                    if (outputFileNamesCache.TryGetValue(fileName, out var cachedType))
+                    {
+                        if (cachedType == outputType)
+                        {
+                            logger.LogInformation("Appending output {0} {1}...", fileName, outputType);
+                            return new FileStream(fileName, FileMode.Append, FileAccess.Write);
+                        }
+
+                        logger.LogInformation("Overriding output {0} {1}...", fileName, outputType);
+                    }
+                    else
+                    {
+                        logger.LogInformation("Writing output {0} {1}...", fileName, outputType);
+                        outputFileNamesCache.Add(fileName, outputType);
+                    }
+
+                    return new FileStream(fileName, FileMode.Create, FileAccess.Write);
+                default:
+                    if (outputFileNamesCache.ContainsKey(fileName))
+                        logger.LogInformation("Overriding output {0} {1}...", fileName, outputType);
+                    else
+                    {
+                        logger.LogInformation("Writing output {0} {1}...", fileName, outputType);
+                        outputFileNamesCache.Add(fileName, outputType);
+                    }
+
+                    return new FileStream(fileName, FileMode.Create, FileAccess.Write);
+            }
         }
     }
 
