@@ -1,5 +1,6 @@
 ﻿using Sprache;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Namespace2Xml.Syntax
 {
@@ -7,13 +8,15 @@ namespace Namespace2Xml.Syntax
     {
         public static Parser<NamePart> GetNamePartParser()
         {
+            var nameChar = Parse.CharExcept("\\*.=}")
+                .Except(Parse.LineTerminator);
 
-            var nameChar = Parse.Char('\\')
-                .Or(Parse.CharExcept("*.=}")
-                    .Except(Parse.LineTerminator));
+            var delimiterEscaping = Parse.String("\\.")
+                .Select(x => x.Where(y => y != '\\'));
 
             var textNameToken = nameChar
                 .AtLeastOnce()
+                .Or(delimiterEscaping)
                 .Text()
                 .Select(parsedName =>
                     (INameToken)new TextNameToken(parsedName));
