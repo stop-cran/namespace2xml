@@ -288,7 +288,9 @@ namespace Namespace2Xml.Semantics
         {
             bool hasSubstitutes = false;
 
-            var patternsInfo = (from pattern in entries.OfType<Payload>()
+            var entriesToProcess = entries.ToList();
+
+            var patternsInfo = (from pattern in entriesToProcess.OfType<Payload>()
                     let nameSubstituteCount = pattern.GetNameSubstitutesCount()
                     let valueSubstituteCount = pattern.GetValueSubstitutesCount()
                     let refSubstituteCount = pattern.GetValueRefSubstitutesCount()
@@ -300,12 +302,11 @@ namespace Namespace2Xml.Semantics
                         valueSubstituteCount,
                         refSubstituteCount
                     })
-                .Reverse()
-                .ToList();
+                .Reverse();
 
             foreach (var patternInfo in patternsInfo)
             {
-                var matchesByName = entries.ToList().GetLeftMatches(patternInfo.pattern).ToList();
+                var matchesByName = entriesToProcess.GetLeftMatches(patternInfo.pattern).ToList();
 
                 if (!matchesByName.Any()) continue;
 
@@ -314,7 +315,7 @@ namespace Namespace2Xml.Semantics
                     // Process substitutes in name, value and references
 
                     var matchesByReferences = patternInfo.pattern.Value
-                        .GetFullMatchesByReferences(entries.ToList()).ToList();
+                        .GetFullMatchesByReferences(entriesToProcess).ToList();
 
                     var correspondingMatchesToProcess =
                         (from matchByName in matchesByName
@@ -356,8 +357,7 @@ namespace Namespace2Xml.Semantics
                                 MatchInfo = matches.matchByReferences.GetMatchSummary()
                             };
                         })
-                        .Reverse()
-                        .ToList();
+                        .Reverse();
 
                     foreach (var result in substituteResults)
                     {
@@ -413,17 +413,20 @@ namespace Namespace2Xml.Semantics
         {
             bool hasSubstitutes = false;
 
-            var patterns = entries
+            var entriesToProcess = entries.ToList();
+
+            var patterns = entriesToProcess
                 .OfType<Payload>()
                 .Where(payload =>
                     payload.GetNameSubstitutesCount() > 0 &&
                     payload.GetValueSubstitutesCount() == 0 &&
-                    payload.GetValueRefSubstitutesCount() == 0)
-                .ToList();
+                    payload.GetValueRefSubstitutesCount() == 0);
 
             foreach (var pattern in patterns)
             {
-                var matchesByName = entries.ToList().GetLeftMatches(pattern).ToList();
+                var hasPatternSubstitutes = false;
+
+                var matchesByName = entriesToProcess.GetLeftMatches(pattern);
 
                 var substituteResults = matchesByName
                     .Select(match => new
@@ -434,8 +437,7 @@ namespace Namespace2Xml.Semantics
                             pattern.SourceMark),
                         MatchInfo = match.Payload.GetSummary()
                     })
-                    .Reverse()
-                    .ToList();
+                    .Reverse();
 
                 foreach (var result in substituteResults)
                 {
@@ -447,9 +449,18 @@ namespace Namespace2Xml.Semantics
                             pattern.SourceMark.FileName,
                             pattern.SourceMark.LineNumber,
                             result.MatchInfo);
-                        hasSubstitutes = true;
+                        hasPatternSubstitutes = true;
                     }
                 }
+
+                if (hasPatternSubstitutes)
+                {
+                    // Remove pattern from entries
+
+                    entries.Remove(pattern);
+                }
+
+                hasSubstitutes |= hasPatternSubstitutes;
             }
 
             return hasSubstitutes;
@@ -470,16 +481,15 @@ namespace Namespace2Xml.Semantics
         {
             bool hasSubstitutes = false;
 
-            var patterns = entries
+            var entriesToProcess = entries.ToList();
+
+            var patterns = entriesToProcess
                 .OfType<Payload>()
-                .Where(payload =>
-                    payload.GetNameSubstitutesCount() > 0
-                )
-                .ToList();
+                .Where(payload => payload.GetNameSubstitutesCount() > 0);
 
             foreach (var pattern in patterns)
             {
-                var matchesByName = entries.ToList().GetLeftMatches(pattern).ToList();
+                var matchesByName = entriesToProcess.GetLeftMatches(pattern);
 
                 var substituteResults = matchesByName
                     .Select(match => new
@@ -490,8 +500,7 @@ namespace Namespace2Xml.Semantics
                             pattern.SourceMark),
                         MatchInfo = match.Payload.GetSummary()
                     })
-                    .Reverse()
-                    .ToList();
+                    .Reverse();
 
                 foreach (var result in substituteResults)
                 {

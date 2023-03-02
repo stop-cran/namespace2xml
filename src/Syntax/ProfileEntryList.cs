@@ -40,6 +40,15 @@ namespace Namespace2Xml.Syntax
                     payloadsByName.Add(p.Name, new List<Payload> { p });
         }
 
+        public void Remove(IProfileEntry item)
+        {
+            content.Remove(item);
+            if (item is Payload payload)
+            {
+                payloadsByName.Remove(payload.Name);
+            }
+        }
+
         IEnumerator IEnumerable.GetEnumerator() => content.GetEnumerator();
     }
 }

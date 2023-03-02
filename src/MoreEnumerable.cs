@@ -28,7 +28,6 @@ namespace Namespace2Xml
             return true;
         }
 
-
         private class SequenceEqualityComparer<T> : EqualityComparer<IEnumerable<T>>
         {
             public override bool Equals(IEnumerable<T> x, IEnumerable<T> y) =>

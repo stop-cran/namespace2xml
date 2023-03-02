@@ -38,8 +38,14 @@ namespace Namespace2Xml
                         .ToList();
 
             // RK TODO: armTemplates.*.resources.type=array
+            var schemeTrees = treeBuilder.BuildScheme(schemes, usedNames)
+                .Where(x => x
+                    .GetAllChildrenAndSelf()
+                    .Select(y => y.entry as SchemeNode)
+                    .Where(y => y != null)
+                    .Any(y => !string.IsNullOrEmpty(y.SingleOrDefaultValue(EntryType.output)))).ToList();
             var resultsToWrite =
-                from scheme in treeBuilder.BuildScheme(schemes, usedNames).AsParallel()
+                from scheme in schemeTrees.AsParallel()
                 from tree in treeBuilder.Build(input, scheme.GetSubstituteTypes())
                 from alteredScheme in treeBuilder.BuildScheme(
                     scheme.WithImplicitArrays(tree),
