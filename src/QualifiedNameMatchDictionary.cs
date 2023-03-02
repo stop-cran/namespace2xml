@@ -11,7 +11,7 @@ namespace Namespace2Xml
 {
     public class QualifiedNameMatchDictionary<T> : IQualifiedNameMatchDictionary<T>
     {
-        private readonly Dictionary<string, T> strict = new();
+        private readonly Dictionary<QualifiedName, T> strict = new();
         private readonly Dictionary<string, QualifiedNameMatchDictionary<T>> nested = new();
         private readonly Dictionary<string, (string keyTextPrefix, string keyTextSuffix, NamePart middlePattern, QualifiedNameMatchDictionary<T> nested)> nonStrict = new();
 
@@ -35,7 +35,7 @@ namespace Namespace2Xml
             if (keyHead.IsTextOnly())
             {
                 if (key.IsTextOnly())
-                    strict.Add(key.ToString(), value);
+                    strict.Add(key, value);
                 else
                 {
                     var keyTail = new QualifiedName(key.Parts.Skip(1));
@@ -76,7 +76,7 @@ namespace Namespace2Xml
                 return false;
             }
 
-            if (strict.TryGetValue(key.ToString(), out value))
+            if (strict.TryGetValue(key, out value))
                 return true;
 
             var keyHead = key.Parts[0].ToString();
@@ -96,7 +96,7 @@ namespace Namespace2Xml
             {
                 foreach (var kvp in strict)
                 {
-                    var strictName = kvp.Key.Split('.').ToQualifiedName();
+                    var strictName = kvp.Key;
                     var match = strictName.GetFullMatch(key);
                     if (match != null)
                     {
