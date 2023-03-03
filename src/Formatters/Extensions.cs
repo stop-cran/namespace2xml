@@ -36,15 +36,16 @@ namespace Namespace2Xml.Formatters
                 .SingleOrDefault(leaf => leaf.Type == type)?.Value;
 
         public static IQualifiedNameMatchDictionary<SubstituteType> GetSubstituteTypes(
-            this SchemeNode node) =>
+            this IEnumerable<SchemeNode> nodes) =>
             new QualifiedNameMatchDictionary<SubstituteType>(
-            from tuple in node.GetAllChildren()
-            let leaf = tuple.entry as SchemeLeaf
-            where leaf?.Type == EntryType.substitute
-            select new KeyValuePair<QualifiedName, SubstituteType>(tuple.prefix,
-                Enum.TryParse<SubstituteType>(leaf.Value, true, out var substituteType)
-                    ? substituteType
-                    : throw new ArgumentException($"Unsupported substitute type {leaf.Value}.")));
+                from node in nodes
+                from tuple in node.GetAllChildren()
+                let leaf = tuple.entry as SchemeLeaf
+                where leaf?.Type == EntryType.substitute
+                select new KeyValuePair<QualifiedName, SubstituteType>(tuple.prefix,
+                    Enum.TryParse<SubstituteType>(leaf.Value, true, out var substituteType)
+                        ? substituteType
+                        : throw new ArgumentException($"Unsupported substitute type {leaf.Value}.")));
 
         public static IQualifiedNameMatchList GetNamesOfType(
             this SchemeNode node,
