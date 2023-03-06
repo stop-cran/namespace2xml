@@ -32,7 +32,7 @@ namespace Namespace2Xml
             var profiles = await profileReader.ReadFiles(arguments.Inputs, cancellationToken);
             var input = profiles.Concat(profileReader.ReadVariables(arguments.Variables));
             var schemes = await profileReader.ReadFiles(arguments.Schemes, cancellationToken);
-            var usedNames = input.OfType<Payload>()
+            var usedNames = treeBuilder.ApplyNameSubstitutesLoop(input).OfType<Payload>()
                         .Select(p => p.Name)
                         .Distinct()
                         .ToList();

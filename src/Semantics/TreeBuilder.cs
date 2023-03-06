@@ -455,6 +455,62 @@ namespace Namespace2Xml.Semantics
             return hasSubstitutes;
         }
 
+        public IEnumerable<IProfileEntry> ApplyNameSubstitutesLoop(IEnumerable<IProfileEntry> entries)
+        {
+            var entriesList = new ProfileEntryList(entries);
+
+            while (ApplyNameSubstitutes(entriesList)) ;
+
+            return entriesList.Where(entry =>
+                entry is not Payload p
+                || p.GetNameSubstitutesCount() == 0);
+        }
+
+        private bool ApplyNameSubstitutes(ProfileEntryList entries)
+        {
+            bool hasSubstitutes = false;
+
+            var patterns = entries
+                .OfType<Payload>()
+                .Where(payload =>
+                    payload.GetNameSubstitutesCount() > 0
+                )
+                .ToList();
+
+            foreach (var pattern in patterns)
+            {
+                var matchesByName = entries.ToList().GetLeftMatches(pattern).ToList();
+
+                var substituteResults = matchesByName
+                    .Select(match => new
+                    {
+                        MatchedPayload = new Payload(
+                            pattern.Name.ApplyFullMatch(match.Match),
+                            pattern.Value,
+                            pattern.SourceMark),
+                        MatchInfo = match.Payload.GetSummary()
+                    })
+                    .Reverse()
+                    .ToList();
+
+                foreach (var result in substituteResults)
+                {
+                    if (entries.InsertAfterIfNotExists(pattern, result.MatchedPayload))
+                    {
+                        // logger.LogDebug(
+                        //     "Substitute one-to-one by name: {name}, file: {file}, line: {line}, matches: {matches}",
+                        //     pattern.Name,
+                        //     pattern.SourceMark.FileName,
+                        //     pattern.SourceMark.LineNumber,
+                        //     result.MatchInfo);
+                        hasSubstitutes = true;
+                    }
+                }
+            }
+
+            return hasSubstitutes;
+        }
+
         private IEnumerable<IProfileEntry> ApplyReferences(IEnumerable<IProfileEntry> entries)
         {
             var valuesByName = entries
