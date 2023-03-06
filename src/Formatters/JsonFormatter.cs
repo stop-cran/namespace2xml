@@ -79,6 +79,7 @@ namespace Namespace2Xml.Formatters
                                 arrIndex = int.TryParse(x.NameString, out var index) ? index : int.MaxValue,
                             })
                             .OrderBy(x => x.arrIndex)
+                            .ThenBy(x => x.child.NameString)
                             .Select(x =>
                                 ToJson(
                                     x.child,
