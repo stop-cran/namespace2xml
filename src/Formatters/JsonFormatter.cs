@@ -73,9 +73,16 @@ namespace Namespace2Xml.Formatters
 
                     if (arrays.IsMatch(newPrefix.ToQualifiedName()))
                         return (JToken)new JArray(node.Children
-                            .Select(child =>
+                            .Select(x => new
+                            {
+                                child = x,
+                                arrIndex = int.TryParse(x.NameString, out var index) ? index : int.MaxValue,
+                            })
+                            .OrderBy(x => x.arrIndex)
+                            .ThenBy(x => x.child.NameString)
+                            .Select(x =>
                                 ToJson(
-                                    child,
+                                    x.child,
                                     newPrefix))
                             .ToArray());
 

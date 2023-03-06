@@ -77,7 +77,17 @@ namespace Namespace2Xml.Formatters
                     }
 
                     if (arrays.IsMatch(newPrefix.ToQualifiedName()))
-                        return node.Children.Select(child => ToObject(child, newPrefix)).ToArray();
+                    {
+                        return node.Children
+                            .Select(x => new
+                            {
+                                child = x,
+                                arrIndex = int.TryParse(x.NameString, out var index) ? index : int.MaxValue,
+                            })
+                            .OrderBy(x => x.arrIndex)
+                            .ThenBy(x => x.child.NameString)
+                            .Select(x => ToObject(x.child, newPrefix)).ToArray();
+                    }
 
                     return node.Children.ToDictionary(child => child.NameString,
                         child => ToObject(child, newPrefix));
