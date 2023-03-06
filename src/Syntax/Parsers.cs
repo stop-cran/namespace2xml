@@ -1,5 +1,6 @@
 ﻿using Sprache;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Namespace2Xml.Syntax
 {
@@ -7,13 +8,15 @@ namespace Namespace2Xml.Syntax
     {
         public static Parser<NamePart> GetNamePartParser()
         {
+            var nameChar = Parse.CharExcept("\\*.=}")
+                .Except(Parse.LineTerminator);
 
-            var nameChar = Parse.Char('\\')
-                .Or(Parse.CharExcept("*.=}")
-                    .Except(Parse.LineTerminator));
+            var delimiterEscaping = Parse.String("\\.")
+                .Select(x => x.Where(y => y != '\\'));
 
             var textNameToken = nameChar
                 .AtLeastOnce()
+                .Or(delimiterEscaping)
                 .Text()
                 .Select(parsedName =>
                     (INameToken)new TextNameToken(parsedName));
@@ -37,7 +40,6 @@ namespace Namespace2Xml.Syntax
 
         public static Parser<IEnumerable<IValueToken>> GetValueParser()
         {
-            var qualifiedName = GetQualifiedNameParser();
             var textValueToken = Parse.CharExcept("*")
                 .Except(Parse.LineTerminator)
                 .Except(Parse.String("${"))
@@ -47,11 +49,7 @@ namespace Namespace2Xml.Syntax
                     (IValueToken)new TextValueToken(text))
                 .Named("text value");
 
-            var referenceValueToken = Parse.String("${")
-                .Then(_ => qualifiedName)
-                .Then(parsedName => Parse.Char('}')
-                    .Return((IValueToken)new ReferenceValueToken(parsedName)))
-                .Named("reference");
+            var referenceValueToken = GetReferenceValueToken();
 
             var substituteValueToken = Parse.Char('*')
                 .Return((IValueToken)new SubstituteValueToken())
@@ -60,8 +58,18 @@ namespace Namespace2Xml.Syntax
             return referenceValueToken
                 .Or(substituteValueToken)
                 .Or(textValueToken)
+                .Or(Parse.AnyChar.Except(Parse.LineTerminator).Many().Text().Select(x => (IValueToken)new TextValueToken(x)))
                 .Many()
                 .Named("value");
+        }
+
+        public static Parser<IValueToken> GetReferenceValueToken()
+        {
+            return Parse.String("${")
+                .Then(_ => GetQualifiedNameParser())
+                .Then(parsedName =>
+                    Parse.Char('}').Return((IValueToken)new ReferenceValueToken(parsedName)))
+                .Named("reference");
         }
 
         public static Parser<IEnumerable<IProfileEntry>> GetProfileParser(int fileNumber, string fileName)

@@ -84,8 +84,8 @@ namespace Namespace2Xml.Semantics
             Enum.TryParse<EntryType>(p.Name.Parts.Last().ToString(), out var type) &&
                 type switch
                 {
-                    EntryType.root or EntryType.filename or EntryType.output or EntryType.delimiter
-                        or EntryType.xmloptions  or EntryType.key => true,
+                    EntryType.root or EntryType.filename or EntryType.output or EntryType.delimiter or EntryType.xmloptions
+                        or EntryType.type or EntryType.substitute or EntryType.key => true,
                     _ => false,
                 };
 
@@ -153,7 +153,12 @@ namespace Namespace2Xml.Semantics
             return tree switch
             {
                 ProfileTreeLeaf leaf => Enum.TryParse<EntryType>(leaf.NameString, out var type)
-                                        ? (ISchemeEntry)new SchemeLeaf(type, leaf.Value, leaf.OriginalEntry)
+                                        ? (ISchemeEntry)new SchemeLeaf(
+                                            type,
+                                            type == EntryType.substitute && string.Equals(leaf.Value, "keyOnly", StringComparison.InvariantCultureIgnoreCase) // For "keyOnly" backward compatibility
+                                                ? "Key"
+                                                : leaf.Value,
+                                            leaf.OriginalEntry)
                                         : new SchemeError($"Unsupported entry type: {leaf.NameString}.", leaf.SourceMark),
                 ProfileTreeNode node => new SchemeNode(node.Name, node.Children.Select(ToScheme)),
                 ProfileTreeError error => new SchemeError(error.Error, error.SourceMark),
@@ -273,230 +278,235 @@ namespace Namespace2Xml.Semantics
         {
             bool hasSubstitutes = false;
 
-            hasSubstitutes |= ApplySubstitutesStepNonStrict(entries);
+            hasSubstitutes |= ApplyNonStrictSubstitutesStep(entries);
             hasSubstitutes |= ApplyStrictSubstitutesStep(entries);
 
             return hasSubstitutes;
         }
 
-        private bool ApplySubstitutesStepNonStrict(ProfileEntryList entries)
+        private bool ApplyNonStrictSubstitutesStep(ProfileEntryList entries)
         {
             bool hasSubstitutes = false;
 
-            foreach (var tuple in (from pattern in entries.OfType<Payload>()
-                                   let nameSubstituteCount = pattern.GetNameSubstitutesCount()
-                                   let valueSubstituteCount = pattern.GetValueSubstitutesCount()
-                                   let refSubstituteCount = pattern.GetValueRefSubstitutesCount()
-                                   where valueSubstituteCount + refSubstituteCount > 0
-                                   select new
-                                   {
-                                       pattern,
-                                       nameSubstituteCount,
-                                       valueSubstituteCount,
-                                       refSubstituteCount
-                                   })
+            var patternsInfo = (from pattern in entries.OfType<Payload>()
+                    let nameSubstituteCount = pattern.GetNameSubstitutesCount()
+                    let valueSubstituteCount = pattern.GetValueSubstitutesCount()
+                    let refSubstituteCount = pattern.GetValueRefSubstitutesCount()
+                    where nameSubstituteCount > 0 && valueSubstituteCount + refSubstituteCount > 0
+                    select new
+                    {
+                        pattern,
+                        nameSubstituteCount,
+                        valueSubstituteCount,
+                        refSubstituteCount
+                    })
                 .Reverse()
-                .ToList())
+                .ToList();
+
+            foreach (var patternInfo in patternsInfo)
             {
-                int nameCnt = tuple.nameSubstituteCount;
-                int valCnt = tuple.valueSubstituteCount + tuple.refSubstituteCount;
+                var matchesByName = entries.ToList().GetLeftMatches(patternInfo.pattern).ToList();
 
-                if (nameCnt == valCnt)
+                if (!matchesByName.Any()) continue;
+
+                if (patternInfo.refSubstituteCount > 0)
                 {
-                    if (tuple.valueSubstituteCount == 0)
-                        foreach (var pair in tuple.pattern.Value
-                            .GetFullMatchesByReferences(entries.ToList())
-                            .Select(matches => new
+                    // Process substitutes in name, value and references
+
+                    var matchesByReferences = patternInfo.pattern.Value
+                        .GetFullMatchesByReferences(entries.ToList()).ToList();
+
+                    var correspondingMatchesToProcess =
+                        (from matchByName in matchesByName
+                            from matchByReferences in matchesByReferences
+                            let shouldProcess = matchByReferences
+                                .Select(matchByReference => matchByName.Match
+                                    .Zip(
+                                        matchByReference.Match,
+                                        (nameSubstitute, refSubstitute) =>
+                                            string.Equals(nameSubstitute, refSubstitute))
+                                    .All(x => x))
+                                .All(x => x)
+                            where shouldProcess
+                            select (matchByName, matchByReferences))
+                        .ToList();
+
+                    var substituteResults = correspondingMatchesToProcess
+                        .Select(matches =>
+                        {
+                            var qualifiedName = patternInfo.pattern.Name.ApplyFullMatch(matches.matchByName.Match);
+
+                            var value =
+                                patternInfo.valueSubstituteCount == 0
+                                    ? patternInfo.pattern.Value
+                                        .ApplyFullReferenceMatch(matches.matchByReferences
+                                            .Select(x => x.Payload.Name)
+                                            .ToList())
+                                    : patternInfo.pattern.Value
+                                        .ApplyFullReferenceMatch(matches.matchByReferences
+                                            .Select(x => x.Payload.Name)
+                                            .ToList()).ApplyFullMatch(matches.matchByName.Match);
+
+                            return new
                             {
                                 MatchedPayload = new Payload(
-                                    tuple.pattern.Name
-                                        .ApplyFullMatch(matches
-                                            .SelectMany(x => x.Match)
-                                            .ToList()),
-                                    tuple.pattern.Value
-                                        .ApplyFullReferenceMatch(matches
-                                            .Select(x => x.Payload.Name)
-                                            .ToList()),
-                                    tuple.pattern.SourceMark),
-                                MatchInfo = matches.GetMatchSummary()
-                            })
-                            .Reverse())
-                            if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
-                            {
-                                logger.LogDebug("Substitute one-to-one by references, name: {name}, file: {file}, line: {line}, matches: {matches}",
-                                    tuple.pattern.Name,
-                                    tuple.pattern.SourceMark.FileName,
-                                    tuple.pattern.SourceMark.LineNumber,
-                                    pair.MatchInfo);
-                                hasSubstitutes = true;
-                            }
+                                    qualifiedName,
+                                    value,
+                                    patternInfo.pattern.SourceMark),
+                                MatchInfo = matches.matchByReferences.GetMatchSummary()
+                            };
+                        })
+                        .Reverse()
+                        .ToList();
 
-                    foreach (var pair in entries.ToList().GetLeftMatches(tuple.pattern)
+                    foreach (var result in substituteResults)
+                    {
+                        if (entries.InsertAfterIfNotExists(patternInfo.pattern, result.MatchedPayload))
+                        {
+                            logger.LogDebug(
+                                "Substitute by references, reference name: {name}, file: {file}, line: {line}, matches: {matches}",
+                                patternInfo.pattern.ValueToString(),
+                                patternInfo.pattern.SourceMark.FileName,
+                                patternInfo.pattern.SourceMark.LineNumber,
+                                result.MatchInfo);
+                            hasSubstitutes = true;
+                        }
+                    }
+                }
+                else if (patternInfo.valueSubstituteCount > 0)
+                {
+                    // Process substitutions in name and value
+
+                    var substituteResults = matchesByName
                         .Select(p => new
                         {
                             MatchedPayload = new Payload(
-                                tuple.pattern.Name.ApplyFullMatch(p.Match),
-                                tuple.pattern.Value.ApplyFullMatch(p.Match),
-                                tuple.pattern.SourceMark,
+                                patternInfo.pattern.Name.ApplyFullMatch(p.Match),
+                                patternInfo.pattern.Value.ApplyFullMatch(p.Match),
+                                patternInfo.pattern.SourceMark,
                                 true),
                             MatchInfo = p.Payload.GetSummary()
                         })
-                        .Reverse())
-                        if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
-                        {
-                            logger.LogDebug("Substitute one-to-one by name: {name}, file: {file}, line: {line}, matches: {matches}",
-                                tuple.pattern.Name,
-                                tuple.pattern.SourceMark.FileName,
-                                tuple.pattern.SourceMark.LineNumber,
-                                pair.MatchInfo);
-                            hasSubstitutes = true;
-                        }
-                }
-                else if (nameCnt > valCnt && nameCnt % valCnt == 0)
-                {
-                    if (tuple.valueSubstituteCount == 0)
-                        foreach (var pair in tuple.pattern.Value
-                            .GetFullMatchesByReferences(entries.ToList())
-                            .Select(matches => new
-                            {
-                                MatchedPayload = new Payload(
-                                    tuple.pattern.Name.ApplyFullMatch(
-                                        Enumerable.Repeat(
-                                            matches.SelectMany(x => x.Match),
-                                            nameCnt / valCnt)
-                                        .SelectMany(x => x)
-                                        .ToList()),
-                                    tuple.pattern.Value
-                                        .ApplyFullReferenceMatch(matches
-                                            .Select(x => x.Payload.Name)
-                                            .ToList()),
-                                    tuple.pattern.SourceMark),
-                                MatchInfo = matches.GetMatchSummary()
-                            })
-                            .Reverse())
-                            if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
-                            {
-                                logger.LogDebug("Substitute many-to-one by references, name: {name}, file: {file}, line: {line}, matches: {matches}",
-                                    tuple.pattern.Name,
-                                    tuple.pattern.SourceMark.FileName,
-                                    tuple.pattern.SourceMark.LineNumber,
-                                    pair.MatchInfo);
-                                hasSubstitutes = true;
-                            }
+                        .Reverse()
+                        .ToList();
 
-                    foreach (var pair in (from p in entries.ToList().GetLeftMatches(tuple.pattern)
-                                          where p.Match
-                                             .Batch(valCnt)
-                                             .SequenceDistinct()
-                                             .Count() == 1
-                                          select new
-                                          {
-                                              MatchedPayload = new Payload(
-                                                  tuple.pattern.Name.ApplyFullMatch(p.Match),
-                                                  tuple.pattern.Value.ApplyFullMatch(p.Match.Take(valCnt).ToList()),
-                                                  tuple.pattern.SourceMark,
-                                                  true),
-                                              MatchInfo = p.Payload.GetSummary()
-                                          }).Reverse())
-                        if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
+                    foreach (var result in substituteResults)
+                    {
+                        if (entries.InsertAfterIfNotExists(patternInfo.pattern, result.MatchedPayload))
                         {
-                            logger.LogDebug("Substitute many-to-one by name, name: {name}, file: {file}, line: {line}, matches: {matches}",
-                                tuple.pattern.Name,
-                                tuple.pattern.SourceMark.FileName,
-                                tuple.pattern.SourceMark.LineNumber,
-                                pair.MatchInfo);
+                            logger.LogDebug(
+                                "Substitute by name: {name}, file: {file}, line: {line}, matches: {matches}",
+                                patternInfo.pattern.Name,
+                                patternInfo.pattern.SourceMark.FileName,
+                                patternInfo.pattern.SourceMark.LineNumber,
+                                result.MatchInfo);
                             hasSubstitutes = true;
                         }
+                    }
                 }
-                else if (nameCnt > 0 && nameCnt < valCnt && valCnt % nameCnt == 0)
-                {
-                    if (tuple.valueSubstituteCount == 0)
-                        foreach (var pair in (from matches in tuple.pattern.Value
-                                                .GetFullMatchesByReferences(entries.ToList())
-                                              where matches
-                                                  .Select(match => match.Match)
-                                                  .SequenceDistinct()
-                                                  .Count() == 1
-                                              select new
-                                              {
-                                                  MatchedPayload = new Payload(
-                                                      tuple.pattern.Name
-                                                          .ApplyFullMatch(matches.First().Match),
-                                                      tuple.pattern.Value
-                                                          .ApplyFullReferenceMatch(matches
-                                                              .Select(x => x.Payload.Name)
-                                                              .ToList()),
-                                                   tuple.pattern.SourceMark),
-                                                  MatchInfo = matches.GetMatchSummary()
-                                              }).Reverse())
-                            if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
-                            {
-                                logger.LogDebug("Substitute one-to-many by references, name: {name}, file: {file}, line: {line}, matches: {matches}",
-                                    tuple.pattern.Name,
-                                    tuple.pattern.SourceMark.FileName,
-                                    tuple.pattern.SourceMark.LineNumber,
-                                    pair.MatchInfo);
-                                hasSubstitutes = true;
-                            }
-
-                    foreach (var pair in entries.ToList().GetLeftMatches(tuple.pattern)
-                        .Select(p => new
-                        {
-                            MatchedPayload = new Payload(
-                                tuple.pattern.Name.ApplyFullMatch(p.Match),
-                                tuple.pattern.Value.ApplyFullMatch(
-                                    Enumerable.Repeat(p.Match, valCnt / nameCnt)
-                                        .SelectMany(matches => matches)
-                                        .ToList()),
-                                tuple.pattern.SourceMark,
-                                true),
-                            MatchInfo = p.Payload.GetSummary()
-                        })
-                        .Reverse())
-                        if (entries.InsertAfterIfNotExists(tuple.pattern, pair.MatchedPayload))
-                        {
-                            logger.LogDebug("Substitute one-to-many by name, name: {name}, file: {file}, line: {line}, matches: {matches}",
-                                tuple.pattern.Name,
-                                tuple.pattern.SourceMark.FileName,
-                                tuple.pattern.SourceMark.LineNumber,
-                                pair.MatchInfo);
-                            hasSubstitutes = true;
-                        }
-                }
-                else if (nameCnt == 0 && tuple.refSubstituteCount == 0)
-                {
-                    // Flatten after applying other substitutes.
-                }
-                else
-                    entries[entries.IndexOf(tuple.pattern)] =
-                        new ProfileError(
-                            tuple.pattern.Name,
-                            $"Not supported substitute: {tuple.pattern} [{tuple.pattern.SourceMark.FileName}, line {tuple.pattern.SourceMark.LineNumber}].",
-                            tuple.pattern.SourceMark);
             }
 
             return hasSubstitutes;
         }
 
-        private static bool ApplyStrictSubstitutesStep(ProfileEntryList entries)
+        private bool ApplyStrictSubstitutesStep(ProfileEntryList entries)
         {
             bool hasSubstitutes = false;
 
-            foreach (var pattern in entries
+            var patterns = entries
                 .OfType<Payload>()
                 .Where(payload =>
                     payload.GetNameSubstitutesCount() > 0 &&
                     payload.GetValueSubstitutesCount() == 0 &&
                     payload.GetValueRefSubstitutesCount() == 0)
-                .ToList())
-                foreach (var match in (from payload in entries.OfType<Payload>()
-                                       let match = payload.GetLeftMatch(pattern)
-                                       where match != null
-                                       select new Payload(
-                                           pattern.Name.ApplyFullMatch(match),
-                                           pattern.Value,
-                                           pattern.SourceMark)).Reverse())
-                    hasSubstitutes |= entries.InsertAfterIfNotExists(pattern, match);
+                .ToList();
+
+            foreach (var pattern in patterns)
+            {
+                var matchesByName = entries.ToList().GetLeftMatches(pattern).ToList();
+
+                var substituteResults = matchesByName
+                    .Select(match => new
+                    {
+                        MatchedPayload = new Payload(
+                            pattern.Name.ApplyFullMatch(match.Match),
+                            pattern.Value,
+                            pattern.SourceMark),
+                        MatchInfo = match.Payload.GetSummary()
+                    })
+                    .Reverse()
+                    .ToList();
+
+                foreach (var result in substituteResults)
+                {
+                    if (entries.InsertAfterIfNotExists(pattern, result.MatchedPayload))
+                    {
+                        logger.LogDebug(
+                            "Substitute one-to-one by name: {name}, file: {file}, line: {line}, matches: {matches}",
+                            pattern.Name,
+                            pattern.SourceMark.FileName,
+                            pattern.SourceMark.LineNumber,
+                            result.MatchInfo);
+                        hasSubstitutes = true;
+                    }
+                }
+            }
+
+            return hasSubstitutes;
+        }
+
+        public IEnumerable<IProfileEntry> ApplyNameSubstitutesLoop(IEnumerable<IProfileEntry> entries)
+        {
+            var entriesList = new ProfileEntryList(entries);
+
+            while (ApplyNameSubstitutes(entriesList)) ;
+
+            return entriesList.Where(entry =>
+                entry is not Payload p
+                || p.GetNameSubstitutesCount() == 0);
+        }
+
+        private bool ApplyNameSubstitutes(ProfileEntryList entries)
+        {
+            bool hasSubstitutes = false;
+
+            var patterns = entries
+                .OfType<Payload>()
+                .Where(payload =>
+                    payload.GetNameSubstitutesCount() > 0
+                )
+                .ToList();
+
+            foreach (var pattern in patterns)
+            {
+                var matchesByName = entries.ToList().GetLeftMatches(pattern).ToList();
+
+                var substituteResults = matchesByName
+                    .Select(match => new
+                    {
+                        MatchedPayload = new Payload(
+                            pattern.Name.ApplyFullMatch(match.Match),
+                            pattern.Value,
+                            pattern.SourceMark),
+                        MatchInfo = match.Payload.GetSummary()
+                    })
+                    .Reverse()
+                    .ToList();
+
+                foreach (var result in substituteResults)
+                {
+                    if (entries.InsertAfterIfNotExists(pattern, result.MatchedPayload))
+                    {
+                        // logger.LogDebug(
+                        //     "Substitute one-to-one by name: {name}, file: {file}, line: {line}, matches: {matches}",
+                        //     pattern.Name,
+                        //     pattern.SourceMark.FileName,
+                        //     pattern.SourceMark.LineNumber,
+                        //     result.MatchInfo);
+                        hasSubstitutes = true;
+                    }
+                }
+            }
 
             return hasSubstitutes;
         }
