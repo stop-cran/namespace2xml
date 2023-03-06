@@ -89,11 +89,14 @@ namespace Namespace2Xml.Semantics
                 .Sum(token => token.Name.GetNameSubstitutesCount());
 
         public static IEnumerable<(IReadOnlyList<string> Match, Payload Payload)> GetLeftMatches(
-            this IEnumerable<IProfileEntry> entries, Payload pattern) =>
-            from payload in entries.OfType<Payload>()
-            let match = payload.GetLeftMatch(pattern)
-            where match != null
-            select (match, payload);
+            this IEnumerable<IProfileEntry> entries, Payload pattern)
+        {
+            return entries.OfType<Payload>()
+                .Select(x => new { payload = x, match = x.GetLeftMatch(pattern) })
+                .Where(x => x.match != null)
+                .GroupBy(x => string.Join('.', x.match))
+                .Select(g => (g.First().match, g.First().payload));
+        }
 
         public static IEnumerable<IEnumerable<(IReadOnlyList<string> Match, Payload Payload)>> GetFullMatchesByReferences(
             this IEnumerable<IValueToken> values, IEnumerable<IProfileEntry> entries) =>

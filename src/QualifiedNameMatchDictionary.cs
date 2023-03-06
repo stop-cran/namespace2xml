@@ -4,7 +4,6 @@ using NullGuard;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using MoreLinq;
 using Namespace2Xml.Formatters;
 
 namespace Namespace2Xml
