@@ -49,13 +49,37 @@ namespace Namespace2Xml.Formatters
             switch (tree)
             {
                 case ProfileTreeNode node:
-                    return arrays.IsMatch(newPrefix.ToQualifiedName())
-                        ? (JToken)new JArray(node.Children
-                        .Select(child =>
+                    if (keys.TryMatch(newPrefix.ToQualifiedName(), out var key))
+                    {
+                        var nodes = node.Children
+                            .OfType<ProfileTreeNode>()
+                            .Select(child =>
+                            {
+                                var keyPayload = new Payload(
+                                    new[] { key }.ToQualifiedName(),
+                                    new IValueToken[] { new TextValueToken(child.NameString) },
+                                    tree.GetFirstSourceMark());
+                                var keyLeaf = new ProfileTreeLeaf(
+                                    keyPayload,
+                                    Enumerable.Empty<Comment>(),
+                                    newPrefix.ToQualifiedName());
+
+                                return ToJson(
+                                    new ProfileTreeNode(node.Name, new[] { keyLeaf }.Concat(child.Children)),
+                                    newPrefix.Concat(new[] { child.NameString }).ToArray());
+                            }).ToArray();
+                        return (JToken)new JArray(nodes);
+                    }
+
+                    if (arrays.IsMatch(newPrefix.ToQualifiedName()))
+                        return (JToken)new JArray(node.Children
+                            .Select(child =>
                                 ToJson(
                                     child,
-                                    newPrefix)).ToArray())
-                        : new JObject(node.Children
+                                    newPrefix))
+                            .ToArray());
+
+                    return new JObject(node.Children
                         .Select(child =>
                             new JProperty(
                                 child.NameString,

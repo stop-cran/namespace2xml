@@ -85,7 +85,7 @@ namespace Namespace2Xml.Semantics
                 type switch
                 {
                     EntryType.root or EntryType.filename or EntryType.output or EntryType.delimiter or EntryType.xmloptions
-                        or EntryType.type or EntryType.substitute => true,
+                        or EntryType.type or EntryType.substitute or EntryType.key => true,
                     _ => false,
                 };
 
