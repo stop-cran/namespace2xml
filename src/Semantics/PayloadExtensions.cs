@@ -163,6 +163,8 @@ namespace Namespace2Xml.Semantics
         {
             using (var enumerator = match.GetEnumerator())
             {
+                var substituteCounter = 0;
+
                 var result = value.Select(token =>
                 {
                     switch (token)
@@ -170,18 +172,20 @@ namespace Namespace2Xml.Semantics
                         case TextValueToken _:
                             return token;
                         case SubstituteValueToken _:
-                            if (!enumerator.MoveNext())
-                                throw new ArgumentException($"Match count too small at {string.Join("", value)}: {string.Join(", ", match)}.");
+                            substituteCounter++;
+
+                            if (substituteCounter > match.Count)
+                                return new TextValueToken(enumerator.Current);
+
+                            enumerator.MoveNext();
+
                             return new TextValueToken(enumerator.Current);
-                        case ReferenceValueToken reference:
-                            return new ReferenceValueToken(reference.Name.ApplyMatch(enumerator, string.Join(", ", match)));
+                        case ReferenceValueToken _:
+                            return token;
                         default:
                             throw new NotSupportedException();
                     }
                 }).ToList();
-
-                if (enumerator.MoveNext())
-                    throw new ArgumentException($"Match count too big at {string.Join("", value)}: {string.Join(", ", match)}.");
 
                 return result;
             }
