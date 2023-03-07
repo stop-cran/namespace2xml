@@ -30,8 +30,10 @@ namespace Namespace2Xml
         public async Task Write(Arguments arguments, CancellationToken cancellationToken)
         {
             var profiles = await profileReader.ReadFiles(arguments.Inputs, cancellationToken);
-            var input = profiles.Concat(profileReader.ReadVariables(arguments.Variables));
-            var schemes = await profileReader.ReadFiles(arguments.Schemes, cancellationToken);
+            var input = profiles.Concat(profileReader.ReadVariables(arguments.Variables)).ToList().AsReadOnly();
+            var schemes = (await profileReader.ReadFiles(arguments.Schemes, cancellationToken))
+                .WithIgnores(input);
+
             var usedNames = treeBuilder.ApplyNameSubstitutesLoop(input).OfType<Payload>()
                         .Select(p => p.Name)
                         .Distinct()
