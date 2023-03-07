@@ -99,16 +99,27 @@ namespace Namespace2Xml.Syntax
                         span.Value.parsedValue,
                         new SourceMark(fileNumber, fileName, span.Start.Line)));
 
-            var payloadIgnore = Parse.Char('!').Token()
+            var payloadNameIgnore = Parse.Char('!').Token()
                 .Then(_ => GetQualifiedNameParser())
                 .Span()
                 .Select(span =>
                     (IProfileEntry)new PayloadIgnore(
                         span.Value,
-                        new SourceMark(fileNumber, fileName, span.Start.Line)));
+                        new SourceMark(fileNumber, fileName, span.Start.Line)))
+                .Named("payloadNameIgnore");
+
+            var payloadIgnore = Parse.Char('!').Token()
+                .Then(_ => payload)
+                .Span()
+                .Select(span =>
+                    (IProfileEntry)new PayloadIgnore(
+                        span.Value.parsedName,
+                        new SourceMark(fileNumber, fileName, span.Start.Line)))
+                .Named("payload");
 
             return comment
                 .Or(payloadIgnore)
+                .Or(payloadNameIgnore)
                 .Or(payloadSpan)
                 .DelimitedBy(Parse.LineTerminator.AtLeastOnce())
                 .Contained(
