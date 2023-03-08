@@ -259,5 +259,17 @@ namespace Namespace2Xml.Semantics
                 .GetFullMatch(pattern.Parts.Take(leftPartsCount).ToList())
                 : null;
         }
+
+        public static IReadOnlyList<IProfileEntry> WithIgnores(this IReadOnlyList<IProfileEntry> schemeEntries,
+            IReadOnlyList<IProfileEntry> profileEntries)
+        {
+            return schemeEntries
+                .Concat(profileEntries.OfType<PayloadIgnore>()
+                    .Select(x => new Payload(
+                        new QualifiedName(x.Name.Parts.Append(new NamePart(new[] { new TextNameToken("type") }))),
+                        new[] { new TextValueToken("ignore") },
+                        x.SourceMark)))
+                .ToList().AsReadOnly();
+        }
     }
 }

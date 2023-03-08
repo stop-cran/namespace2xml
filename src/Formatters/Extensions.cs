@@ -70,10 +70,16 @@ namespace Namespace2Xml.Formatters
             var newPrefix = prefix.Concat(new[] { tree.NameString });
 
             if (tree is ProfileTreeNode node)
-                yield return new ProfileTreeNode(
-                    node.Name,
-                    node.Children
-                        .SelectMany(child => child.Ignore(ignore, newPrefix)));
+            {
+                var children = node.Children
+                    .SelectMany(child => child.Ignore(ignore, newPrefix)).ToList();
+                if (children.Any())
+                {
+                    yield return new ProfileTreeNode(
+                        node.Name,
+                        children);
+                }
+            }
             else if (!ignore.IsMatch(newPrefix.ToQualifiedName()))
                 yield return tree;
         }

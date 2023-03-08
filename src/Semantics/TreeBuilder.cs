@@ -217,6 +217,7 @@ namespace Namespace2Xml.Semantics
 
                     case ProfileError _:
                     case Comment _:
+                    case PayloadIgnore _:
                         yield return entry;
                         break;
 
@@ -555,6 +556,7 @@ namespace Namespace2Xml.Semantics
 
                     case Comment _:
                     case ProfileError _:
+                    case PayloadIgnore _:
                         return new[] { entry };
 
                     default:
@@ -618,6 +620,9 @@ namespace Namespace2Xml.Semantics
 
                     case Comment comment:
                         leadingComments.Add(comment);
+                        break;
+
+                    case PayloadIgnore _:
                         break;
 
                     default:
