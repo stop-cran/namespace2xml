@@ -81,6 +81,13 @@ namespace Namespace2Xml.Formatters
                         delimiter,
                         loggerFactory.CreateLogger<NamespaceFormatter>());
 
+                case OutputType.quotednamespace:
+                    return new QuotedNamespaceFormatter(
+                        CreateOutputStream(fileName ?? node.Name + ".properties", outputType),
+                        root,
+                        delimiter,
+                        loggerFactory.CreateLogger<NamespaceFormatter>());
+
                 case OutputType.json:
                     return new JsonFormatter(
                         CreateOutputStream(fileName ?? node.Name + ".json", outputType),

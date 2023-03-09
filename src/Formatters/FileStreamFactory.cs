@@ -38,6 +38,7 @@ namespace Namespace2Xml.Formatters
             switch (outputType)
             {
                 case OutputType.@namespace:
+                case OutputType.quotednamespace:
                 case OutputType.yaml:
                     if (outputFileNamesCache.TryGetValue(fileName, out var cachedType))
                     {

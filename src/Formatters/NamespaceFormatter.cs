@@ -47,7 +47,9 @@ namespace Namespace2Xml.Formatters
             return leaf
                 .LeadingComments
                 .Select(comment => comment.ToString())
-                .Concat(new[] { $"{string.Join(delimiter, names)}={leaf.Value}" });
+                .Concat(new[] { $"{string.Join(delimiter, names)}={FormatValue(leaf.Value)}" });
         }
+
+        protected virtual string FormatValue(string value) => value;
     }
 }

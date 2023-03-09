@@ -4,6 +4,7 @@
     {
         ignore,
         @namespace,
+        quotednamespace,
         xml,
         json,
         yaml,
