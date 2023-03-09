@@ -154,7 +154,9 @@ namespace Namespace2Xml.Semantics
             {
                 ProfileTreeLeaf leaf => Enum.TryParse<EntryType>(leaf.NameString, out var type)
                                         ? (ISchemeEntry)new SchemeLeaf(
-                                            type,
+                                            type == EntryType.namespacedelimiter
+                                                ? EntryType.delimiter
+                                                : type,
                                             type == EntryType.substitute && string.Equals(leaf.Value, "keyOnly", StringComparison.InvariantCultureIgnoreCase) // For "keyOnly" backward compatibility
                                                 ? "Key"
                                                 : leaf.Value,

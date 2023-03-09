@@ -1,4 +1,6 @@
-﻿namespace Namespace2Xml.Scheme
+﻿using System;
+
+namespace Namespace2Xml.Scheme
 {
     public enum EntryType
     {
@@ -8,6 +10,8 @@
         filename,
         output,
         delimiter,
+        [Obsolete("Used for backward compatibility, use EntryType.delimiter instead.")]
+        namespacedelimiter,
         substitute,
         xmloptions
     }

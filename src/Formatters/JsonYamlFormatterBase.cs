@@ -41,11 +41,11 @@ namespace Namespace2Xml.Formatters
             if (bool.TryParse(value, out bool b))
                 return (b, true);
 
-            //if (TimeSpan.TryParse(value, out TimeSpan t))
-            //    return (t, true);
+            if (TimeSpan.TryParse(value, out TimeSpan t))
+                return (t, true);
 
-            //if (DateTime.TryParse(value, out DateTime dt))
-            //    return (dt, true);
+            if (DateTime.TryParse(value, out DateTime dt))
+                return (dt, true);
 
             return (null, false);
         }
