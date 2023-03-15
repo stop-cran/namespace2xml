@@ -79,17 +79,7 @@ namespace Namespace2Xml.Formatters
 
                     if (arrays.IsMatch(newPrefix.ToQualifiedName()))
                     {
-                        return node.Children
-                            .GroupBy(x => x.NameString)
-                            .Select(children =>
-                            {
-                                foreach (var skippedChild in children.SkipLast(1))
-                                {
-                                    logger.LogDebug("Array element has been overridden in YAML, name: {name}", skippedChild.NameString);
-                                }
-
-                                return children.Last();
-                            })
+                        return ProcessOverrides(node.Children, newPrefix)
                             .Select(x => new
                             {
                                 child = x,
@@ -102,15 +92,9 @@ namespace Namespace2Xml.Formatters
 
                     var result = new SortedDictionary<string, object>();
 
-                    foreach (var child in node.Children)
-                    {
-                        if (result.ContainsKey(child.NameString))
-                        {
-                            logger.LogDebug("Object property has been overridden in YAML, name: {name}", child.NameString);
-                        }
-
+                    foreach (var child in ProcessOverrides(node.Children, newPrefix))
                         result[child.NameString] = ToObject(child, newPrefix);
-                    }
+
                     return result;
 
                 case ProfileTreeLeaf leaf:

@@ -1,8 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
-using Namespace2Xml.Syntax;
+using Namespace2Xml.Semantics;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Namespace2Xml.Formatters
 {
@@ -42,6 +43,40 @@ namespace Namespace2Xml.Formatters
                 return (b, true);
 
             return (null, false);
+        }
+
+        protected IEnumerable<ProfileTree> ProcessOverrides(IEnumerable<ProfileTree> entries, string[] prefix) =>
+            entries.GroupBy(x => x.NameString).Select(children => ProcessOverridesForChildren(children, prefix));
+
+        private ProfileTree ProcessOverridesForChildren(IEnumerable<ProfileTree> entries, string[] prefix)
+        {
+            ProfileTree result = null;
+
+            foreach (var entry in entries)
+            {
+                if (result != null)
+                {
+                    if (result is ProfileTreeNode childNode && entry is ProfileTreeLeaf leaf)
+                    {
+                        if (leaf.Value == "[]" && arrays.IsMatch(prefix.Append(leaf.NameString).ToQualifiedName()))
+                        {
+                            logger.LogDebug("Entry has not been overridden in JSON, name: {name}", entry.NameString);
+                            continue;
+                        }
+                        if (leaf.Value == "{}" && !arrays.IsMatch(prefix.Append(leaf.NameString).ToQualifiedName()))
+                        {
+                            logger.LogDebug("Entry has not been overridden in JSON, name: {name}", entry.NameString);
+                            continue;
+                        }
+                    }
+
+                    logger.LogDebug("Entry has been overridden in JSON, name: {name}", result.NameString);
+                }
+
+                result = entry;
+            }
+
+            return result;
         }
     }
 }

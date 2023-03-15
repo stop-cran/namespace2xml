@@ -27,6 +27,7 @@ namespace Namespace2Xml
         private readonly IStreamFactory streamFactory;
         private readonly ILogger<ProfileReader> logger;
         private readonly Dictionary<QualifiedName, int> implicitIndices = new Dictionary<QualifiedName, int>();
+        private readonly Dictionary<string, int> implicitFileLines = new Dictionary<string, int>();
 
         public ProfileReader(
             IStreamFactory streamFactory,
@@ -154,9 +155,11 @@ namespace Namespace2Xml
         static Parser<NamePart> nameParser = Parsers.GetNamePartParser();
         static Parser<IEnumerable<IValueToken>> valueParser = Parsers.GetValueParser();
 
-        static Payload ParsePayload(string[] nameParts, string value, string fileName, int fileNumber)
+        Payload ParsePayload(string[] nameParts, string value, string fileName, int fileNumber)
         {
-            var sourceMark = new SourceMark(fileNumber, fileName, 0);
+            implicitFileLines.TryGetValue(fileName, out var lineNumber);
+            var sourceMark = new SourceMark(fileNumber, fileName, lineNumber + 1);
+            implicitFileLines[fileName] = lineNumber + 1;
 
             var parsedParts = nameParts.Select(part => nameParser.Parse(part)).ToList();
             var parsedValue = valueParser.Parse(value);

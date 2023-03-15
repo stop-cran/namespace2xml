@@ -73,17 +73,8 @@ namespace Namespace2Xml.Formatters
                     }
 
                     if (arrays.IsMatch(newPrefix.ToQualifiedName()))
-                        return new JArray(node.Children
-                            .GroupBy(x => x.NameString)
-                            .Select(children =>
-                            {
-                                foreach (var skippedChild in children.SkipLast(1))
-                                {
-                                    logger.LogDebug("Entry has been overridden in JSON, name: {name}", skippedChild.NameString);
-                                }
-
-                                return children.Last();
-                            })
+                        return new JArray(
+                            ProcessOverrides(node.Children, newPrefix)
                             .Select(x => new
                             {
                                 child = x,
@@ -97,17 +88,7 @@ namespace Namespace2Xml.Formatters
                                     newPrefix))
                             .ToArray());
 
-                    return new JObject(node.Children
-                        .GroupBy(x => x.NameString)
-                        .Select(children =>
-                        {
-                            foreach (var skippedChild in children.SkipLast(1))
-                            {
-                                logger.LogDebug("Entry has been overridden in JSON, name: {name}", skippedChild.NameString);
-                            }
-
-                            return children.Last();
-                        })
+                    return new JObject(ProcessOverrides(node.Children, newPrefix)
                         .Select(child =>
                             new JProperty(
                                 child.NameString,
