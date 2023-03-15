@@ -115,7 +115,7 @@ namespace Namespace2Xml.Formatters
 
                 case OutputType.yaml:
                     return new YamlFormatter(
-                        CreateOutputStream(fileName ?? node.Name + ".yml", outputType),
+                        CreateOutputStream(fileName ?? node.Name + ".yaml", outputType),
                         root,
                         keys,
                         arrays,

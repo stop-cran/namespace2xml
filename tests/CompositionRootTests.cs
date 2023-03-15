@@ -56,7 +56,7 @@ namespace Namespace2Xml.Tests
                 .Returns(new IProfileEntry[0]);
 
             streamFactory
-                .Setup(f => f.CreateOutputStream("a.yml", It.IsAny<OutputType>()))
+                .Setup(f => f.CreateOutputStream("a.yaml", It.IsAny<OutputType>()))
                 .Returns(output);
 
             loggerFactory.AddProvider(new ConsoleLoggerProvider(Mock.Of<IOptionsMonitor<ConsoleLoggerOptions>>(f => f.CurrentValue == new ConsoleLoggerOptions())));
@@ -68,7 +68,8 @@ namespace Namespace2Xml.Tests
             await new CompositionRoot(
                 profileReader.Object,
                 new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>()),
-                new FormatterBuilder(streamFactory.Object, loggerFactory)).Write(
+                new FormatterBuilder(streamFactory.Object, loggerFactory),
+                Mock.Of<ILogger<CompositionRoot>>()).Write(
                 new Arguments(
                     new[] { "input" },
                     new[] { "scheme" },
@@ -97,7 +98,8 @@ namespace Namespace2Xml.Tests
             await new CompositionRoot(
                 profileReader.Object,
                 new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>()),
-                new FormatterBuilder(streamFactory.Object, loggerFactory)).Write(
+                new FormatterBuilder(streamFactory.Object, loggerFactory),
+                Mock.Of<ILogger<CompositionRoot>>()).Write(
                 new Arguments(
                     new[] { "input" },
                     new[] { "scheme" },

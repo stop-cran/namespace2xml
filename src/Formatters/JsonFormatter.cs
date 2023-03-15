@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using CommandLine;
+using Microsoft.Extensions.Logging;
 using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using Newtonsoft.Json;
@@ -68,11 +69,21 @@ namespace Namespace2Xml.Formatters
                                     new ProfileTreeNode(node.Name, new[] { keyLeaf }.Concat(child.Children)),
                                     newPrefix.Concat(new[] { child.NameString }).ToArray());
                             }).ToArray();
-                        return (JToken)new JArray(nodes);
+                        return new JArray(nodes);
                     }
 
                     if (arrays.IsMatch(newPrefix.ToQualifiedName()))
-                        return (JToken)new JArray(node.Children
+                        return new JArray(node.Children
+                            .GroupBy(x => x.NameString)
+                            .Select(children =>
+                            {
+                                foreach (var skippedChild in children.SkipLast(1))
+                                {
+                                    logger.LogDebug("Entry has been overridden in JSON, name: {name}", skippedChild.NameString);
+                                }
+
+                                return children.Last();
+                            })
                             .Select(x => new
                             {
                                 child = x,
@@ -87,6 +98,16 @@ namespace Namespace2Xml.Formatters
                             .ToArray());
 
                     return new JObject(node.Children
+                        .GroupBy(x => x.NameString)
+                        .Select(children =>
+                        {
+                            foreach (var skippedChild in children.SkipLast(1))
+                            {
+                                logger.LogDebug("Entry has been overridden in JSON, name: {name}", skippedChild.NameString);
+                            }
+
+                            return children.Last();
+                        })
                         .Select(child =>
                             new JProperty(
                                 child.NameString,

@@ -1,10 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Microsoft.Extensions.Logging;
 using Namespace2Xml.Formatters;
 using Namespace2Xml.Scheme;
 using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using Sprache;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,15 +16,18 @@ namespace Namespace2Xml
         private readonly IProfileReader profileReader;
         private readonly ITreeBuilder treeBuilder;
         private readonly IFormatterBuilder formatterBuilder;
+        private readonly ILogger<CompositionRoot> logger;
 
         public CompositionRoot(
             IProfileReader profileReader,
             ITreeBuilder treeBuilder,
-            IFormatterBuilder formatterBuilder)
+            IFormatterBuilder formatterBuilder,
+            ILogger<CompositionRoot> logger)
         {
             this.profileReader = profileReader;
             this.treeBuilder = treeBuilder;
             this.formatterBuilder = formatterBuilder;
+            this.logger = logger;
         }
 
         public async Task Write(Arguments arguments, CancellationToken cancellationToken)
@@ -38,8 +41,6 @@ namespace Namespace2Xml
                         .Select(p => p.Name)
                         .Distinct()
                         .ToList();
-
-            // RK TODO: armTemplates.*.resources.type=array
 
             var schemeTrees = treeBuilder.BuildScheme(schemes, usedNames)
                 .Where(x => x
@@ -59,13 +60,25 @@ namespace Namespace2Xml
                     scheme.WithImplicitArrays(tree),
                     usedNames)
                 from pair in formatterBuilder.Build(alteredScheme)
-                from subTree in tree.GetSubTrees(pair.prefix) // RK TODO: Logging if no suitable subtrees.
+                from subTree in GetSubTrees(tree, pair.prefix)
                 select (tree: subTree, pair.formatter);
 
-            foreach (var pair in resultsToWrite)
+            foreach (var (tree, formatter) in resultsToWrite)
             {
-                await pair.formatter.Write(pair.tree, cancellationToken);
+                await formatter.Write(tree, cancellationToken);
             }
+        }
+
+        private IEnumerable<ProfileTree> GetSubTrees(ProfileTree tree, QualifiedName prefix)
+        {
+            var subTrees = tree.GetSubTrees(prefix).ToList();
+
+            if (subTrees.Count == 0)
+            {
+                logger.LogDebug("No entries to output from {name}, prefix: {prefix}", tree.NameString, prefix);
+            }
+
+            return subTrees;
         }
     }
 }

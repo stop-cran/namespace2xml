@@ -1,19 +1,21 @@
 ﻿using Microsoft.Extensions.Logging;
 using MoreLinq;
 using Namespace2Xml.Formatters;
-using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using NullGuard;
 using Sprache;
 using System;
 using System.Collections.Generic;
 using System.Dynamic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using YamlDotNet.Core;
 using YamlDotNet.Core.Events;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NodeTypeResolvers;
@@ -41,10 +43,12 @@ namespace Namespace2Xml
 
         public async Task<IReadOnlyList<IProfileEntry>> ReadFiles(
             IEnumerable<string> files,
-            CancellationToken cancellationToken) =>
-            CheckErrorsAndMerge(
-                await Task.WhenAll(
-                    files.Select(ReadInput)));
+            CancellationToken cancellationToken)
+        {
+            var entries = await Task.WhenAll(files.Select(ReadInput));
+
+            return CheckErrorsAndMerge(entries);
+        }
 
         private (IResult<IEnumerable<IProfileEntry>> result, string fileName) TryParse(string input, int fileNumber, string fileName) =>
             (Parsers.GetProfileParser(fileNumber, fileName).TryParse(input), fileName);
@@ -84,37 +88,38 @@ namespace Namespace2Xml
                 using var stream = streamFactory.CreateInputStream(fileName);
                 using var reader = new StreamReader(stream);
 
-                if (Path.GetExtension(fileName) == ".json")
+                switch (Path.GetExtension(fileName))
                 {
-                    using var jsonReader = new JsonTextReader(reader);
-                    var json = await JObject.LoadAsync(jsonReader);
+                    case ".json":
+                        using (var jsonReader = new JsonTextReader(reader))
+                        {
+                            var json = await JObject.LoadAsync(jsonReader);
 
-                    return (Result.Success(JsonToProfileEntries(Array.Empty<string>(), json, fileName, fileNumber), null), fileName);
+                            return (Result.Success(JsonToProfileEntries(Array.Empty<string>(), json, fileName, fileNumber), null), fileName);
+                        }
+
+                    case ".yml":
+                    case ".yaml":
+
+                        var deserializer = new DeserializerBuilder()
+                            .WithNodeTypeResolver(
+                                  new ExpandoNodeTypeResolver(),
+                                  ls => ls.InsteadOf<DefaultContainersNodeTypeResolver>())
+                            .Build();
+
+                        dynamic yaml = deserializer.Deserialize(reader);
+
+                        return (Result.Success(YamlToProfileEntries(Array.Empty<string>(), yaml, fileName, fileNumber), null), fileName);
+
+                    case ".xml":
+                        var xml = XDocument.Load(reader);
+                        var res = (Result.Success(XmlToProfileEntries(new[] { GetNameWithNamespacePrefix(xml.Root) }, xml.Root, fileName, fileNumber), null), fileName);
+
+                        return res;
+
+                    default:
+                        return TryParse(await reader.ReadToEndAsync(), fileNumber, fileName);
                 }
-
-                if (Path.GetExtension(fileName) == ".yaml")
-                {
-                    var deserializer = new DeserializerBuilder()
-                        .WithNodeTypeResolver(
-                              new ExpandoNodeTypeResolver(),
-                              ls => ls.InsteadOf<DefaultContainersNodeTypeResolver>())
-                        .Build();
-
-                    dynamic yaml = deserializer.Deserialize(reader);
-
-                    return (Result.Success(YamlToProfileEntries(Array.Empty<string>(), yaml, fileName, fileNumber), null), fileName);
-                }
-
-                if (Path.GetExtension(fileName) == ".xml")
-                {
-                    var xml = XDocument.Load(reader);
-
-                    var res = (Result.Success(XmlToProfileEntries(new[] { GetNameWithNamespacePrefix(xml.Root) }, xml.Root, fileName, fileNumber), null), fileName);
-
-                    return res;
-                }
-
-                return TryParse(await reader.ReadToEndAsync(), fileNumber, fileName); // RK TODO: cancellation support
             }
             catch (Exception ex)
             {
@@ -184,7 +189,9 @@ namespace Namespace2Xml
             }
             if (json is JValue jValue)
             {
-                return new[] { ParsePayload(prefix, jValue.Value?.ToString() ?? "null", fileName, fileNumber) };
+                var payload = ParsePayload(prefix, jValue.Value?.ToString() ?? "null", fileName, fileNumber);
+
+                return new[] { payload };
             }
             throw new ApplicationException();
         }
@@ -215,20 +222,18 @@ namespace Namespace2Xml
                     return new[] { new Payload(prefix.ToQualifiedName(), new[] { new TextValueToken("[]") }, new SourceMark(fileNumber, fileName, 0)) };
             }
 
-            return new[] { ParsePayload(prefix, yaml?.ToString() ?? "null", fileName, fileNumber) };
-        }
+            var payload = ParsePayload(prefix, yaml?.ToString() ?? "null", fileName, fileNumber);
 
+            return new[] { payload };
+        }
         static string GetNameWithNamespacePrefix(XElement element)
         {
             var prefix = element.GetPrefixOfNamespace(element.Name.Namespace);
-
             return prefix == null ? element.Name.LocalName : prefix + ':' + element.Name.LocalName;
         }
-
         static string GetNameWithNamespacePrefix(XAttribute attribute)
         {
             var prefix = attribute.Parent.GetPrefixOfNamespace(attribute.Name.Namespace);
-
             return prefix == null ? attribute.Name.LocalName : prefix + ':' + attribute.Name.LocalName;
         }
 

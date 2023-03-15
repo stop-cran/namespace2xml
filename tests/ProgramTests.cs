@@ -32,7 +32,7 @@ namespace Namespace2Xml.Tests
                 .Returns<string>(_ => new MemoryStream(Encoding.UTF8.GetBytes("a.output=yaml")));
 
             streamFactory
-                .Setup(f => f.CreateOutputStream("a.yml", It.IsAny<OutputType>()))
+                .Setup(f => f.CreateOutputStream("a.yaml", It.IsAny<OutputType>()))
                 .Returns(output);
 
             Program.ServiceOverrides = serviceCollection =>

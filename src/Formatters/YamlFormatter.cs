@@ -10,6 +10,7 @@ using Namespace2Xml.Syntax;
 using YamlDotNet.Core;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.EventEmitters;
+using Namespace2Xml.Scheme;
 
 namespace Namespace2Xml.Formatters
 {
@@ -70,7 +71,7 @@ namespace Namespace2Xml.Formatters
                                     newPrefix.ToQualifiedName());
 
                                 return ToObject(
-                                    new ProfileTreeNode(node.Name, new [] { keyLeaf }.Concat(child.Children)),
+                                    new ProfileTreeNode(node.Name, new[] { keyLeaf }.Concat(child.Children)),
                                     newPrefix.Concat(new[] { child.NameString }).ToArray());
                             }).ToList();
                         return nodes;
@@ -79,6 +80,16 @@ namespace Namespace2Xml.Formatters
                     if (arrays.IsMatch(newPrefix.ToQualifiedName()))
                     {
                         return node.Children
+                            .GroupBy(x => x.NameString)
+                            .Select(children =>
+                            {
+                                foreach (var skippedChild in children.SkipLast(1))
+                                {
+                                    logger.LogDebug("Array element has been overridden in YAML, name: {name}", skippedChild.NameString);
+                                }
+
+                                return children.Last();
+                            })
                             .Select(x => new
                             {
                                 child = x,
@@ -89,8 +100,18 @@ namespace Namespace2Xml.Formatters
                             .Select(x => ToObject(x.child, newPrefix)).ToArray();
                     }
 
-                    return node.Children.ToDictionary(child => child.NameString,
-                        child => ToObject(child, newPrefix));
+                    var result = new SortedDictionary<string, object>();
+
+                    foreach (var child in node.Children)
+                    {
+                        if (result.ContainsKey(child.NameString))
+                        {
+                            logger.LogDebug("Object property has been overridden in YAML, name: {name}", child.NameString);
+                        }
+
+                        result[child.NameString] = ToObject(child, newPrefix);
+                    }
+                    return result;
 
                 case ProfileTreeLeaf leaf:
                     return ToObjectSingleValue(leaf.Value, newPrefix);

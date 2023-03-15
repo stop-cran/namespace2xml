@@ -10,7 +10,7 @@ namespace Namespace2Xml.Formatters
 {
     public abstract class StreamFormatter : IFormatter
     {
-        private readonly ILogger<StreamFormatter> logger;
+        protected readonly ILogger<StreamFormatter> logger;
         protected readonly Func<Stream> outputStreamFactory;
 
         protected StreamFormatter(Func<Stream> outputStreamFactory, ILogger<StreamFormatter> logger)

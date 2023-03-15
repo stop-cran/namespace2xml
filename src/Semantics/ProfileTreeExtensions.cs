@@ -26,7 +26,6 @@ namespace Namespace2Xml.Semantics
             }
         }
 
-        [return: NullGuard.AllowNull]
         public static IEnumerable<ProfileTree> GetSubTrees(this ProfileTree tree, QualifiedName prefix) =>
             from tuple in tree.GetAllChildren()
             where tuple.prefix.Parts.GetFullMatch(prefix.Parts) != null
