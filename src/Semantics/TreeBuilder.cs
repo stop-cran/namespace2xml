@@ -5,15 +5,20 @@ using Namespace2Xml.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Extensions.Options;
 
 namespace Namespace2Xml.Semantics
 {
     public class TreeBuilder : ITreeBuilder
     {
+        private readonly string implicitRootElement;
         private readonly ILogger<TreeBuilder> logger;
 
-        public TreeBuilder(ILogger<TreeBuilder> logger)
+        public TreeBuilder(
+            IOptions<QualifiedNameOptions> options,
+            ILogger<TreeBuilder> logger)
         {
+            this.implicitRootElement = options.Value.ImplicitRoot;
             this.logger = logger;
         }
 
@@ -72,6 +77,15 @@ namespace Namespace2Xml.Semantics
             entries = ApplyOverrides(entries).ToList();
             entries = ApplyReferences(entries).ToList();
             entries = ConcatTextTokensScheme(entries).ToList();
+
+            foreach (var entry in entries)
+            {
+                if (entry is NamedProfileEntry namedEntry
+                    && namedEntry.Name.Parts.Count == 1)
+                {
+                    namedEntry.Name.Parts.Insert(0, new NamePart(new[] { new TextNameToken(this.implicitRootElement) }));
+                }
+            }
 
             return ToTree(
                 PrependComments(entries),

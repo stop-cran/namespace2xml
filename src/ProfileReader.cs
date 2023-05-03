@@ -1,21 +1,18 @@
 ﻿using Microsoft.Extensions.Logging;
-using MoreLinq;
 using Namespace2Xml.Formatters;
 using Namespace2Xml.Syntax;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using NullGuard;
 using Sprache;
 using System;
 using System.Collections.Generic;
 using System.Dynamic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using YamlDotNet.Core;
+using Microsoft.Extensions.Options;
 using YamlDotNet.Core.Events;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NodeTypeResolvers;
@@ -26,14 +23,17 @@ namespace Namespace2Xml
     {
         private readonly IStreamFactory streamFactory;
         private readonly ILogger<ProfileReader> logger;
-        private readonly Dictionary<QualifiedName, int> implicitIndices = new Dictionary<QualifiedName, int>();
-        private readonly Dictionary<string, int> implicitFileLines = new Dictionary<string, int>();
+        private readonly Dictionary<QualifiedName, int> implicitIndices = new();
+        private readonly Dictionary<string, int> implicitFileLines = new();
+        private readonly string implicitRootElement;
 
         public ProfileReader(
             IStreamFactory streamFactory,
+            IOptions<QualifiedNameOptions> options,
             ILogger<ProfileReader> logger)
         {
             this.streamFactory = streamFactory;
+            this.implicitRootElement = options.Value.ImplicitRoot;
             this.logger = logger;
         }
 
@@ -96,7 +96,7 @@ namespace Namespace2Xml
                         {
                             var json = await JObject.LoadAsync(jsonReader);
 
-                            return (Result.Success(JsonToProfileEntries(Array.Empty<string>(), json, fileName, fileNumber), null), fileName);
+                            return (Result.Success(JsonToProfileEntries(new [] { this.implicitRootElement }, json, fileName, fileNumber), null), fileName);
                         }
 
                     case ".yml":
@@ -110,7 +110,7 @@ namespace Namespace2Xml
 
                         dynamic yaml = deserializer.Deserialize(reader);
 
-                        return (Result.Success(YamlToProfileEntries(Array.Empty<string>(), yaml, fileName, fileNumber), null), fileName);
+                        return (Result.Success(YamlToProfileEntries(new [] { this.implicitRootElement }, yaml, fileName, fileNumber), null), fileName);
 
                     case ".xml":
                         var xml = XDocument.Load(reader);

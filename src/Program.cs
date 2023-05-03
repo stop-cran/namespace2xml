@@ -8,6 +8,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using Namespace2Xml.Syntax;
 
 namespace Namespace2Xml
 {
@@ -32,7 +33,8 @@ namespace Namespace2Xml
                                 .AddTransient<ITreeBuilder, TreeBuilder>()
                                 .AddTransient<IFormatterBuilder, FormatterBuilder>()
                                 .AddTransient<CompositionRoot>()
-                                .Configure<FileStreamFactoryOptions>(options => options.BaseOutputDirectory = arguments.OutputDirectory);
+                                .Configure<FileStreamFactoryOptions>(options => options.BaseOutputDirectory = arguments.OutputDirectory)
+                                .Configure<QualifiedNameOptions>(options => options.ImplicitRoot = "ImplicitRoot");
 
                             ServiceOverrides?.Invoke(servicerCollection);
 
