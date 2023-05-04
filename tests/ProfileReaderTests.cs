@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 
 namespace Namespace2Xml.Tests
 {
@@ -18,11 +19,17 @@ namespace Namespace2Xml.Tests
         private Mock<IStreamFactory> streamFactory;
         private MemoryStream output;
 
+        private Mock<IOptions<QualifiedNameOptions>> optionsMock;
+
         [SetUp]
         public void Setup()
         {
             output = new MemoryStream();
             streamFactory = new Mock<IStreamFactory>();
+
+            optionsMock = new Mock<IOptions<QualifiedNameOptions>>();
+            optionsMock.Setup(x => x.Value)
+                .Returns(new QualifiedNameOptions { ImplicitRoot = "ImplicitRoot" });
 
             streamFactory
                 .Setup(f => f.CreateInputStream("input"))
@@ -34,6 +41,7 @@ namespace Namespace2Xml.Tests
         {
             var entries = await new ProfileReader(
                 streamFactory.Object,
+                optionsMock.Object,
                 Mock.Of<ILogger<ProfileReader>>())
                 .ReadFiles(new[] { "input" }, default);
 
@@ -60,8 +68,8 @@ namespace Namespace2Xml.Tests
         }
 
         [Test]
-        [TestCase("input.json", "{\"a\": {\"c\": [11,\"22\"], \"d\": {}, \"e\": [], \"f\": \"asdfgh\", \"g\": null, \"b-*\": {\"z\": \"qwerty/${a.*.y}\"}}}", "a.c.0=11;a.c.1=22;a.d={};a.e=[];a.f=asdfgh;a.g=null;a.b-*.z=qwerty/${a.*.y}")]
-        [TestCase("input.yaml", "a:\n  c: [11, \"22\"]\n  d: {}\n  e: []\n  f: asdfgh\n  \"b-*\":\n    z: \"qwerty/${a.*.y}\"", "a.c.0=11;a.c.1=22;a.d={};a.e=[];a.f=asdfgh;a.b-*.z=qwerty/${a.*.y}")]
+        [TestCase("input.json", "{\"a\": {\"c\": [11,\"22\"], \"d\": {}, \"e\": [], \"f\": \"asdfgh\", \"g\": null, \"b-*\": {\"z\": \"qwerty/${a.*.y}\"}}}", "ImplicitRoot.a.c.0=11;ImplicitRoot.a.c.1=22;ImplicitRoot.a.d={};ImplicitRoot.a.e=[];ImplicitRoot.a.f=asdfgh;ImplicitRoot.a.g=null;ImplicitRoot.a.b-*.z=qwerty/${a.*.y}")]
+        [TestCase("input.yaml", "a:\n  c: [11, \"22\"]\n  d: {}\n  e: []\n  f: asdfgh\n  \"b-*\":\n    z: \"qwerty/${a.*.y}\"", "ImplicitRoot.a.c.0=11;ImplicitRoot.a.c.1=22;ImplicitRoot.a.d={};ImplicitRoot.a.e=[];ImplicitRoot.a.f=asdfgh;ImplicitRoot.a.b-*.z=qwerty/${a.*.y}")]
         [TestCase("input.xml", "<a xmlns=\"uri:example.com\"><b z=\"qwerty/${a.*.y}\" /><c><d e=\"11\"/><d e=\"22\"/></c><f/></a>", "a.xmlns=uri:example.com;a.b.z=qwerty/${a.*.y};a.c.d.0.e=11;a.c.d.1.e=22;a.f=")]
         public async Task ShouldReadFormattedFile(string inputFileName, string inputText, string expected)
         {
@@ -71,6 +79,7 @@ namespace Namespace2Xml.Tests
 
             var entries = await new ProfileReader(
                 streamFactory.Object,
+                optionsMock.Object,
                 Mock.Of<ILogger<ProfileReader>>())
                 .ReadFiles(new[] { inputFileName }, default);
 
@@ -82,6 +91,7 @@ namespace Namespace2Xml.Tests
         {
             await new ProfileReader(
                 streamFactory.Object,
+                optionsMock.Object,
                 Mock.Of<ILogger<ProfileReader>>())
                 .ReadFiles(new[] { "_invalid" }, default)
                 .ContinueWith(t => t.Exception
@@ -102,6 +112,7 @@ namespace Namespace2Xml.Tests
 
             await new ProfileReader(
                 streamFactory.Object,
+                optionsMock.Object,
                 Mock.Of<ILogger<ProfileReader>>())
                 .ReadFiles(new[] { "error" }, default)
                 .ContinueWith(t => t.Exception

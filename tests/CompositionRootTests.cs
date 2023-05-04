@@ -23,6 +23,7 @@ namespace Namespace2Xml.Tests
         private Mock<IFormatterBuilder> formatterBuilder;
         private LoggerFactory loggerFactory;
         private MemoryStream output;
+        private Mock<IOptions<QualifiedNameOptions>> optionsMock;
 
         [SetUp]
         public void Setup()
@@ -33,6 +34,10 @@ namespace Namespace2Xml.Tests
             treeBuilder = new Mock<ITreeBuilder>();
             formatterBuilder = new Mock<IFormatterBuilder>();
             loggerFactory = new LoggerFactory();
+
+            optionsMock = new Mock<IOptions<QualifiedNameOptions>>();
+            optionsMock.Setup(x => x.Value)
+                .Returns(new QualifiedNameOptions { ImplicitRoot = "ImplicitRoot" });
 
             profileReader.Setup(r => r.ReadFiles(new[] { "input" }, default))
                 .Returns(Task.FromResult<IReadOnlyList<IProfileEntry>>(new[]
@@ -67,7 +72,7 @@ namespace Namespace2Xml.Tests
         {
             await new CompositionRoot(
                 profileReader.Object,
-                new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>()),
+                new TreeBuilder(optionsMock.Object, Mock.Of<ILogger<TreeBuilder>>()),
                 new FormatterBuilder(streamFactory.Object, loggerFactory),
                 Mock.Of<ILogger<CompositionRoot>>()).Write(
                 new Arguments(
@@ -97,7 +102,7 @@ namespace Namespace2Xml.Tests
 
             await new CompositionRoot(
                 profileReader.Object,
-                new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>()),
+                new TreeBuilder(optionsMock.Object, Mock.Of<ILogger<TreeBuilder>>()),
                 new FormatterBuilder(streamFactory.Object, loggerFactory),
                 Mock.Of<ILogger<CompositionRoot>>()).Write(
                 new Arguments(
