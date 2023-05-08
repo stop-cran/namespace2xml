@@ -5,17 +5,24 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Namespace2Xml.Formatters
 {
     public class FormatterBuilder : IFormatterBuilder
     {
+        private readonly IServiceProvider serviceProvider;
         private readonly IStreamFactory streamFactory;
         private readonly ILoggerFactory loggerFactory;
         private readonly ILogger<FormatterBuilder> logger;
 
-        public FormatterBuilder(IStreamFactory streamFactory, ILoggerFactory loggerFactory)
+        public FormatterBuilder(
+            IServiceProvider serviceProvider,
+            IStreamFactory streamFactory,
+            ILoggerFactory loggerFactory)
         {
+            this.serviceProvider = serviceProvider;
             this.streamFactory = streamFactory;
             this.loggerFactory = loggerFactory;
             this.logger = loggerFactory.CreateLogger<FormatterBuilder>();
@@ -108,6 +115,7 @@ namespace Namespace2Xml.Formatters
                             : Enum.TryParse<XmlOptions>(xmlOptions, out var options)
                                 ? options
                                 : throw new ArgumentException($"Unsupported XML options: {xmlOptions}."),
+                        serviceProvider.GetRequiredService<IOptions<QualifiedNameOptions>>(),
                         keys,
                         arrays,
                         node.GetNamesOfType(Scheme.ValueType.element),

@@ -34,7 +34,12 @@ namespace Namespace2Xml
                                 .AddTransient<IFormatterBuilder, FormatterBuilder>()
                                 .AddTransient<CompositionRoot>()
                                 .Configure<FileStreamFactoryOptions>(options => options.BaseOutputDirectory = arguments.OutputDirectory)
-                                .Configure<QualifiedNameOptions>(options => options.ImplicitRoot = "ImplicitRoot");
+                                .Configure<QualifiedNameOptions>(
+                                    options =>
+                                    {
+                                        options.ImplicitRoot = "ImplicitRoot";
+                                        options.XmlRoot = "XmlRoot";
+                                    });
 
                             ServiceOverrides?.Invoke(servicerCollection);
 
