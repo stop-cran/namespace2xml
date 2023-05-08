@@ -38,9 +38,11 @@ namespace Namespace2Xml
         }
 
         public IReadOnlyList<IProfileEntry> ReadVariables(
-            IEnumerable<string> variables) =>
-            CheckErrorsAndMerge(variables
-                .Select(variable => TryParse(variable, int.MaxValue, "<command line>")));
+            IEnumerable<string> variables)
+            => AddImplicitRoot(
+                CheckErrorsAndMerge(variables
+                    .Select(variable => TryParse(variable, int.MaxValue, "<command line>"))))
+                .ToList();
 
         public async Task<IReadOnlyList<IProfileEntry>> ReadFiles(
             IEnumerable<string> files,
@@ -48,13 +50,13 @@ namespace Namespace2Xml
         {
             var entries = await Task.WhenAll(files.Select(ReadInput));
 
-            return CheckErrorsAndMerge(entries);
+            return AddImplicitRoot(CheckErrorsAndMerge(entries)).ToList();
         }
 
         private (IResult<IEnumerable<IProfileEntry>> result, string fileName) TryParse(string input, int fileNumber, string fileName) =>
             (Parsers.GetProfileParser(fileNumber, fileName).TryParse(input), fileName);
 
-        private IReadOnlyList<T> CheckErrorsAndMerge<T>(IEnumerable<(IResult<IEnumerable<T>> result, string fileName)> results)
+        private IEnumerable<T> CheckErrorsAndMerge<T>(IEnumerable<(IResult<IEnumerable<T>> result, string fileName)> results)
         {
             var resultsList = results.ToList();
 
@@ -78,8 +80,20 @@ namespace Namespace2Xml
             }
 
             return resultsList
-                .SelectMany(result => result.result.Value)
-                .ToList();
+                .SelectMany(result => result.result.Value);
+        }
+
+        private IEnumerable<IProfileEntry> AddImplicitRoot(IEnumerable<IProfileEntry> entries)
+        {
+            foreach (var entry in entries)
+            {
+                if (entry is NamedProfileEntry namedEntry)
+                {
+                    namedEntry.Name.Parts.Insert(0, new NamePart(new[] { new TextNameToken(this.implicitRootElement) }));
+                }
+
+                yield return entry;
+            }
         }
 
         private async Task<(IResult<IEnumerable<IProfileEntry>> result, string fileName)> ReadInput(string fileName, int fileNumber)
@@ -96,7 +110,7 @@ namespace Namespace2Xml
                         {
                             var json = await JObject.LoadAsync(jsonReader);
 
-                            return (Result.Success(JsonToProfileEntries(new [] { this.implicitRootElement }, json, fileName, fileNumber), null), fileName);
+                            return (Result.Success(JsonToProfileEntries(Array.Empty<string>(), json, fileName, fileNumber), null), fileName);
                         }
 
                     case ".yml":
@@ -110,7 +124,7 @@ namespace Namespace2Xml
 
                         dynamic yaml = deserializer.Deserialize(reader);
 
-                        return (Result.Success(YamlToProfileEntries(new [] { this.implicitRootElement }, yaml, fileName, fileNumber), null), fileName);
+                        return (Result.Success(YamlToProfileEntries(Array.Empty<string>(), yaml, fileName, fileNumber), null), fileName);
 
                     case ".xml":
                         var xml = XDocument.Load(reader);

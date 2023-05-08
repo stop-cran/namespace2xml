@@ -16,16 +16,12 @@ namespace Namespace2Xml.Tests
     {
         private Parser<IEnumerable<IProfileEntry>> parser;
         private TreeBuilder builder;
-        private Mock<IOptions<QualifiedNameOptions>> optionsMock;
 
         [SetUp]
         public void Setup()
         {
-            optionsMock = new Mock<IOptions<QualifiedNameOptions>>();
-            optionsMock.Setup(x => x.Value)
-                .Returns(new QualifiedNameOptions { ImplicitRoot = "ImplicitRoot" });
             parser = Parsers.GetProfileParser(0, "testfile");
-            builder = new TreeBuilder(optionsMock.Object, Mock.Of<ILogger<TreeBuilder>>());
+            builder = new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>());
         }
 
         [Test]

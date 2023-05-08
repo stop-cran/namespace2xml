@@ -49,13 +49,18 @@ namespace Namespace2Xml.Tests
                 .ShouldHaveSingleItem()
                 .ShouldBeOfType<Payload>();
 
-            payload.Name.Parts.Count.ShouldBe(2);
+            payload.Name.Parts.Count.ShouldBe(3);
             payload.Name.Parts[0].Tokens
                 .ShouldHaveSingleItem()
                 .ShouldBeOfType<TextNameToken>()
                 .Text
-                .ShouldBe("a");
+                .ShouldBe("ImplicitRoot");
             payload.Name.Parts[1].Tokens
+                .ShouldHaveSingleItem()
+                .ShouldBeOfType<TextNameToken>()
+                .Text
+                .ShouldBe("a");
+            payload.Name.Parts[2].Tokens
                 .ShouldHaveSingleItem()
                 .ShouldBeOfType<TextNameToken>()
                 .Text
@@ -70,7 +75,7 @@ namespace Namespace2Xml.Tests
         [Test]
         [TestCase("input.json", "{\"a\": {\"c\": [11,\"22\"], \"d\": {}, \"e\": [], \"f\": \"asdfgh\", \"g\": null, \"b-*\": {\"z\": \"qwerty/${a.*.y}\"}}}", "ImplicitRoot.a.c.0=11;ImplicitRoot.a.c.1=22;ImplicitRoot.a.d={};ImplicitRoot.a.e=[];ImplicitRoot.a.f=asdfgh;ImplicitRoot.a.g=null;ImplicitRoot.a.b-*.z=qwerty/${a.*.y}")]
         [TestCase("input.yaml", "a:\n  c: [11, \"22\"]\n  d: {}\n  e: []\n  f: asdfgh\n  \"b-*\":\n    z: \"qwerty/${a.*.y}\"", "ImplicitRoot.a.c.0=11;ImplicitRoot.a.c.1=22;ImplicitRoot.a.d={};ImplicitRoot.a.e=[];ImplicitRoot.a.f=asdfgh;ImplicitRoot.a.b-*.z=qwerty/${a.*.y}")]
-        [TestCase("input.xml", "<a xmlns=\"uri:example.com\"><b z=\"qwerty/${a.*.y}\" /><c><d e=\"11\"/><d e=\"22\"/></c><f/></a>", "a.xmlns=uri:example.com;a.b.z=qwerty/${a.*.y};a.c.d.0.e=11;a.c.d.1.e=22;a.f=")]
+        [TestCase("input.xml", "<a xmlns=\"uri:example.com\"><b z=\"qwerty/${a.*.y}\" /><c><d e=\"11\"/><d e=\"22\"/></c><f/></a>", "ImplicitRoot.a.xmlns=uri:example.com;ImplicitRoot.a.b.z=qwerty/${a.*.y};ImplicitRoot.a.c.d.0.e=11;ImplicitRoot.a.c.d.1.e=22;ImplicitRoot.a.f=")]
         public async Task ShouldReadFormattedFile(string inputFileName, string inputText, string expected)
         {
             streamFactory
