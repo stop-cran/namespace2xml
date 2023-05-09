@@ -57,22 +57,25 @@ namespace Namespace2Xml.Formatters
             return element;
         }
 
-        protected override async Task DoWrite(ProfileTree tree, Stream stream, CancellationToken cancellationToken)
+        private XElement ProcessRoot(XElement element)
         {
-            if (tree is ProfileTreeNode treeNode)
+            if (element.Elements().Count() == 1)
             {
-                if (treeNode.Children.Count == 1)
-                {
-                    tree = treeNode.Children[0];
-                }
-                else
-                {
-                    tree = new ProfileTreeNode(new NamePart(new[] { new TextNameToken(rootElementName) }),
-                        treeNode.Children);
-                    logger.LogWarning("New root element was added to group the output xml elements.");
-                }
+                element = element.Elements().First();
+            }
+            else
+            {
+                element.Name = string.IsNullOrEmpty(element.Name.NamespaceName)
+                    ? XName.Get(rootElementName)
+                    : XName.Get(rootElementName, element.Name.NamespaceName);
+                logger.LogInformation("New root element was applied to group the output xml elements.");
             }
 
+            return element;
+        }
+
+        protected override async Task DoWrite(ProfileTree tree, Stream stream, CancellationToken cancellationToken)
+        {
             var xmlNamespaces = (from pair in tree.GetLeafs()
                                  where pair.leaf.NameString.StartsWith("xmlns:")
                                  select new { Key = pair.leaf.NameString.Substring(6), pair.leaf.Value })
@@ -85,10 +88,10 @@ namespace Namespace2Xml.Formatters
                 Indent = (xmlOptions & XmlOptions.NoIndent) == XmlOptions.None,
                 NewLineOnAttributes = (xmlOptions & XmlOptions.NewLineOnAttributes) == XmlOptions.NewLineOnAttributes
             }))
-                await ApplyOutputPrefix(
+                await ApplyOutputPrefix(ProcessRoot(
                         (XElement)ToXml(tree, new string[0], "", xmlNamespaces)
                             .Single()
-                            .node)
+                            .node))
                     .WriteToAsync(xmlWriter, cancellationToken);
         }
 
