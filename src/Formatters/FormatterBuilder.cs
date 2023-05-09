@@ -115,7 +115,7 @@ namespace Namespace2Xml.Formatters
                             : Enum.TryParse<XmlOptions>(xmlOptions, out var options)
                                 ? options
                                 : throw new ArgumentException($"Unsupported XML options: {xmlOptions}."),
-                        serviceProvider.GetRequiredService<IOptions<QualifiedNameOptions>>(),
+                        (IOptions<QualifiedNameOptions>)serviceProvider.GetService(typeof(IOptions<QualifiedNameOptions>)),
                         keys,
                         arrays,
                         node.GetNamesOfType(Scheme.ValueType.element),

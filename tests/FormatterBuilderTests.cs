@@ -9,12 +9,15 @@ using NUnit.Framework;
 using Shouldly;
 using System;
 using System.Linq;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Namespace2Xml.Tests
 {
     public class FormatterBuilderTests
     {
         private Mock<IStreamFactory> streamFactory;
+        private Mock<IServiceProvider> serviceProviderMock;
+        private Mock<IOptions<QualifiedNameOptions>> optionsMock;
         private ILoggerFactory loggerFactory;
         private FormatterBuilder formatterBuilder;
 
@@ -22,9 +25,18 @@ namespace Namespace2Xml.Tests
         public void Setup()
         {
             streamFactory = new Mock<IStreamFactory>();
+            serviceProviderMock = new Mock<IServiceProvider>();
             loggerFactory = new LoggerFactory();
             loggerFactory.AddProvider(new ConsoleLoggerProvider(Mock.Of<IOptionsMonitor<ConsoleLoggerOptions>>(f => f.CurrentValue == new ConsoleLoggerOptions())));
-            formatterBuilder = new FormatterBuilder(streamFactory.Object, loggerFactory);
+
+            optionsMock = new Mock<IOptions<QualifiedNameOptions>>();
+            optionsMock.Setup(x => x.Value)
+                .Returns(new QualifiedNameOptions { XmlRoot = "XmlRoot"});
+
+            serviceProviderMock.Setup(x => x.GetService(typeof(IOptions<QualifiedNameOptions>)))
+                .Returns(optionsMock.Object);
+
+            formatterBuilder = new FormatterBuilder(serviceProviderMock.Object, streamFactory.Object, loggerFactory);
         }
 
         [Test]
