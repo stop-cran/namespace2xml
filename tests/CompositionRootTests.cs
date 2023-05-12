@@ -13,7 +13,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Namespace2Xml.Tests
 {
@@ -21,7 +20,6 @@ namespace Namespace2Xml.Tests
     {
         private Mock<IStreamFactory> streamFactory;
         private Mock<IProfileReader> profileReader;
-        private Mock<IServiceProvider> serviceProviderMock;
         private Mock<IOptions<QualifiedNameOptions>> optionsMock;
         private LoggerFactory loggerFactory;
         private MemoryStream output;
@@ -32,14 +30,11 @@ namespace Namespace2Xml.Tests
             profileReader = new Mock<IProfileReader>();
             output = new MemoryStream();
             streamFactory = new Mock<IStreamFactory>();
-            serviceProviderMock = new Mock<IServiceProvider>();
             optionsMock = new Mock<IOptions<QualifiedNameOptions>>();
             loggerFactory = new LoggerFactory();
 
             optionsMock.Setup(x => x.Value)
                 .Returns(new QualifiedNameOptions { XmlRoot = "XmlRoot"});
-            serviceProviderMock.Setup(x => x.GetService(typeof(IOptions<QualifiedNameOptions>)))
-                .Returns(optionsMock.Object);
             profileReader.Setup(r => r.ReadFiles(new[] { "input" }, default))
                 .Returns(Task.FromResult<IReadOnlyList<IProfileEntry>>(new[]
                 {
@@ -74,7 +69,7 @@ namespace Namespace2Xml.Tests
             await new CompositionRoot(
                 profileReader.Object,
                 new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>()),
-                new FormatterBuilder(serviceProviderMock.Object, streamFactory.Object, loggerFactory),
+                new FormatterBuilder(optionsMock.Object, streamFactory.Object, loggerFactory),
                 Mock.Of<ILogger<CompositionRoot>>()).Write(
                 new Arguments(
                     new[] { "input" },
@@ -104,7 +99,7 @@ namespace Namespace2Xml.Tests
             await new CompositionRoot(
                 profileReader.Object,
                 new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>()),
-                new FormatterBuilder(serviceProviderMock.Object, streamFactory.Object, loggerFactory),
+                new FormatterBuilder(optionsMock.Object, streamFactory.Object, loggerFactory),
                 Mock.Of<ILogger<CompositionRoot>>()).Write(
                 new Arguments(
                     new[] { "input" },

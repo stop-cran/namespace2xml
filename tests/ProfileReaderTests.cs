@@ -29,7 +29,7 @@ namespace Namespace2Xml.Tests
 
             optionsMock = new Mock<IOptions<QualifiedNameOptions>>();
             optionsMock.Setup(x => x.Value)
-                .Returns(new QualifiedNameOptions { ImplicitRoot = "ImplicitRoot" });
+                .Returns(new QualifiedNameOptions { OutputRoot = "OutputRoot" });
 
             streamFactory
                 .Setup(f => f.CreateInputStream("input"))
@@ -54,7 +54,7 @@ namespace Namespace2Xml.Tests
                 .ShouldHaveSingleItem()
                 .ShouldBeOfType<TextNameToken>()
                 .Text
-                .ShouldBe("ImplicitRoot");
+                .ShouldBe("OutputRoot");
             payload.Name.Parts[1].Tokens
                 .ShouldHaveSingleItem()
                 .ShouldBeOfType<TextNameToken>()
@@ -73,9 +73,9 @@ namespace Namespace2Xml.Tests
         }
 
         [Test]
-        [TestCase("input.json", "{\"a\": {\"c\": [11,\"22\"], \"d\": {}, \"e\": [], \"f\": \"asdfgh\", \"g\": null, \"b-*\": {\"z\": \"qwerty/${a.*.y}\"}}}", "ImplicitRoot.a.c.0=11;ImplicitRoot.a.c.1=22;ImplicitRoot.a.d={};ImplicitRoot.a.e=[];ImplicitRoot.a.f=asdfgh;ImplicitRoot.a.g=null;ImplicitRoot.a.b-*.z=qwerty/${ImplicitRoot.a.*.y}")]
-        [TestCase("input.yaml", "a:\n  c: [11, \"22\"]\n  d: {}\n  e: []\n  f: asdfgh\n  \"b-*\":\n    z: \"qwerty/${a.*.y}\"", "ImplicitRoot.a.c.0=11;ImplicitRoot.a.c.1=22;ImplicitRoot.a.d={};ImplicitRoot.a.e=[];ImplicitRoot.a.f=asdfgh;ImplicitRoot.a.b-*.z=qwerty/${ImplicitRoot.a.*.y}")]
-        [TestCase("input.xml", "<a xmlns=\"uri:example.com\"><b z=\"qwerty/${a.*.y}\" /><c><d e=\"11\"/><d e=\"22\"/></c><f/></a>", "ImplicitRoot.a.xmlns=uri:example.com;ImplicitRoot.a.b.z=qwerty/${ImplicitRoot.a.*.y};ImplicitRoot.a.c.d.0.e=11;ImplicitRoot.a.c.d.1.e=22;ImplicitRoot.a.f=")]
+        [TestCase("input.json", "{\"a\": {\"c\": [11,\"22\"], \"d\": {}, \"e\": [], \"f\": \"asdfgh\", \"g\": null, \"b-*\": {\"z\": \"qwerty/${a.*.y}\"}}}", "OutputRoot.a.c.0=11;OutputRoot.a.c.1=22;OutputRoot.a.d={};OutputRoot.a.e=[];OutputRoot.a.f=asdfgh;OutputRoot.a.g=null;OutputRoot.a.b-*.z=qwerty/${OutputRoot.a.*.y}")]
+        [TestCase("input.yaml", "a:\n  c: [11, \"22\"]\n  d: {}\n  e: []\n  f: asdfgh\n  \"b-*\":\n    z: \"qwerty/${a.*.y}\"", "OutputRoot.a.c.0=11;OutputRoot.a.c.1=22;OutputRoot.a.d={};OutputRoot.a.e=[];OutputRoot.a.f=asdfgh;OutputRoot.a.b-*.z=qwerty/${OutputRoot.a.*.y}")]
+        [TestCase("input.xml", "<a xmlns=\"uri:example.com\"><b z=\"qwerty/${a.*.y}\" /><c><d e=\"11\"/><d e=\"22\"/></c><f/></a>", "OutputRoot.a.xmlns=uri:example.com;OutputRoot.a.b.z=qwerty/${OutputRoot.a.*.y};OutputRoot.a.c.d.0.e=11;OutputRoot.a.c.d.1.e=22;OutputRoot.a.f=")]
         public async Task ShouldReadFormattedFile(string inputFileName, string inputText, string expected)
         {
             streamFactory

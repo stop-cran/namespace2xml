@@ -37,7 +37,7 @@ namespace Namespace2Xml
                                 .Configure<QualifiedNameOptions>(
                                     options =>
                                     {
-                                        options.ImplicitRoot = "ImplicitRoot";
+                                        options.OutputRoot = "OutputRoot";
                                         options.XmlRoot = "XmlRoot";
                                     });
 

@@ -12,19 +12,19 @@ namespace Namespace2Xml.Formatters
 {
     public class FormatterBuilder : IFormatterBuilder
     {
-        private readonly IServiceProvider serviceProvider;
+        private readonly IOptions<QualifiedNameOptions> qualifiedNameOptions;
         private readonly IStreamFactory streamFactory;
         private readonly ILoggerFactory loggerFactory;
         private readonly ILogger<FormatterBuilder> logger;
 
         public FormatterBuilder(
-            IServiceProvider serviceProvider,
+            IOptions<QualifiedNameOptions> qualifiedNameOptions,
             IStreamFactory streamFactory,
             ILoggerFactory loggerFactory)
         {
-            this.serviceProvider = serviceProvider;
             this.streamFactory = streamFactory;
             this.loggerFactory = loggerFactory;
+            this.qualifiedNameOptions = qualifiedNameOptions;
             this.logger = loggerFactory.CreateLogger<FormatterBuilder>();
         }
 
@@ -115,7 +115,7 @@ namespace Namespace2Xml.Formatters
                             : Enum.TryParse<XmlOptions>(xmlOptions, out var options)
                                 ? options
                                 : throw new ArgumentException($"Unsupported XML options: {xmlOptions}."),
-                        (IOptions<QualifiedNameOptions>)serviceProvider.GetService(typeof(IOptions<QualifiedNameOptions>)),
+                        qualifiedNameOptions,
                         keys,
                         arrays,
                         node.GetNamesOfType(Scheme.ValueType.element),

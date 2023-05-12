@@ -25,7 +25,7 @@ namespace Namespace2Xml
         private readonly ILogger<ProfileReader> logger;
         private readonly Dictionary<QualifiedName, int> implicitIndices = new();
         private readonly Dictionary<string, int> implicitFileLines = new();
-        private readonly string implicitRootElement;
+        private readonly string outputRootElement;
 
         public ProfileReader(
             IStreamFactory streamFactory,
@@ -33,13 +33,13 @@ namespace Namespace2Xml
             ILogger<ProfileReader> logger)
         {
             this.streamFactory = streamFactory;
-            this.implicitRootElement = options.Value.ImplicitRoot;
+            this.outputRootElement = options.Value.OutputRoot;
             this.logger = logger;
         }
 
         public IReadOnlyList<IProfileEntry> ReadVariables(
             IEnumerable<string> variables)
-            => AddImplicitRoot(
+            => AddOutputRoot(
                 CheckErrorsAndMerge(variables
                     .Select(variable => TryParse(variable, int.MaxValue, "<command line>"))))
                 .ToList();
@@ -50,7 +50,7 @@ namespace Namespace2Xml
         {
             var entries = await Task.WhenAll(files.Select(ReadInput));
 
-            return AddImplicitRoot(CheckErrorsAndMerge(entries)).ToList();
+            return AddOutputRoot(CheckErrorsAndMerge(entries)).ToList();
         }
 
         private (IResult<IEnumerable<IProfileEntry>> result, string fileName) TryParse(string input, int fileNumber, string fileName) =>
@@ -83,19 +83,19 @@ namespace Namespace2Xml
                 .SelectMany(result => result.result.Value);
         }
 
-        private IEnumerable<IProfileEntry> AddImplicitRoot(IEnumerable<IProfileEntry> entries)
+        private IEnumerable<IProfileEntry> AddOutputRoot(IEnumerable<IProfileEntry> entries)
         {
             foreach (var entry in entries)
             {
                 if (entry is NamedProfileEntry namedEntry)
                 {
-                    namedEntry.Name.Parts.Insert(0, new NamePart(new[] { new TextNameToken(this.implicitRootElement) }));
+                    namedEntry.Name.Parts.Insert(0, new NamePart(new[] { new TextNameToken(this.outputRootElement) }));
 
                     if (namedEntry is Payload payload)
                     {
                         foreach (var referenceValueToken in payload.Value.OfType<ReferenceValueToken>())
                         {
-                            referenceValueToken.Name.Parts.Insert(0, new NamePart(new[] { new TextNameToken(this.implicitRootElement) }));
+                            referenceValueToken.Name.Parts.Insert(0, new NamePart(new[] { new TextNameToken(this.outputRootElement) }));
                         }
                     }
                 }
