@@ -8,6 +8,7 @@ using Shouldly;
 using Sprache;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Extensions.Options;
 
 namespace Namespace2Xml.Tests
 {
