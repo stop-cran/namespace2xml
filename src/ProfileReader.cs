@@ -53,8 +53,13 @@ namespace Namespace2Xml
             return AddOutputRoot(CheckErrorsAndMerge(entries)).ToList();
         }
 
-        private (IResult<IEnumerable<IProfileEntry>> result, string fileName) TryParse(string input, int fileNumber, string fileName) =>
-            (Parsers.GetProfileParser(fileNumber, fileName).TryParse(input), fileName);
+        private (IResult<IEnumerable<IProfileEntry>> result, string fileName) TryParse(string input, int fileNumber, string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return  (Result.Success(Enumerable.Empty<IProfileEntry>(), null), fileName);
+
+            return (Parsers.GetProfileParser(fileNumber, fileName).TryParse(input), fileName);
+        }
 
         private IEnumerable<T> CheckErrorsAndMerge<T>(IEnumerable<(IResult<IEnumerable<T>> result, string fileName)> results)
         {
