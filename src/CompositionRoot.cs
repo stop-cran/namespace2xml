@@ -37,6 +37,26 @@ namespace Namespace2Xml
             var schemes = (await profileReader.ReadFiles(arguments.Schemes, cancellationToken))
                 .WithIgnores(input);
 
+            var outputNames = schemes
+                .Where(x =>
+                    x is Payload payload && payload.Name.Parts.Last().Tokens[0] is TextNameToken { Text: "output" })
+                .Select(x => ((Payload)x).Name);
+            var filteredInputs = new List<IProfileEntry>();
+            foreach (var outputName in outputNames)
+            {
+                filteredInputs.AddRange(input
+                    .Where(x =>
+                        x is NamedProfileEntry namedProfileEntry
+                        && namedProfileEntry.Name.Parts
+                            .Zip(
+                                outputName.Parts.SkipLast(1),
+                                (profileNamePart, outputNamePart) =>
+                                    profileNamePart.HasSubstitutes
+                                    //|| profileNamePart.ToString() == outputNamePart.ToString())
+                                    || outputNamePart.IsMatch(profileNamePart.ToString()))
+                            .All(y => y)));
+            }
+
             var usedNames = treeBuilder.ApplyNameSubstitutesLoop(input).OfType<Payload>()
                         .Select(p => p.Name)
                         .Distinct()

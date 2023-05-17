@@ -54,6 +54,8 @@ namespace Namespace2Xml.Syntax
 
         public IReadOnlyList<INameToken> Tokens { get; }
 
+        public bool HasSubstitutes => Tokens.Any(x => x is SubstituteNameToken);
+
         public override string ToString() =>
             string.Join("", Tokens);
     }
