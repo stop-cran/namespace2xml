@@ -37,6 +37,8 @@ namespace Namespace2Xml
             var schemes = (await profileReader.ReadFiles(arguments.Schemes, cancellationToken))
                 .WithIgnores(input);
 
+            if (!schemes.Any()) return;
+
             var usedNames = treeBuilder.ApplyNameSubstitutesLoop(input).OfType<Payload>()
                         .Select(p => p.Name)
                         .Distinct()
