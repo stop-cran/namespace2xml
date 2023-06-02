@@ -33,6 +33,7 @@ public class ParsersTests
     [TestCase(@"a-*.b", 2, "a-*")]
     [TestCase(@"a\.b", 3, @"a.b")]
     [TestCase(@"a\.b\.c.d", 5, @"a.b.c")]
+    [TestCase(@"\*", 1, @"*")]
     public void NamePartParserTest(string input, int tokensCount, string namePart)
     {
         var parser = Parsers.GetNamePartParser();
@@ -47,6 +48,7 @@ public class ParsersTests
     [TestCase(@"a-*.*.b", 3)]
     [TestCase(@"a\.b", 1)]
     [TestCase(@"a.b\.c.*", 3)]
+    [TestCase(@"a.\*.b", 3)]
     public void QualifiedNameParserTests(string input, int namesCount)
     {
         var parser = Parsers.GetQualifiedNameParser();
