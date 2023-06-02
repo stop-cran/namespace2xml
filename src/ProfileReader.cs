@@ -149,6 +149,12 @@ namespace Namespace2Xml
                         return TryParse(await reader.ReadToEndAsync(), fileNumber, fileName);
                 }
             }
+            catch (FileNotFoundException ex)
+            {
+                logger.LogWarning("File {0} not found", fileName);
+
+                return (Result.Success(Enumerable.Empty<IProfileEntry>(), null), fileName);
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error reading input from file {0}", fileName);
