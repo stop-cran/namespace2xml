@@ -8,6 +8,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using Namespace2Xml.Services;
 using Namespace2Xml.Syntax;
 
 namespace Namespace2Xml
@@ -32,6 +33,7 @@ namespace Namespace2Xml
                                 .AddTransient<IProfileReader, ProfileReader>()
                                 .AddTransient<ITreeBuilder, TreeBuilder>()
                                 .AddTransient<IFormatterBuilder, FormatterBuilder>()
+                                .AddTransient<IProfileFilterService, ProfileFilterService>()
                                 .AddTransient<CompositionRoot>()
                                 .Configure<FileStreamFactoryOptions>(options => options.BaseOutputDirectory = arguments.OutputDirectory)
                                 .Configure<QualifiedNameOptions>(

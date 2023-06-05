@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using Namespace2Xml.Services;
 
 namespace Namespace2Xml.Tests
 {
@@ -70,6 +71,7 @@ namespace Namespace2Xml.Tests
                 profileReader.Object,
                 new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>()),
                 new FormatterBuilder(optionsMock.Object, streamFactory.Object, loggerFactory),
+                new ProfileFilterService(),
                 Mock.Of<ILogger<CompositionRoot>>()).Write(
                 new Arguments(
                     new[] { "input" },
@@ -100,6 +102,7 @@ namespace Namespace2Xml.Tests
                 profileReader.Object,
                 new TreeBuilder(Mock.Of<ILogger<TreeBuilder>>()),
                 new FormatterBuilder(optionsMock.Object, streamFactory.Object, loggerFactory),
+                new ProfileFilterService(),
                 Mock.Of<ILogger<CompositionRoot>>()).Write(
                 new Arguments(
                     new[] { "input" },
