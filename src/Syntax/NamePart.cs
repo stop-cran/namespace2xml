@@ -37,7 +37,7 @@ namespace Namespace2Xml.Syntax
         [return: NullGuard.AllowNull]
         public IEnumerable<string> GetMatch(NamePart p)
         {
-            if (p.Tokens.All(t => t is TextNameToken))
+            if (!p.HasSubstitutes)
             {
                 var m = match.Value.Match(p.ToString());
 
