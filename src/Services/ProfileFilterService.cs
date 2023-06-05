@@ -8,39 +8,17 @@ public class ProfileFilterService : IProfileFilterService
 {
     public IReadOnlyCollection<IProfileEntry> FilterByOutput(IReadOnlyList<IProfileEntry> inputs, IReadOnlyList<IProfileEntry> schemes)
     {
-        var filteredEntries = new List<IProfileEntry>();
-        var notFilteredEntries = inputs.ToList();
+        var notFilteredEntries = new LinkedList<IProfileEntry>(inputs);
         var outputNames = schemes
             .Where(x =>
                 x is Payload payload && payload.Name.Parts.Last().Tokens[0] is TextNameToken { Text: "output" })
             .Select(x => ((Payload)x).Name);
 
-        foreach (var outputName in outputNames)
-        {
-            foreach (var entry in notFilteredEntries.ToList())
-            {
-                switch (entry)
-                {
-                    case Comment:
-                        filteredEntries.Add(entry);
-                        notFilteredEntries.Remove(entry);
-                        break;
-                    case NamedProfileEntry namedProfileEntry:
-                        if (IsMatch(
-                                namedProfileEntry.Name.Parts /*.Skip(1)*/,
-                                outputName.Parts /*.Skip(1)*/.SkipLast(1)))
-                        {
-                            filteredEntries.Add(entry);
-                            notFilteredEntries.Remove(entry);
-                        }
-                        break;
-                }
-            }
-        }
+        var filteredEntries = FilterEntries(new LinkedList<IProfileEntry>(inputs), outputNames.ToList(), true);
 
         filteredEntries.AddRange(
             FilterByReferences(
-                notFilteredEntries.OfType<NamedProfileEntry>(),
+                new LinkedList<IProfileEntry>(notFilteredEntries),
                 filteredEntries
                     .OfType<Payload>()
                     .SelectMany(x => x.Value.OfType<ReferenceValueToken>())
@@ -51,34 +29,59 @@ public class ProfileFilterService : IProfileFilterService
     }
 
     private List<IProfileEntry> FilterByReferences(
-        IEnumerable<NamedProfileEntry> entries,
+        LinkedList<IProfileEntry> entries,
         List<QualifiedName> namesToMatch)
     {
-        var filteredEntries = new List<IProfileEntry>();
-        var notFilteredEntries = entries.ToList();
+        var filteredEntries = FilterEntries(entries, namesToMatch, false);
 
-        foreach (var name in namesToMatch)
-        {
-            foreach (var entry in notFilteredEntries.ToList())
-            {
-                if (IsMatch(entry.Name.Parts, name.Parts))
-                {
-                    filteredEntries.Add(entry);
-                    notFilteredEntries.Remove(entry);
-                }
-            }
-        }
-
-        if (filteredEntries.Any() && notFilteredEntries.Any())
+        if (filteredEntries.Count > 0 && entries.First != null)
         {
             filteredEntries.AddRange(
                 FilterByReferences(
-                    notFilteredEntries,
+                    entries,
                     filteredEntries
                         .OfType<Payload>()
                         .SelectMany(x => x.Value.OfType<ReferenceValueToken>())
                         .Select(x => x.Name)
                         .ToList()));
+        }
+
+        return filteredEntries;
+    }
+
+    private List<IProfileEntry> FilterEntries(LinkedList<IProfileEntry> entries, List<QualifiedName> namesToMatch, bool skipLastNamePart)
+    {
+        var filteredEntries = new List<IProfileEntry>();
+
+        foreach (var name in namesToMatch)
+        {
+            var currentNode = entries.First;
+            while (currentNode != null)
+            {
+                var nextNode = currentNode.Next;
+                var entry = currentNode.Value;
+
+                if (entry is NamedProfileEntry namedProfileEntry
+                    && IsMatch(
+                        namedProfileEntry.Name.Parts,
+                        name.Parts.SkipLast(skipLastNamePart ? 1 : 0)))
+                {
+                    var comments = new List<IProfileEntry>();
+                    while (currentNode.Previous is { Value: Comment })
+                    {
+                        comments.Add(currentNode.Previous.Value);
+                        entries.Remove(currentNode.Previous);
+                    }
+
+                    comments.Reverse();
+                    filteredEntries.AddRange(comments);
+
+                    filteredEntries.Add(entry);
+                    entries.Remove(currentNode);
+                }
+
+                currentNode = nextNode;
+            }
         }
 
         return filteredEntries;
@@ -90,7 +93,8 @@ public class ProfileFilterService : IProfileFilterService
             .Zip(
                 namePartsToMatch,
                 (profileNamePart, referenceNamePart) =>
-                    profileNamePart.HasSubstitutes
+                    (profileNamePart.HasSubstitutes && referenceNamePart.HasSubstitutes)
+                    || profileNamePart.IsMatch(referenceNamePart.ToString())
                     || referenceNamePart.IsMatch(profileNamePart.ToString()))
             .All(y => y);
     }

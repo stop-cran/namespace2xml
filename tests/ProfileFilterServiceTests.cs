@@ -31,6 +31,9 @@ public class ProfileFilterServiceTests
     [TestCase("a1.b1=1\na2.b2=1\nb.c=2", "a*.output=namespace", 2)]
     [TestCase("a.b=${b.c}\nb.c=1", "a.output=namespace", 2)]
     [TestCase("a.b=${b.c}\nb.c=${c.d}\nc.d=1", "a.output=namespace", 3)]
+    [TestCase("x*.b=1", "a.output=namespace", 0)]
+    [TestCase("a*.b=1", "a.output=namespace", 0)]
+    [TestCase("a*.b=1", "*.output=namespace", 1)]
     public void ShouldFilter(string inputsString, string schemesString, int expectedCount)
     {
         var inputs = parser.TryParse(inputsString);
