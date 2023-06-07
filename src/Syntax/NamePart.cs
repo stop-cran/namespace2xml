@@ -23,7 +23,7 @@ namespace Namespace2Xml.Syntax
                                 return Regex.Escape(t.Text);
 
                             case SubstituteNameToken s:
-                                return "(.+)";
+                                return "(.*)";
 
                             default:
                                 throw new NotSupportedException();
