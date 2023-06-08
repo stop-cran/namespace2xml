@@ -59,7 +59,7 @@ namespace Namespace2Xml.Semantics
                                 : payload.Name,
                             (substitute & SubstituteType.Value) == SubstituteType.None
                                 ? payload.Value.Select(value => (IValueToken)new TextValueToken(value is ReferenceValueToken referenceValueToken
-                                    ? referenceValueToken.ToString()
+                                    ? new ReferenceValueToken(referenceValueToken.NameWithoutOutputRoot).ToString()
                                     : value.ToString()))
                                 : payload.Value, payload.SourceMark, payload.IgnoreMissingReferences);
                     else
