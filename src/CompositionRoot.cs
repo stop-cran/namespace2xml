@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Namespace2Xml.Services;
 
 namespace Namespace2Xml
 {
@@ -16,17 +17,20 @@ namespace Namespace2Xml
         private readonly IProfileReader profileReader;
         private readonly ITreeBuilder treeBuilder;
         private readonly IFormatterBuilder formatterBuilder;
+        private readonly IProfileFilterService profileFilterService;
         private readonly ILogger<CompositionRoot> logger;
 
         public CompositionRoot(
             IProfileReader profileReader,
             ITreeBuilder treeBuilder,
             IFormatterBuilder formatterBuilder,
+            IProfileFilterService profileFilterService,
             ILogger<CompositionRoot> logger)
         {
             this.profileReader = profileReader;
             this.treeBuilder = treeBuilder;
             this.formatterBuilder = formatterBuilder;
+            this.profileFilterService = profileFilterService;
             this.logger = logger;
         }
 
@@ -36,8 +40,11 @@ namespace Namespace2Xml
             var input = profiles.Concat(profileReader.ReadVariables(arguments.Variables)).ToList().AsReadOnly();
             var schemes = (await profileReader.ReadFiles(arguments.Schemes, cancellationToken))
                 .WithIgnores(input);
+            var filteredInput = profileFilterService.FilterByOutput(input, schemes);
 
-            var usedNames = treeBuilder.ApplyNameSubstitutesLoop(input).OfType<Payload>()
+            if (!schemes.Any()) return;
+
+            var usedNames = treeBuilder.ApplyNameSubstitutesLoop(filteredInput).OfType<Payload>()
                         .Select(p => p.Name)
                         .Distinct()
                         .ToList();
@@ -51,7 +58,7 @@ namespace Namespace2Xml
 
             var substituteTypes = schemeTrees.GetSubstituteTypes();
 
-            var profileTrees = treeBuilder.Build(input, substituteTypes);
+            var profileTrees = treeBuilder.Build(filteredInput, substituteTypes);
 
             var resultsToWrite =
                 from scheme in schemeTrees.AsParallel()

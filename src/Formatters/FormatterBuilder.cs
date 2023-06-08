@@ -46,10 +46,20 @@ namespace Namespace2Xml.Formatters
             if (types == null)
                 return Enumerable.Empty<IFormatter>();
 
-            return types.Split(',').Select(type =>
-                Enum.TryParse<OutputType>(type, out var outputType)
-                ? BuildFormatter(node, outputType)
-                : throw new ArgumentException($"Unsupported output type: {type}."));
+            return types.Split(',')
+                .Select(type =>
+                {
+                    if (Enum.TryParse<OutputType>(type, out var outputType))
+                    {
+                        if (outputType == OutputType.ignore)
+                            return null;
+
+                        return BuildFormatter(node, outputType);
+                    }
+
+                    throw new ArgumentException($"Unsupported output type: {type}.");
+                })
+                .Where(x => x != null);
         }
 
         private IFormatter BuildFormatter(SchemeNode node, OutputType outputType)
@@ -138,7 +148,7 @@ namespace Namespace2Xml.Formatters
                         loggerFactory.CreateLogger<IniFormatter>());
 
                 default:
-                    throw new ArgumentException($"Ouput type {outputType} is not supported.");
+                    throw new ArgumentException($"Output type {outputType} is not supported.");
             }
         }
     }

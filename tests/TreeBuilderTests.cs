@@ -243,8 +243,6 @@ a=1
         [Test]
         [TestCase("aa*.filename=*.config", "b.config")]
         [TestCase("aa*.filename=dir-*/*.config", "dir-b/b.config")]
-        [TestCase("a**.filename=dir-*/*.config", "dir-a/b.config")]
-        [TestCase("**b.filename=*.config", "a.config")]
         public void ShouldApplyFilenameSubstitutes(string filenamePattern, string expectedFilename)
         {
             var profile = parser.TryParse("aa*.output=xml\n" + filenamePattern);

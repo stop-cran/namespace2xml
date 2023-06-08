@@ -14,9 +14,13 @@ namespace Namespace2Xml.Syntax
             var delimiterEscaping = Parse.String("\\.")
                 .Select(x => x.Where(y => y != '\\'));
 
+            var substituteEscaping = Parse.String("\\*")
+                .Select(x => x.Where(y => y != '\\'));
+
             var textNameToken = nameChar
                 .AtLeastOnce()
                 .Or(delimiterEscaping)
+                .Or(substituteEscaping)
                 .Text()
                 .Select(parsedName =>
                     (INameToken)new TextNameToken(parsedName));
