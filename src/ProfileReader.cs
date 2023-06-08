@@ -94,13 +94,13 @@ namespace Namespace2Xml
             {
                 if (entry is NamedProfileEntry namedEntry)
                 {
-                    namedEntry.Name.Parts.Insert(0, new NamePart(new[] { new TextNameToken(this.outputRootElement) }));
+                    namedEntry.AddOutputRoot(this.outputRootElement);
 
                     if (namedEntry is Payload payload)
                     {
                         foreach (var referenceValueToken in payload.Value.OfType<ReferenceValueToken>())
                         {
-                            referenceValueToken.Name.Parts.Insert(0, new NamePart(new[] { new TextNameToken(this.outputRootElement) }));
+                            referenceValueToken.AddOutputRoot(this.outputRootElement);
                         }
                     }
                 }

@@ -46,23 +46,27 @@ namespace Namespace2Xml.Semantics
 
         private static IEnumerable<IProfileEntry> TreatSubstitutesAsText(
             IEnumerable<IProfileEntry> entries,
-            IQualifiedNameMatchDictionary<SubstituteType> substituteTypes) =>
-            from entry in entries
-            select entry is Payload payload
-                ? substituteTypes.TryMatch(payload.Name, out var substitute)
-                ? new Payload(
-                    (substitute & SubstituteType.Key) == SubstituteType.None
-                    ? new QualifiedName(payload.Name.Parts.Select(part =>
-                        new NamePart(part.Tokens.Select(token =>
-                            token is SubstituteNameToken ? new TextNameToken("*") : token))))
-                    : payload.Name,
-                    (substitute & SubstituteType.Value) == SubstituteType.None
-                    ? payload.Value.Select(value => (IValueToken)new TextValueToken(value.ToString()))
-                    : payload.Value,
-                    payload.SourceMark,
-                    payload.IgnoreMissingReferences)
-                : entry
-                : entry;
+            IQualifiedNameMatchDictionary<SubstituteType> substituteTypes)
+        {
+            foreach (var entry in entries)
+                if (entry is Payload payload)
+                    if (substituteTypes.TryMatch(payload.Name, out var substitute))
+                        yield return new Payload(
+                            (substitute & SubstituteType.Key) == SubstituteType.None
+                                ? new QualifiedName(payload.Name.Parts.Select(part =>
+                                    new NamePart(part.Tokens.Select(token =>
+                                        token is SubstituteNameToken ? new TextNameToken("*") : token))))
+                                : payload.Name,
+                            (substitute & SubstituteType.Value) == SubstituteType.None
+                                ? payload.Value.Select(value => (IValueToken)new TextValueToken(value is ReferenceValueToken referenceValueToken
+                                    ? referenceValueToken.ToString()
+                                    : value.ToString()))
+                                : payload.Value, payload.SourceMark, payload.IgnoreMissingReferences);
+                    else
+                        yield return entry;
+                else
+                    yield return entry;
+        }
 
         public IEnumerable<SchemeNode> BuildScheme(IEnumerable<IProfileEntry> entries, IEnumerable<QualifiedName> profileNames)
         {

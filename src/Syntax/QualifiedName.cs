@@ -17,6 +17,11 @@ namespace Namespace2Xml.Syntax
         public override string ToString() =>
             string.Join('.', Parts);
 
+        public void AddRootPart(string rootName)
+        {
+            Parts.Insert(0, new NamePart(new[] { new TextNameToken(rootName) }));
+        }
+
         public static readonly QualifiedName Empty = new QualifiedName(Array.Empty<NamePart>());
     }
 }
