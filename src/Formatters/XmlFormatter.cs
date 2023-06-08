@@ -177,6 +177,9 @@ namespace Namespace2Xml.Formatters
                     .OrderBy(pair => pair.firstSourceMark))
                 .ToArray();
 
+            if (content.Length == 0)
+                return Array.Empty<(XObject node, SourceMark firstSourceMark)>();
+
             return wrap ? new[]
             {
                 ((XObject)new XElement(
