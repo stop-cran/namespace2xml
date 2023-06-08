@@ -57,23 +57,6 @@ namespace Namespace2Xml.Formatters
             return element;
         }
 
-        private XElement ProcessRoot(XElement element)
-        {
-            if (element.Elements().Count() == 1)
-            {
-                element = element.Elements().First();
-            }
-            else
-            {
-                element.Name = string.IsNullOrEmpty(element.Name.NamespaceName)
-                    ? XName.Get(rootElementName)
-                    : XName.Get(rootElementName, element.Name.NamespaceName);
-                logger.LogInformation("New root element was applied to group the output xml elements.");
-            }
-
-            return element;
-        }
-
         protected override async Task DoWrite(ProfileTree tree, Stream stream, CancellationToken cancellationToken)
         {
             var xmlNamespaces = (from pair in tree.GetLeafs()
@@ -88,10 +71,10 @@ namespace Namespace2Xml.Formatters
                 Indent = (xmlOptions & XmlOptions.NoIndent) == XmlOptions.None,
                 NewLineOnAttributes = (xmlOptions & XmlOptions.NewLineOnAttributes) == XmlOptions.NewLineOnAttributes
             }))
-                await ApplyOutputPrefix(ProcessRoot(
-                        (XElement)ToXml(tree, new string[0], "", xmlNamespaces)
+                await ApplyOutputPrefix(
+                        (XElement)ToXml(tree, new string[0], true, "", xmlNamespaces)
                             .Single()
-                            .node))
+                            .node)
                     .WriteToAsync(xmlWriter, cancellationToken);
         }
 
@@ -121,7 +104,7 @@ namespace Namespace2Xml.Formatters
                 : (XObject)new XAttribute(xName, value);
         }
 
-        private (XObject node, SourceMark firstSourceMark)[] ToXml(ProfileTree tree, string[] prefix, string parentXmlns,
+        private (XObject node, SourceMark firstSourceMark)[] ToXml(ProfileTree tree, string[] prefix, bool addNameToPrefix, string parentXmlns,
             IReadOnlyDictionary<string, XNamespace> xmlNamespaces)
         {
             if (tree is ProfileTreeLeaf treeLeaf)
@@ -134,7 +117,9 @@ namespace Namespace2Xml.Formatters
                 .SingleOrDefault(child => child.NameString == "xmlns")
                 ?.Value ?? parentXmlns;
 
-            var newPrefix = prefix.Concat(new[] { treeNode.NameString }).ToArray();
+            var newPrefix = addNameToPrefix
+                ? prefix.Concat(new[] { treeNode.NameString }).ToArray()
+                : prefix;
             IEnumerable<(XObject node, SourceMark firstSourceMark)> nodes;
             var comments = treeNode.Children.OfType<ProfileTreeLeaf>()
                 .SelectMany(l => l.LeadingComments
@@ -142,7 +127,7 @@ namespace Namespace2Xml.Formatters
             var leafs = treeNode.Children
                 .OfType<ProfileTreeLeaf>()
                 .Where(child => child.NameString != "xmlns")
-                .SelectMany(child => ToXml(child, prefix, xmlns, xmlNamespaces));
+                .SelectMany(child => ToXml(child, newPrefix, true, xmlns, xmlNamespaces));
 
             bool wrap = false;
 
@@ -152,7 +137,7 @@ namespace Namespace2Xml.Formatters
                     .SelectMany(child =>
                     {
                         var xx = ToXml(new ProfileTreeNode(treeNode.Name, child.Children),
-                            newPrefix.Concat(new[] { child.NameString }).ToArray(), xmlns, xmlNamespaces);
+                            newPrefix.Concat(new[] { child.NameString }).ToArray(), false, xmlns, xmlNamespaces);
                         var elem = xx.Select(pair => pair.node).OfType<XElement>().Single();
 
                         var item = ToXmlValueSingle(key, child.NameString, newPrefix, parentXmlns, xmlNamespaces);
@@ -175,12 +160,13 @@ namespace Namespace2Xml.Formatters
                     .OfType<ProfileTreeNode>()
                     .SelectMany(child =>
                         ToXml(new ProfileTreeNode(treeNode.Name, child.Children),
-                            newPrefix.Concat(new[] { child.NameString }).ToArray(), xmlns, xmlNamespaces));
+                            newPrefix.Concat(new[] { child.NameString }).ToArray(), true, xmlns, xmlNamespaces))
+                    .ToList();
             else
             {
                 nodes = treeNode.Children
                     .OfType<ProfileTreeNode>()
-                    .SelectMany(child => ToXml(child, newPrefix, xmlns, xmlNamespaces));
+                    .SelectMany(child => ToXml(child, newPrefix, true, xmlns, xmlNamespaces));
                 wrap = true;
             }
 
