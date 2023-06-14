@@ -88,7 +88,7 @@ namespace Namespace2Xml.Semantics
             Enum.TryParse<EntryType>(p.Name.Parts.Last().ToString(), out var type) &&
                 type switch
                 {
-                    EntryType.root or EntryType.filename or EntryType.output or EntryType.delimiter or EntryType.xmloptions
+                    EntryType.root or EntryType.filename or EntryType.output or EntryType.delimiter or EntryType.namespacedelimiter or EntryType.xmloptions
                         or EntryType.type or EntryType.substitute or EntryType.key => true,
                     _ => false,
                 };
