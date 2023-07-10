@@ -43,7 +43,14 @@ namespace Namespace2Xml.Formatters
                 if (delimiter == ".")
                     names = names.Select(name => name.Replace(".", "\\."));
 
-                data[names.First()][string.Join(delimiter, names.Skip(1))] = leaf.Value;
+                if (names.Count() > 1)
+                    data[names.First()][string.Join(delimiter, names.Skip(1))] = leaf.Value;
+                else
+                {
+                    var collection = new KeyDataCollection();
+                    collection.AddKey(names.First(), leaf.Value);
+                    data.MergeGlobal(collection);
+                }
             }
 
             parser.WriteData(writer, data);
