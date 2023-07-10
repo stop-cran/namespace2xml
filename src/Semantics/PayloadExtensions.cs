@@ -271,5 +271,28 @@ namespace Namespace2Xml.Semantics
                         x.SourceMark)))
                 .ToList().AsReadOnly();
         }
+
+        public static bool IsMatch(this IEnumerable<NamePart> sourceNameParts, IEnumerable<NamePart> targetNameParts)
+        {
+            var sourceArr = sourceNameParts.ToArray();
+            var targetArr = targetNameParts.ToArray();
+
+            for (int i = 0; i < Math.Min(sourceArr.Length, targetArr.Length); i++)
+            {
+                if (!sourceArr[i].HasSubstitutes && !targetArr[i].HasSubstitutes
+                    && sourceArr[i].ToString().Equals(targetArr[i].ToString()))
+                    continue;
+
+                if (sourceArr[i].HasSubstitutes && sourceArr[i].IsMatch(targetArr[i].ToString()))
+                    continue;
+
+                if (targetArr[i].HasSubstitutes && targetArr[i].IsMatch(sourceArr[i].ToString()))
+                    break;
+
+                return false;
+            }
+
+            return true;
+        }
     }
 }

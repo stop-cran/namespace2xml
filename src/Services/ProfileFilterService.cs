@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Namespace2Xml.Semantics;
 using Namespace2Xml.Syntax;
 
 namespace Namespace2Xml.Services;
@@ -62,9 +63,7 @@ public class ProfileFilterService : IProfileFilterService
                 var entry = currentNode.Value;
 
                 if (entry is NamedProfileEntry namedProfileEntry
-                    && IsMatch(
-                        namedProfileEntry.Name.Parts,
-                        name.Parts.SkipLast(skipLastNamePart ? 1 : 0)))
+                    && namedProfileEntry.Name.Parts.IsMatch(name.Parts.SkipLast(skipLastNamePart ? 1 : 0)))
                 {
                     var comments = new List<IProfileEntry>();
                     while (currentNode.Previous is { Value: Comment })
@@ -85,17 +84,5 @@ public class ProfileFilterService : IProfileFilterService
         }
 
         return filteredEntries;
-    }
-
-    private bool IsMatch(IEnumerable<NamePart> inputNameParts, IEnumerable<NamePart> namePartsToMatch)
-    {
-        return inputNameParts
-            .Zip(
-                namePartsToMatch,
-                (profileNamePart, referenceNamePart) =>
-                    (profileNamePart.HasSubstitutes && referenceNamePart.HasSubstitutes)
-                    || profileNamePart.IsMatch(referenceNamePart.ToString())
-                    || referenceNamePart.IsMatch(profileNamePart.ToString()))
-            .All(y => y);
     }
 }
