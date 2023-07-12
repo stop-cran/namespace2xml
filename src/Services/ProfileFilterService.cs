@@ -14,11 +14,11 @@ public class ProfileFilterService : IProfileFilterService
                 x is Payload payload && payload.Name.Parts.Last().Tokens[0] is TextNameToken { Text: "output" })
             .Select(x => ((Payload)x).Name);
 
-        var filteredEntries = FilterEntries(new LinkedList<IProfileEntry>(inputs), outputNames.ToList(), true);
+        var filteredEntries = FilterEntries(notFilteredEntries, outputNames.ToList(), true);
 
         filteredEntries.AddRange(
             FilterByReferences(
-                new LinkedList<IProfileEntry>(notFilteredEntries),
+                notFilteredEntries,
                 filteredEntries
                     .OfType<Payload>()
                     .SelectMany(x => x.Value.OfType<ReferenceValueToken>())
