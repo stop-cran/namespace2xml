@@ -40,7 +40,6 @@ namespace Namespace2Xml
             var input = profiles.Concat(profileReader.ReadVariables(arguments.Variables)).ToList().AsReadOnly();
             var schemes = (await profileReader.ReadFiles(arguments.Schemes, cancellationToken))
                 .WithIgnores(input);
-
             var filteredInput = profileFilterService.FilterByOutput(input, schemes);
 
             if (!schemes.Any()) return;
