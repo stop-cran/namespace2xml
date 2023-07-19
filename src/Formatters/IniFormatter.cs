@@ -9,6 +9,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using IniFileParser.Model.Configuration;
+using IniFileParser.Model.Formatting;
 
 namespace Namespace2Xml.Formatters
 {
@@ -53,7 +55,7 @@ namespace Namespace2Xml.Formatters
                 }
             }
 
-            parser.WriteData(writer, data);
+            parser.WriteData(writer, data, new DefaultIniDataFormatter(new IniParserConfiguration() { AssigmentSpacer = String.Empty } ));
 
             await writer.FlushAsync();
 
