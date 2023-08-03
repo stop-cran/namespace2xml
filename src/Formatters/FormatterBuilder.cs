@@ -88,6 +88,7 @@ namespace Namespace2Xml.Formatters
                                                                 where leaf?.Type == EntryType.key
                                                                 select new KeyValuePair<QualifiedName, string>(child.prefix, leaf.Value));
             var arrays = node.GetNamesOfType(Scheme.ValueType.array);
+            var strings = node.GetNamesOfType(Scheme.ValueType.@string);
 
             switch (outputType)
             {
@@ -111,7 +112,7 @@ namespace Namespace2Xml.Formatters
                         root,
                         keys,
                         arrays,
-                        node.GetNamesOfType(Scheme.ValueType.@string),
+                        strings,
                         loggerFactory.CreateLogger<JsonFormatter>());
 
                 case OutputType.xml:
@@ -137,7 +138,7 @@ namespace Namespace2Xml.Formatters
                         root,
                         keys,
                         arrays,
-                        node.GetNamesOfType(Scheme.ValueType.@string),
+                        strings,
                         loggerFactory.CreateLogger<YamlFormatter>());
 
                 case OutputType.ini:

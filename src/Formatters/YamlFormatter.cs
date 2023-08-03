@@ -48,9 +48,20 @@ namespace Namespace2Xml.Formatters
 
         private object ToObject(ProfileTree tree, string[] prefix)
         {
-            string[] newPrefix = prefix
-                                .Concat(new[] { tree.NameString })
-                                .ToArray();
+            return ToObject(tree, prefix, true);
+        }
+
+        private object ToObjectAfterKeyRestructure(ProfileTree tree, string[] prefix)
+        {
+            return ToObject(tree, prefix, false);
+        }
+
+        private object ToObject(ProfileTree tree, string[] prefix, bool addTreePrefix)
+        {
+            string[] newPrefix =
+                addTreePrefix
+                    ? prefix.Concat(new[] { tree.NameString }).ToArray()
+                    : prefix;
 
             switch (tree)
             {
@@ -70,7 +81,7 @@ namespace Namespace2Xml.Formatters
                                     Enumerable.Empty<Comment>(),
                                     newPrefix.ToQualifiedName());
 
-                                return ToObject(
+                                return ToObjectAfterKeyRestructure(
                                     new ProfileTreeNode(node.Name, new[] { keyLeaf }.Concat(child.Children)),
                                     newPrefix.Concat(new[] { child.NameString }).ToArray());
                             }).ToList();
