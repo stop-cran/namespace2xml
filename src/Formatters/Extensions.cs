@@ -4,6 +4,7 @@ using Namespace2Xml.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ValueType = Namespace2Xml.Scheme.ValueType;
 
 namespace Namespace2Xml.Formatters
 {
@@ -55,9 +56,21 @@ namespace Namespace2Xml.Formatters
                                        where leaf?.Type == EntryType.type &&
                                           leaf.Value
                                               .Split(",")
-                                              .Select(s => Enum.Parse<Scheme.ValueType>(s))
+                                              .Select(ParseValueType)
                                               .Contains(type)
                                        select tuple.prefix);
+
+        private static Scheme.ValueType ParseValueType(string s)
+        {
+            if (string.Equals(s, "xmlns", StringComparison.InvariantCultureIgnoreCase)
+                || string.Equals(s, "xmlnssuffix", StringComparison.InvariantCultureIgnoreCase))
+            {
+                // backward compatibility for xmlns and xmlnssuffix - do not throw exception
+                return ValueType.@default;
+            }
+
+            return Enum.Parse<Scheme.ValueType>(s);
+        }
 
         public static QualifiedName ToQualifiedName(this IEnumerable<string> sequence) =>
             new(sequence.Select(part => new NamePart(new[] { new TextNameToken(part) })));

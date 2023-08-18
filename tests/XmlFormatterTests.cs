@@ -52,7 +52,7 @@ namespace Namespace2Xml.Tests
         public async Task ShouldFormatSimpleXml()
         {
             await CreateFormatter().Write(
-                Helpers.ToTree(new { XmlRoot = new { a = new { x = "1" } } }),
+                Helpers.ToTree(new { a = new { x = "1" } }),
                 default);
 
             CheckXml("<a x=\"1\" />");
@@ -61,10 +61,10 @@ namespace Namespace2Xml.Tests
         [Test]
         public async Task ShouldFormatKeys()
         {
-            keys.Add("XmlRoot.a", "test");
+            keys.Add("a", "test");
 
             await CreateFormatter().Write(
-                Helpers.ToTree(new { XmlRoot = new { a = new { b = new { x = "11" } } } }), default);
+                Helpers.ToTree(new { a = new { b = new { x = "11" } } }), default);
 
             CheckXml("<a test=\"b\" x=\"11\" />");
         }
@@ -74,10 +74,6 @@ namespace Namespace2Xml.Tests
         {
             await CreateFormatter().Write(
                 new ProfileTreeNode(
-                    "XmlRoot".ToNamePart(),
-                    new ProfileTree[]
-                    {
-                        new ProfileTreeNode(
                             "a".ToNamePart(),
                             new ProfileTree[]
                             {
@@ -87,8 +83,7 @@ namespace Namespace2Xml.Tests
                                 {
                                     new ProfileTreeLeaf(Helpers.CreatePayload("ddd:x", "11"), System.Array.Empty<Comment>(), QualifiedName.Empty)
                                 })
-                            })
-                    }), default);
+                            }), default);
 
             CheckXml("<a xmlns:ddd=\"http://example.com\"><b ddd:x=\"11\" /></a>");
         }
@@ -96,10 +91,10 @@ namespace Namespace2Xml.Tests
         [Test]
         public async Task ShouldFormatArrays()
         {
-            arrays.Add("XmlRoot.a");
+            arrays.Add("a");
 
             await CreateFormatter().Write(
-                Helpers.ToTree(new { XmlRoot = new { a = new { b = new { x = "11" } } } }),
+                Helpers.ToTree(new { a = new { b = new { x = "11" } } }),
                 default);
 
             CheckXml("<a x=\"11\" />");
@@ -109,7 +104,7 @@ namespace Namespace2Xml.Tests
         public async Task ShouldFormatXmlns()
         {
             await CreateFormatter().Write(
-                Helpers.ToTree(new { XmlRoot = new { a = new { xmlns = "http://example.com", x = "1" } } }),
+                Helpers.ToTree(new { a = new { xmlns = "http://example.com", x = "1" } }),
                 default);
 
             CheckXml("<a x=\"1\" xmlns=\"http://example.com\" />");
