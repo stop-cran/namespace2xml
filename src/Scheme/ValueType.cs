@@ -6,6 +6,7 @@
         ignore,
         array,
         @string,
-        element
+        element,
+        multiline
     }
 }

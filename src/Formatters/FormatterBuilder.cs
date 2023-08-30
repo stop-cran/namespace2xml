@@ -89,6 +89,7 @@ namespace Namespace2Xml.Formatters
                                                                 select new KeyValuePair<QualifiedName, string>(child.prefix, leaf.Value));
             var arrays = node.GetNamesOfType(Scheme.ValueType.array);
             var strings = node.GetNamesOfType(Scheme.ValueType.@string);
+            var multiline = node.GetNamesOfType(Scheme.ValueType.multiline);
 
             switch (outputType)
             {
@@ -139,6 +140,7 @@ namespace Namespace2Xml.Formatters
                         keys,
                         arrays,
                         strings,
+                        multiline,
                         loggerFactory.CreateLogger<YamlFormatter>());
 
                 case OutputType.ini:

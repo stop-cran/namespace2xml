@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Namespace2Xml.Syntax;
@@ -16,25 +17,31 @@ namespace Namespace2Xml.Formatters
 {
     public class YamlFormatter : JsonYamlFormatterBase
     {
+        protected readonly IQualifiedNameMatchList multiline;
+
         public YamlFormatter(
             Func<Stream> outputStreamFactory,
             [NullGuard.AllowNull] IReadOnlyList<string> outputPrefix,
             IQualifiedNameMatchDictionary<string> keys,
             IQualifiedNameMatchList arrays,
             IQualifiedNameMatchList strings,
+            IQualifiedNameMatchList multiline,
             ILogger<YamlFormatter> logger)
             : base(outputStreamFactory,
-                  outputPrefix,
-                  keys,
-                  arrays,
-                  strings,
-                  logger)
-        { }
+                outputPrefix,
+                keys,
+                arrays,
+                strings,
+                logger)
+        {
+            this.multiline = multiline;
+        }
 
         protected override async Task DoWrite(ProfileTree tree, Stream stream, CancellationToken cancellationToken)
         {
             var serializer = new SerializerBuilder()
                 .WithEventEmitter(nextEmitter => new QuoteStringEventEmitter(nextEmitter))
+                .WithEventEmitter(nextEmitter => new MultilineScalarFlowStyleEmitter(nextEmitter))
                 .Build();
 
             using var writer = new StreamWriter(stream);
@@ -101,6 +108,20 @@ namespace Namespace2Xml.Formatters
                             .Select(x => ToObject(x.child, newPrefix)).ToArray();
                     }
 
+                    if (multiline.IsMatch(newPrefix.ToQualifiedName()))
+                    {
+                        return string.Join('\n', node.Children
+                            .Select(x => new
+                            {
+                                child = x,
+                                arrIndex = int.TryParse(x.NameString, out var index) ? index : int.MaxValue,
+                            })
+                            .OrderBy(x => x.arrIndex)
+                            .Select(x => x.child)
+                            .OfType<ProfileTreeLeaf>()
+                            .Select(x => x.Value));
+                    }
+
                     var result = new SortedDictionary<string, object>();
 
                     foreach (var child in ProcessOverrides(node.Children, newPrefix))
@@ -142,6 +163,31 @@ namespace Namespace2Xml.Formatters
                 if (eventInfo.Source.Value is string value && TryParse(value).success)
                     eventInfo.Style = ScalarStyle.SingleQuoted;
                 base.Emit(eventInfo, emitter);
+            }
+        }
+
+        private class MultilineScalarFlowStyleEmitter : ChainedEventEmitter
+        {
+            public MultilineScalarFlowStyleEmitter(IEventEmitter nextEmitter)
+                : base(nextEmitter) { }
+
+            public override void Emit(ScalarEventInfo eventInfo, IEmitter emitter)
+            {
+                if (typeof(string).IsAssignableFrom(eventInfo.Source.Type))
+                {
+                    string value = eventInfo.Source.Value as string;
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        bool isMultiLine = value.IndexOfAny(new[] { '\r', '\n', '\x85', '\x2028', '\x2029' }) >= 0;
+                        if (isMultiLine)
+                            eventInfo = new ScalarEventInfo(eventInfo.Source)
+                            {
+                                Style = ScalarStyle.Literal
+                            };
+                    }
+                }
+
+                nextEmitter.Emit(eventInfo, emitter);
             }
         }
     }
