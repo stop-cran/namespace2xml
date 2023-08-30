@@ -20,6 +20,7 @@ namespace Namespace2Xml.Formatters
         private readonly XmlOptions xmlOptions;
         private readonly IQualifiedNameMatchDictionary<string> keys;
         private readonly IQualifiedNameMatchList arrays;
+        private readonly IQualifiedNameMatchList multiline;
         private readonly IQualifiedNameMatchList xmlElements;
         private readonly string rootElementName;
 
@@ -30,6 +31,7 @@ namespace Namespace2Xml.Formatters
             IOptions<QualifiedNameOptions> qualifiedNameOptions,
             IQualifiedNameMatchDictionary<string> keys,
             IQualifiedNameMatchList arrays,
+            IQualifiedNameMatchList multiline,
             IQualifiedNameMatchList xmlElements,
             ILogger<XmlFormatter> logger)
             : base(outputStreamFactory, logger)
@@ -38,6 +40,7 @@ namespace Namespace2Xml.Formatters
             this.xmlOptions = xmlOptions;
             this.keys = keys;
             this.arrays = arrays;
+            this.multiline = multiline;
             this.xmlElements = xmlElements;
             this.rootElementName = qualifiedNameOptions.Value.XmlRoot;
         }
@@ -162,6 +165,14 @@ namespace Namespace2Xml.Formatters
                         ToXml(new ProfileTreeNode(treeNode.Name, child.Children),
                             newPrefix.Concat(new[] { child.NameString }).ToArray(), true, xmlns, xmlNamespaces))
                     .ToList();
+            else if (multiline.IsMatch(newPrefix.ToQualifiedName()))
+            {
+                logger.LogWarning("Multiline value type is not supported for XML");
+                return new[]
+                {
+                    ((XObject)new XElement(XName.Get(treeNode.NameString)), (SourceMark)null)
+                };
+            }
             else
             {
                 nodes = treeNode.Children

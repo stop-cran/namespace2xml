@@ -114,6 +114,7 @@ namespace Namespace2Xml.Formatters
                         keys,
                         arrays,
                         strings,
+                        multiline,
                         loggerFactory.CreateLogger<JsonFormatter>());
 
                 case OutputType.xml:
@@ -130,6 +131,7 @@ namespace Namespace2Xml.Formatters
                         qualifiedNameOptions,
                         keys,
                         arrays,
+                        multiline,
                         node.GetNamesOfType(Scheme.ValueType.element),
                         loggerFactory.CreateLogger<XmlFormatter>());
 
