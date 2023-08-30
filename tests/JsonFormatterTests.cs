@@ -32,6 +32,7 @@ namespace Namespace2Xml.Tests
                 new QualifiedNameMatchDictionary<string>(),
                 new QualifiedNameMatchList(arrays.Select(a => a.Split('.').ToQualifiedName())),
                 strings,
+                new QualifiedNameMatchList(),
                 Mock.Of<ILogger<JsonFormatter>>());
 
         [Test]
