@@ -21,12 +21,14 @@ namespace Namespace2Xml.Formatters
             IQualifiedNameMatchDictionary<string> keys,
             IQualifiedNameMatchList arrays,
             IQualifiedNameMatchList strings,
+            IQualifiedNameMatchList multiline,
             ILogger<JsonFormatter> logger)
             : base(outputStreamFactory,
                   outputPrefix,
                   keys,
                   arrays,
                   strings,
+                  multiline,
                   logger)
         { }
 
@@ -87,6 +89,12 @@ namespace Namespace2Xml.Formatters
                                     x.child,
                                     newPrefix))
                             .ToArray());
+
+                    if (multiline.IsMatch(newPrefix.ToQualifiedName()))
+                    {
+                        logger.LogWarning("Multiline value type is not supported for JSON");
+                        return null;
+                    }
 
                     return new JObject(ProcessOverrides(node.Children, newPrefix)
                         .Select(child =>

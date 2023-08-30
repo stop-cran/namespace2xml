@@ -17,8 +17,6 @@ namespace Namespace2Xml.Formatters
 {
     public class YamlFormatter : JsonYamlFormatterBase
     {
-        protected readonly IQualifiedNameMatchList multiline;
-
         public YamlFormatter(
             Func<Stream> outputStreamFactory,
             [NullGuard.AllowNull] IReadOnlyList<string> outputPrefix,
@@ -32,9 +30,9 @@ namespace Namespace2Xml.Formatters
                 keys,
                 arrays,
                 strings,
+                multiline,
                 logger)
         {
-            this.multiline = multiline;
         }
 
         protected override async Task DoWrite(ProfileTree tree, Stream stream, CancellationToken cancellationToken)

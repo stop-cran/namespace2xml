@@ -13,6 +13,7 @@ namespace Namespace2Xml.Formatters
         protected readonly IQualifiedNameMatchDictionary<string> keys;
         protected readonly IQualifiedNameMatchList arrays;
         protected readonly IQualifiedNameMatchList strings;
+        protected readonly IQualifiedNameMatchList multiline;
 
         public JsonYamlFormatterBase(
             Func<Stream> outputStreamFactory,
@@ -20,12 +21,14 @@ namespace Namespace2Xml.Formatters
             IQualifiedNameMatchDictionary<string> keys,
             IQualifiedNameMatchList arrays,
             IQualifiedNameMatchList strings,
+            IQualifiedNameMatchList multiline,
             ILogger<JsonYamlFormatterBase> logger) : base(outputStreamFactory, logger)
         {
             this.outputPrefix = outputPrefix;
             this.keys = keys;
             this.arrays = arrays;
             this.strings = strings;
+            this.multiline = multiline;
         }
 
         protected static (object typedValue, bool success) TryParse(string value)
