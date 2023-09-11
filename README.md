@@ -449,16 +449,43 @@ Example:
 
 *Input*
 ```
-a.b=1
+a.b.b0=1
+a.b.b1=2
+a.b.b2=3
 ```
 *Scheme*
 ```
 a.output=yaml
-a.b.type=string
+a.b.type=array
 ```
 *Output*
 ```yaml
-b: '1'
+b:
+  - 1
+  - 2
+  - 3
+```
+\
+Arrays can be defined without explicit definition in the schema if indexes are used:
+
+Example:
+
+*Input*
+```
+a.b.0=1
+a.b.1=2
+a.b.2=3
+```
+*Scheme*
+```
+a.output=yaml
+```
+*Output*
+```yaml
+b:
+  - 1
+  - 2
+  - 3
 ```
 
 ### Multiline
