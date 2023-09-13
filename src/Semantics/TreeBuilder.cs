@@ -274,11 +274,11 @@ namespace Namespace2Xml.Semantics
         {
             var entriesList = new ProfileEntryList(entries);
 
-            while (ApplySubstitutesStep(entriesList)) ;
+            while (ApplySubstitutesStep(entriesList)) { }
 
             return entriesList.Where(entry => entry is not Payload p ||
-                p.GetNameSubstitutesCount() == 0 &&
-                p.GetValueRefSubstitutesCount() == 0);
+                                              p.GetNameSubstitutesCount() == 0 &&
+                                              p.GetValueRefSubstitutesCount() == 0);
         }
 
         private bool ApplySubstitutesStep(ProfileEntryList entries)
@@ -431,8 +431,6 @@ namespace Namespace2Xml.Semantics
 
             foreach (var pattern in patterns)
             {
-                var hasPatternSubstitutes = false;
-
                 var matchesByName = entriesToProcess.GetLeftMatches(pattern);
 
                 var substituteResults = matchesByName
@@ -456,18 +454,9 @@ namespace Namespace2Xml.Semantics
                             pattern.SourceMark.FileName,
                             pattern.SourceMark.LineNumber,
                             result.MatchInfo);
-                        hasPatternSubstitutes = true;
+                        hasSubstitutes = true;
                     }
                 }
-
-                if (hasPatternSubstitutes)
-                {
-                    // Remove pattern from entries
-
-                    entries.Remove(pattern);
-                }
-
-                hasSubstitutes |= hasPatternSubstitutes;
             }
 
             return hasSubstitutes;
@@ -477,7 +466,7 @@ namespace Namespace2Xml.Semantics
         {
             var entriesList = new ProfileEntryList(entries);
 
-            while (ApplyNameSubstitutes(entriesList)) ;
+            while (ApplyNameSubstitutes(entriesList)) { }
 
             return entriesList.Where(entry =>
                 entry is not Payload p
@@ -513,12 +502,6 @@ namespace Namespace2Xml.Semantics
                 {
                     if (entries.InsertAfterIfNotExists(pattern, result.MatchedPayload))
                     {
-                        // logger.LogDebug(
-                        //     "Substitute one-to-one by name: {name}, file: {file}, line: {line}, matches: {matches}",
-                        //     pattern.Name,
-                        //     pattern.SourceMark.FileName,
-                        //     pattern.SourceMark.LineNumber,
-                        //     result.MatchInfo);
                         hasSubstitutes = true;
                     }
                 }

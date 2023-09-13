@@ -77,102 +77,268 @@ The value overriding is performed from the beginnging to the end, giving priorit
  
 ## Support for value references and wildcard substitutes
 
-Reference one value from another:
+### Reference one value from another:
+Example:
 
-Input:
+*Input*
 ```
 a.x=1,${b.y},3
 b.y=2
 ```
-Evaluates to:
+*Schema*
 ```
-a.x=1,2,3
-b.y=2
+a.output=namespace
 ```
-
-Reference with wildcards:
-Input:
+*Output*
 ```
-a.x=1
-a.*.y=2
-```
-Evaluates to:
-```
-a.x=1
-a.x.y=2
+x=1,2,3
 ```
 
-Input:
+### Substitutions:
+Example:
+
+*Input*
+```
+a.x=1
+a.y=2
+a.*.z=3
+```
+*Schema*
+```
+output=namespace
+```
+*Output*
+```
+a.x=1
+a.y=2
+a.x.z=3
+a.y.z=3
+```
+\
+Example:
+
+*Input*
 ```
 a.x=1
 a.*.y=*
+a.*.*.z=*.*
 ```
-Evaluates to:
+*Schema*
+```
+output=namespace
+```
+*Output*
 ```
 a.x=1
 a.x.y=x
+a.x.y.z=x.y
+```
+\
+Example:
+
+*Input*
+```
+a.x.y=1
+a.*.*=*.*.*.*
+```
+*Schema*
+```
+output=namespace
+```
+*Output*
+```
+a.x.y=x.y.y.y
 ```
 
-Input:
-```
-a.x=1
-b.*.=${a.*}
-```
-Evaluates to:
-```
-a.x=1
-b.x=1
-```
+### Reference with substitutions:
+Example:
 
-All use-cases above can be combined and used simultaneously, e.g.:
+*Input*
+```
+a.b.x=1
+a.b.*=${c.*}
+c.x=2
+```
+*Schema*
+```
+a.output=namespace
+```
+*Output*
+```
+b.x=2
+```
+\
+All use-cases above can be combined and used simultaneously.
 
-Input
+Example:
+
+*Input*
+```
+a.b.x=1
+a.b.*=2,${c.*},${d.*}
+c.x=3
+d.x=4
+```
+*Schema*
+```
+a.output=namespace
+```
+*Output*
+```
+b.x=2,3,4
+```
+\
+Example
+
+*Input*
 ```
 a.x.y=1
 a.*.*=1,${b.*},${c.*}
 b.x=2
-c.y=3
-```
-Evaluates to:
-```
-a.x.y=1,2,3
-```
-
-Input
-```
-a.*=1,${b.*},${c.*}
-b.x=2
 c.x=3
 ```
-Evaluates to:
+*Schema*
 ```
-a.x=1,2,3
+a.output=namespace
 ```
+*Output*
+```
+x.y=1,2,3
+```
+\
+Example:
 
-Input
+*Input*
 ```
 a.x.y=1
-a.*.*=1,*,${c.*}
-c.y=3
+a.*.*=1,*,${c.*},*
+c.x=3
 ```
-Evaluates to:
+*Schema*
 ```
-a.x.y=1,x,3
+a.output=namespace
+```
+*Output*
+```
+x.y=1,x,3,y
 ```
 
+### Ignore
+Example:
+
+*Input*
+```
+a.b=1
+!x.y=2
+```
+*Schema*
+```
+output=namespace
+```
+*Output*
+```
+a.b=1
+```
+
+It is possible to use wildcards with `!`.
+
+Example:
+
+*Input*
+```
+a.b.c=1
+a.b.d=2
+a.b.e=3
+a.x.y=4
+a.x.z=5
+!a.x.*
+```
+*Schema*
+```
+output=namespace
+```
+*Output*
+```
+a.b.c=1
+a.b.d=2
+a.b.e=3
+```
+
+### Delimiter escape
+Example:
+
+*Input*
+```
+a.b\.c=1
+```
+*Schema*
+```
+output=yaml
+```
+*Output*
+```yaml
+a:
+  b.c: 1
+```
 
 # Scheme description
 
+## Output
 
-## Supported output types
+### Supported output types
 ```
-[name.]*output=[xml|json|yaml|ini|namespace]
+[name.]*output=[xml|json|yaml|ini|namespace|quotednamespace]
+```
+
+### Full output
+Example:
+
+*Input*
+```
+a.b.x=1
+a.b.y=2
+a.c=3
+x.y=4
+```
+*Scheme*
+```
+output=namespace
+```
+*Output*
+```
+a.b.x=1
+a.b.y=2
+a.c=3
+x.y=4
+```
+
+### Partial output
+Example:
+
+*Input*
+```
+a.b.x=1
+a.b.y=2
+a.c=3
+x.y=4
+```
+*Scheme*
+```
+a.output=namespace
+```
+*Output*
+```
+b.x=1
+b.y=2
+c=3
 ```
 
 ## Set output file name or path
 ```
 [name.]*filename=<overridden file name>
 ```
+
+It is possible to write multiple output to a single file. The content will be added in case of `namespace` and `yaml` output types, otherwise it will be overriden.
 
 ## Change name of the root element(s)/namespace/INI section name
 ```
@@ -185,52 +351,231 @@ For all direct child elements treat child entry name as a key and group grand-ch
 
 Example:
 
-*scheme.txt:*
+*Input*
+```
+a.b.x=1
+a.b.y=2
+```
+*Scheme*
+```
+a.output=namespace
+a.root=c
+```
+*Output*
+```
+c.b.x=1
+c.b.y=2
+```
+
+## Keys
+Treat all elements in given namespace as a dictionary with given key attribute.
+
+Example:
+
+*Input*
+```
+a.b.x=1
+a.b.y=2
+a.c.x=3
+```
+*Scheme*
 ```
 a.output=yaml
-a.key=b
+a.key=name
 ```
-
-*input.txt:*
-```
-a.key1.x=1
-a.key1.y=2
-
-a.key2.x=5
-a.key2.y=7
-```
-
-Call:
-```
-namespace2xml -i input.txt -s scheme.txt
-```
-
-*output (a.yml):*
-```
-key1:
+*Output*
+```yaml
+- name: b
   x: 1
   y: 2
-key2:
-  x: 5
-  y: 7
+- name: c
+  x: 3
 ```
 
-
 ## Specify entry type
+```
+[name.]*type=[ignore|string|element|array|multiline]
+```
+### Ignore
+Same as using `!` before namespace in input file.
 
-`hiddenKey` - same as `key`, but the name of the key does not go to the output;
+`namespace.type=ignore` - exclude element from the output;
 
-`ignore` - exclude from the output;
+Example:
 
-`csv` - split the value by comma and produce multiple XML/JSON/YAML elements;
+*Input*
+```
+a.b.x=1
+a.b.y=2
+a.c.x=3
+```
+*Scheme*
+```
+a.output=namespace
+a.c.x.type=ignore
+```
+*Output*
+```~~~~
+b.x=1
+b.y=2
+```
 
-`string` - force element type to string for JSON and YAML;
+### String
+`namespace.type=string` - force element type to string for JSON and YAML;
 
-`element` - in case of XML output, write the entry as an element with inner text, rather than an attribute (which is default).
+Example:
 
-It's possible to specify multiple types, separated by comma, e.g. `csv,element` means split the value by comma and produce XML element with inner text fora each part.
+*Input*
+```
+a.b=1
+```
+*Scheme*
+```
+a.output=yaml
+a.b.type=string
+```
+*Output*
+```yaml
+b: '1'
+```
 
+### Element
+`namespace.type=element` - in case of XML output, write the entry as an element with inner text, rather than an attribute (which is default).
 
+### Array
+`namespace.type=array` - treat all elements in given namespace as array.
+
+Example:
+
+*Input*
+```
+a.b.b0=1
+a.b.b1=2
+a.b.b2=3
+```
+*Scheme*
+```
+a.output=yaml
+a.b.type=array
+```
+*Output*
+```yaml
+b:
+  - 1
+  - 2
+  - 3
+```
+\
+Arrays can be defined without explicit definition in the schema if indexes are used:
+
+Example:
+
+*Input*
+```
+a.b.0=1
+a.b.1=2
+a.b.2=3
+```
+*Scheme*
+```
+a.output=yaml
+```
+*Output*
+```yaml
+b:
+  - 1
+  - 2
+  - 3
+```
+
+### Multiline
+`namespace.type=multiline` - treat all elements in given namespace as multiline string for YAML.
+
+Example:
+
+*Input*
+```
+a.b.0=row1
+a.b.1=row2
+a.b.2=row3
+```
+*Scheme*
+```
+a.output=yaml
+a.b.type=multiline
+```
+*Output*
+```yaml
+b: |-
+  row1
+  row2
+  row3
+```
+
+## Specify ouptut delimiter
+Only for output types: namespace, quotednamespace
+
+Example:
+
+*Input*
+```
+a.b.c=1
+```
+*Scheme*
+```
+a.output=namespace
+a.delimiter=_
+```
+*Output*
+```
+b_c=1
+```
+
+## Disable substitutions
+`namespace.substitute=key` - disable substitutions for the value.
+
+Example:
+
+*Input*
+```
+a.b=1
+*.x=*
+```
+*Scheme*
+```
+output=namespace
+a.x.substitute=key
+```
+*Output*
+```
+a.b=1
+a.x=*
+```
+\
+`namespace.substitute=none` - disable all substitutions.
+
+Example:
+
+*Input*
+```
+a.b=1
+*.x=*
+```
+*Scheme*
+```
+output=namespace
+a.x.substitute=none
+```
+*Output*
+```
+a.b=1
+*.x=*
+```
+
+## Specify xml options
+```
+[name.]*xmloptions=[NoIndent|NewLineOnAttributes]
+```
 
 # Installation
 

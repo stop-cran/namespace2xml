@@ -46,6 +46,7 @@ namespace Namespace2Xml.Tests
                 new QualifiedNameMatchList(arrays
                     .Select(x => x.Split('.').ToQualifiedName())),
                 new QualifiedNameMatchList(),
+                new QualifiedNameMatchList(),
                 Mock.Of<ILogger<XmlFormatter>>());
 
         [Test]
