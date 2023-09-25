@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -81,7 +82,10 @@ namespace Namespace2Xml.Formatters
             }
 
             var fileName = node.SingleOrDefaultValue(EntryType.filename);
-            var root = node.SingleOrDefaultValue(EntryType.root)?.Split('.') ?? new string[0];
+            var rootString = node.SingleOrDefaultValue(EntryType.root);
+            var root = !string.IsNullOrEmpty(rootString)
+                ? Regex.Split(rootString, @"(?<!\\)\.").Select(x => x.Replace(@"\.", ".")).ToArray()
+                : Array.Empty<string>();
             var delimiter = node.SingleOrDefaultValue(EntryType.delimiter) ?? ".";
             var keys = new QualifiedNameMatchDictionary<string>(from child in node.GetAllChildren()
                                                                 let leaf = child.entry as SchemeLeaf

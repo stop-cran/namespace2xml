@@ -349,7 +349,7 @@ For all direct child elements treat child entry name as a key and group grand-ch
 [name.]*root=<a name of XML attribute or YAML/JSON property name used to write the value of the key>
 ```
 
-Example:
+Example (add root element):
 
 *Input*
 ```
@@ -365,6 +365,25 @@ a.root=c
 ```
 c.b.x=1
 c.b.y=2
+```
+
+Xml example (rename root element):
+
+*Input*
+```
+a.b.x=1
+a.b.y=2
+```
+*Scheme*
+```
+a.output=namespace
+a.root=c
+```
+*Output*
+```xml
+<c>
+  <b x="1" y="2" />
+</c>
 ```
 
 ## Keys
