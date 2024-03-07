@@ -124,9 +124,9 @@ namespace Namespace2Xml.Formatters
                 ? prefix.Concat(new[] { treeNode.NameString }).ToArray()
                 : prefix;
             IEnumerable<(XObject node, SourceMark firstSourceMark)> nodes;
-            var comments = treeNode.Children.OfType<ProfileTreeLeaf>()
-                .SelectMany(l => l.LeadingComments
-                    .Select<Comment, (XObject node, SourceMark firstSourceMark)>(comment => (new XComment(comment.Text), l.SourceMark)));
+            // var comments = treeNode.Children.OfType<ProfileTreeLeaf>()
+            //     .SelectMany(l => l.LeadingComments
+            //         .Select<Comment, (XObject node, SourceMark firstSourceMark)>(comment => (new XComment(comment.Text), l.SourceMark)));
             var leafs = treeNode.Children
                 .OfType<ProfileTreeLeaf>()
                 .Where(child => child.NameString != "xmlns")
@@ -181,12 +181,18 @@ namespace Namespace2Xml.Formatters
                 wrap = true;
             }
 
+            // var content =
+            //     comments
+            //     .Concat(nodes
+            //         .Concat(leafs)
+            //         .OrderBy(pair => pair.firstSourceMark))
+            //     .ToArray();
+
             var content =
-                comments
-                .Concat(nodes
+                nodes
                     .Concat(leafs)
-                    .OrderBy(pair => pair.firstSourceMark))
-                .ToArray();
+                    .OrderBy(pair => pair.firstSourceMark)
+                    .ToArray();
 
             if (content.Length == 0)
                 return Array.Empty<(XObject node, SourceMark firstSourceMark)>();
