@@ -200,10 +200,15 @@ namespace Namespace2Xml
             var sourceMark = new SourceMark(fileNumber, fileName, lineNumber + 1);
             implicitFileLines[fileName] = lineNumber + 1;
 
-            var parsedParts = nameParts.Select(part => nameParser.Parse(part)).ToList();
+            var parsedParts = nameParts.Select(EscapeDelimiter).Select(part => nameParser.Parse(part)).ToList();
             var parsedValue = valueParser.Parse(value);
 
             return new Payload(new QualifiedName(parsedParts), parsedValue, sourceMark);
+        }
+
+        private static string EscapeDelimiter(string name)
+        {
+            return name.Replace(".", "\\.");
         }
 
         private IEnumerable<IProfileEntry> JsonToProfileEntries(string[] prefix, JToken json, string fileName, int fileNumber)
