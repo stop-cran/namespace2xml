@@ -45,8 +45,9 @@ namespace Namespace2Xml.Formatters
                 if (delimiter == ".")
                     names = names.Select(name => name.Replace(".", "\\."));
 
-                if (names.Count() > 1)
-                    data[names.First()][string.Join(delimiter, names.Skip(1))] = leaf.Value;
+                var count = names.Count();
+                if (count > 1)
+                    data[string.Join(':', names.Take(count - 1))][names.Last()] = leaf.Value;
                 else
                 {
                     var collection = new KeyDataCollection();
