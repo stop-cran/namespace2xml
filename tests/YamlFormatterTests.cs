@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Namespace2Xml.Formatters;
 using Namespace2Xml.Syntax;
@@ -68,19 +69,25 @@ namespace Namespace2Xml.Tests
             CheckYaml("x:" + expectedValue);
         }
 
-        [Test]
-        [TestCase("row1\nrow2", "|-\r\n  row1\r\n  row2")]
-        [TestCase("row1\n row2", "|-\r\n  row1\r\n   row2")]
-        public async Task ShouldFormatMultiline(string value, string expectedValue)
+        [TestCaseSource(nameof(GetTestCaseData))]
+        public async Task ShouldFormatMultiline(TestCaseData testCaseData)
         {
             multiline.Add(new[] { "a", "x" }.ToQualifiedName());
 
             await CreateFormatter().Write(
-                Helpers.ToTree(new { a = new { x = value } }),
+                Helpers.ToTree(new { a = new { x = testCaseData.Value } }),
                 default);
 
-            CheckYamlRaw("x: " + expectedValue + "\r\n");
+            CheckYamlRaw("x: " + testCaseData.ExpectedValue + Environment.NewLine);
         }
+
+        public static IEnumerable<TestCaseData> GetTestCaseData()
+        {
+            yield return new TestCaseData("row1\nrow2", $"|-{Environment.NewLine}  row1{Environment.NewLine}  row2");
+            yield return new TestCaseData("row1\n row2", $"|-{Environment.NewLine}  row1{Environment.NewLine}   row2");
+        }
+
+        public record TestCaseData(string Value, string ExpectedValue);
 
         private void CheckYaml(string expectedXml) =>
             Encoding.UTF8.GetString(stream.ToArray())
