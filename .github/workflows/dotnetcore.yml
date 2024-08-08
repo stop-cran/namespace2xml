@@ -21,3 +21,8 @@ jobs:
       run: dotnet build
     - name: Test with dotnet
       run: dotnet test --no-build /p:CollectCoverage=true /p:CoverletOutputFormat=lcov
+    - name: Publish Nuget
+      run: >
+        dotnet build -c Release &&
+        dotnet pack -c Release &&
+        dotnet nuget push ./src/bin/Release/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ secrets.NUGETAPIKEY }} --skip-duplicate
