@@ -1,4 +1,4 @@
-# Overview [![NuGet](https://img.shields.io/nuget/v/namespace2xml.svg)](https://www.nuget.org/packages/namespace2xml) [![Build Status](https://travis-ci.com/stop-cran/namespace2xml.svg?branch=master)](https://travis-ci.com/stop-cran/namespace2xml) [![Coverage Status](https://coveralls.io/repos/github/stop-cran/namespace2xml/badge.svg?branch=master)](https://coveralls.io/github/stop-cran/namespace2xml?branch=master)
+# Overview [![NuGet](https://img.shields.io/nuget/v/namespace2xml.svg)](https://www.nuget.org/packages/namespace2xml) ![Build Status](https://github.com/stop-cran/namespace2xml/actions/workflows/dotnetcore.yml/badge.svg) [![Coverage Status](https://coveralls.io/repos/github/stop-cran/namespace2xml/badge.svg?branch=master)](https://coveralls.io/github/stop-cran/namespace2xml?branch=master)
 
 Namespace2xml is a tool for generating, templating and merging files in following formats:
  - XML
