@@ -77,28 +77,54 @@ public static class DiagnosticsFormatPreScan
         {
             var token = arguments[i];
 
+            if (token is null)
+            {
+                continue;
+            }
+
             if (token == "--")
             {
                 break;
             }
 
-            if (token == "--help")
+            // Section 6.2 makes the inline form uniform, so the mode is decided by the option
+            // name rather than by the whole token. An inline value on either flag is ignored,
+            // because Section 6.1 decides from presence before any argument is validated.
+            var name = NameOf(token);
+
+            if (name == "--help")
             {
                 return InformationalMode.Help;
             }
 
-            if (token == "--version")
+            if (name == "--version")
             {
                 version = true;
             }
             else if (token == Option && i + 1 < arguments.Count && arguments[i + 1] != "--")
             {
                 // Skip the value so that "--diagnostics-format --version" treats --version as data.
+                // Only the detached form consumes a following token; the inline form carries its own.
                 i++;
             }
         }
 
         return version ? InformationalMode.Version : InformationalMode.None;
+    }
+
+    /// <summary>
+    /// The option name a token carries: the part before the first <c>=</c> for a long option, and
+    /// the whole token otherwise, matching the Section 6.2 grammar.
+    /// </summary>
+    private static string NameOf(string token)
+    {
+        if (!token.StartsWith("--", StringComparison.Ordinal))
+        {
+            return token;
+        }
+
+        var separator = token.IndexOf('=', StringComparison.Ordinal);
+        return separator < 0 ? token : token[..separator];
     }
 }
 

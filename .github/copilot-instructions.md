@@ -123,6 +123,10 @@ The file inherits a Visual Studio template that ignores `bin/`, `[Rr]elease/`, `
 Remove them and a contributor's expected output vanishes from a commit, leaving a corpus that passes
 locally while asserting less in CI. The `lint` job fails if anything under those trees is ignored.
 
+Running that check locally reports every `spikes/*/bin` and `spikes/*/obj` file if you have ever
+built a spike. CI never sees them because it runs on a fresh checkout and no job builds the spikes.
+Ignore that noise locally; only paths that would have been committed matter.
+
 ### `--version` must not carry a commit suffix
 
 `IncludeSourceRevisionInInformationalVersion` is `false`. The SDK otherwise appends `+<sha>`, which
@@ -161,6 +165,10 @@ rely on it, because it only fires when the doc comment and the signature disagre
 
 ### Test-authoring specifics
 
+- **CA1707 makes underscores in test method names a build error.** The `Given_When_Then` style
+  every other .NET repository uses does not compile here. Write `AShortOptionHasNoInlineForm`, and
+  put the sentence in a `<summary>` where it belongs. Thirty-odd errors from one new file, all
+  identical, is this rule.
 - **Shouldly's string `ShouldContain` / `ShouldNotContain` are case-*insensitive* by default.**
   `text.ShouldNotContain("E")` fails against `"1.0e21"`. Pass `Case.Sensitive` whenever the assertion
   is about letter case — which, for a specification that fixes a lowercase `e`, is exactly when you
@@ -169,6 +177,29 @@ rely on it, because it only fires when the doc comment and the signature disagre
   `CultureNotFoundException` rather than giving you a hostile culture. To prove a conversion ignores
   the ambient culture, clone `CultureInfo.InvariantCulture` and mutate its `NumberFormat` — setting
   `NegativeSign = "MINUS"` makes a missing `InvariantCulture` argument visible immediately.
+- Record equality is **not** structural when a member is `ImmutableArray<T>`: it compares the
+  underlying array by reference, so two identically-populated results compare unequal. Compare a
+  projection, not the record.
+
+### Restoring a mutated file does not rebuild it
+
+Proving a gate red means mutating a file and putting it back. `Copy-Item` **preserves the source
+file's `LastWriteTime`**, so the restored file looks older than the DLL built from the mutant and
+MSBuild skips recompiling it. The tests then still fail, against source that is already correct,
+and the obvious conclusion — that the restore did not work — is wrong.
+
+Touch the file after restoring:
+
+```powershell
+(Get-Item $path).LastWriteTime = Get-Date
+```
+
+### `expected-diagnostics.json` is compared as literal text, not as decoded JSON
+
+`DiagnosticComparer` deliberately reimplements the canonical layout rules rather than delegating to
+a JSON reader, so a `\u00a7` escape is compared against the emitted `§` and fails. Write the literal
+character. This is the comparer being an independent oracle rather than a mirror, which is the whole
+reason it exists — but it does mean a fixture cannot be authored in ASCII-escaped JSON.
 
 ---
 

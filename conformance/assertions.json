@@ -429,8 +429,8 @@
     {
       "item": 61,
       "text": "`--help`, `--version`, and every verbosity threshold without changing processing or exit status.",
-      "milestone": "unassigned",
-      "status": "pending",
+      "milestone": "m0",
+      "status": "required",
       "assertions": []
     },
     {
@@ -520,8 +520,8 @@
     {
       "item": 74,
       "text": "Informational-mode precedence, repeated list options, `--`, and explicit-filename extension behavior.",
-      "milestone": "unassigned",
-      "status": "pending",
+      "milestone": "m0",
+      "status": "required",
       "assertions": []
     },
     {
@@ -569,15 +569,15 @@
     {
       "item": 81,
       "text": "`--diagnostics-format` pre-scan resolution, covering `--` termination, the `=value` form, repeated occurrences, a missing value, an unrecognized value, and reporting the resulting `CLI001` in the resolved encoding.",
-      "milestone": "unassigned",
-      "status": "pending",
+      "milestone": "m0",
+      "status": "required",
       "assertions": []
     },
     {
       "item": 82,
       "text": "`json` diagnostic-stream framing and closed-schema conformance, standard-error purity with operational messages suppressed, `[]` under `--verbosity none`, and a single emitted array that still contains late `PATH002` publication diagnostics.",
-      "milestone": "unassigned",
-      "status": "pending",
+      "milestone": "m0",
+      "status": "required",
       "assertions": []
     },
     {
@@ -597,8 +597,15 @@
     {
       "item": 85,
       "text": "`--version` contract-bundle reporting and machine-readable field layout, and registry agreement with the Section 22 code-level facts.",
-      "milestone": "unassigned",
-      "status": "pending",
+      "milestone": "m0",
+      "status": "required",
+      "assertions": []
+    },
+    {
+      "item": 86,
+      "text": "The uniform option-token grammar of Section 6.2: the `--name=value` inline form on every long option, the absence of an inline form on short options, a value that is not attached to any option, an option token that ends the argument vector still requiring a value, and `-` as an ordinary value.",
+      "milestone": "m1",
+      "status": "required",
       "assertions": []
     }
   ]

@@ -36,7 +36,7 @@ public static class Program
                 return 0;
         }
 
-        var invalid = DiagnosticsFormatValidation.Validate(args);
+        var invalid = CommandLineParser.Parse(args).Diagnostic;
         if (invalid is not null)
         {
             Emit(stderr, format, [invalid]);

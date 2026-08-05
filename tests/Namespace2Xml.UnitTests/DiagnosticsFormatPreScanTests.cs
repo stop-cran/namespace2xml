@@ -87,4 +87,31 @@ public class DiagnosticsFormatPreScanTests
     public void InformationalModeSkipsAConsumedOptionValue() =>
         DiagnosticsFormatPreScan.ResolveInformationalMode(["--diagnostics-format", "--version"])
             .ShouldBe(InformationalMode.None);
+
+    /// <summary>
+    /// Section 6.2 makes the inline form uniform, and Section 6.1 decides the mode from presence,
+    /// so an inline value is ignored rather than turning the token into something else.
+    /// </summary>
+    [TestCase("--help", InformationalMode.Help)]
+    [TestCase("--help=", InformationalMode.Help)]
+    [TestCase("--help=anything", InformationalMode.Help)]
+    [TestCase("--version", InformationalMode.Version)]
+    [TestCase("--version=", InformationalMode.Version)]
+    [TestCase("--version=anything", InformationalMode.Version)]
+    public void InformationalModeRecognizesTheInlineForm(string token, InformationalMode expected) =>
+        DiagnosticsFormatPreScan.ResolveInformationalMode([token]).ShouldBe(expected);
+
+    /// <summary>
+    /// The inline form carries its own value, so it must not additionally swallow the next token
+    /// the way the detached form does.
+    /// </summary>
+    [Test]
+    public void AnInlineDiagnosticsFormatDoesNotConsumeTheFollowingToken() =>
+        DiagnosticsFormatPreScan.ResolveInformationalMode(["--diagnostics-format=json", "--version"])
+            .ShouldBe(InformationalMode.Version);
+
+    [Test]
+    public void InformationalModeToleratesANullToken() =>
+        DiagnosticsFormatPreScan.ResolveInformationalMode([null!, "--help"])
+            .ShouldBe(InformationalMode.Help);
 }

@@ -1,0 +1,7 @@
+-s
+schemes/main.txt
+-i
+inputs/main.txt
+--
+-
+--output

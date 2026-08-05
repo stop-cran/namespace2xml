@@ -12,6 +12,9 @@
   polluted with operational prose on exactly this path, and no fixture reached it, so the corpus,
   the comparer and the determinism script all reported success. This case closes the corpus half
   of that gap.
+- The command line is a valid minimal invocation because Section 6.2 makes `-i` and `-s` required
+  regardless of how much of the pipeline exists. Before the parser landed this case passed an
+  empty vector, which reached the ordinary path only because nothing yet checked the vector.
 - Preview scope: the expected exit code is 70 only while the transformation pipeline is
-  unimplemented. When the pipeline lands, this case becomes an ordinary missing-input case and
-  its expected exit code and stream must be updated with it.
+  unimplemented. When the pipeline lands, this case becomes an ordinary transformation case and
+  its expected exit code, expected tree and stream must be updated with it.

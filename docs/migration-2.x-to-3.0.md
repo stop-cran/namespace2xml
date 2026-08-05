@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r2+0654ebfa8b7a`.**
+**Contract bundle `r4+f643866347b3`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (6)
+## Deliberate differences (11)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -54,6 +54,24 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: an invalid command line must still be reportable in the
   encoding the caller asked for, or an automated caller cannot read its own failure.
 
+### `cli-end-of-options-values`
+
+- namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
+  grammar was never stated in any contract and whose failures carried no stable code and no
+  machine-readable stream.
+- Contract: Section 6.2 option-token grammar; Section 26 item 86.
+- Legacy observation: `--` and a bare `-` were handled by the library's conventions, which
+  differed from this grammar and were not part of any contract.
+- Clean behavior: `--` ends option recognition and hands every following token to the immediately
+  preceding list-valued option, so `-` and `--output` become ordinary input paths rather than an
+  option and a value. A bare `-` is an ordinary value in this version and does not mean standard
+  input.
+- Why this case exists: this is the only way to name a file whose name begins with `-`, and the
+  rule is worth pinning precisely because it makes a familiar-looking token stop being an option.
+- Preview scope: the expected exit code is 70 only while the transformation pipeline is
+  unimplemented. When the pipeline lands the two extra paths will not resolve, and this case must be
+  updated with it.
+
 ### `cli-help-outranks-version`
 
 - namespace2xml 2.4.0: **differs**.
@@ -64,6 +82,32 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   argument is validated.
 - The difference is intentional: precedence must be total so that an automated caller can rely
   on it.
+
+### `cli-inline-value-accepted`
+
+- namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
+  grammar was never stated in any contract and whose failures carried no stable code and no
+  machine-readable stream.
+- Contract: Section 6.2 option-token grammar; Section 26 item 86.
+- Legacy observation: the inline `--name=value` form was whatever the library happened to accept,
+  and was documented nowhere.
+- Clean behavior: every long option accepts its value inline, so `--input=inputs/main.txt` is the
+  same invocation as `--input inputs/main.txt`.
+- Why this case exists: the uniform inline form is the amendment's whole point. A unit test can
+  show the parser accepts it; only a corpus case shows the shipped tool does.
+- Preview scope: the expected exit code is 70 only while the transformation pipeline is
+  unimplemented. When the pipeline lands, this case must be updated with it.
+
+### `cli-option-missing-value-rejected`
+
+- namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
+  grammar was never stated in any contract and whose failures carried no stable code and no
+  machine-readable stream.
+- Contract: Section 6.2 option-token grammar; Section 26 item 86.
+- Legacy observation: a trailing option with no value produced the library's own usage text and a
+  nonzero status, with no stable code and no machine-readable stream.
+- Clean behavior: an option token that reaches the end of the argument vector still requiring a
+  value is `CLI001` with exit 1, reported in the requested encoding.
 
 ### `cli-preview-not-implemented`
 
@@ -79,9 +123,39 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   polluted with operational prose on exactly this path, and no fixture reached it, so the corpus,
   the comparer and the determinism script all reported success. This case closes the corpus half
   of that gap.
+- The command line is a valid minimal invocation because Section 6.2 makes `-i` and `-s` required
+  regardless of how much of the pipeline exists. Before the parser landed this case passed an
+  empty vector, which reached the ordinary path only because nothing yet checked the vector.
 - Preview scope: the expected exit code is 70 only while the transformation pipeline is
-  unimplemented. When the pipeline lands, this case becomes an ordinary missing-input case and
-  its expected exit code and stream must be updated with it.
+  unimplemented. When the pipeline lands, this case becomes an ordinary transformation case and
+  its expected exit code, expected tree and stream must be updated with it.
+
+### `cli-short-option-inline-rejected`
+
+- namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
+  grammar was never stated in any contract and whose failures carried no stable code and no
+  machine-readable stream.
+- Contract: Section 6.2 option-token grammar; Section 26 item 86.
+- Legacy observation: unspecified. The library's treatment of `-i=value` was never stated, so a
+  caller could not know whether it named a file called `value`, a file called `=value`, or
+  nothing at all.
+- Clean behavior: short options have no inline form, so the whole token is the option name, it
+  names no option in the table, and the invocation is `CLI001` with exit 1.
+- Why this case exists: the dangerous outcome here is not the error, it is the silent success. A
+  parser that quietly accepted `-i=a` would read a file the author never named.
+
+### `cli-unattached-value-rejected`
+
+- namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
+  grammar was never stated in any contract and whose failures carried no stable code and no
+  machine-readable stream.
+- Contract: Section 6.2 option-token grammar; Section 26 item 86.
+- Legacy observation: a bare token in a leading position was consumed or ignored according to the
+  library's own positional rules, which this tool never declared.
+- Clean behavior: a value appearing when no option is accepting values is `CLI001` with exit 1.
+  This tool has no positional parameters.
+- Why this case exists: silently ignoring an argument the author wrote is the failure mode that
+  produces a correct-looking run against the wrong inputs.
 
 ### `cli-version`
 

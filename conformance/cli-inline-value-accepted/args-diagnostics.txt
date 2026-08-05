@@ -1,0 +1,3 @@
+--input=inputs/main.txt
+--scheme=schemes/main.txt
+--diagnostics-format=json

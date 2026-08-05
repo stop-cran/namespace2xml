@@ -369,6 +369,17 @@ The executable may use a new product name, but it must provide a compatibility c
 
 Repeated `-i`/`--input`, `-s`/`--scheme`, and `-v`/`--variables` occurrences concatenate their values in exact command-line token order. A `--` token ends option recognition; every following token is consumed only as a value of the immediately preceding list-valued option, and using `--` without such an option is `CLI001`.
 
+Option tokens are recognized by one uniform grammar, which applies to every option in the table above:
+
+- while option recognition is active, a token beginning with `-`, other than the two tokens `-` and `--`, is an option token; an option token naming an option not in the table above is `CLI001`;
+- a long option may carry its value inline as `--name=value`. The first `=` separates the name from the value, and the remainder is the value verbatim, including an empty remainder and any further `=`. `--name=value` supplies `value` exactly as though it were the token immediately following `--name`, except that an inline value is always a value and is never the `--` end-of-options marker;
+- short options have no inline form, so the whole of a short-option token is its name. `-i=a` therefore names an option that does not exist and is `CLI001`, rather than silently supplying the value `a` or the value `=a`;
+- `--help` and `--version` take no value. Section 6.1 decides the informational mode from the presence of the option token in either form, before any argument is validated, so an inline value on either is ignored rather than diagnosed;
+- any other token is a value of the option currently accepting values. The token `-` is an ordinary value in this version. A value appearing when no option is accepting values is `CLI001`, as is an option token that reaches the end of the argument vector still requiring a value;
+- a list-valued option accepts values until the next option token; every other option accepts exactly one value, and a later occurrence overrides an earlier one.
+
+The inline form is available to every long option rather than to `--diagnostics-format` alone. A grammar with one exception has to be stated twice, tested twice, and explained twice, and the exception would fall on the one option whose parsing already happens twice under Section 6.4.1.
+
 Limit-option values use ASCII decimal syntax:
 
 - count/depth options accept `[1-9][0-9]*`;
@@ -2997,6 +3008,7 @@ An implementation is conforming only when automated black-box tests cover:
 83. Per-occurrence `phase` and `spec` fields for codes that arise in more than one phase.
 84. XML attribute-count limits, absence of any separate entity-expansion budget, and deterministic `LIMIT001` attribution when per-source and global bounds are crossed together.
 85. `--version` contract-bundle reporting and machine-readable field layout, and registry agreement with the Section 22 code-level facts.
+86. The uniform option-token grammar of Section 6.2: the `--name=value` inline form on every long option, the absence of an inline form on short options, a value that is not attached to any option, an option token that ends the argument vector still requiring a value, and `-` as an ordinary value.
 
 ## 27. Deferred features
 
