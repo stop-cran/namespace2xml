@@ -1,0 +1,73 @@
+name: Feature request
+description: The tool cannot express this at all.
+title: "[feature] "
+labels: ["enhancement", "needs-decision"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A feature here is a **specification change**, not a code change. It will be evaluated as a
+        candidate section of the contract, and if accepted it lands as normative text plus fixtures
+        plus implementation.
+
+        That makes the bar higher than in most projects, and it makes the *problem statement* far
+        more important than the proposed solution. A well-stated problem often turns out to be
+        expressible already — which is a usage gap, and a faster fix for you.
+
+        Please read [docs/usage-methodology.md §1](../blob/master/docs/usage-methodology.md) first.
+        Some things are deliberately out of scope: this tool has no programming language in it, and
+        it is not going to acquire one.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: |
+        What are you trying to achieve, and what does the absence of this cost you today? Describe
+        the situation, not the feature.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What do you do instead right now?
+      description: If nothing, say so. If it is ugly, show it — the shape of the workaround is usually the best evidence for the feature.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: |
+        Optional. If you propose something, state it the way the specification would: what is
+        required, what is prohibited, and what happens in the failure cases. Vague proposals cannot
+        become contract text.
+
+  - type: textarea
+    id: determinism
+    attributes:
+      label: Does this preserve determinism?
+      description: |
+        Byte-identical output for identical inputs is a precondition of this tool, not a feature.
+        Anything that depends on the clock, the environment, the filesystem's iteration order, the
+        locale, or a network call cannot be accepted in the form proposed. If yours does, say how
+        you would make it deterministic.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked this is not already possible — see docs/usage-methodology.md and the specification.
+          required: true
+        - label: I checked KNOWN-LIMITS.md, including the list of things that are deliberately not going to change.
+          required: true
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: If an agent drafted this, a human read and approved it before filing.
+          required: true

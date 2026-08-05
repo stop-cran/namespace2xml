@@ -1,0 +1,168 @@
+name: ci
+
+on:
+  push:
+    branches: [master, v3]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+
+jobs:
+  # A workflow that can publish from a branch can publish an unreviewed artifact under a
+  # trusted name. This job fails the build if that ever becomes true again.
+  publication-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Only tags may publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in .github/workflows/*.yml; do
+            if grep -qE 'nuget\.org|NUGET_API_KEY|dotnet nuget push' "$workflow"; then
+              if ! grep -qE '^\s{4}tags:' "$workflow"; then
+                echo "::error file=$workflow::publishes packages but is not restricted to tag pushes"
+                exit 1
+              fi
+              if grep -qE '^\s{4}branches:' "$workflow"; then
+                echo "::error file=$workflow::publishes packages and also triggers on branches"
+                exit 1
+              fi
+            fi
+          done
+          echo "publication triggers are tag-only"
+
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore namespace2xml.slnx
+      - run: dotnet build namespace2xml.slnx --no-restore -c Release
+      - run: dotnet test namespace2xml.slnx --no-build -c Release --logger "trx;LogFileName=results.trx" -- --coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: '**/TestResults/**'
+          if-no-files-found: ignore
+
+  # Section 24 requires byte-identical output for identical inputs. A tool that only claims
+  # determinism is not determinate; this job measures it.
+  determinism:
+    needs: build-test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build namespace2xml.slnx -c Release
+      - name: Hash the conformance corpus outputs
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/hash-corpus-outputs.ps1 -Output corpus-hashes-${{ matrix.os }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corpus-hashes-${{ matrix.os }}
+          path: corpus-hashes-${{ matrix.os }}.txt
+
+  cross-os-hash:
+    needs: determinism
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: corpus-hashes-*
+          merge-multiple: false
+      - name: Every platform must produce identical bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          reference=""
+          for file in corpus-hashes-*/*.txt; do
+            if [ -z "$reference" ]; then reference="$file"; continue; fi
+            if ! diff -u "$reference" "$file"; then
+              echo "::error::output differs across platforms, violating Section 24"
+              exit 1
+            fi
+          done
+          echo "all platforms agree"
+
+  contract-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Regenerate the diagnostics registry
+        run: pwsh -NoProfile -File tools/sync-diagnostics-registry.ps1
+      - name: Regenerate the contract bundle
+        run: pwsh -NoProfile -File tools/sync-contract-bundle.ps1
+      - name: Regenerate the acceptance manifest
+        run: pwsh -NoProfile -File tools/sync-assertion-manifest.ps1
+      - name: Regenerate the derived documentation
+        run: pwsh -NoProfile -File tools/sync-docs.ps1
+      - name: The contract must not drift from the specification
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code -- spec conformance/assertions.json docs/diagnostics.md docs/migration-2.x-to-3.0.md; then
+            echo "::error::the specification or corpus changed without the derived artifacts being regenerated."
+            echo "::error::run the tools/sync-*.ps1 generators and commit the result."
+            exit 1
+          fi
+
+  # A changed contract that keeps its old revision is indistinguishable from an unchanged one,
+  # which makes every defect report ambiguous.
+  contract-revision:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: A contract change must move the bundle revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          if git diff --quiet "$base" HEAD -- docs/specification.md spec/diagnostics.registry.json; then
+            echo "contract unchanged"
+            exit 0
+          fi
+          if git diff --quiet "$base" HEAD -- spec/contract-bundle.json; then
+            echo "::error::docs/specification.md or spec/diagnostics.registry.json changed but spec/contract-bundle.json did not."
+            exit 1
+          fi
+          echo "contract changed and the bundle revision moved with it"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet format namespace2xml.slnx --verify-no-changes --severity error

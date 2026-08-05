@@ -1,0 +1,95 @@
+name: Specification ambiguity
+description: The contract does not say, says two things, or says something surprising.
+title: "[spec] "
+labels: ["specification", "needs-decision"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This is the most valuable report type in this project, and the least filed.**
+
+        The specification owns the implementation here. If it is silent or self-contradictory, the
+        right outcome is a *decision recorded in the contract* — not a code change that quietly
+        diverges from it. Filing this as a bug would get the code patched and leave the contract
+        just as ambiguous for the next person.
+
+        You do **not** need to know the right answer to file this. Saying "the contract does not
+        determine this" is a complete and useful report.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The `contract-bundle` line from `namespace2xml --version`.
+      placeholder: "contract-bundle: r2+0654ebfa8b7a"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of gap is this?
+      options:
+        - Silent — the contract does not address this case at all
+        - Contradictory — two clauses give different answers
+        - Under-determined — the clause admits more than one conforming behaviour
+        - Surprising — the contract is clear, and I think it is wrong
+    validations:
+      required: true
+
+  - type: textarea
+    id: clauses
+    attributes:
+      label: Clauses involved
+      description: |
+        Section numbers **plus verbatim quotes**. If you searched and found nothing, say what you
+        searched for — that is evidence of silence, and it is what a maintainer needs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: case
+    attributes:
+      label: The case the contract does not settle
+      description: The concrete inputs, scheme and arguments where the ambiguity bites.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: What the tool currently does
+      description: Verbatim, if you ran it. If you did not run it, say so — that is fine here.
+      render: text
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you think it should say, and why
+      description: |
+        Optional but useful. Argue from principle rather than from convenience, and be explicit that
+        this is your reasoning rather than something the contract states.
+
+  - type: dropdown
+    id: confidence
+    attributes:
+      label: Confidence
+      options:
+        - verified-in-session — I ran this and read the quoted clauses in this session
+        - proposed-but-untested — I reasoned this
+        - mixed — see body
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I read the quoted clauses in full, in this session — not from memory or from a search snippet.
+          required: true
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: If an agent drafted this, a human read and approved it before filing.
+          required: true

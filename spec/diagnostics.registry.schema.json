@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/stop-cran/namespace2xml/master/spec/diagnostics.registry.schema.json",
+  "title": "namespace2xml diagnostic registry",
+  "description": "Machine-readable companion to Section 22 and Appendix B of docs/specification.md. Authoritative for code, severity, cardinality and per-code field sets. Not authoritative for phase, specification anchor or message prose, which are properties of an individual occurrence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["specification", "authoritativeFor", "notAuthoritativeFor", "codes"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "specification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "authoritativeFor": {
+      "type": "array",
+      "items": { "enum": ["code", "severity", "cardinality", "fields"] }
+    },
+    "notAuthoritativeFor": {
+      "type": "array",
+      "items": { "enum": ["phase", "spec", "message"] }
+    },
+    "generatedBy": { "type": "string" },
+    "codes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "severity", "cardinality", "condition", "fields", "mappings"],
+        "properties": {
+          "code": { "type": "string", "pattern": "^[A-Z]+[0-9]{3}$" },
+          "severity": { "enum": ["error", "warning"] },
+          "cardinality": { "type": "string", "minLength": 1 },
+          "condition": { "type": "string", "minLength": 1 },
+          "fields": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": ["source", "line", "column", "path", "declaration", "rule", "destination"]
+            }
+          },
+          "mappings": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}

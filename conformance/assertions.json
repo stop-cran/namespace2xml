@@ -1,0 +1,605 @@
+{
+  "$comment": "Item numbers and text are derived from Section 26 of docs/specification.md. Do not edit them by hand; run tools/sync-assertion-manifest.ps1.",
+  "generatedBy": "tools/sync-assertion-manifest.ps1",
+  "statuses": {
+    "pending": "Not yet owned by a merged milestone. Not enforced by the traceability gate.",
+    "required": "Must be covered by at least one fixture. Enforced by the traceability gate."
+  },
+  "items": [
+    {
+      "item": 1,
+      "text": "CLI behavior and exit codes.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 2,
+      "text": "Case-insensitive file extensions.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 3,
+      "text": "Missing-file warnings.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 4,
+      "text": "Stable CLI/file/line precedence.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 5,
+      "text": "Namespace escaping and strict references.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 6,
+      "text": "Legacy and explicit wildcard captures.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 7,
+      "text": "Fixed-point expansion and expansion limits.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 8,
+      "text": "Strict output-prefix matching.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 9,
+      "text": "Typed scalar references, canonical and unique format-agnostic reference addressing, ambiguity errors, and string concatenation.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 10,
+      "text": "Winning-source mapping order and logical-path comment movement across overrides.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 11,
+      "text": "Sequence concatenation across every input format.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 12,
+      "text": "YAML wildcard enrichment across files.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 13,
+      "text": "YAML comment input and output.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 14,
+      "text": "JSON strict parsing and absence of comments.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 15,
+      "text": "XML DTD rejection and external-resource prohibition.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 16,
+      "text": "XML namespaces, attributes, text, mixed content, comments, CDATA, and whitespace modes.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 17,
+      "text": "Cross-format metadata-loss warnings.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 18,
+      "text": "Every scheme directive and deprecated alias.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 19,
+      "text": "Source-order scheme precedence, including wildcard then specific and specific then wildcard.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 20,
+      "text": "Negative `output=ignore`.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 21,
+      "text": "Uniform `root`.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 22,
+      "text": "Output-neutral `key`.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 23,
+      "text": "Locale-independent scalar inference.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 24,
+      "text": "JSON, YAML, and XML input structural merge.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 25,
+      "text": "Array concatenation, explicit-index patching, and input `merge=replace`.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 26,
+      "text": "Deterministic same-path `filemerge` and cross-format complete-plan overrides.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 27,
+      "text": "Portable shell quoting and invalid identifiers.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 28,
+      "text": "The documented INI dialect against representative parsers.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 29,
+      "text": "Output-root path confinement, including symlink or reparse-point escape attempts.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 30,
+      "text": "Global semantic/serialization validation gate and deterministic direct publication.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 31,
+      "text": "Byte-identical repeated runs under different thread schedules and locales.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 32,
+      "text": "Complexity bounds expressed in `N`, `P`, `E`, `M`, `C`, `G`, and `B`, verified through deterministic instrumentation of node visits, candidate checks, reference-edge visits, and produced bytes rather than wall-clock thresholds.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 33,
+      "text": "Scalar-plus-descendant overlays across namespace, JSON, YAML, XML, and INI.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 34,
+      "text": "Permanent ignore masks across concrete input, wildcard generation, references, selectors, and comments.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 35,
+      "text": "Stable ordering-value matching after cross-file concatenation.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 36,
+      "text": "Concrete output-instance expansion and wildcard default filenames.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 37,
+      "text": "`RestrictedYaml1` scalar and key behavior.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 38,
+      "text": "XML canonical addresses for namespaces, attributes, repeated children, and mixed content.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 39,
+      "text": "XML singleton-versus-sequence merge classification across three or more contributions.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 40,
+      "text": "Complete output-option replacement and contradictory flag errors.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 41,
+      "text": "Flat-key collision detection after delimiter and shell-identifier normalization.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 42,
+      "text": "Namespace multiline escape round trips.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 43,
+      "text": "UTF BOM handling, LF output, no output BOM, and deterministic diagnostic ordering.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 44,
+      "text": "Direct-publication external failure behavior without rollback.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 45,
+      "text": "Empty output-plan warnings and inferred-sequence compatibility warnings.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 46,
+      "text": "Scalar-only references and rejection of subtree and free-wildcard references.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 47,
+      "text": "Native sequence concatenation versus explicit ordering-value override.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 48,
+      "text": "Stable ordering values across deletion, wildcard matching, references, and final dense rendering.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 49,
+      "text": "One concrete output instance per last-wildcard capture tuple, never per descendant.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 50,
+      "text": "Output-instance-scoped scheme overrides and `output=ignore` restoration.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 51,
+      "text": "Substituted relative subfolders, encoded captures, and rejection of every `..` segment.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 52,
+      "text": "INI global-key preamble hoisting and rooted-section behavior.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 53,
+      "text": "Final fixed-point numeric-map inference, including empty mappings and generated or ignored nonnumeric children.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 54,
+      "text": "`type=mapping` preservation of numeric mapping keys and `type=array` conversion of nonnumeric mappings.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 55,
+      "text": "Deterministic multiple-capture partitioning and literal capture insertion.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 56,
+      "text": "Bare-scalar output behavior for every format.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 57,
+      "text": "Output-option defaults, XML declaration control, and comment-option enablement.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 58,
+      "text": "Deterministic distinct-destination publication order under partial storage failure.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 59,
+      "text": "Single-pass native decoded-string escaping for adjacent backslashes, wildcards, and reference starts.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 60,
+      "text": "JSON `EscapeNonAscii` for keys, BMP values, and supplementary Unicode scalars.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 61,
+      "text": "`--help`, `--version`, and every verbosity threshold without changing processing or exit status.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 62,
+      "text": "Fixed two-space YAML indentation, block-scalar indentation, and type-preserving string quoting.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 63,
+      "text": "XML comment exclusion from reference aliases and whole-element replacement under both input `merge=replace` and destination `filemerge=replace`.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 64,
+      "text": "Portable filename device-name handling, ASCII-case-insensitive destination collision detection, and cross-format high-water reset identically on every platform.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 65,
+      "text": "Namespace record classification, malformed no-`=` records, literal ordinary-value `*`, and Unicode-scalar escape validation.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 66,
+      "text": "INI path-to-section/key projection, namespace-only delimiter disambiguation, and `FLAT001` collisions.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 67,
+      "text": "Scheme-reference filename separators as encoded data, empty directive rejection, and `type=array` plus `key` rejection.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 68,
+      "text": "Output-instance-scoped `WARN010` suppression by `type=mapping` and stable diagnostic stream/code behavior.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 69,
+      "text": "Differential compatibility fixtures against namespace2xml 2.4.0 for every behavior claimed in Section 3.1, with explicit expected divergences for every correction in Section 3.2.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 70,
+      "text": "XML sequence projection for mapping children, root sequences, scalar items, record items, and illegal attribute projection.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 71,
+      "text": "Typed XML component recognition in namespace input, variables, scheme paths, references, and `root`, with literal JSON/YAML marker-shaped keys.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 72,
+      "text": "Deterministic global-budget attribution under varied parser thread schedules.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 73,
+      "text": "Phase-local diagnostic collection, complete failed-source discard, and phase-boundary abort.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 74,
+      "text": "Informational-mode precedence, repeated list options, `--`, and explicit-filename extension behavior.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 75,
+      "text": "Empty concrete output views and wildcard declarations producing no concrete instance.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 76,
+      "text": "`multiline` on lone scalars, empty sequences, scalar/null sequences, mappings, and container-only items.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 77,
+      "text": "INI simultaneous scalar-key and descendant-section projection.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 78,
+      "text": "XML singleton-to-sequence promotion without implicit reference or directive retargeting.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 79,
+      "text": "Generated `key` string typing and comment movement.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 80,
+      "text": "The conformance fixture layout, diagnostic-code mapping, and grammar appendices.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 81,
+      "text": "`--diagnostics-format` pre-scan resolution, covering `--` termination, the `=value` form, repeated occurrences, a missing value, an unrecognized value, and reporting the resulting `CLI001` in the resolved encoding.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 82,
+      "text": "`json` diagnostic-stream framing and closed-schema conformance, standard-error purity with operational messages suppressed, `[]` under `--verbosity none`, and a single emitted array that still contains late `PATH002` publication diagnostics.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 83,
+      "text": "Per-occurrence `phase` and `spec` fields for codes that arise in more than one phase.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 84,
+      "text": "XML attribute-count limits, absence of any separate entity-expansion budget, and deterministic `LIMIT001` attribution when per-source and global bounds are crossed together.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    },
+    {
+      "item": 85,
+      "text": "`--version` contract-bundle reporting and machine-readable field layout, and registry agreement with the Section 22 code-level facts.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": []
+    }
+  ]
+}

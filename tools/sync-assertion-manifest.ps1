@@ -1,0 +1,96 @@
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+    Regenerates conformance/assertions.json from Section 26 of docs/specification.md.
+
+.DESCRIPTION
+    Several Section 26 items bundle many independent behaviours into one sentence, so item count
+    is a poor measure of coverage. The manifest keeps the numbered items in sync with the
+    specification and carries the decomposition into individually testable assertions.
+
+    Item text, and the item set, are derived from the specification and must never be edited by
+    hand. Milestone ownership, coverage status, and decomposed assertions are authored and are
+    preserved across regeneration.
+
+    CI runs this script and fails on a diff.
+#>
+[CmdletBinding()]
+param(
+    [string] $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..'))
+)
+
+$ErrorActionPreference = 'Stop'
+
+$specPath = Join-Path $RepositoryRoot 'docs/specification.md'
+$manifestPath = Join-Path $RepositoryRoot 'conformance/assertions.json'
+
+$lines = [System.IO.File]::ReadAllLines($specPath)
+
+$items = @{}
+$inSection26 = $false
+$current = $null
+
+foreach ($line in $lines) {
+    if ($line -match '^## 26\. Acceptance requirements') { $inSection26 = $true; continue }
+    if ($inSection26 -and $line -match '^## ') { break }
+    if (-not $inSection26) { continue }
+
+    if ($line -match '^([0-9]+)\.\s+(.+)$') {
+        $current = $Matches[1]
+        $items[$current] = $Matches[2].Trim()
+    }
+    elseif ($null -ne $current -and $line -match '^\s+\S') {
+        $items[$current] = ($items[$current] + ' ' + $line.Trim())
+    }
+    elseif ($line.Trim().Length -eq 0) {
+        $current = $null
+    }
+}
+
+if ($items.Count -eq 0) { throw "No Section 26 items found in $specPath." }
+
+$authored = @{}
+if (Test-Path $manifestPath) {
+    $previous = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    foreach ($entry in $previous.items) { $authored[[int]$entry.item] = $entry }
+}
+
+$rendered = foreach ($number in ($items.Keys | Sort-Object { [int]$_ })) {
+    $prior = $authored[[int]$number]
+
+    $milestone = 'unassigned'
+    $status = 'pending'
+    $assertions = @()
+
+    if ($null -ne $prior) {
+        if ($prior.milestone) { $milestone = $prior.milestone }
+        if ($prior.status) { $status = $prior.status }
+        if ($prior.assertions) { $assertions = @($prior.assertions) }
+    }
+
+    [ordered]@{
+        item       = [int]$number
+        text       = $items[$number]
+        milestone  = $milestone
+        status     = $status
+        assertions = @($assertions)
+    }
+}
+
+$document = [ordered]@{
+    '$comment'  = 'Item numbers and text are derived from Section 26 of docs/specification.md. Do not edit them by hand; run tools/sync-assertion-manifest.ps1.'
+    generatedBy = 'tools/sync-assertion-manifest.ps1'
+    statuses    = [ordered]@{
+        pending  = 'Not yet owned by a merged milestone. Not enforced by the traceability gate.'
+        required = 'Must be covered by at least one fixture. Enforced by the traceability gate.'
+    }
+    items       = @($rendered)
+}
+
+$json = ($document | ConvertTo-Json -Depth 8).Replace("`r`n", "`n")
+if (-not $json.EndsWith("`n")) { $json += "`n" }
+
+[System.IO.File]::WriteAllText($manifestPath, $json, (New-Object System.Text.UTF8Encoding $false))
+
+$required = @($rendered | Where-Object { $_.status -eq 'required' }).Count
+Write-Host "Wrote $($rendered.Count) acceptance items to $manifestPath ($required required)."

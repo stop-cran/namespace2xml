@@ -1,0 +1,80 @@
+name: Usage gap
+description: The tool and the specification are both right, and I still couldn't work out how to do this.
+title: "[usage] "
+labels: ["documentation", "usage-methodology"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This is not a lesser report.** In a project whose contract is one very long file, the most
+        common failure is not that the tool is broken — it is that the right way to use it was
+        undiscoverable. That failure is invisible unless someone reports it, because it looks like
+        user error from the inside.
+
+        If you eventually worked it out, please file this anyway and say how. The gap was real even
+        though you closed it.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "contract-bundle: r2+0654ebfa8b7a"
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: What were you trying to do?
+      description: The actual task, not the tool operation you thought you needed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: searched
+    attributes:
+      label: Where did you look?
+      description: |
+        Which documents, which sections, which search terms, in which order. This is the most useful
+        field on the form: it says exactly where the answer should have been and wasn't.
+      placeholder: |
+        - `--help`, looked for anything about layering
+        - README, "Overlaying" section
+        - searched docs/specification.md for "override", "precedence", "order"
+        - docs/usage-methodology.md §2
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: How did it end?
+      description: Did you work it out, give up, or find a workaround? If you worked it out, what was the answer, and what would have told you sooner?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where do you think the answer belongs?
+      options:
+        - "`--help` output"
+        - README
+        - docs/usage-methodology.md
+        - docs/specification.md
+        - A diagnostic message, at the moment it goes wrong
+        - Somewhere else — see body
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked KNOWN-LIMITS.md.
+          required: true
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: If an agent drafted this, a human read and approved it before filing.
+          required: true

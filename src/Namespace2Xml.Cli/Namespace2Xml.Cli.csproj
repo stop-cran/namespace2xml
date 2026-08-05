@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Namespace2Xml.Cli</RootNamespace>
+    <AssemblyName>namespace2xml</AssemblyName>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>namespace2xml</ToolCommandName>
+    <PackageId>namespace2xml</PackageId>
+    <IsPackable>true</IsPackable>
+    <Description>Deterministic configuration transformer. Merges and templates namespace profiles into XML, JSON, YAML, INI and shell outputs from a single normative specification. Every diagnostic carries a stable code and a specification anchor, and --diagnostics-format json makes the whole diagnostic stream machine-readable for automation and AI agents.</Description>
+    <PackageTags>configuration;codegen;xml;json;yaml;ini;templating;deterministic;ai-agent;dotnet-tool</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>Preview of the 3.0 rewrite against the normative specification in docs/specification.md. See CHANGELOG.md.</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Namespace2Xml.Core\Namespace2Xml.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <!-- The contract travels with the package so an agent can read it without network access. -->
+    <None Include="..\..\docs\specification.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\spec\diagnostics.registry.json" Pack="true" PackagePath="spec\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Namespace2Xml.UnitTests" />
+    <InternalsVisibleTo Include="Namespace2Xml.Conformance" />
+  </ItemGroup>
+
+</Project>

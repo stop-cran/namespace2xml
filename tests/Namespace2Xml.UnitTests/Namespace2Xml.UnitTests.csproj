@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Namespace2Xml.UnitTests</RootNamespace>
+    <AssemblyName>Namespace2Xml.UnitTests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="NUnit" Version="4.4.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="5.1.0" />
+    <PackageReference Include="Shouldly" Version="4.3.0" />
+    <PackageReference Include="coverlet.msbuild" Version="6.0.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Namespace2Xml.Core\Namespace2Xml.Core.csproj" />
+    <ProjectReference Include="..\..\src\Namespace2Xml.Cli\Namespace2Xml.Cli.csproj" />
+  </ItemGroup>
+
+</Project>

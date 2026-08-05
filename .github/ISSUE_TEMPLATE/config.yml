@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Which form do I need?
+    url: https://github.com/stop-cran/namespace2xml/blob/master/CONTRIBUTING.md#41-four-destinations-and-why-routing-matters
+    about: Ask "what would have to change so this never surprises anyone again?" — the code, the specification, the docs, or the feature set.
+  - name: Question about behaviour
+    url: https://github.com/stop-cran/namespace2xml/discussions
+    about: Not sure whether something is a defect? Ask here first. The specification is the contract and it is exhaustive by design.
+  - name: Security vulnerability
+    url: https://github.com/stop-cran/namespace2xml/security/advisories/new
+    about: Do not open a public issue. Report privately.
+  - name: Working with an AI agent?
+    url: https://github.com/stop-cran/namespace2xml/blob/master/AGENTS.md
+    about: Read AGENTS.md. Agent-authored reports are welcome and expected, under the rules in CONTRIBUTING.md.

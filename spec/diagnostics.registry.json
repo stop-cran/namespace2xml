@@ -1,0 +1,487 @@
+{
+  "$schema": "./diagnostics.registry.schema.json",
+  "specification": {
+    "path": "docs/specification.md",
+    "sha256": "097a9f39b65f524dd965c2a6895b8238a9485610e9cadfb99737644da53f38ef"
+  },
+  "authoritativeFor": [
+    "code",
+    "severity",
+    "cardinality",
+    "fields"
+  ],
+  "notAuthoritativeFor": [
+    "phase",
+    "spec",
+    "message"
+  ],
+  "generatedBy": "tools/sync-diagnostics-registry.ps1",
+  "codes": [
+    {
+      "code": "CLI001",
+      "severity": "error",
+      "cardinality": "once per invocation",
+      "condition": "Invalid command line or option value",
+      "fields": [],
+      "mappings": [
+        "Unknown CLI option, missing option value, invalid repeated/list syntax, invalid `--` use, invalid limit value, invalid `--diagnostics-format` or `--verbosity` value"
+      ]
+    },
+    {
+      "code": "PARSE001",
+      "severity": "error",
+      "cardinality": "once per failing source",
+      "condition": "Malformed namespace, JSON, YAML, XML, or scheme syntax",
+      "fields": [
+        "source",
+        "line",
+        "column"
+      ],
+      "mappings": [
+        "Malformed namespace record/name, malformed JSON/YAML/XML syntax, duplicate native mapping key, unsupported native document structure"
+      ]
+    },
+    {
+      "code": "PARSE002",
+      "severity": "error",
+      "cardinality": "once per failing source",
+      "condition": "Invalid or unsupported character encoding",
+      "fields": [
+        "source",
+        "line",
+        "column"
+      ],
+      "mappings": [
+        "Invalid byte sequence, unsupported BOM/encoding, XML declaration encoding inconsistent with decoded input"
+      ]
+    },
+    {
+      "code": "SCHEME001",
+      "severity": "error",
+      "cardinality": "once per declaration",
+      "condition": "Unknown directive, value, or illegal option/type combination",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path",
+        "declaration"
+      ],
+      "mappings": [
+        "Unknown/empty directive, illegal directive value, illegal option combination, `type=array` plus `key`"
+      ]
+    },
+    {
+      "code": "SCHEME002",
+      "severity": "error",
+      "cardinality": "once per expanded declaration",
+      "condition": "Ambiguous canonical/simple scheme path",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path",
+        "declaration"
+      ],
+      "mappings": [
+        "Ambiguous simple/canonical scheme path"
+      ]
+    },
+    {
+      "code": "WILDCARD001",
+      "severity": "error",
+      "cardinality": "once per rule",
+      "condition": "Invalid, undefined, mixed, or inconsistent capture",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path",
+        "rule"
+      ],
+      "mappings": [
+        "Invalid, undefined, mixed, or inconsistent wildcard capture outside a reference"
+      ]
+    },
+    {
+      "code": "WILDCARD002",
+      "severity": "error",
+      "cardinality": "once per invocation",
+      "condition": "Nonterminating expansion or wildcard limit",
+      "fields": [
+        "rule"
+      ],
+      "mappings": [
+        "Wildcard fixed-point, candidate, generated-node, or iteration limit"
+      ]
+    },
+    {
+      "code": "REFERENCE001",
+      "severity": "error",
+      "cardinality": "once per reachable owning value",
+      "condition": "Malformed or free-wildcard reference",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path"
+      ],
+      "mappings": [
+        "Malformed/unterminated reference, legacy bare wildcard in reference, free explicit capture"
+      ]
+    },
+    {
+      "code": "REFERENCE002",
+      "severity": "error",
+      "cardinality": "once per reachable owning value",
+      "condition": "Missing reference",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path"
+      ],
+      "mappings": [
+        "Missing exact or alias reference target"
+      ]
+    },
+    {
+      "code": "REFERENCE003",
+      "severity": "error",
+      "cardinality": "once per canonically distinct reachable cycle",
+      "condition": "Reference cycle",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path"
+      ],
+      "mappings": [
+        "Canonically distinct reference cycle"
+      ]
+    },
+    {
+      "code": "REFERENCE004",
+      "severity": "error",
+      "cardinality": "once per reachable owning value",
+      "condition": "Ambiguous reference alias",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path"
+      ],
+      "mappings": [
+        "More than one canonical scalar for one simple alias"
+      ]
+    },
+    {
+      "code": "REFERENCE005",
+      "severity": "error",
+      "cardinality": "once per reachable owning value",
+      "condition": "Non-scalar reference target",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path"
+      ],
+      "mappings": [
+        "Mapping/sequence/comment/non-scalar target or unsupported non-scalar concatenation"
+      ]
+    },
+    {
+      "code": "TYPE001",
+      "severity": "error",
+      "cardinality": "once per path and applicable source/output instance",
+      "condition": "Invalid shape, input merge conflict, root removal, or transformation target",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path",
+        "declaration",
+        "destination"
+      ],
+      "mappings": [
+        "Invalid transformation target; input `merge=error` conflict; `key` field/value collision; illegal multiline target; invalid XML sequence projection; missing required output root"
+      ]
+    },
+    {
+      "code": "TYPE002",
+      "severity": "warning",
+      "cardinality": "once per path and output instance",
+      "condition": "Shape conflict resolved by precedence",
+      "fields": [
+        "source",
+        "path",
+        "destination"
+      ],
+      "mappings": [
+        "Exclusive-shape projection omits a scalar or container contribution"
+      ]
+    },
+    {
+      "code": "FLAT001",
+      "severity": "error",
+      "cardinality": "once per projected key and output instance",
+      "condition": "Distinct logical paths collide after flat-format projection or normalization",
+      "fields": [
+        "path",
+        "destination"
+      ],
+      "mappings": [
+        "Distinct paths collide after namespace, quoted-namespace, or INI projection"
+      ]
+    },
+    {
+      "code": "SHELL001",
+      "severity": "error",
+      "cardinality": "once per projected key and output instance",
+      "condition": "Invalid quoted-namespace shell identifier",
+      "fields": [
+        "path",
+        "destination"
+      ],
+      "mappings": [
+        "Invalid quoted-namespace identifier or NUL value"
+      ]
+    },
+    {
+      "code": "XML001",
+      "severity": "error",
+      "cardinality": "once per failing document",
+      "condition": "DTD, external entity/resource, or prohibited XML feature",
+      "fields": [
+        "source",
+        "line",
+        "column"
+      ],
+      "mappings": [
+        "DTD, external entity/resource, network retrieval, or prohibited XML feature"
+      ]
+    },
+    {
+      "code": "XML002",
+      "severity": "error",
+      "cardinality": "once per failing node or document",
+      "condition": "Invalid XML name, namespace, declaration, or canonical address",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path"
+      ],
+      "mappings": [
+        "Invalid XML name/namespace/canonical address/declaration structure other than byte-encoding disagreement"
+      ]
+    },
+    {
+      "code": "INI001",
+      "severity": "error",
+      "cardinality": "once per path and output instance",
+      "condition": "Value or name unsupported by `PortableIni1` options",
+      "fields": [
+        "path",
+        "destination"
+      ],
+      "mappings": [
+        "Value/name/comment cannot be represented by effective `PortableIni1` options"
+      ]
+    },
+    {
+      "code": "COLLISION001",
+      "severity": "error",
+      "cardinality": "once per rejected contribution after the first",
+      "condition": "`filemerge=error` rejects a second contribution to one destination",
+      "fields": [
+        "declaration",
+        "destination"
+      ],
+      "mappings": [
+        "`filemerge=error` rejects a second destination contribution"
+      ]
+    },
+    {
+      "code": "SERIALIZE001",
+      "severity": "error",
+      "cardinality": "once per output instance",
+      "condition": "Output view cannot be serialized under the selected format/options",
+      "fields": [
+        "destination"
+      ],
+      "mappings": [
+        "Final output model cannot be serialized under its selected format/options"
+      ]
+    },
+    {
+      "code": "PATH001",
+      "severity": "error",
+      "cardinality": "once per destination",
+      "condition": "Invalid, escaping, or insecure output path",
+      "fields": [
+        "declaration",
+        "destination"
+      ],
+      "mappings": [
+        "Invalid, escaping, insecure, traversal, portability-key-colliding, or uncontainable destination path"
+      ]
+    },
+    {
+      "code": "PATH002",
+      "severity": "error",
+      "cardinality": "once, for the failing destination",
+      "condition": "Publication/open/write/flush failure",
+      "fields": [
+        "destination"
+      ],
+      "mappings": [
+        "Destination open, create, write, flush, or close failure after publication starts"
+      ]
+    },
+    {
+      "code": "LIMIT001",
+      "severity": "error",
+      "cardinality": "once per invocation",
+      "condition": "Non-wildcard resource limit exceeded",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path"
+      ],
+      "mappings": [
+        "Ordering-value overflow or any non-wildcard resource limit"
+      ]
+    },
+    {
+      "code": "WARN001",
+      "severity": "warning",
+      "cardinality": "once per missing CLI path",
+      "condition": "Missing input or scheme file",
+      "fields": [
+        "source"
+      ],
+      "mappings": [
+        "Missing CLI input/scheme path"
+      ]
+    },
+    {
+      "code": "WARN002",
+      "severity": "warning",
+      "cardinality": "once per alias category and scheme",
+      "condition": "Deprecated alias",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "declaration"
+      ],
+      "mappings": [
+        "Deprecated alias"
+      ]
+    },
+    {
+      "code": "WARN003",
+      "severity": "warning",
+      "cardinality": "once per feature category and output file",
+      "condition": "Unsupported metadata/comment discarded or normalized",
+      "fields": [
+        "source",
+        "destination"
+      ],
+      "mappings": [
+        "Unsupported metadata/comment discarded or normalized"
+      ]
+    },
+    {
+      "code": "WARN004",
+      "severity": "warning",
+      "cardinality": "once per sequence path",
+      "condition": "Native implicit sequences concatenate without explicit merge",
+      "fields": [
+        "source",
+        "path"
+      ],
+      "mappings": [
+        "Native implicit sequences concatenate without explicit merge"
+      ]
+    },
+    {
+      "code": "WARN005",
+      "severity": "warning",
+      "cardinality": "once per folded contribution pair",
+      "condition": "Output destination collision or cross-format override",
+      "fields": [
+        "destination"
+      ],
+      "mappings": [
+        "Same-destination fold or cross-format replacement"
+      ]
+    },
+    {
+      "code": "WARN006",
+      "severity": "warning",
+      "cardinality": "once per input document",
+      "condition": "Processing instruction discarded",
+      "fields": [
+        "source"
+      ],
+      "mappings": [
+        "XML processing instruction discarded"
+      ]
+    },
+    {
+      "code": "WARN007",
+      "severity": "warning",
+      "cardinality": "once per input document",
+      "condition": "XML formatting whitespace discarded",
+      "fields": [
+        "source"
+      ],
+      "mappings": [
+        "XML formatting whitespace discarded"
+      ]
+    },
+    {
+      "code": "WARN008",
+      "severity": "warning",
+      "cardinality": "once per invocation",
+      "condition": "Output plan contains no destinations",
+      "fields": [],
+      "mappings": [
+        "Validated output plan contains no destinations"
+      ]
+    },
+    {
+      "code": "WARN009",
+      "severity": "warning",
+      "cardinality": "once per declaration or expanded directive",
+      "condition": "Scheme directive binds to no effective output/path or wildcard output creates no instance",
+      "fields": [
+        "source",
+        "line",
+        "column",
+        "path",
+        "declaration"
+      ],
+      "mappings": [
+        "Directive binds to no effective output/path or wildcard output creates no concrete instance"
+      ]
+    },
+    {
+      "code": "WARN010",
+      "severity": "warning",
+      "cardinality": "once per source contribution, canonical mapping path, and output instance",
+      "condition": "Native JSON/YAML numeric mapping remains inferred as sequence in an output view",
+      "fields": [
+        "source",
+        "path",
+        "destination"
+      ],
+      "mappings": [
+        "JSON/YAML numeric mapping remains inferred as a sequence"
+      ]
+    }
+  ]
+}
