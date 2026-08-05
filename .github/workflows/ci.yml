@@ -124,6 +124,8 @@ jobs:
           global-json-file: global.json
       - name: Regenerate the diagnostics registry
         run: pwsh -NoProfile -File tools/sync-diagnostics-registry.ps1
+      - name: Regenerate the diagnostic factory surface
+        run: pwsh -NoProfile -File tools/sync-diagnostic-codes.ps1
       - name: Regenerate the contract bundle
         run: pwsh -NoProfile -File tools/sync-contract-bundle.ps1
       - name: Regenerate the acceptance manifest
@@ -136,9 +138,10 @@ jobs:
           set -euo pipefail
           # git status, not git diff: a generator that creates a new untracked artifact is drift
           # too, and git diff cannot see it.
-          if [ -n "$(git status --porcelain -- spec conformance/assertions.json docs/diagnostics.md docs/migration-2.x-to-3.0.md)" ]; then
-            git status --porcelain -- spec conformance/assertions.json docs/diagnostics.md docs/migration-2.x-to-3.0.md
-            git diff -- spec conformance/assertions.json docs/diagnostics.md docs/migration-2.x-to-3.0.md
+          derived="spec conformance/assertions.json docs/diagnostics.md docs/migration-2.x-to-3.0.md src/Namespace2Xml.Core/Diagnostics/DiagnosticCodes.g.cs"
+          if [ -n "$(git status --porcelain -- $derived)" ]; then
+            git status --porcelain -- $derived
+            git diff -- $derived
             echo "::error::the specification or corpus changed without the derived artifacts being regenerated."
             echo "::error::run the tools/sync-*.ps1 generators and commit the result."
             exit 1

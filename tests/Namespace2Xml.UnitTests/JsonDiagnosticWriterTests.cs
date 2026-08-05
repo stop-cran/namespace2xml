@@ -15,12 +15,20 @@ public class JsonDiagnosticWriterTests
     private static string Render(params Diagnostic[] diagnostics) =>
         System.Text.Encoding.UTF8.GetString(JsonDiagnosticWriter.Render(diagnostics));
 
-    private static Diagnostic Sample(string code = "CLI001") => new(
+    private static Diagnostic Sample(
+        string code = "CLI001",
+        string message = "example",
+        string? source = null,
+        int? line = null,
+        int? column = null) => new(
         code,
         DiagnosticSeverity.Error,
         DiagnosticPhase.Cli,
         "§6.4.1",
-        "example");
+        message,
+        source,
+        line,
+        column);
 
     [Test]
     public void EmptyStreamIsExactlyThreeBytes()
@@ -49,14 +57,13 @@ public class JsonDiagnosticWriterTests
             DiagnosticPhase.Input,
             "§16.6",
             "prose",
-            Source: "inputs/example.properties",
-            Line: 3,
-            Column: 1,
-            Path: "a.b",
-            Declaration: "a.b.type=multiline",
-            Rule: "a.*",
-            Destination: "output.json"));
-
+            source: "inputs/example.properties",
+            line: 3,
+            column: 1,
+            path: "a.b",
+            declaration: "a.b.type=multiline",
+            rule: "a.*",
+            destination: "output.json"));
         var expectedOrder = new[]
         {
             "\"code\"", "\"severity\"", "\"phase\"", "\"source\"", "\"line\"", "\"column\"",
@@ -75,18 +82,18 @@ public class JsonDiagnosticWriterTests
 
     [Test]
     public void IntegersCarryNoQuotesSignOrPadding() =>
-        Render(Sample() with { Source = "a.properties", Line = 7, Column = 12 })
+        Render(Sample(source: "a.properties", line: 7, column: 12))
             .ShouldContain("\"line\":7,\"column\":12");
 
     [Test]
     public void ControlCharactersUseShortEscapesThenLowercaseHex() =>
-        Render(Sample() with { Message = "a\tb\nc\u0001d\"e\\f" })
+        Render(Sample(message: "a\tb\nc\u0001d\"e\\f"))
             .ShouldContain("\"message\":\"a\\tb\\nc\\u0001d\\\"e\\\\f\"");
 
     [Test]
     public void NonAsciiIsEmittedLiterallyAsUtf8()
     {
-        var bytes = JsonDiagnosticWriter.Render([Sample() with { Message = "проверка" }]);
+        var bytes = JsonDiagnosticWriter.Render([Sample(message: "проверка")]);
 
         System.Text.Encoding.UTF8.GetString(bytes).ShouldContain("проверка");
         bytes.ShouldNotContain((byte)'u');

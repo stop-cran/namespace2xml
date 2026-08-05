@@ -66,10 +66,12 @@ The solution uses the `.slnx` format and targets `net10.0`. `Directory.Build.pro
 `TreatWarningsAsErrors`; a warning is a build failure, deliberately.
 
 After changing `docs/specification.md`, regenerate the derived artifacts or CI will reject the
-change. Run all four, in this order — the bundle hashes the registry, and the docs read the bundle:
+change. Run all five, in this order — the codes come from the registry, the bundle hashes the
+registry, and the docs read the bundle:
 
 ```
 pwsh -NoProfile -File tools/sync-diagnostics-registry.ps1
+pwsh -NoProfile -File tools/sync-diagnostic-codes.ps1
 pwsh -NoProfile -File tools/sync-contract-bundle.ps1
 pwsh -NoProfile -File tools/sync-assertion-manifest.ps1
 pwsh -NoProfile -File tools/sync-docs.ps1

@@ -70,10 +70,6 @@ public static class DiagnosticsFormatValidation
         return null;
     }
 
-    private static Diagnostic Malformed(string message) => new(
-        Code: "CLI001",
-        Severity: DiagnosticSeverity.Error,
-        Phase: DiagnosticPhase.Cli,
-        Spec: "§6.4.1",
-        Message: message);
+    private static Diagnostic Malformed(string message) =>
+        DiagnosticCodes.Cli001(DiagnosticPhase.Cli, "§6.4.1", message).Diagnostic;
 }
