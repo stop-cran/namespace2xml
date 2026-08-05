@@ -66,13 +66,20 @@ The solution uses the `.slnx` format and targets `net10.0`. `Directory.Build.pro
 `TreatWarningsAsErrors`; a warning is a build failure, deliberately.
 
 After changing `docs/specification.md`, regenerate the derived artifacts or CI will reject the
-change:
+change. Run all four, in this order — the bundle hashes the registry, and the docs read the bundle:
 
 ```
 pwsh -NoProfile -File tools/sync-diagnostics-registry.ps1
 pwsh -NoProfile -File tools/sync-contract-bundle.ps1
 pwsh -NoProfile -File tools/sync-assertion-manifest.ps1
+pwsh -NoProfile -File tools/sync-docs.ps1
 ```
+
+Adding or changing a conformance fixture also requires `sync-assertion-manifest.ps1` and
+`sync-docs.ps1`, because coverage and the migration notes are both derived from the corpus.
+
+See `.github/copilot-instructions.md` for the mechanical traps in this repository — several of them
+fail in ways that point at the wrong file.
 
 ## Machine-readable output
 
