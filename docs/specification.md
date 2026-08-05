@@ -2658,6 +2658,8 @@ All text outputs:
 - use LF as the physical line terminator;
 - end with exactly one LF.
 
+A text output with no content is zero bytes and satisfies these rules vacuously. The termination rule applies to output that has content, so a single LF is never emitted merely to terminate nothing.
+
 XML's declaration is `encoding="utf-8"`.
 
 Diagnostics produced during concurrent work are buffered and emitted by pipeline phase, then by source ordering key within that phase. Scheme-loading diagnostics therefore precede input-parsing diagnostics, followed by transformation/output-planning diagnostics and publication diagnostics. Diagnostics without a source position follow deterministic destination order and then stable diagnostic-code order.
