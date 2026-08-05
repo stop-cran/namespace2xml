@@ -389,6 +389,65 @@ public sealed class QualifiedNameLexerTests
     public void ABareWildcardIsNotAnExplicitCapture() =>
         Lex("*").ShouldNotBe(Lex("*[a]"));
 
+    // Appendix A.4 reference mode.
+
+    [Test]
+    public void LexReferenceNameStopsAtTheFirstUnescapedBrace()
+    {
+        var index = 2;
+        var result = QualifiedNameLexer.LexReferenceName("${a.b}tail", ref index);
+
+        result.Fault.ShouldBeNull();
+        Describe(result.Name!).ShouldBe("ord('a')|ord('b')");
+        index.ShouldBe(6);
+    }
+
+    [Test]
+    public void LexReferenceNameLeavesTheIndexAloneOnFailure()
+    {
+        var index = 2;
+
+        QualifiedNameLexer.LexReferenceName("${a..b}", ref index).Fault.ShouldNotBeNull();
+        index.ShouldBe(2);
+    }
+
+    [Test]
+    public void LexReferenceNameRequiresATerminator()
+    {
+        var index = 2;
+
+        QualifiedNameLexer.LexReferenceName("${abc", ref index).Fault!.Value.Offset.ShouldBe(5);
+    }
+
+    [Test]
+    public void LexReferenceNameRejectsAnEmptyName()
+    {
+        var index = 2;
+
+        QualifiedNameLexer.LexReferenceName("${}", ref index).Fault!.Value.Offset.ShouldBe(2);
+    }
+
+    [Test]
+    public void LexReferenceNameAllowsABraceInsideAUri()
+    {
+        var index = 2;
+        var result = QualifiedNameLexer.LexReferenceName("${Q{urn:a\\}b}x}", ref index);
+
+        Describe(result.Name!).ShouldBe("elem(urn:a}b;'x')");
+        index.ShouldBe(15);
+    }
+
+    [Test]
+    public void AWildcardFaultIsDistinguishedFromAMalformedName()
+    {
+        // Appendix B maps every condition to its most specific code, and an invalid capture outside
+        // a reference is WILDCARD001 rather than the PARSE001 a malformed name earns.
+        LexFault("*[]").IsWildcardFault.ShouldBeTrue();
+        LexFault("*[abc").IsWildcardFault.ShouldBeTrue();
+        LexFault("a..b").IsWildcardFault.ShouldBeFalse();
+        LexFault("a\\q").IsWildcardFault.ShouldBeFalse();
+    }
+
     // Totality.
 
     [Test]

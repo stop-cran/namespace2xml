@@ -1149,6 +1149,8 @@ If it contains fewer, unused captures are ignored.
 
 An asterisk in a value is a legacy capture substitution only when the same rule's name defines at least one unnamed `*` capture and value substitution is enabled by the effective `substitute` mode. Explicit `*[identifier]` captures are not compatible with a bare value `*`. In an ordinary entry whose name defines no unnamed captures, `*` is literal text, so values such as `pattern=*.txt` require no escape. `\*` remains the explicit literal spelling in a template value.
 
+Whether a value contains wildcard tokens at all is therefore decided before the value is lexed, from the owning name's captures and the effective `substitute` mode, and the decision covers the bracketed form too. In an entry whose name defines no captures, `*[identifier]` in the value is literal text along with its brackets: `path=/opt/x*[0-9]/y` is a glob, not an undefined capture. Where the name defines explicit captures, a bare `*` in the value is likewise literal text, because the name defines no unnamed capture for it to substitute; that is what incompatibility means here, and it is not a mixed-capture error. Only where recognition is enabled is an unterminated `*[` a `WILDCARD001`.
+
 A legacy unnamed capture inside a `${...}` reference is not supported and is `REFERENCE001`. References from templates must use explicit named or numbered captures.
 
 ### 12.2 Explicit captures
@@ -3122,6 +3124,12 @@ unknown-value-escape = "\" scalar
 ```
 
 The tokenization is left-to-right and longest-token-first among the listed recognized escapes. `unknown-value-escape` preserves both the backslash and following scalar. Namespace values do not recognize `\u{...}`.
+
+This ABNF covers escape tokenization only. Reference recognition from Section 8.4 and wildcard-token recognition from Sections 12.1 and 12.2 apply at `value-scalar` positions of the same single left-to-right pass. At each position the pass tries, in this order: a `value-escape`, longest first; then `${`, which must begin a `reference`; then a `wildcard-token`, where the owning name's captures and the effective `substitute` mode make one possible; otherwise the scalar is literal text.
+
+Emitted text is never rescanned. The `${` emitted by `\${` therefore never begins a reference and the `*` emitted by `\*` is never a wildcard token, which is what makes those two escapes effective. `\\${a}` emits a literal backslash followed by a reference to `a`, because the escape consumed both backslashes and the pass resumes at the `$`; the same text in a decoded native string is governed by A.5 instead and emits the literal text `\${a}` with no reference.
+
+A trailing backslash with no following scalar matches `value-scalar` and emits itself.
 
 ### A.4 References
 

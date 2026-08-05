@@ -31,12 +31,43 @@ public static class QualifiedNameLexer
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        var parts = ImmutableArray.CreateBuilder<NamePart>();
         var index = 0;
+        return Lex(text, ref index, inReference: false);
+    }
+
+    /// <summary>
+    /// Lexes an Appendix A.4 <c>reference-name</c>, which ends at the first unescaped <c>}</c>
+    /// outside a <c>Q{...}</c> URI.
+    /// </summary>
+    /// <param name="text">The text containing the reference.</param>
+    /// <param name="index">
+    /// On entry, the offset just past the opening <c>${</c>. On success, the offset just past the
+    /// closing <c>}</c>. Unchanged on failure.
+    /// </param>
+    public static QualifiedNameResult LexReferenceName(string text, ref int index)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, text.Length);
+
+        var cursor = index;
+        var result = Lex(text, ref cursor, inReference: true);
+
+        if (result.Succeeded)
+        {
+            index = cursor;
+        }
+
+        return result;
+    }
+
+    private static QualifiedNameResult Lex(string text, ref int index, bool inReference)
+    {
+        var parts = ImmutableArray.CreateBuilder<NamePart>();
 
         while (true)
         {
-            if (!TryLexPart(text, ref index, out var part, out var fault))
+            if (!TryLexPart(text, ref index, inReference, out var part, out var fault))
             {
                 return new QualifiedNameResult(fault);
             }
@@ -45,33 +76,61 @@ public static class QualifiedNameLexer
 
             if (index >= text.Length)
             {
+                return inReference
+                    ? new QualifiedNameResult(new NameFault(
+                        "this reference has no closing brace; write '\\${' for literal text.",
+                        index))
+                    : new QualifiedNameResult(new QualifiedName(parts.ToImmutable()));
+            }
+
+            if (inReference && text[index] == '}')
+            {
+                index++;
                 return new QualifiedNameResult(new QualifiedName(parts.ToImmutable()));
             }
 
-            // The loop only stops at an unescaped delimiter or the end, so this is a delimiter.
+            // A part stops only at an unescaped delimiter, a reference terminator, or the end.
             index++;
         }
     }
 
-    /// <summary>Whether any component of a name contains a wildcard token.</summary>
-    public static bool ContainsWildcard(QualifiedName name)
+    /// <summary>The wildcard tokens a name contains, in source order.</summary>
+    public static IEnumerable<WildcardToken> Wildcards(QualifiedName name)
     {
         ArgumentNullException.ThrowIfNull(name);
 
-        return name.Parts.Any(part => part switch
-        {
-            OrdinaryPart ordinary => ordinary.Tokens.OfType<WildcardToken>().Any(),
-            QualifiedElementPart qualified => qualified.Local.OfType<WildcardToken>().Any(),
-            AttributePart attribute => ContainsWildcard(new QualifiedName([attribute.Name])),
-            _ => false,
-        });
+        return name.Parts.SelectMany(PartWildcards);
     }
 
-    private static bool TryLexPart(string text, ref int index, out NamePart part, out NameFault fault)
+    /// <summary>Whether any component of a name contains a wildcard token.</summary>
+    public static bool ContainsWildcard(QualifiedName name) => Wildcards(name).Any();
+
+    private static IEnumerable<WildcardToken> PartWildcards(NamePart part) => part switch
+    {
+        OrdinaryPart ordinary => ordinary.Tokens.OfType<WildcardToken>(),
+        QualifiedElementPart qualified => qualified.Local.OfType<WildcardToken>(),
+        AttributePart attribute => PartWildcards(attribute.Name),
+        _ => [],
+    };
+
+    private static bool TryLexPart(
+        string text,
+        ref int index,
+        bool inReference,
+        out NamePart part,
+        out NameFault fault)
     {
         part = null!;
 
-        if (index >= text.Length || text[index] == '.')
+        if (inReference && index >= text.Length)
+        {
+            fault = new NameFault(
+                "this reference has no closing brace; write '\\${' for literal text.",
+                index);
+            return false;
+        }
+
+        if (index >= text.Length || text[index] == '.' || (inReference && text[index] == '}'))
         {
             fault = new NameFault(
                 "a qualified name has no empty parts, so it cannot begin or end with a delimiter or "
@@ -85,7 +144,7 @@ public static class QualifiedNameLexer
             var markerAt = index;
             index++;
 
-            if (!TryLexXmlNameComponent(text, ref index, out var name, out fault))
+            if (!TryLexXmlNameComponent(text, ref index, inReference, out var name, out fault))
             {
                 return false;
             }
@@ -105,12 +164,12 @@ public static class QualifiedNameLexer
 
         if (text[index] == '#')
         {
-            return TryLexContent(text, ref index, out part, out fault);
+            return TryLexContent(text, ref index, inReference, out part, out fault);
         }
 
         if (text[index] == 'Q' && index + 1 < text.Length && text[index + 1] == '{')
         {
-            if (!TryLexQualifiedElement(text, ref index, out var qualified, out fault))
+            if (!TryLexQualifiedElement(text, ref index, inReference, out var qualified, out fault))
             {
                 return false;
             }
@@ -119,7 +178,7 @@ public static class QualifiedNameLexer
             return true;
         }
 
-        if (!TryLexTokens(text, ref index, out var tokens, out fault))
+        if (!TryLexTokens(text, ref index, inReference, out var tokens, out fault))
         {
             return false;
         }
@@ -135,20 +194,21 @@ public static class QualifiedNameLexer
     private static bool TryLexXmlNameComponent(
         string text,
         ref int index,
+        bool inReference,
         out XmlNameComponent? component,
         out NameFault fault)
     {
         component = null;
         fault = default;
 
-        if (index >= text.Length || text[index] == '.')
+        if (index >= text.Length || text[index] == '.' || (inReference && text[index] == '}'))
         {
             return true;
         }
 
         if (text[index] == 'Q' && index + 1 < text.Length && text[index + 1] == '{')
         {
-            if (!TryLexQualifiedElement(text, ref index, out var qualified, out fault))
+            if (!TryLexQualifiedElement(text, ref index, inReference, out var qualified, out fault))
             {
                 return false;
             }
@@ -157,7 +217,7 @@ public static class QualifiedNameLexer
             return true;
         }
 
-        if (!TryLexTokens(text, ref index, out var tokens, out fault))
+        if (!TryLexTokens(text, ref index, inReference, out var tokens, out fault))
         {
             return false;
         }
@@ -167,7 +227,12 @@ public static class QualifiedNameLexer
     }
 
     /// <summary>Lexes <c>typed-content</c>: <c>#</c> followed by a canonical decimal.</summary>
-    private static bool TryLexContent(string text, ref int index, out NamePart part, out NameFault fault)
+    private static bool TryLexContent(
+        string text,
+        ref int index,
+        bool inReference,
+        out NamePart part,
+        out NameFault fault)
     {
         part = null!;
         var markerAt = index;
@@ -201,7 +266,7 @@ public static class QualifiedNameLexer
             return false;
         }
 
-        if (end < text.Length && text[end] != '.')
+        if (end < text.Length && text[end] != '.' && !(inReference && text[end] == '}'))
         {
             fault = new NameFault(
                 "a content-token part ends after its ordering value; write '\\#' for an ordinary "
@@ -228,6 +293,7 @@ public static class QualifiedNameLexer
     private static bool TryLexQualifiedElement(
         string text,
         ref int index,
+        bool inReference,
         out QualifiedElementPart part,
         out NameFault fault)
     {
@@ -285,7 +351,7 @@ public static class QualifiedNameLexer
 
         index = cursor;
 
-        if (!TryLexTokens(text, ref index, out var local, out fault))
+        if (!TryLexTokens(text, ref index, inReference, out var local, out fault))
         {
             return false;
         }
@@ -301,6 +367,7 @@ public static class QualifiedNameLexer
     private static bool TryLexTokens(
         string text,
         ref int index,
+        bool inReference,
         out ImmutableArray<NameToken> tokens,
         out NameFault fault)
     {
@@ -326,6 +393,13 @@ public static class QualifiedNameLexer
 
             if (c == '.')
             {
+                break;
+            }
+
+            if (inReference && c == '}')
+            {
+                // Appendix A.4: the first unescaped '}' outside a Q{...} URI ends the reference,
+                // even though ordinary-scalar would otherwise admit it.
                 break;
             }
 
@@ -476,7 +550,11 @@ public static class QualifiedNameLexer
     }
 
     /// <summary>Lexes <c>wildcard-token</c>: <c>*</c> with an optional <c>[identifier]</c>.</summary>
-    private static bool TryLexWildcard(string text, ref int index, out WildcardToken token, out NameFault fault)
+    /// <remarks>
+    /// Shared with the value lexer, because Sections 12.1 and 12.2 give a value wildcard exactly
+    /// this spelling and two copies of one grammar rule drift.
+    /// </remarks>
+    internal static bool TryLexWildcard(string text, ref int index, out WildcardToken token, out NameFault fault)
     {
         token = null!;
         fault = default;
@@ -504,7 +582,10 @@ public static class QualifiedNameLexer
             fault = new NameFault(
                 "a wildcard capture is written '*[identifier]', where the identifier is one or more "
                 + "ASCII letters, digits, underscores, or hyphens.",
-                bracketAt);
+                bracketAt)
+            {
+                IsWildcardFault = true,
+            };
             return false;
         }
 
