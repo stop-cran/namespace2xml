@@ -197,6 +197,26 @@ jobs:
           global-json-file: global.json
       - run: dotnet format namespace2xml.slnx --verify-no-changes --severity error
 
+      - name: Workflows must be valid
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A workflow file issue is not a normal build failure: GitHub cannot evaluate the
+          # triggers, so it reports a bare failure with no job and no log. The release workflow
+          # published under a trusted package name, so an unvalidated one is a supply-chain
+          # concern rather than an inconvenience.
+          #
+          # This catches more than YAML syntax. The tools/check-publication-triggers.py gate
+          # parses the document and still accepts a file that Actions rejects, because an
+          # expression is only meaningful to the Actions parser. Notably, expressions are
+          # evaluated inside run: blocks even on lines that the shell would treat as comments.
+          version=1.7.7
+          curl -sSLo actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${version}/actionlint_${version}_linux_amd64.tar.gz"
+          tar -xzf actionlint.tar.gz actionlint
+          ./actionlint -no-color -oneline
+          echo "workflows are valid"
+
       - name: No contract or fixture path may be gitignored
         shell: bash
         run: |

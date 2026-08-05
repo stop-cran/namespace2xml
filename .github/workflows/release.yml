@@ -54,8 +54,8 @@ jobs:
         run: |
           set -euo pipefail
           # $version is an ordinary environment variable here, exported by GITHUB_ENV above.
-          # Reading it as a shell variable rather than interpolating ${{ }} into the script text
-          # keeps the workflow free of expression-substitution quoting hazards.
+          # Reading it as a shell variable, rather than letting an Actions expression be
+          # substituted into the script text, keeps the workflow free of quoting hazards.
           test -f "artifacts/namespace2xml.${version}.nupkg"
           test -f "artifacts/namespace2xml.${version}.snupkg"
           unzip -l "artifacts/namespace2xml.${version}.nupkg" | grep -q 'docs/specification.md'
