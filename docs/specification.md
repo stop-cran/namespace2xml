@@ -547,7 +547,9 @@ Files may be read and parsed concurrently.
 
 Merging, array concatenation, wildcard evaluation, and precedence assignment must nevertheless use CLI source order.
 
-Concurrent parsers maintain per-source counts only. After all independently readable sources finish their parse attempt, global input budgets are evaluated deterministically in CLI source order. The first source whose cumulative contribution would cross a global bound receives `LIMIT001`; that source and every later source in the same ordered input stream contribute no parsed model. Per-file byte limits and per-document depth limits are enforced within each source and are never cumulative across sources.
+Concurrent parsers maintain per-source counts only. A parser must not be able to observe any global total: it accumulates its own source's contribution and reports it, and nothing more. This is what makes the outcome independent of how work was scheduled, so an implementation should enforce the separation structurally rather than by convention.
+
+After all independently readable sources finish their parse attempt, global input budgets are evaluated deterministically over one ordered input stream: all scheme files in `-s` order, then all input files in `-i` order, then command-line variables in `-v` token order, matching the consumption order Section 16.2 gives `--max-total-input-bytes`. The first source whose cumulative contribution would cross a global bound receives `LIMIT001`; that source and every later source in that stream contribute no parsed model, including later sources of a different kind. Per-file byte limits and per-document depth limits are enforced within each source and are never cumulative across sources.
 
 ### 7.4 Character encoding
 
