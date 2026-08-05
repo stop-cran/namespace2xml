@@ -41,8 +41,12 @@ public sealed record InterpretedValue
 {
     /// <summary>Creates a value from its tokens.</summary>
     /// <param name="tokens">The tokens, in source order. May be empty: a value may be empty.</param>
-    public InterpretedValue(ImmutableArray<ValueToken> tokens) =>
-        Tokens = tokens.IsDefault ? [] : tokens;
+    /// <remarks>
+    /// Adjacent literals are merged and empty ones dropped, for the reason the name tokens are: the
+    /// list exists only to keep wildcards and references distinct from text, so equality must not
+    /// depend on how the value was built.
+    /// </remarks>
+    public InterpretedValue(ImmutableArray<ValueToken> tokens) => Tokens = Canonical(tokens);
 
     /// <summary>The tokens, in source order.</summary>
     public ImmutableArray<ValueToken> Tokens { get; }
@@ -78,5 +82,53 @@ public sealed record InterpretedValue
         }
 
         return hash.ToHashCode();
+    }
+
+    private static ImmutableArray<ValueToken> Canonical(ImmutableArray<ValueToken> tokens)
+    {
+        if (tokens.IsDefaultOrEmpty)
+        {
+            return [];
+        }
+
+        var needsWork = false;
+
+        for (var i = 0; i < tokens.Length && !needsWork; i++)
+        {
+            needsWork = tokens[i] is LiteralValueToken { Text.Length: 0 }
+                || (i > 0 && tokens[i] is LiteralValueToken && tokens[i - 1] is LiteralValueToken);
+        }
+
+        if (!needsWork)
+        {
+            return tokens;
+        }
+
+        var result = ImmutableArray.CreateBuilder<ValueToken>(tokens.Length);
+
+        foreach (var token in tokens)
+        {
+            if (token is not LiteralValueToken literal)
+            {
+                result.Add(token);
+                continue;
+            }
+
+            if (literal.Text.Length == 0)
+            {
+                continue;
+            }
+
+            if (result.Count > 0 && result[^1] is LiteralValueToken previous)
+            {
+                result[^1] = new LiteralValueToken(previous.Text + literal.Text);
+            }
+            else
+            {
+                result.Add(literal);
+            }
+        }
+
+        return result.ToImmutable();
     }
 }

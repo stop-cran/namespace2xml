@@ -55,7 +55,7 @@ public abstract record XmlNameComponent : NamePart
 public sealed record OrdinaryPart : XmlNameComponent
 {
     /// <summary>Creates an ordinary component from its tokens.</summary>
-    public OrdinaryPart(ImmutableArray<NameToken> tokens) => Tokens = tokens;
+    public OrdinaryPart(ImmutableArray<NameToken> tokens) => Tokens = TokenSequence.Canonical(tokens);
 
     /// <summary>The component's tokens, in source order. Never empty.</summary>
     public ImmutableArray<NameToken> Tokens { get; }
@@ -78,7 +78,7 @@ public sealed record QualifiedElementPart : XmlNameComponent
     public QualifiedElementPart(string uri, ImmutableArray<NameToken> local)
     {
         Uri = uri;
-        Local = local;
+        Local = TokenSequence.Canonical(local);
     }
 
     /// <summary>The URI body, already unescaped. May be empty: <c>Q{}local</c> is Section 11.4's
@@ -108,7 +108,7 @@ public sealed record AttributePart(XmlNameComponent Name) : NamePart;
 /// <param name="Ordinal">The ordering value. Never negative, and never written with a leading zero.</param>
 public sealed record ContentPart(int Ordinal) : NamePart;
 
-/// <summary>Structural comparison for token sequences.</summary>
+/// <summary>Structural comparison and canonical form for token sequences.</summary>
 /// <remarks>
 /// <see cref="ImmutableArray{T}"/> compares by reference, so a record holding one compares two
 /// identically-populated instances unequal. Qualified names are dictionary keys throughout the
@@ -116,6 +116,64 @@ public sealed record ContentPart(int Ordinal) : NamePart;
 /// </remarks>
 internal static class TokenSequence
 {
+    /// <summary>
+    /// Merges adjacent literals and drops empty ones.
+    /// </summary>
+    /// <remarks>
+    /// The token list exists only to keep wildcards distinct from text, so <c>["a", "b"]</c> and
+    /// <c>["ab"]</c> denote the same component. Leaving both constructible would make equality
+    /// depend on how a name was built rather than on what it names, and give the overlay two keys
+    /// for one path. The lexer already emits this form; normalizing here extends the guarantee to
+    /// names built in code.
+    /// </remarks>
+    internal static ImmutableArray<NameToken> Canonical(ImmutableArray<NameToken> tokens)
+    {
+        if (tokens.IsDefaultOrEmpty)
+        {
+            return [];
+        }
+
+        var needsWork = false;
+
+        for (var i = 0; i < tokens.Length && !needsWork; i++)
+        {
+            needsWork = tokens[i] is LiteralToken { Text.Length: 0 }
+                || (i > 0 && tokens[i] is LiteralToken && tokens[i - 1] is LiteralToken);
+        }
+
+        if (!needsWork)
+        {
+            return tokens;
+        }
+
+        var result = ImmutableArray.CreateBuilder<NameToken>(tokens.Length);
+
+        foreach (var token in tokens)
+        {
+            if (token is not LiteralToken literal)
+            {
+                result.Add(token);
+                continue;
+            }
+
+            if (literal.Text.Length == 0)
+            {
+                continue;
+            }
+
+            if (result.Count > 0 && result[^1] is LiteralToken previous)
+            {
+                result[^1] = new LiteralToken(previous.Text + literal.Text);
+            }
+            else
+            {
+                result.Add(literal);
+            }
+        }
+
+        return result.ToImmutable();
+    }
+
     internal static bool Equal(ImmutableArray<NameToken> left, ImmutableArray<NameToken>? right) =>
         right is { } other && left.SequenceEqual(other);
 

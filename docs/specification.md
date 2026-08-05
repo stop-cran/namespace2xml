@@ -1649,7 +1649,11 @@ When explicitly supplied, the delimiter consistently joins path parts for namesp
 
 An empty delimiter is invalid.
 
-For namespace output, a delimiter must not contain `=`, backslash, NUL, CR, LF, tab, or another C0 control character. Scan each decoded ordinary name part and the local-name portion of a typed component once from left to right. When a leftmost nonoverlapping occurrence of the delimiter begins at the current scalar, encode that first scalar with `\u{HEX}` and continue after the original occurrence's first scalar. Emitted escape text is atomic and is never rescanned.
+For namespace output, a delimiter must not contain `=`, backslash, or any scalar in the Section 19.1 forbidden set, and must not consist solely of scalars drawn from `u`, `{`, `}`, and the hexadecimal digits `0` through `9` and `A` through `F`. The first restriction covers NUL, CR, LF, tab, and every other `Cc`, `Cf`, or `Cs` scalar, along with U+0085, U+2028, and U+2029: a delimiter is emitted literally between parts, so admitting a scalar that Section 19.1 escapes *inside* a part would break the same one-line guarantee the escape protects. The second restriction excludes `E`, `2E`, and `u{`, each of which occurs inside a `\u{HEX}` escape this section can emit; a consumer splitting the joined path on such a delimiter would split inside an escape, which is the ambiguity the escape exists to prevent. A delimiter violating either restriction is `SCHEME001`.
+
+Scan each decoded ordinary name part and the local-name portion of a typed component once from left to right. When an occurrence of the delimiter begins at the current scalar, encode that first scalar with `\u{HEX}` and continue at the next input scalar. Overlapping occurrences are therefore each escaped: with delimiter `::`, the part `a:::b` emits `a\u{3A}\u{3A}:b`. Escaping only nonoverlapping occurrences would leave an unescaped delimiter in the output and break injectivity. Emitted escape text is atomic and is never rescanned.
+
+A `\u{HEX}` escape is emitted with no leading zeros and upper-case hexadecimal digits, so U+002E is `\u{2E}` and U+000A is `\u{A}`. Appendix A.2 accepts other spellings on input; output uses only this one, because byte-identical output requires exactly one.
 
 Inside `Q{...}`, only closing brace and backslash use the XML canonical escapes from Section 11.4. Delimiter occurrences and all other URI characters are emitted literally.
 
@@ -2183,11 +2187,18 @@ Namespace name encoding is total and injective. In every name part, escape:
 - literal `*`;
 - literal `${`;
 - `=`;
+- `}`;
 - CR, LF, and tab;
 - a leading `!` or `#` when it could begin a physical record.
-- leading `@`, `#n`, or `Q{` text when the component is an ordinary name rather than a typed XML component.
+- leading `@`, `#`, or `Q{` text when the component is an ordinary name rather than a typed XML component.
+
+A leading `#` is escaped whether or not digits follow it, because Section 8.2 makes marker recognition commit: an unescaped `#` beginning a component must complete a content token, so `#x` would not read back as an ordinary name.
+
+`}` is escaped although Appendix A.2 admits it unescaped in a name, because Appendix A.4 ends a reference at the first unescaped `}`. Were it left bare, a value of one reference to the name `a}b` would encode as `${a}b}` and read back as a reference to `a` followed by the literal text `b}`. Escaping is by construction rather than by context, so the same name has one spelling wherever it occurs.
 
 A scalar that begins a configured-delimiter occurrence is always escaped as `\u{HEX}` under Section 16.4, even when Section 8.2 defines another lexer form for that scalar. The default delimiter therefore emits `\u{2E}`, not `\.`. Every other character requiring escape uses its Section 8.2 lexer form where one exists and `\u{HEX}` otherwise. The forbidden set is Unicode categories `Cc`, `Cf`, and `Cs`, plus U+0085, U+2028, and U+2029. Emitted escapes are atomic and never rescanned. Escaping is unconditional rather than dependent on whether a wildcard happens to be active.
+
+Every scalar in the forbidden set is escaped as `\u{HEX}` wherever an escape is admissible. Two positions admit none. An unpaired surrogate has no `\u{HEX}` spelling, because Appendix A.2 excludes surrogates. Section 11.4 admits only `\}` and `\\` inside a `Q{...}` URI, so a URI containing a forbidden scalar cannot be escaped there either. Serializing a name containing either to namespace output is blocking `SERIALIZE001`.
 
 Typed XML components emit their canonical unescaped `@`, `#n`, or `Q{...}` notation. Ordinary components with the same text emit the escaped forms, preserving identity.
 
