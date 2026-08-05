@@ -180,6 +180,16 @@ rely on it, because it only fires when the doc comment and the signature disagre
 - Record equality is **not** structural when a member is `ImmutableArray<T>`: it compares the
   underlying array by reference, so two identically-populated results compare unequal. Compare a
   projection, not the record.
+- **The test projects have no global usings.** Every new test file needs `using NUnit.Framework;`
+  and `using Shouldly;` explicitly, or you get a wall of CS0246 naming types that plainly exist.
+- **CS1718** — comparing a variable to itself is an error, so a reflexivity test must compare two
+  identically-valued variables rather than `x.CompareTo(x)`.
+- **CS1573** — under `GenerateDocumentationFile`, once one parameter of a member is documented every
+  parameter must be, including on a **private** constructor.
+- **CS8604** — Shouldly's `ShouldContain(string, string)` rejects a `string?`. Chain
+  `.ShouldNotBeNull().ShouldContain(…)`.
+- **CA1000** forbids static members on a generic type, so `StepOutcome<T>.Produced` does not
+  compile. Put the factories on a non-generic companion class with a generic method.
 
 ### Restoring a mutated file does not rebuild it
 
@@ -200,6 +210,58 @@ Touch the file after restoring:
 a JSON reader, so a `\u00a7` escape is compared against the emitted `§` and fails. Write the literal
 character. This is the comparer being an independent oracle rather than a mirror, which is the whole
 reason it exists — but it does mean a fixture cannot be authored in ASCII-escaped JSON.
+
+### A mutation that survives is not always a test gap
+
+Three kinds of false survivor have already cost time here, and all three look identical in the
+harness output — a green run against mutated source:
+
+- **The mutant is semantically inert.** `new UTF8Encoding(encoderShouldEmitUTF8Identifier: true)`
+  does not make `GetBytes` emit a preamble, and removing a `ReferenceEquals(x, y)` fast path from a
+  comparer that would return `0` anyway changes nothing. Read the mutant before writing a test for
+  it; a test that pins inert behaviour is worse than no test.
+- **The tests never ran.** `--filter FullyQualifiedName~Pipeline` matches `PipelineStepTests` and
+  `PipelineRunTests` but **not** `DiagnosticBufferTests` in the same file. Eleven mutations
+  "survived" that were never exercised. The filter matches the fully qualified *type and method*
+  name, not the file. **Check the test count in the harness output against the count you expect**
+  before believing a survivor.
+- **The fixture is invariant under the mutation.** `new string('z', N)` is unchanged by reversing
+  segment order, so a payload-comparison assertion that is entirely real proves nothing about
+  ordering. Use position-varying data.
+
+### The mutation harness leaves the binaries mutated
+
+`mutate2.ps1` restores the *source* in its `finally`, but the last `dotnet test` it ran compiled the
+mutant. A following `dotnet test --no-build` therefore runs the mutated assembly against correct
+source, and reports failures that `git status` says cannot exist. **Rebuild after a mutation run.**
+
+Two related hazards:
+
+- The `finally` does **not** run when the process tree is killed. After stopping a hung mutation,
+  verify the file by hand and kill stray `dotnet` processes with `Stop-Process -Id`.
+- Prefer mutations that produce a wrong *result* over ones that change control flow into a loop.
+  Changing `used == SegmentSize` to `used > SegmentSize` makes a fill loop's `take` permanently `0`,
+  and the harness hangs instead of reporting.
+
+### A here-string in a CRLF file carries CRLF
+
+Multi-line mutation text authored as `@' … '@` in a `.ps1` saved with CRLF will not match an
+LF-normalized source file, and the harness reports `MUTATION TEXT NOT FOUND` rather than a survivor.
+Join the lines explicitly:
+
+```powershell
+$from = @('        if (State == Aborted)', '        {', '            return;', '        }') -join "`n"
+```
+
+### Sorting two elements asks the comparer once
+
+A comparer with symmetric branches — `left is null` and `right is null`, or a length tiebreak — has
+two paths through each pair, and a two-element ordering test executes exactly one of them. A
+mutation to the other branch survives against a test that genuinely asserts the specified order.
+
+Assert comparer properties directly, over a set with one member per distinguishing feature:
+reflexivity, antisymmetry (`sign(compare(a,b)) == -sign(compare(b,a))` for every ordered pair), and
+transitivity. That is three tests, and it closes every branch at once.
 
 ---
 

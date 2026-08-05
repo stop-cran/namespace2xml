@@ -2662,7 +2662,15 @@ A text output with no content is zero bytes and satisfies these rules vacuously.
 
 XML's declaration is `encoding="utf-8"`.
 
-Diagnostics produced during concurrent work are buffered and emitted by pipeline phase, then by source ordering key within that phase. Scheme-loading diagnostics therefore precede input-parsing diagnostics, followed by transformation/output-planning diagnostics and publication diagnostics. Diagnostics without a source position follow deterministic destination order and then stable diagnostic-code order.
+Diagnostics produced during concurrent work are buffered and emitted by pipeline phase, then by source ordering key within that phase. Scheme-loading diagnostics therefore precede input-parsing diagnostics, followed by transformation/output-planning diagnostics and publication diagnostics.
+
+A diagnostic's ordering key is the Section 4.7 stable ordering key of the item it concerns. A diagnostic that concerns a source but no individual item carries the key whose CLI source ordinal is that source's and whose remaining components are zero, so it precedes every item of that source. Within one phase the order is:
+
+1. diagnostics carrying a source ordering key, in that key's Section 4.7 comparison order;
+2. then diagnostics carrying a destination but no source ordering key, in the Section 21.3 destination order;
+3. then diagnostics carrying neither.
+
+Within any one of those three groups, remaining ties are broken by diagnostic code compared as unsigned UTF-8 bytes, then by qualified path compared as unsigned UTF-8 bytes, with an absent path sorting before any present path. The Section 22 cardinalities leave no further tie to break: two occurrences agreeing on phase, ordering key, destination, code, and path are one occurrence.
 
 Results must not depend on:
 
