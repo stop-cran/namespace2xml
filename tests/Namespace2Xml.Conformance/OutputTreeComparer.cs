@@ -30,8 +30,14 @@ public static class OutputTreeComparer
 
         foreach (var relative in expected.Keys.Intersect(actual.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
-            var expectedBytes = File.ReadAllBytes(expected[relative]);
-            var actualBytes = File.ReadAllBytes(actual[relative]);
+            // Directory entries carry a trailing '/' and have no bytes to compare.
+            if (expected[relative] is not { } expectedPath || actual[relative] is not { } actualPath)
+            {
+                continue;
+            }
+
+            var expectedBytes = File.ReadAllBytes(expectedPath);
+            var actualBytes = File.ReadAllBytes(actualPath);
 
             if (!expectedBytes.AsSpan().SequenceEqual(actualBytes))
             {
@@ -42,23 +48,36 @@ public static class OutputTreeComparer
         return failures;
     }
 
-    private static Dictionary<string, string> Enumerate(string? root)
+    /// <summary>
+    /// Maps every entry below <paramref name="root"/> to its full path, or to <see langword="null"/>
+    /// for a directory. Directories are enumerated as well as files: Appendix C.3 says an absent
+    /// expected tree means no destination may be created, and a spuriously created empty directory
+    /// is a created destination.
+    /// </summary>
+    private static Dictionary<string, string?> Enumerate(string? root)
     {
-        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        var map = new Dictionary<string, string?>(StringComparer.Ordinal);
 
         if (root is null || !Directory.Exists(root))
         {
             return map;
         }
 
+        foreach (var directory in Directory.EnumerateDirectories(root, "*", SearchOption.AllDirectories))
+        {
+            map[Relative(root, directory) + "/"] = null;
+        }
+
         foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
         {
-            var relative = Path.GetRelativePath(root, file).Replace(Path.DirectorySeparatorChar, '/');
-            map[relative] = file;
+            map[Relative(root, file)] = file;
         }
 
         return map;
     }
+
+    private static string Relative(string root, string path) =>
+        Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/');
 
     private static string Describe(byte[] expected, byte[] actual)
     {

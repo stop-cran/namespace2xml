@@ -34,7 +34,7 @@ $lines = @(
     ''
     '# Diagnostic codes'
     ''
-    "**Contract bundle `$($bundle.revision)`.** $($registry.codes.Count) codes."
+    "**Contract bundle ``$($bundle.revision)``.** $($registry.codes.Count) codes."
     ''
     'Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and'
     'the specification anchor for the clause it enforces. Codes are stable across releases; messages'
@@ -121,7 +121,7 @@ $lines = @(
     ''
     '# Migrating from 2.x to 3.0'
     ''
-    "**Contract bundle `$($bundle.revision)`.**"
+    "**Contract bundle ``$($bundle.revision)``.**"
     ''
     '3.0 is a complete rewrite against a specification written before the implementation. Behaviour'
     'that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This'
@@ -176,7 +176,7 @@ if ($unclassified.Count -gt 0) {
     $lines += '## Unclassified'
     $lines += ''
     $lines += 'These cases carry a `legacy.md` that states neither agreement nor difference. That is a'
-    'defect in the fixture; see CONTRIBUTING.md.'
+    $lines += 'defect in the fixture; see CONTRIBUTING.md.'
     $lines += ''
     foreach ($entry in $unclassified) {
         $lines += "- ``$($entry.Name)``"

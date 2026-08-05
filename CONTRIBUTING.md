@@ -91,7 +91,9 @@ commit accidentally, rather than merely discouraged.
 
 ## 3. The change protocol (binding)
 
-Six rules. Each maps to a CI gate, because a rule with no enforcer is decoration.
+Six rules. A rule with no enforcer is decoration, so each one names its enforcer — and, where the
+enforcer does not exist yet, says so in the same breath. [KNOWN-LIMITS.md §4](KNOWN-LIMITS.md#4-documented-but-not-yet-enforced)
+is the single list of which gates are live; this section must never contradict it.
 
 ### C1 — Requirement and fixture first
 
@@ -99,8 +101,10 @@ No behaviour change without named acceptance items and fixture evidence that **f
 passes after**. The fixture may already exist or may land in the same pull request. It is authored
 from the specification, never captured from the tool's output.
 
-*Enforced by:* the pull request names affected acceptance item numbers; CI verifies each exists in
-`conformance/assertions.json` and that every item marked `required` has fixture coverage.
+*Enforced by:* `TraceabilityTests` and the assertion-manifest gate, both running today. **Partly
+manual:** CI verifies that every named acceptance item exists and that every `required` item has
+fixture coverage, but nothing yet reads the acceptance items out of the pull request body, so the
+"fails before" half is reviewer-verified. Tracked in KNOWN-LIMITS §4.
 
 A pull request labelled `refactor-only` is exempt from adding a fixture, and in exchange must leave
 the entire observable corpus byte-identical and carry a maintainer approval. If a refactor changes
@@ -111,9 +115,10 @@ one byte of output, it was not a refactor.
 Every pull request and every issue names the sections it relies on (`§16.6`, `Appendix B`). Every
 diagnostic occurrence carries the anchor it actually enforces, not a nearby one.
 
-*Enforced by:* required field in the pull request template; registry and schema tests constrain the
-permitted anchors, and fixture comparison checks the occurrence-level anchor whenever a fixture pins
-one.
+*Enforced by:* registry and schema tests constrain the permitted anchors, and fixture comparison
+checks the occurrence-level anchor whenever a fixture pins one. **Not machine-checked:** the
+citation itself is a required field in the pull request template, and a template field is a prompt,
+not a gate. Tracked in KNOWN-LIMITS §4.
 
 ### C3 — Specification decision precedes implementation acceptance
 
@@ -149,7 +154,11 @@ byte-identical corpus output.
 After **any** change to publication, path handling, or the validation gate — including a refactor
 that merely passes through them — re-run the specification §21 fixtures before anything else.
 
-*Enforced by:* publication fixtures run as a separate, first-failing CI job.
+*Enforced by:* **nothing yet.** The §21 publication fixtures do not exist until publication is
+implemented, so there is no job to run them first and no CI job by that name in any workflow. Until
+that milestone lands, C6 is a reviewer obligation. Tracked in KNOWN-LIMITS §4. Stating it now is
+deliberate: the rule has to precede the code it governs, or the first publication change will be
+written without it.
 
 **C6 is the least obvious rule, so here is why it exists.** These three invariants never fire on a
 successful run:

@@ -53,19 +53,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f "artifacts/namespace2xml.${{ env.version }}.nupkg"
-          test -f "artifacts/namespace2xml.${{ env.version }}.snupkg"
-          unzip -l "artifacts/namespace2xml.${{ env.version }}.nupkg" | grep -q 'docs/specification.md'
-          unzip -l "artifacts/namespace2xml.${{ env.version }}.nupkg" | grep -q 'diagnostics.registry.json'
-          unzip -l "artifacts/namespace2xml.${{ env.version }}.snupkg" | grep -q '\.pdb'
+          # $version is an ordinary environment variable here, exported by GITHUB_ENV above.
+          # Reading it as a shell variable rather than interpolating ${{ }} into the script text
+          # keeps the workflow free of expression-substitution quoting hazards.
+          test -f "artifacts/namespace2xml.${version}.nupkg"
+          test -f "artifacts/namespace2xml.${version}.snupkg"
+          unzip -l "artifacts/namespace2xml.${version}.nupkg" | grep -q 'docs/specification.md'
+          unzip -l "artifacts/namespace2xml.${version}.nupkg" | grep -q 'diagnostics.registry.json'
+          unzip -l "artifacts/namespace2xml.${version}.snupkg" | grep -q '\.pdb'
 
       - name: Install the packed tool and check it reports the released contract
         shell: bash
         run: |
           set -euo pipefail
-          dotnet tool install --tool-path /tmp/n2x --add-source artifacts --version "${{ env.version }}" namespace2xml
+          dotnet tool install --tool-path /tmp/n2x --add-source artifacts --version "$version" namespace2xml
           /tmp/n2x/namespace2xml --version | tee /tmp/version.txt
-          grep -q "^version: ${{ env.version }}$" /tmp/version.txt
+          # Anchored: IncludeSourceRevisionInInformationalVersion is disabled in
+          # Directory.Build.props, so the reported version carries no +sha suffix and this
+          # comparison is exact rather than incidentally passing on a prefix.
+          grep -q "^version: ${version}$" /tmp/version.txt
           grep -q '^contract-bundle: ' /tmp/version.txt
 
       - uses: actions/attest-build-provenance@v2
@@ -73,16 +79,20 @@ jobs:
           subject-path: 'artifacts/*.nupkg'
 
       - name: Push to nuget.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
-          dotnet nuget push "artifacts/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
-          dotnet nuget push "artifacts/*.snupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          set -euo pipefail
+          dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push "artifacts/*.snupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           prerelease=""
-          case "${{ env.version }}" in *-*) prerelease="--prerelease";; esac
+          case "$version" in *-*) prerelease="--prerelease";; esac
           gh release create "$GITHUB_REF_NAME" artifacts/*.nupkg artifacts/*.snupkg \
-            --title "namespace2xml ${{ env.version }}" \
+            --title "namespace2xml $version" \
             --notes-file CHANGELOG.md $prerelease

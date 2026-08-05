@@ -28,6 +28,13 @@ public static class DiagnosticsFormatPreScan
         {
             var token = arguments[i];
 
+            // A host cannot put a null in argv, but the public contract above promises this method
+            // never throws for any argument vector, and an in-process caller can supply one.
+            if (token is null)
+            {
+                continue;
+            }
+
             // Tokens at or after the first bare "--" are list-option values (Section 6.2).
             if (token == "--")
             {

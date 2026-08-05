@@ -22,6 +22,14 @@
     <Deterministic>true</Deterministic>
     <DebugType>portable</DebugType>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <!--
+      The SDK appends a "+commit-sha" suffix to the informational version by default. That makes
+      the version string reported by the version option change on every commit, which defeats the
+      point of asking a binary which contract it implements, and makes the release workflow's
+      exact-match assertion unsatisfiable. Provenance is carried by SourceLink and by the build
+      attestation instead.
+    -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <!-- Package identity and AI discoverability (implementation plan Section 8.1). -->

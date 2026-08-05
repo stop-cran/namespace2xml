@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Namespace2Xml.Conformance;
 
@@ -59,6 +60,8 @@ public static class DiagnosticComparer
         var actualItems = actualRoot.EnumerateArray().ToList();
         var expectedItems = expectedRoot.EnumerateArray().ToList();
 
+        failures.AddRange(ValidateCanonicalLayout(actual, actualItems.Count));
+
         foreach (var item in actualItems)
         {
             failures.AddRange(ValidateSchema(item));
@@ -85,7 +88,19 @@ public static class DiagnosticComparer
             yield break;
         }
 
-        var text = Encoding.UTF8.GetString(actual);
+        string text;
+
+        // Section 6.4.3 makes UTF-8 contractual. The replacement fallback would silently turn an
+        // invalid byte into U+FFFD and compare it as though the tool had written valid text.
+        var decoded = TryDecodeStrictly(actual, out var decodeFailure);
+
+        if (decoded is null)
+        {
+            yield return $"diagnostic stream is not valid UTF-8: {decodeFailure}";
+            yield break;
+        }
+
+        text = decoded;
 
         if (text.Contains('\r'))
         {
@@ -97,24 +112,143 @@ public static class DiagnosticComparer
             yield break;
         }
 
+        // The empty array has exactly one normative spelling. "[\n]\n" is the mistake a first
+        // implementation makes, and the slice below would compute a negative length on it.
+        if (text.Length < "[\n{}\n]\n".Length)
+        {
+            yield return $"diagnostic stream framing is not normative: '{Preview(text)}'. " +
+                         "An empty stream is exactly '[]\\n'.";
+            yield break;
+        }
+
         if (!text.StartsWith("[\n", StringComparison.Ordinal) || !text.EndsWith("\n]\n", StringComparison.Ordinal))
         {
             yield return $"diagnostic stream framing is not normative: '{Preview(text)}'.";
             yield break;
         }
+    }
 
-        // Every element occupies exactly one line, so line count and element count must agree.
-        var body = text[2..^3];
-
-        if (body.Length > 0)
+    private static string? TryDecodeStrictly(byte[] actual, out string? failure)
+    {
+        try
         {
-            foreach (var line in body.Split(",\n"))
+            failure = null;
+
+            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true)
+                .GetString(actual);
+        }
+        catch (DecoderFallbackException exception)
+        {
+            failure = exception.Message;
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Enforces the Section 6.4.3 byte layout: one compact element per line, separated by
+    /// ",\n", with no insignificant whitespace anywhere outside a string literal. This is
+    /// deliberately reimplemented here rather than delegated to the production writer, because a
+    /// comparer that asks the writer what canonical means cannot detect a wrong writer.
+    /// </summary>
+    private static IEnumerable<string> ValidateCanonicalLayout(byte[] actual, int elementCount)
+    {
+        var text = Encoding.UTF8.GetString(actual);
+
+        if (text == "[]\n")
+        {
+            if (elementCount != 0)
             {
-                if (line.Contains('\n'))
+                yield return $"stream is framed as empty but carries {elementCount} elements.";
+            }
+
+            yield break;
+        }
+
+        if (!text.StartsWith("[\n", StringComparison.Ordinal) || !text.EndsWith("\n]\n", StringComparison.Ordinal))
+        {
+            yield break;
+        }
+
+        // Framing validation has already reported this shape; the body slice below would compute a
+        // negative length on it.
+        if (text.Length < "[\n{}\n]\n".Length)
+        {
+            yield break;
+        }
+
+        // A raw LF cannot occur inside a JSON string, so it is unambiguously the element separator.
+        var lines = text[2..^3].Split('\n');
+
+        if (lines.Length != elementCount)
+        {
+            yield return $"the stream carries {elementCount} elements on {lines.Length} lines; " +
+                         "Section 6.4.3 puts exactly one element on each line.";
+            yield break;
+        }
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var last = i == lines.Length - 1;
+
+            if (!last && !line.EndsWith(','))
+            {
+                yield return $"element {i} is not followed by the normative ',' separator.";
+                continue;
+            }
+
+            if (last && line.EndsWith(','))
+            {
+                yield return $"element {i} is the last element but carries a trailing ','.";
+                continue;
+            }
+
+            var element = last ? line : line[..^1];
+
+            foreach (var failure in ValidateNoInsignificantWhitespace(i, element))
+            {
+                yield return failure;
+            }
+        }
+    }
+
+    private static IEnumerable<string> ValidateNoInsignificantWhitespace(int index, string element)
+    {
+        var inString = false;
+        var escaped = false;
+
+        foreach (var character in element)
+        {
+            if (inString)
+            {
+                if (escaped)
                 {
-                    yield return "a diagnostic element spans more than one line.";
-                    yield break;
+                    escaped = false;
                 }
+                else if (character == '\\')
+                {
+                    escaped = true;
+                }
+                else if (character == '"')
+                {
+                    inString = false;
+                }
+
+                continue;
+            }
+
+            if (character == '"')
+            {
+                inString = true;
+                continue;
+            }
+
+            if (char.IsWhiteSpace(character))
+            {
+                yield return $"element {index} carries insignificant whitespace; Section 6.4.3 " +
+                             "fixes a compact encoding with no whitespace between tokens.";
+                yield break;
             }
         }
     }
@@ -139,6 +273,18 @@ public static class DiagnosticComparer
             if (member.Value.ValueKind == JsonValueKind.Null)
             {
                 yield return $"member '{member.Name}' is null; inapplicable members must be omitted.";
+            }
+
+            // System.Text.Json keeps the first duplicate, jq keeps the last. A stream whose
+            // meaning depends on the consumer is not a contract.
+            if (seen.Contains(member.Name, StringComparer.Ordinal))
+            {
+                yield return $"member '{member.Name}' appears more than once.";
+            }
+
+            foreach (var failure in ValidateMemberValue(member.Name, member.Value))
+            {
+                yield return failure;
             }
 
             seen.Add(member.Name);
@@ -168,6 +314,122 @@ public static class DiagnosticComparer
         {
             yield return "'line' requires 'source'.";
         }
+    }
+
+    /// <summary>
+    /// Value constraints, driven from <c>spec/diagnostic-stream.schema.json</c> rather than
+    /// restated here, so the published schema cannot drift away from what the oracle enforces.
+    /// </summary>
+    private static IEnumerable<string> ValidateMemberValue(string name, JsonElement value)
+    {
+        if (!SchemaProperties.Value.TryGetValue(name, out var constraint))
+        {
+            yield break;
+        }
+
+        if (constraint.Enum is not null)
+        {
+            if (value.ValueKind != JsonValueKind.String ||
+                !constraint.Enum.Contains(value.GetString()!, StringComparer.Ordinal))
+            {
+                yield return $"member '{name}' is '{Raw(value)}', which is not one of " +
+                             $"[{string.Join(", ", constraint.Enum)}].";
+            }
+
+            yield break;
+        }
+
+        switch (constraint.Type)
+        {
+            case "string":
+                if (value.ValueKind != JsonValueKind.String)
+                {
+                    yield return $"member '{name}' must be a string but is {value.ValueKind}.";
+                    yield break;
+                }
+
+                var text = value.GetString()!;
+
+                if (constraint.Pattern is not null && !Regex.IsMatch(text, constraint.Pattern))
+                {
+                    yield return $"member '{name}' is '{text}', which does not match {constraint.Pattern}.";
+                }
+
+                if (constraint.MinLength is int minLength && text.Length < minLength)
+                {
+                    yield return $"member '{name}' is shorter than the required {minLength} characters.";
+                }
+
+                break;
+
+            case "integer":
+                if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt64(out var number))
+                {
+                    yield return $"member '{name}' must be an integer but is {Raw(value)}.";
+                    yield break;
+                }
+
+                if (constraint.Minimum is long minimum && number < minimum)
+                {
+                    yield return $"member '{name}' is {number}, below the required minimum of {minimum}.";
+                }
+
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    private static string Raw(JsonElement value) => value.GetRawText();
+
+    private sealed record MemberConstraint(
+        string? Type,
+        string[]? Enum,
+        string? Pattern,
+        int? MinLength,
+        long? Minimum);
+
+    private static readonly Lazy<IReadOnlyDictionary<string, MemberConstraint>> SchemaProperties =
+        new(LoadSchemaProperties);
+
+    private static Dictionary<string, MemberConstraint> LoadSchemaProperties()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllBytes(CorpusLayout.StreamSchema));
+
+        var properties = document.RootElement
+            .GetProperty("items")
+            .GetProperty("properties");
+
+        var result = new Dictionary<string, MemberConstraint>(StringComparer.Ordinal);
+
+        foreach (var property in properties.EnumerateObject())
+        {
+            var body = property.Value;
+
+            result[property.Name] = new MemberConstraint(
+                Type: body.TryGetProperty("type", out var type) ? type.GetString() : null,
+                Enum: body.TryGetProperty("enum", out var choices)
+                    ? choices.EnumerateArray().Select(choice => choice.GetString()!).ToArray()
+                    : null,
+                Pattern: body.TryGetProperty("pattern", out var pattern) ? pattern.GetString() : null,
+                MinLength: body.TryGetProperty("minLength", out var minLength) ? minLength.GetInt32() : null,
+                Minimum: body.TryGetProperty("minimum", out var minimum) ? minimum.GetInt64() : null);
+        }
+
+        // The byte order of members is a Section 6.4.3 rule, not a JSON Schema one, so MemberOrder
+        // is authored here. It must still name exactly the members the schema defines.
+        var schemaNames = result.Keys.OrderBy(name => name, StringComparer.Ordinal);
+        var orderedNames = MemberOrder.OrderBy(name => name, StringComparer.Ordinal);
+
+        if (!schemaNames.SequenceEqual(orderedNames, StringComparer.Ordinal))
+        {
+            throw new ConformanceFormatException(
+                "DiagnosticComparer.MemberOrder and spec/diagnostic-stream.schema.json disagree " +
+                "about which members exist. Regenerate the schema or update the comparer.");
+        }
+
+        return result;
     }
 
     private static IEnumerable<string> CompareElement(int index, JsonElement expected, JsonElement actual)

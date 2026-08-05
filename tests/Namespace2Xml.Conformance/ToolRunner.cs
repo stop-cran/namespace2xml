@@ -18,6 +18,12 @@ public static class ToolRunner
     private static readonly string ToolAssembly = LocateToolAssembly();
     private static readonly string DotnetHost = LocateDotnetHost();
 
+    /// <summary>
+    /// Upper bound on one tool invocation. Generous enough that a slow runner never flakes, short
+    /// enough that a hang fails the case instead of the job.
+    /// </summary>
+    private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
+
     /// <summary>Invokes the tool with the given tokens and working directory.</summary>
     public static ToolResult Run(IReadOnlyList<string> arguments, string workingDirectory)
     {
@@ -42,9 +48,13 @@ public static class ToolRunner
         }
 
         // Section 24 forbids results that depend on locale or time zone. Pinning them here means
-        // a green local run and a green CI run mean the same thing.
+        // a green local run and a green CI run mean the same thing. LC_ALL is set as well as LANG
+        // because on glibc LC_ALL overrides LANG, so pinning LANG alone can be defeated by the
+        // ambient environment.
         startInfo.Environment["DOTNET_CLI_UI_LANGUAGE"] = "en";
         startInfo.Environment["LANG"] = "C";
+        startInfo.Environment["LC_ALL"] = "C";
+        startInfo.Environment["TZ"] = "UTC";
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start the tool process.");
@@ -55,8 +65,24 @@ public static class ToolRunner
         var outTask = process.StandardOutput.BaseStream.CopyToAsync(outBuffer);
         var errTask = process.StandardError.BaseStream.CopyToAsync(errBuffer);
 
-        Task.WaitAll(outTask, errTask);
-        process.WaitForExit();
+        // A tool that never exits must fail its case, not consume the whole CI job budget.
+        if (!process.WaitForExit(Timeout))
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // The process ended between the timeout and the kill.
+            }
+
+            throw new ConformanceFormatException(
+                $"the tool did not exit within {Timeout.TotalSeconds:0} seconds for arguments " +
+                $"[{string.Join(", ", arguments)}].");
+        }
+
+        Task.WaitAll([outTask, errTask], Timeout);
 
         return new ToolResult(process.ExitCode, outBuffer.ToArray(), errBuffer.ToArray());
     }

@@ -11,6 +11,12 @@ internal static class CorpusLayout
 
     internal static string Specification => Path.Combine(Root, "docs", "specification.md");
 
+    /// <summary>
+    /// The generated Section 6.4.3 stream schema. The comparer drives its value constraints from
+    /// this file so that the published schema and the oracle cannot disagree.
+    /// </summary>
+    internal static string StreamSchema => Path.Combine(Root, "spec", "diagnostic-stream.schema.json");
+
     private static string Locate()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

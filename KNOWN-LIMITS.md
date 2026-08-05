@@ -69,15 +69,16 @@ Some rules in `CONTRIBUTING.md` are stated as binding and have a CI gate; a few 
 
 | Rule | Gate |
 |---|---|
-| C1 requirement-and-fixture-first | Partial — the manifest and traceability tests exist; the pull-request metadata check does not |
-| C2 cite the specification | Template field only; not machine-checked |
+| C1 requirement-and-fixture-first | Partial — the manifest and traceability tests exist; nothing reads acceptance items out of the pull-request body, so "fails before" is reviewer-verified |
+| C2 cite the specification | Partial — anchors are constrained by the registry and schema tests, but the citation itself is a template field, not a gate |
 | C3 specification decision precedes acceptance | Contract-revision job, active |
 | C4 bidirectional traceability | Active |
-| C5 determinism | Active |
-| C6 side-effect invariants first | Not yet — the §21 fixtures do not exist until publication is implemented |
+| C5 determinism | Active — `tools/hash-corpus-outputs.ps1` measures exit status, standard output, standard error and the produced file tree, for every argument vector each case declares, and `cross-os-hash` requires all three platforms to agree |
+| C6 side-effect invariants first | Not yet — the §21 fixtures do not exist until publication is implemented, and no workflow contains a job by that name |
 
 Stating a rule before its enforcer exists is a deliberate choice, but it is a debt. It is recorded
-here rather than left implicit.
+here rather than left implicit. `CONTRIBUTING.md` §3 repeats these qualifications inline; if the two
+ever disagree, this table is the one that is maintained and the discrepancy is itself a bug report.
 
 ## 5. Documentation gaps
 

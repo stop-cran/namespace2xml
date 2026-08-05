@@ -135,6 +135,124 @@ public class HarnessSelfTests
         DiagnosticComparer.Compare(Utf8("[]\n"), actual).ShouldNotBeEmpty();
     }
 
+    // The following cases are the ones a dual-model review found the comparer accepting. Each is a
+    // stream that is wrong in exactly one normative dimension, so a comparer that stops checking
+    // that dimension fails here rather than silently blessing every future fixture.
+
+    [Test]
+    public void TwoElementsOnOneLineAreRejected()
+    {
+        var element = "{\"code\":\"CLI001\",\"severity\":\"error\",\"phase\":\"cli\",\"spec\":\"§6.4.1\",\"message\":\"m\"}";
+
+        var expected = Utf8($"[\n{element},\n{element}\n]\n");
+        var actual = Utf8($"[\n{element},{element}\n]\n");
+
+        DiagnosticComparer.Compare(expected, actual)
+            .ShouldContain(failure => failure.Contains("one element on each line", StringComparison.Ordinal));
+    }
+
+    [Test]
+    public void InsignificantWhitespaceInsideAnElementIsRejected()
+    {
+        var expected = Utf8(One("\"message\":\"m\"", "§6.4.1"));
+        var actual = Utf8(
+            "[\n{\"code\": \"CLI001\", \"severity\": \"error\", \"phase\": \"cli\", " +
+            "\"spec\": \"§6.4.1\", \"message\": \"m\"}\n]\n");
+
+        DiagnosticComparer.Compare(expected, actual)
+            .ShouldContain(failure => failure.Contains("insignificant whitespace", StringComparison.Ordinal));
+    }
+
+    [Test]
+    public void EmptyArrayWrittenWithMultiElementFramingIsRejected()
+    {
+        // Must report a framing failure rather than throwing: the slice that reads the body of a
+        // populated stream computes a negative length on this input.
+        DiagnosticComparer.Compare(Utf8("[]\n"), Utf8("[\n]\n"))
+            .ShouldContain(failure => failure.Contains("framing is not normative", StringComparison.Ordinal));
+
+        DiagnosticComparer.Compare(Utf8("[]\n"), Utf8("[\n\n]\n")).ShouldNotBeEmpty();
+    }
+
+    [Test]
+    public void DuplicateMemberIsRejected()
+    {
+        var expected = Utf8(One("\"message\":\"m\"", "§6.4.1"));
+        var actual = Utf8(
+            "[\n{\"code\":\"CLI001\",\"code\":\"CLI002\",\"severity\":\"error\",\"phase\":\"cli\"," +
+            "\"spec\":\"§6.4.1\",\"message\":\"m\"}\n]\n");
+
+        DiagnosticComparer.Compare(expected, actual)
+            .ShouldContain(failure => failure.Contains("appears more than once", StringComparison.Ordinal));
+    }
+
+    [TestCase("\"severity\":\"info\"", "severity")]
+    [TestCase("\"code\":\"cli1\"", "code")]
+    [TestCase("\"phase\":\"frobnicate\"", "phase")]
+    [TestCase("\"spec\":\"not-an-anchor\"", "spec")]
+    [TestCase("\"message\":123", "message")]
+    public void SchemaValueConstraintsAreEnforced(string replacement, string member)
+    {
+        var members = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["code"] = "\"code\":\"CLI001\"",
+            ["severity"] = "\"severity\":\"error\"",
+            ["phase"] = "\"phase\":\"cli\"",
+            ["spec"] = "\"spec\":\"§6.4.1\"",
+            ["message"] = "\"message\":\"m\"",
+        };
+
+        var expected = Utf8("[\n{" + string.Join(",", members.Values) + "}\n]\n");
+        members[member] = replacement;
+        var actual = Utf8("[\n{" + string.Join(",", members.Values) + "}\n]\n");
+
+        DiagnosticComparer.Compare(expected, actual)
+            .ShouldContain(failure => failure.Contains($"member '{member}'", StringComparison.Ordinal));
+    }
+
+    [Test]
+    public void NonPositivePositionIsRejected()
+    {
+        var body = "\"code\":\"CLI001\",\"severity\":\"error\",\"phase\":\"cli\",\"source\":\"a.properties\"";
+        var tail = "\"spec\":\"§6.4.1\",\"message\":\"m\"";
+
+        var expected = Utf8($"[\n{{{body},\"line\":1,{tail}}}\n]\n");
+        var actual = Utf8($"[\n{{{body},\"line\":0,{tail}}}\n]\n");
+
+        DiagnosticComparer.Compare(expected, actual)
+            .ShouldContain(failure => failure.Contains("below the required minimum", StringComparison.Ordinal));
+    }
+
+    [Test]
+    public void InvalidUtf8IsRejected()
+    {
+        var valid = Utf8(One("\"message\":\"m\"", "§6.4.1"));
+        var corrupted = valid.ToArray();
+        corrupted[^4] = 0xFF;
+
+        DiagnosticComparer.Compare(valid, corrupted)
+            .ShouldContain(failure => failure.Contains("not valid UTF-8", StringComparison.Ordinal));
+    }
+
+    [Test]
+    public void MissingSeparatorCommaIsRejected()
+    {
+        var element = "{\"code\":\"CLI001\",\"severity\":\"error\",\"phase\":\"cli\",\"spec\":\"§6.4.1\",\"message\":\"m\"}";
+
+        var expected = Utf8($"[\n{element},\n{element}\n]\n");
+        var actual = Utf8($"[\n{element}\n{element}\n]\n");
+
+        DiagnosticComparer.Compare(expected, actual).ShouldNotBeEmpty();
+    }
+
+    [Test]
+    public void TheComparerAndThePublishedSchemaAgreeOnWhichMembersExist()
+    {
+        // Loading the schema throws when MemberOrder and the generated file disagree, which is the
+        // drift this indirection exists to prevent.
+        Should.NotThrow(() => DiagnosticComparer.Compare(Utf8("[]\n"), Utf8("[]\n")));
+    }
+
     [Test]
     public void MessageIsNeverCompared()
     {

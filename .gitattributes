@@ -14,3 +14,8 @@
 # Conformance fixtures are compared byte-for-byte and must never be transformed.
 conformance/** -text
 tests/**/fixtures/** -text
+
+# Spike corpora are evidence, not source. Normalization silently emptied the CRLF fixture in
+# spikes/yaml-comments of every CR byte, which voided the line-ending dimension of a verdict
+# that KNOWN-LIMITS.md cites. Evidence that the toolchain rewrites is not evidence.
+spikes/** -text

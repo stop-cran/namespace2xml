@@ -98,17 +98,36 @@ public sealed class ConformanceCase
     }
 
     /// <summary>Enumerates every case under a corpus root, in ordinal name order.</summary>
+    /// <exception cref="ConformanceFormatException">
+    /// A corpus root that does not exist, or a case directory without <c>args.txt</c>. Silently
+    /// skipping either shrinks the suite without failing it, which is indistinguishable from
+    /// success.
+    /// </exception>
     public static IReadOnlyList<ConformanceCase> Discover(string corpusRoot)
     {
         if (!System.IO.Directory.Exists(corpusRoot))
         {
-            return [];
+            throw new ConformanceFormatException($"the conformance corpus root '{corpusRoot}' does not exist.");
         }
 
-        return System.IO.Directory
+        var directories = System.IO.Directory
             .EnumerateDirectories(corpusRoot)
-            .Where(directory => File.Exists(Path.Combine(directory, "args.txt")))
             .OrderBy(directory => Path.GetFileName(directory), StringComparer.Ordinal)
+            .ToList();
+
+        var malformed = directories
+            .Where(directory => !File.Exists(Path.Combine(directory, "args.txt")))
+            .Select(directory => Path.GetFileName(directory)!)
+            .ToList();
+
+        if (malformed.Count > 0)
+        {
+            throw new ConformanceFormatException(
+                $"case directories without args.txt: {string.Join(", ", malformed)}. " +
+                "A case that cannot be discovered is a case that cannot fail.");
+        }
+
+        return directories
             .Select(directory => new ConformanceCase(Path.GetFileName(directory)!, directory))
             .ToList();
     }

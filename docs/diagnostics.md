@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle $(@{revision=r2+0654ebfa8b7a; revisionCounter=2; specification=; registry=; generatedBy=tools/sync-contract-bundle.ps1}.revision).** 34 codes.
+**Contract bundle `r2+0654ebfa8b7a`.** 34 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages

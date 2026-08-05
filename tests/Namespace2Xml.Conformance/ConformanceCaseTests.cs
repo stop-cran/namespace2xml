@@ -29,6 +29,7 @@ public class ConformanceCaseTests
     {
         using var run = new CaseRun(conformanceCase);
 
+        var before = run.FixtureSnapshot(ReservedNames);
         var result = ToolRunner.Run(conformanceCase.Arguments, run.Directory);
 
         var failures = new List<string>();
@@ -39,6 +40,7 @@ public class ConformanceCaseTests
         }
 
         failures.AddRange(OutputTreeComparer.Compare(conformanceCase.ExpectedTree, run.ProducedTree(ReservedNames)));
+        failures.AddRange(CompareFixtureSnapshots(before, run.FixtureSnapshot(ReservedNames)));
 
         failures.ShouldBeEmpty(Describe(conformanceCase, failures, result));
     }
@@ -48,20 +50,67 @@ public class ConformanceCaseTests
     {
         using var run = new CaseRun(conformanceCase);
 
+        var before = run.FixtureSnapshot(ReservedNames);
         var result = ToolRunner.Run(conformanceCase.DiagnosticArguments, run.Directory);
         var expected = conformanceCase.ExpectedDiagnostics;
+
+        var failures = new List<string>();
 
         if (expected is null)
         {
             // The informational modes of Section 6.1 write no stream at all, which is not the
             // same as writing an empty array.
-            result.StandardError.ShouldBeEmpty(Describe(conformanceCase, [], result));
-            return;
+            if (result.StandardError.Length != 0)
+            {
+                failures.Add("the case declares no diagnostic stream, so standard error must be empty.");
+            }
+        }
+        else
+        {
+            failures.AddRange(DiagnosticComparer.Compare(expected, result.StandardError));
         }
 
-        var failures = DiagnosticComparer.Compare(expected, result.StandardError);
+        // Section 6.4: the diagnostic encoding never changes the generated output files or the
+        // exit code. Checking only standard error here would let JSON mode return a different
+        // status, or create a file, without any case noticing.
+        if (result.ExitCode != conformanceCase.ExpectedExitCode)
+        {
+            failures.Add(
+                $"the diagnostic encoding changed the exit code: expected " +
+                $"{conformanceCase.ExpectedExitCode} but got {result.ExitCode}.");
+        }
+
+        failures.AddRange(OutputTreeComparer.Compare(conformanceCase.ExpectedTree, run.ProducedTree(ReservedNames)));
+        failures.AddRange(CompareFixtureSnapshots(before, run.FixtureSnapshot(ReservedNames)));
 
         failures.ShouldBeEmpty(Describe(conformanceCase, failures, result));
+    }
+
+    /// <summary>
+    /// Fixture-owned files are inputs, not destinations. Reserved names are excluded from the
+    /// produced tree, so without this the tool could rewrite a case's own inputs, or drop a file
+    /// into <c>inputs/</c>, and every assertion would still pass.
+    /// </summary>
+    private static IEnumerable<string> CompareFixtureSnapshots(
+        Dictionary<string, string> before,
+        Dictionary<string, string> after)
+    {
+        foreach (var entry in before)
+        {
+            if (!after.TryGetValue(entry.Key, out var hash))
+            {
+                yield return $"the tool deleted fixture-owned entry '{entry.Key}'.";
+            }
+            else if (!string.Equals(hash, entry.Value, StringComparison.Ordinal))
+            {
+                yield return $"the tool modified fixture-owned entry '{entry.Key}'.";
+            }
+        }
+
+        foreach (var key in after.Keys.Where(key => !before.ContainsKey(key)).Order(StringComparer.Ordinal))
+        {
+            yield return $"the tool created '{key}' inside a fixture-owned directory.";
+        }
     }
 
     [TestCaseSource(nameof(Cases))]
@@ -101,6 +150,45 @@ public class ConformanceCaseTests
         }
 
         internal string Directory { get; }
+
+        /// <summary>Hashes every fixture-owned entry so a mutation can be detected after the run.</summary>
+        internal Dictionary<string, string> FixtureSnapshot(HashSet<string> reserved)
+        {
+            var snapshot = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            foreach (var entry in System.IO.Directory.EnumerateFileSystemEntries(Directory))
+            {
+                if (!reserved.Contains(Path.GetFileName(entry)))
+                {
+                    continue;
+                }
+
+                if (System.IO.Directory.Exists(entry))
+                {
+                    foreach (var file in System.IO.Directory.EnumerateFiles(entry, "*", SearchOption.AllDirectories))
+                    {
+                        snapshot[Relative(file)] = Hash(file);
+                    }
+
+                    foreach (var child in System.IO.Directory.EnumerateDirectories(entry, "*", SearchOption.AllDirectories))
+                    {
+                        snapshot[Relative(child) + "/"] = string.Empty;
+                    }
+                }
+                else
+                {
+                    snapshot[Relative(entry)] = Hash(entry);
+                }
+            }
+
+            return snapshot;
+        }
+
+        private string Relative(string path) =>
+            Path.GetRelativePath(Directory, path).Replace(Path.DirectorySeparatorChar, '/');
+
+        private static string Hash(string path) =>
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)));
 
         internal string ProducedTree(HashSet<string> reserved)
         {
@@ -153,6 +241,15 @@ public class ConformanceCaseTests
         private static void CopyDirectory(string source, string destination)
         {
             System.IO.Directory.CreateDirectory(destination);
+
+            // Directories are created explicitly so that an empty one survives the copy. An empty
+            // directory the tool created is a created destination and must be visible to the
+            // comparer.
+            foreach (var directory in System.IO.Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+            {
+                System.IO.Directory.CreateDirectory(
+                    Path.Combine(destination, Path.GetRelativePath(source, directory)));
+            }
 
             foreach (var file in System.IO.Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
             {

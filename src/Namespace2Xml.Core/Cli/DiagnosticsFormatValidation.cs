@@ -25,6 +25,13 @@ public static class DiagnosticsFormatValidation
         {
             var token = arguments[i];
 
+            // Mirrors the pre-scan: a null token is not reachable from a real argv, but neither
+            // entry point may throw on one, and the two scans must agree on every vector.
+            if (token is null)
+            {
+                continue;
+            }
+
             if (token == "--")
             {
                 break;

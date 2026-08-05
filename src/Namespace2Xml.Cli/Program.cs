@@ -46,29 +46,50 @@ public static class Program
         // M0 delivers governance, the conformance harness and the Section 6.4 diagnostic
         // channel. The transformation pipeline lands in later milestones.
         Emit(stderr, format, []);
-        stderr.WriteLine(
-            "namespace2xml " + ContractBundle.ProductVersion +
-            " is a preview that does not yet implement the transformation pipeline. " +
-            "Use --help, --version, or track progress at " + HelpText.RepositoryUrl + ".");
+
+        // Section 6.4.3 gives standard error to the diagnostic stream alone when the canonical
+        // JSON encoding is selected, so an operational message must not follow the array. In the
+        // text encoding the message is permitted, but it is terminated with LF rather than
+        // Environment.NewLine because Section 24 forbids results that vary by host line ending.
+        if (format != DiagnosticFormat.Json)
+        {
+            stderr.Write(
+                "namespace2xml " + ContractBundle.ProductVersion +
+                " is a preview that does not yet implement the transformation pipeline. " +
+                "Use --help, --version, or track progress at " + HelpText.RepositoryUrl + ".\n");
+        }
 
         return NotImplementedInThisPreview;
     }
 
     private static void Emit(TextWriter stderr, DiagnosticFormat format, IReadOnlyList<Diagnostic> diagnostics)
     {
-        if (format == DiagnosticFormat.Json)
+        // Section 6.4.3: a failure to write the diagnostic stream is not itself a diagnostic and
+        // does not change the exit code. A full or closed standard error must not turn a decided
+        // outcome into a different one.
+        try
         {
-            // The array container is always written, so the stream always parses (Section 6.4.3).
-            using var raw = Console.OpenStandardError();
-            var bytes = JsonDiagnosticWriter.Render(diagnostics);
-            raw.Write(bytes, 0, bytes.Length);
-            raw.Flush();
-            return;
-        }
+            if (format == DiagnosticFormat.Json)
+            {
+                // The array container is always written, so the stream always parses (Section 6.4.3).
+                using var raw = Console.OpenStandardError();
+                var bytes = JsonDiagnosticWriter.Render(diagnostics);
+                raw.Write(bytes, 0, bytes.Length);
+                raw.Flush();
+                return;
+            }
 
-        foreach (var diagnostic in diagnostics)
+            foreach (var diagnostic in diagnostics)
+            {
+                // LF, not Environment.NewLine: Section 24 forbids host-dependent line endings.
+                stderr.Write(TextDiagnosticWriter.Render(diagnostic) + "\n");
+            }
+        }
+        catch (IOException)
         {
-            stderr.WriteLine(TextDiagnosticWriter.Render(diagnostic));
+        }
+        catch (ObjectDisposedException)
+        {
         }
     }
 }

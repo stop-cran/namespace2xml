@@ -5,26 +5,26 @@
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C6:I5          value="first" style=Plain anchor=[empty] tag=?
   4 Scalar         L1:C8:I7         ..L1:C9:I8          value="1" style=Plain anchor=[empty] tag=?
-  5 Comment        L2:C1:I10        ..L2:C24:I33        inline=false value="C01 leading top-level"
-  6 Scalar         L3:C1:I35        ..L3:C7:I41         value="second" style=Plain anchor=[empty] tag=?
-  7 Scalar         L3:C9:I43        ..L3:C10:I44        value="2" style=Plain anchor=[empty] tag=?
-  8 Scalar         L4:C1:I46        ..L4:C7:I52         value="nested" style=Plain anchor=[empty] tag=?
-  9 MappingStart   L5:C3:I57        ..L5:C3:I57         style=Block anchor=[empty] tag=?
- 10 Scalar         L5:C3:I57        ..L5:C8:I62         value="first" style=Plain anchor=[empty] tag=?
- 11 Scalar         L5:C10:I64       ..L5:C11:I65        value="1" style=Plain anchor=[empty] tag=?
- 12 Comment        L6:C3:I69        ..L6:C23:I89        inline=false value="C02 leading nested"
- 13 Scalar         L7:C3:I93        ..L7:C9:I99         value="second" style=Plain anchor=[empty] tag=?
- 14 Scalar         L7:C11:I101      ..L7:C12:I102       value="2" style=Plain anchor=[empty] tag=?
- 15 MappingEnd     L8:C1:I104       ..L8:C1:I104        
- 16 Scalar         L8:C1:I104       ..L8:C6:I109        value="items" style=Plain anchor=[empty] tag=?
- 17 SequenceStart  L9:C3:I114       ..L9:C3:I114        style=Block anchor=[empty] tag=?
- 18 Scalar         L9:C5:I116       ..L9:C8:I119        value="one" style=Plain anchor=[empty] tag=?
- 19 Comment        L10:C3:I123      ..L10:C30:I150      inline=false value="C03 leading sequence item"
- 20 Scalar         L11:C5:I156      ..L11:C8:I159       value="two" style=Plain anchor=[empty] tag=?
- 21 SequenceEnd    L12:C1:I161      ..L12:C1:I161       
- 22 MappingEnd     L12:C1:I161      ..L12:C1:I161       
- 23 DocumentEnd    L12:C1:I161      ..L12:C1:I161       implicit=true
- 24 StreamEnd      L12:C1:I161      ..L12:C1:I161       
+  5 Comment        L2:C1:I9         ..L2:C24:I32        inline=false value="C01 leading top-level"
+  6 Scalar         L3:C1:I33        ..L3:C7:I39         value="second" style=Plain anchor=[empty] tag=?
+  7 Scalar         L3:C9:I41        ..L3:C10:I42        value="2" style=Plain anchor=[empty] tag=?
+  8 Scalar         L4:C1:I43        ..L4:C7:I49         value="nested" style=Plain anchor=[empty] tag=?
+  9 MappingStart   L5:C3:I53        ..L5:C3:I53         style=Block anchor=[empty] tag=?
+ 10 Scalar         L5:C3:I53        ..L5:C8:I58         value="first" style=Plain anchor=[empty] tag=?
+ 11 Scalar         L5:C10:I60       ..L5:C11:I61        value="1" style=Plain anchor=[empty] tag=?
+ 12 Comment        L6:C3:I64        ..L6:C23:I84        inline=false value="C02 leading nested"
+ 13 Scalar         L7:C3:I87        ..L7:C9:I93         value="second" style=Plain anchor=[empty] tag=?
+ 14 Scalar         L7:C11:I95       ..L7:C12:I96        value="2" style=Plain anchor=[empty] tag=?
+ 15 MappingEnd     L8:C1:I97        ..L8:C1:I97         
+ 16 Scalar         L8:C1:I97        ..L8:C6:I102        value="items" style=Plain anchor=[empty] tag=?
+ 17 SequenceStart  L9:C3:I106       ..L9:C3:I106        style=Block anchor=[empty] tag=?
+ 18 Scalar         L9:C5:I108       ..L9:C8:I111        value="one" style=Plain anchor=[empty] tag=?
+ 19 Comment        L10:C3:I114      ..L10:C30:I141      inline=false value="C03 leading sequence item"
+ 20 Scalar         L11:C5:I146      ..L11:C8:I149       value="two" style=Plain anchor=[empty] tag=?
+ 21 SequenceEnd    L12:C1:I150      ..L12:C1:I150       
+ 22 MappingEnd     L12:C1:I150      ..L12:C1:I150       
+ 23 DocumentEnd    L12:C1:I150      ..L12:C1:I150       implicit=true
+ 24 StreamEnd      L12:C1:I150      ..L12:C1:I150       
 --- comment associations ---
 C01  parser=yes/inline=false; Leading $.second                                  PASS
 C02  parser=yes/inline=false; Leading $.nested.second                           PASS
@@ -38,25 +38,25 @@ C03  parser=yes/inline=false; Leading $.items[1]                                
   3 Scalar         L1:C1:I0         ..L1:C7:I6          value="scalar" style=Plain anchor=[empty] tag=?
   4 Scalar         L1:C9:I8         ..L1:C14:I13        value="value" style=Plain anchor=[empty] tag=?
   5 Comment        L1:C15:I14       ..L1:C40:I39        inline=true value="C04 inline scalar value"
-  6 Scalar         L2:C1:I41        ..L2:C6:I46         value="block" style=Plain anchor=[empty] tag=?
-  7 Comment        L2:C8:I48        ..L2:C52:I92        inline=true value="C05 inline mapping key before nested block"
-  8 MappingStart   L3:C3:I96        ..L3:C3:I96         style=Block anchor=[empty] tag=?
-  9 Scalar         L3:C3:I96        ..L3:C8:I101        value="child" style=Plain anchor=[empty] tag=?
- 10 Scalar         L3:C10:I103      ..L3:C15:I108       value="value" style=Plain anchor=[empty] tag=?
- 11 MappingEnd     L4:C1:I110       ..L4:C1:I110        
- 12 Scalar         L4:C1:I110       ..L4:C6:I115        value="items" style=Plain anchor=[empty] tag=?
- 13 SequenceStart  L5:C3:I120       ..L5:C3:I120        style=Block anchor=[empty] tag=?
- 14 Scalar         L5:C5:I122       ..L5:C8:I125        value="one" style=Plain anchor=[empty] tag=?
- 15 Comment        L5:C9:I126       ..L5:C42:I159       inline=true value="C06 inline scalar sequence item"
- 16 Comment        L6:C5:I165       ..L6:C56:I216       inline=true value="C07 inline sequence indicator before nested block"
- 17 MappingStart   L7:C5:I222       ..L7:C5:I222        style=Block anchor=[empty] tag=?
- 18 Scalar         L7:C5:I222       ..L7:C10:I227       value="child" style=Plain anchor=[empty] tag=?
- 19 Scalar         L7:C12:I229      ..L7:C15:I232       value="two" style=Plain anchor=[empty] tag=?
- 20 MappingEnd     L8:C1:I234       ..L8:C1:I234        
- 21 SequenceEnd    L8:C1:I234       ..L8:C1:I234        
- 22 MappingEnd     L8:C1:I234       ..L8:C1:I234        
- 23 DocumentEnd    L8:C1:I234       ..L8:C1:I234        implicit=true
- 24 StreamEnd      L8:C1:I234       ..L8:C1:I234        
+  6 Scalar         L2:C1:I40        ..L2:C6:I45         value="block" style=Plain anchor=[empty] tag=?
+  7 Comment        L2:C8:I47        ..L2:C52:I91        inline=true value="C05 inline mapping key before nested block"
+  8 MappingStart   L3:C3:I94        ..L3:C3:I94         style=Block anchor=[empty] tag=?
+  9 Scalar         L3:C3:I94        ..L3:C8:I99         value="child" style=Plain anchor=[empty] tag=?
+ 10 Scalar         L3:C10:I101      ..L3:C15:I106       value="value" style=Plain anchor=[empty] tag=?
+ 11 MappingEnd     L4:C1:I107       ..L4:C1:I107        
+ 12 Scalar         L4:C1:I107       ..L4:C6:I112        value="items" style=Plain anchor=[empty] tag=?
+ 13 SequenceStart  L5:C3:I116       ..L5:C3:I116        style=Block anchor=[empty] tag=?
+ 14 Scalar         L5:C5:I118       ..L5:C8:I121        value="one" style=Plain anchor=[empty] tag=?
+ 15 Comment        L5:C9:I122       ..L5:C42:I155       inline=true value="C06 inline scalar sequence item"
+ 16 Comment        L6:C5:I160       ..L6:C56:I211       inline=true value="C07 inline sequence indicator before nested block"
+ 17 MappingStart   L7:C5:I216       ..L7:C5:I216        style=Block anchor=[empty] tag=?
+ 18 Scalar         L7:C5:I216       ..L7:C10:I221       value="child" style=Plain anchor=[empty] tag=?
+ 19 Scalar         L7:C12:I223      ..L7:C15:I226       value="two" style=Plain anchor=[empty] tag=?
+ 20 MappingEnd     L8:C1:I227       ..L8:C1:I227        
+ 21 SequenceEnd    L8:C1:I227       ..L8:C1:I227        
+ 22 MappingEnd     L8:C1:I227       ..L8:C1:I227        
+ 23 DocumentEnd    L8:C1:I227       ..L8:C1:I227        implicit=true
+ 24 StreamEnd      L8:C1:I227       ..L8:C1:I227        
 --- comment associations ---
 C04  parser=yes/inline=true; Inline $.scalar                                    PASS
 C05  parser=yes/inline=true; Inline $.block                                     PASS
@@ -70,18 +70,18 @@ C07  parser=yes/inline=true; Inline $.items[1]                                  
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C7:I6          value="before" style=Plain anchor=[empty] tag=?
   4 Scalar         L1:C9:I8         ..L1:C10:I9         value="0" style=Plain anchor=[empty] tag=?
-  5 Comment        L2:C1:I11        ..L2:C21:I31        inline=false value="C08 block line one"
-  6 Comment        L3:C1:I33        ..L3:C21:I53        inline=false value="C09 block line two"
-  7 Scalar         L4:C1:I55        ..L4:C6:I60         value="after" style=Plain anchor=[empty] tag=?
-  8 Scalar         L4:C8:I62        ..L4:C9:I63         value="1" style=Plain anchor=[empty] tag=?
-  9 Scalar         L5:C1:I65        ..L5:C14:I78        value="spaced_before" style=Plain anchor=[empty] tag=?
- 10 Scalar         L5:C16:I80       ..L5:C17:I81        value="2" style=Plain anchor=[empty] tag=?
- 11 Comment        L6:C1:I83        ..L6:C30:I112       inline=false value="C10 separated by blank line"
- 12 Scalar         L8:C1:I116       ..L8:C13:I128       value="spaced_after" style=Plain anchor=[empty] tag=?
- 13 Scalar         L8:C15:I130      ..L8:C16:I131       value="3" style=Plain anchor=[empty] tag=?
- 14 MappingEnd     L9:C1:I133       ..L9:C1:I133        
- 15 DocumentEnd    L9:C1:I133       ..L9:C1:I133        implicit=true
- 16 StreamEnd      L9:C1:I133       ..L9:C1:I133        
+  5 Comment        L2:C1:I10        ..L2:C21:I30        inline=false value="C08 block line one"
+  6 Comment        L3:C1:I31        ..L3:C21:I51        inline=false value="C09 block line two"
+  7 Scalar         L4:C1:I52        ..L4:C6:I57         value="after" style=Plain anchor=[empty] tag=?
+  8 Scalar         L4:C8:I59        ..L4:C9:I60         value="1" style=Plain anchor=[empty] tag=?
+  9 Scalar         L5:C1:I61        ..L5:C14:I74        value="spaced_before" style=Plain anchor=[empty] tag=?
+ 10 Scalar         L5:C16:I76       ..L5:C17:I77        value="2" style=Plain anchor=[empty] tag=?
+ 11 Comment        L6:C1:I78        ..L6:C30:I107       inline=false value="C10 separated by blank line"
+ 12 Scalar         L8:C1:I109       ..L8:C13:I121       value="spaced_after" style=Plain anchor=[empty] tag=?
+ 13 Scalar         L8:C15:I123      ..L8:C16:I124       value="3" style=Plain anchor=[empty] tag=?
+ 14 MappingEnd     L9:C1:I125       ..L9:C1:I125        
+ 15 DocumentEnd    L9:C1:I125       ..L9:C1:I125        implicit=true
+ 16 StreamEnd      L9:C1:I125       ..L9:C1:I125        
 --- comment associations ---
 C08  parser=yes/inline=false; Leading $.after                                   PASS
 C09  parser=yes/inline=false; Leading $.after                                   PASS
@@ -90,17 +90,17 @@ C10  parser=yes/inline=false; Leading $.spaced_after                            
 === 04-document-edges.yaml ===
 --- parser event stream ---
   0 StreamStart    L1:C1:I0         ..L1:C1:I0          
-  1 DocumentStart  L2:C1:I24        ..L2:C1:I24         implicit=true
+  1 DocumentStart  L2:C1:I23        ..L2:C1:I23         implicit=true
   2 Comment        L1:C1:I0         ..L1:C23:I22        inline=false value="C11 document leading"
-  3 MappingStart   L2:C1:I24        ..L2:C1:I24         style=Block anchor=[empty] tag=?
-  4 Scalar         L2:C1:I24        ..L2:C6:I29         value="first" style=Plain anchor=[empty] tag=?
-  5 Scalar         L2:C8:I31        ..L2:C9:I32         value="1" style=Plain anchor=[empty] tag=?
-  6 Scalar         L3:C1:I34        ..L3:C5:I38         value="last" style=Plain anchor=[empty] tag=?
-  7 Scalar         L3:C7:I40        ..L3:C8:I41         value="2" style=Plain anchor=[empty] tag=?
-  8 Comment        L4:C1:I43        ..L4:C24:I66        inline=false value="C12 document trailing"
-  9 MappingEnd     L5:C1:I68        ..L5:C1:I68         
- 10 DocumentEnd    L5:C1:I68        ..L5:C1:I68         implicit=true
- 11 StreamEnd      L5:C1:I68        ..L5:C1:I68         
+  3 MappingStart   L2:C1:I23        ..L2:C1:I23         style=Block anchor=[empty] tag=?
+  4 Scalar         L2:C1:I23        ..L2:C6:I28         value="first" style=Plain anchor=[empty] tag=?
+  5 Scalar         L2:C8:I30        ..L2:C9:I31         value="1" style=Plain anchor=[empty] tag=?
+  6 Scalar         L3:C1:I32        ..L3:C5:I36         value="last" style=Plain anchor=[empty] tag=?
+  7 Scalar         L3:C7:I38        ..L3:C8:I39         value="2" style=Plain anchor=[empty] tag=?
+  8 Comment        L4:C1:I40        ..L4:C24:I63        inline=false value="C12 document trailing"
+  9 MappingEnd     L5:C1:I64        ..L5:C1:I64         
+ 10 DocumentEnd    L5:C1:I64        ..L5:C1:I64         implicit=true
+ 11 StreamEnd      L5:C1:I64        ..L5:C1:I64         
 --- comment associations ---
 C11  parser=yes/inline=false; DocumentLeading                                   PASS
 C12  parser=yes/inline=false; DocumentTrailing                                  PASS
@@ -111,24 +111,24 @@ C12  parser=yes/inline=false; DocumentTrailing                                  
   1 DocumentStart  L1:C1:I0         ..L1:C1:I0          implicit=true
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C7:I6          value="parent" style=Plain anchor=[empty] tag=?
-  4 MappingStart   L2:C3:I11        ..L2:C3:I11         style=Block anchor=[empty] tag=?
-  5 Scalar         L2:C3:I11        ..L2:C8:I16         value="child" style=Plain anchor=[empty] tag=?
-  6 Scalar         L2:C10:I18       ..L2:C11:I19        value="1" style=Plain anchor=[empty] tag=?
-  7 Comment        L3:C1:I21        ..L3:C48:I68        inline=false value="C13 dedented between child and parent sibling"
-  8 MappingEnd     L4:C1:I70        ..L4:C1:I70         
-  9 Scalar         L4:C1:I70        ..L4:C5:I74         value="next" style=Plain anchor=[empty] tag=?
- 10 Scalar         L4:C7:I76        ..L4:C8:I77         value="2" style=Plain anchor=[empty] tag=?
- 11 Scalar         L5:C1:I79        ..L5:C6:I84         value="other" style=Plain anchor=[empty] tag=?
- 12 MappingStart   L6:C3:I89        ..L6:C3:I89         style=Block anchor=[empty] tag=?
- 13 Scalar         L6:C3:I89        ..L6:C8:I94         value="child" style=Plain anchor=[empty] tag=?
- 14 Scalar         L6:C10:I96       ..L6:C11:I97        value="3" style=Plain anchor=[empty] tag=?
- 15 Comment        L7:C3:I101       ..L7:C56:I154       inline=false value="C14 indented after last child before parent sibling"
- 16 MappingEnd     L8:C1:I156       ..L8:C1:I156        
- 17 Scalar         L8:C1:I156       ..L8:C6:I161        value="final" style=Plain anchor=[empty] tag=?
- 18 Scalar         L8:C8:I163       ..L8:C9:I164        value="4" style=Plain anchor=[empty] tag=?
- 19 MappingEnd     L9:C1:I166       ..L9:C1:I166        
- 20 DocumentEnd    L9:C1:I166       ..L9:C1:I166        implicit=true
- 21 StreamEnd      L9:C1:I166       ..L9:C1:I166        
+  4 MappingStart   L2:C3:I10        ..L2:C3:I10         style=Block anchor=[empty] tag=?
+  5 Scalar         L2:C3:I10        ..L2:C8:I15         value="child" style=Plain anchor=[empty] tag=?
+  6 Scalar         L2:C10:I17       ..L2:C11:I18        value="1" style=Plain anchor=[empty] tag=?
+  7 Comment        L3:C1:I19        ..L3:C48:I66        inline=false value="C13 dedented between child and parent sibling"
+  8 MappingEnd     L4:C1:I67        ..L4:C1:I67         
+  9 Scalar         L4:C1:I67        ..L4:C5:I71         value="next" style=Plain anchor=[empty] tag=?
+ 10 Scalar         L4:C7:I73        ..L4:C8:I74         value="2" style=Plain anchor=[empty] tag=?
+ 11 Scalar         L5:C1:I75        ..L5:C6:I80         value="other" style=Plain anchor=[empty] tag=?
+ 12 MappingStart   L6:C3:I84        ..L6:C3:I84         style=Block anchor=[empty] tag=?
+ 13 Scalar         L6:C3:I84        ..L6:C8:I89         value="child" style=Plain anchor=[empty] tag=?
+ 14 Scalar         L6:C10:I91       ..L6:C11:I92        value="3" style=Plain anchor=[empty] tag=?
+ 15 Comment        L7:C3:I95        ..L7:C56:I148       inline=false value="C14 indented after last child before parent sibling"
+ 16 MappingEnd     L8:C1:I149       ..L8:C1:I149        
+ 17 Scalar         L8:C1:I149       ..L8:C6:I154        value="final" style=Plain anchor=[empty] tag=?
+ 18 Scalar         L8:C8:I156       ..L8:C9:I157        value="4" style=Plain anchor=[empty] tag=?
+ 19 MappingEnd     L9:C1:I158       ..L9:C1:I158        
+ 20 DocumentEnd    L9:C1:I158       ..L9:C1:I158        implicit=true
+ 21 StreamEnd      L9:C1:I158       ..L9:C1:I158        
 --- comment associations ---
 C13  parser=yes/inline=false; Leading $.next                                    PASS
 C14  parser=yes/inline=false; Trailing $.other.child                            PASS
@@ -140,35 +140,35 @@ C14  parser=yes/inline=false; Trailing $.other.child                            
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C9:I8          value="flow_map" style=Plain anchor=[empty] tag=?
   4 MappingStart   L1:C11:I10       ..L1:C11:I10        style=Flow anchor=[empty] tag=?
-  5 Scalar         L2:C3:I15        ..L2:C4:I16         value="a" style=Plain anchor=[empty] tag=?
-  6 Scalar         L2:C6:I18        ..L2:C7:I19         value="1" style=Plain anchor=[empty] tag=?
-  7 Comment        L2:C9:I21        ..L2:C33:I45        inline=true value="C15 flow mapping entry"
-  8 Scalar         L3:C3:I49        ..L3:C4:I50         value="b" style=Plain anchor=[empty] tag=?
-  9 Scalar         L3:C6:I52        ..L3:C7:I53         value="2" style=Plain anchor=[empty] tag=?
- 10 MappingEnd     L4:C1:I55        ..L4:C1:I55         
- 11 Scalar         L5:C1:I58        ..L5:C14:I71        value="flow_sequence" style=Plain anchor=[empty] tag=?
- 12 SequenceStart  L5:C16:I73       ..L5:C16:I73        style=Flow anchor=[empty] tag=?
- 13 Scalar         L6:C3:I78        ..L6:C6:I81         value="one" style=Plain anchor=[empty] tag=?
- 14 Comment        L6:C8:I83        ..L6:C32:I107       inline=true value="C16 flow sequence item"
- 15 Scalar         L7:C3:I111       ..L7:C6:I114        value="two" style=Plain anchor=[empty] tag=?
- 16 SequenceEnd    L8:C1:I116       ..L8:C1:I116        
- 17 Scalar         L9:C1:I119       ..L9:C11:I129       value="closed_map" style=Plain anchor=[empty] tag=?
- 18 MappingStart   L9:C13:I131      ..L9:C13:I131       style=Flow anchor=[empty] tag=?
- 19 Scalar         L9:C14:I132      ..L9:C15:I133       value="a" style=Plain anchor=[empty] tag=?
- 20 Scalar         L9:C17:I135      ..L9:C18:I136       value="1" style=Plain anchor=[empty] tag=?
- 21 Scalar         L9:C20:I138      ..L9:C21:I139       value="b" style=Plain anchor=[empty] tag=?
- 22 Scalar         L9:C23:I141      ..L9:C24:I142       value="2" style=Plain anchor=[empty] tag=?
- 23 MappingEnd     L9:C24:I142      ..L9:C24:I142       
- 24 Comment        L9:C26:I144      ..L9:C50:I168       inline=true value="C17 after flow mapping"
- 25 Scalar         L10:C1:I170      ..L10:C16:I185      value="closed_sequence" style=Plain anchor=[empty] tag=?
- 26 SequenceStart  L10:C18:I187     ..L10:C18:I187      style=Flow anchor=[empty] tag=?
- 27 Scalar         L10:C19:I188     ..L10:C22:I191      value="one" style=Plain anchor=[empty] tag=?
- 28 Scalar         L10:C24:I193     ..L10:C27:I196      value="two" style=Plain anchor=[empty] tag=?
- 29 SequenceEnd    L10:C27:I196     ..L10:C27:I196      
- 30 Comment        L10:C29:I198     ..L10:C54:I223      inline=true value="C18 after flow sequence"
- 31 MappingEnd     L11:C1:I225      ..L11:C1:I225       
- 32 DocumentEnd    L11:C1:I225      ..L11:C1:I225       implicit=true
- 33 StreamEnd      L11:C1:I225      ..L11:C1:I225       
+  5 Scalar         L2:C3:I14        ..L2:C4:I15         value="a" style=Plain anchor=[empty] tag=?
+  6 Scalar         L2:C6:I17        ..L2:C7:I18         value="1" style=Plain anchor=[empty] tag=?
+  7 Comment        L2:C9:I20        ..L2:C33:I44        inline=true value="C15 flow mapping entry"
+  8 Scalar         L3:C3:I47        ..L3:C4:I48         value="b" style=Plain anchor=[empty] tag=?
+  9 Scalar         L3:C6:I50        ..L3:C7:I51         value="2" style=Plain anchor=[empty] tag=?
+ 10 MappingEnd     L4:C1:I52        ..L4:C1:I52         
+ 11 Scalar         L5:C1:I54        ..L5:C14:I67        value="flow_sequence" style=Plain anchor=[empty] tag=?
+ 12 SequenceStart  L5:C16:I69       ..L5:C16:I69        style=Flow anchor=[empty] tag=?
+ 13 Scalar         L6:C3:I73        ..L6:C6:I76         value="one" style=Plain anchor=[empty] tag=?
+ 14 Comment        L6:C8:I78        ..L6:C32:I102       inline=true value="C16 flow sequence item"
+ 15 Scalar         L7:C3:I105       ..L7:C6:I108        value="two" style=Plain anchor=[empty] tag=?
+ 16 SequenceEnd    L8:C1:I109       ..L8:C1:I109        
+ 17 Scalar         L9:C1:I111       ..L9:C11:I121       value="closed_map" style=Plain anchor=[empty] tag=?
+ 18 MappingStart   L9:C13:I123      ..L9:C13:I123       style=Flow anchor=[empty] tag=?
+ 19 Scalar         L9:C14:I124      ..L9:C15:I125       value="a" style=Plain anchor=[empty] tag=?
+ 20 Scalar         L9:C17:I127      ..L9:C18:I128       value="1" style=Plain anchor=[empty] tag=?
+ 21 Scalar         L9:C20:I130      ..L9:C21:I131       value="b" style=Plain anchor=[empty] tag=?
+ 22 Scalar         L9:C23:I133      ..L9:C24:I134       value="2" style=Plain anchor=[empty] tag=?
+ 23 MappingEnd     L9:C24:I134      ..L9:C24:I134       
+ 24 Comment        L9:C26:I136      ..L9:C50:I160       inline=true value="C17 after flow mapping"
+ 25 Scalar         L10:C1:I161      ..L10:C16:I176      value="closed_sequence" style=Plain anchor=[empty] tag=?
+ 26 SequenceStart  L10:C18:I178     ..L10:C18:I178      style=Flow anchor=[empty] tag=?
+ 27 Scalar         L10:C19:I179     ..L10:C22:I182      value="one" style=Plain anchor=[empty] tag=?
+ 28 Scalar         L10:C24:I184     ..L10:C27:I187      value="two" style=Plain anchor=[empty] tag=?
+ 29 SequenceEnd    L10:C27:I187     ..L10:C27:I187      
+ 30 Comment        L10:C29:I189     ..L10:C54:I214      inline=true value="C18 after flow sequence"
+ 31 MappingEnd     L11:C1:I215      ..L11:C1:I215       
+ 32 DocumentEnd    L11:C1:I215      ..L11:C1:I215       implicit=true
+ 33 StreamEnd      L11:C1:I215      ..L11:C1:I215       
 --- comment associations ---
 C15  parser=yes/inline=true; Inline $.flow_map.a                                PASS
 C16  parser=yes/inline=true; Inline $.flow_sequence[0]                          PASS
@@ -178,17 +178,17 @@ C18  parser=yes/inline=true; Inline $.closed_sequence                           
 === 07-document-markers.yaml ===
 --- parser event stream ---
   0 StreamStart    L1:C1:I0         ..L1:C1:I0          
-  1 DocumentStart  L2:C1:I29        ..L2:C4:I32         implicit=false
+  1 DocumentStart  L2:C1:I28        ..L2:C4:I31         implicit=false
   2 Comment        L1:C1:I0         ..L1:C28:I27        inline=false value="C19 before document start"
-  3 Comment        L2:C5:I33        ..L2:C38:I66        inline=true value="C20 after document start marker"
-  4 Comment        L3:C1:I68        ..L3:C27:I94        inline=false value="C21 after document start"
-  5 MappingStart   L4:C1:I96        ..L4:C1:I96         style=Block anchor=[empty] tag=?
-  6 Scalar         L4:C1:I96        ..L4:C6:I101        value="first" style=Plain anchor=[empty] tag=?
-  7 Scalar         L4:C8:I103       ..L4:C9:I104        value="1" style=Plain anchor=[empty] tag=?
-  8 Comment        L5:C1:I106       ..L5:C26:I131       inline=false value="C22 before document end"
-  9 MappingEnd     L6:C1:I133       ..L6:C1:I133        
- 10 DocumentEnd    L6:C1:I133       ..L6:C1:I133        implicit=false
- 11 Comment        L6:C5:I137       ..L6:C36:I168       inline=false value="C23 after document end marker"
+  3 Comment        L2:C5:I32        ..L2:C38:I65        inline=true value="C20 after document start marker"
+  4 Comment        L3:C1:I66        ..L3:C27:I92        inline=false value="C21 after document start"
+  5 MappingStart   L4:C1:I93        ..L4:C1:I93         style=Block anchor=[empty] tag=?
+  6 Scalar         L4:C1:I93        ..L4:C6:I98         value="first" style=Plain anchor=[empty] tag=?
+  7 Scalar         L4:C8:I100       ..L4:C9:I101        value="1" style=Plain anchor=[empty] tag=?
+  8 Comment        L5:C1:I102       ..L5:C26:I127       inline=false value="C22 before document end"
+  9 MappingEnd     L6:C1:I128       ..L6:C1:I128        
+ 10 DocumentEnd    L6:C1:I128       ..L6:C1:I128        implicit=false
+ 11 Comment        L6:C5:I132       ..L6:C36:I163       inline=false value="C23 after document end marker"
 --- comment associations ---
 C19  parser=yes/inline=false; RejectedSyntax                                    PASS
 C20  parser=yes/inline=true; RejectedSyntax                                     PASS
@@ -204,16 +204,16 @@ C24  parser=NO (scanner compensation); RejectedSyntax                           
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C14:I13        value="quoted_double" style=Plain anchor=[empty] tag=?
   4 Scalar         L1:C16:I15       ..L1:C43:I42        value="value # C25 not a comment" style=DoubleQuoted anchor=[empty] tag=?
-  5 Scalar         L2:C1:I44        ..L2:C14:I57        value="quoted_single" style=Plain anchor=[empty] tag=?
-  6 Scalar         L2:C16:I59       ..L2:C43:I86        value="value # C26 not a comment" style=SingleQuoted anchor=[empty] tag=?
-  7 Scalar         L3:C1:I88        ..L3:C6:I93         value="plain" style=Plain anchor=[empty] tag=?
-  8 Scalar         L3:C8:I95        ..L3:C31:I118       value="value#C27-not-a-comment" style=Plain anchor=[empty] tag=?
-  9 Scalar         L4:C1:I120       ..L4:C7:I126        value="actual" style=Plain anchor=[empty] tag=?
- 10 Scalar         L4:C9:I128       ..L4:C14:I133       value="value" style=Plain anchor=[empty] tag=?
- 11 Comment        L4:C15:I134      ..L4:C42:I161       inline=true value="C28 actual inline comment"
- 12 MappingEnd     L5:C1:I163       ..L5:C1:I163        
- 13 DocumentEnd    L5:C1:I163       ..L5:C1:I163        implicit=true
- 14 StreamEnd      L5:C1:I163       ..L5:C1:I163        
+  5 Scalar         L2:C1:I43        ..L2:C14:I56        value="quoted_single" style=Plain anchor=[empty] tag=?
+  6 Scalar         L2:C16:I58       ..L2:C43:I85        value="value # C26 not a comment" style=SingleQuoted anchor=[empty] tag=?
+  7 Scalar         L3:C1:I86        ..L3:C6:I91         value="plain" style=Plain anchor=[empty] tag=?
+  8 Scalar         L3:C8:I93        ..L3:C31:I116       value="value#C27-not-a-comment" style=Plain anchor=[empty] tag=?
+  9 Scalar         L4:C1:I117       ..L4:C7:I123        value="actual" style=Plain anchor=[empty] tag=?
+ 10 Scalar         L4:C9:I125       ..L4:C14:I130       value="value" style=Plain anchor=[empty] tag=?
+ 11 Comment        L4:C15:I131      ..L4:C42:I158       inline=true value="C28 actual inline comment"
+ 12 MappingEnd     L5:C1:I159       ..L5:C1:I159        
+ 13 DocumentEnd    L5:C1:I159       ..L5:C1:I159        implicit=true
+ 14 StreamEnd      L5:C1:I159       ..L5:C1:I159        
 --- comment associations ---
 C25  correctly remains scalar content                                           PASS
 C26  correctly remains scalar content                                           PASS
@@ -227,17 +227,17 @@ C28  parser=yes/inline=true; Inline $.actual                                    
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C8:I7          value="literal" style=Plain anchor=[empty] tag=?
   4 Comment        L1:C12:I11       ..L1:C40:I39        inline=true value="C29 literal header comment"
-  5 Scalar         L1:C10:I9        ..L5:C1:I105        value="first line\n# C30 literal body, not a comment\nlast line\n" style=Literal anchor=[empty] tag=?
-  6 Comment        L5:C1:I105       ..L5:C27:I131       inline=false value="C31 after literal scalar"
-  7 Scalar         L6:C1:I133       ..L6:C7:I139        value="folded" style=Plain anchor=[empty] tag=?
-  8 Comment        L6:C11:I143      ..L6:C38:I170       inline=true value="C32 folded header comment"
-  9 Scalar         L6:C9:I141       ..L10:C1:I249       value="first folded line # C33 folded body, not a comment last folded line\n" style=Folded anchor=[empty] tag=?
- 10 Scalar         L10:C1:I249      ..L10:C5:I253       value="next" style=Plain anchor=[empty] tag=?
- 11 Scalar         L10:C7:I255      ..L10:C12:I260      value="value" style=Plain anchor=[empty] tag=?
- 12 Comment        L10:C13:I261     ..L10:C40:I288      inline=true value="C34 after ordinary scalar"
- 13 MappingEnd     L11:C1:I290      ..L11:C1:I290       
- 14 DocumentEnd    L11:C1:I290      ..L11:C1:I290       implicit=true
- 15 StreamEnd      L11:C1:I290      ..L11:C1:I290       
+  5 Scalar         L1:C10:I9        ..L5:C1:I101        value="first line\n# C30 literal body, not a comment\nlast line\n" style=Literal anchor=[empty] tag=?
+  6 Comment        L5:C1:I101       ..L5:C27:I127       inline=false value="C31 after literal scalar"
+  7 Scalar         L6:C1:I128       ..L6:C7:I134        value="folded" style=Plain anchor=[empty] tag=?
+  8 Comment        L6:C11:I138      ..L6:C38:I165       inline=true value="C32 folded header comment"
+  9 Scalar         L6:C9:I136       ..L10:C1:I240       value="first folded line # C33 folded body, not a comment last folded line\n" style=Folded anchor=[empty] tag=?
+ 10 Scalar         L10:C1:I240      ..L10:C5:I244       value="next" style=Plain anchor=[empty] tag=?
+ 11 Scalar         L10:C7:I246      ..L10:C12:I251      value="value" style=Plain anchor=[empty] tag=?
+ 12 Comment        L10:C13:I252     ..L10:C40:I279      inline=true value="C34 after ordinary scalar"
+ 13 MappingEnd     L11:C1:I280      ..L11:C1:I280       
+ 14 DocumentEnd    L11:C1:I280      ..L11:C1:I280       implicit=true
+ 15 StreamEnd      L11:C1:I280      ..L11:C1:I280       
 --- comment associations ---
 C29  parser=yes/inline=true; Inline $.literal                                   PASS
 C30  correctly remains scalar content                                           PASS
@@ -253,23 +253,23 @@ C34  parser=yes/inline=true; Inline $.next                                      
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C9:I8          value="anchored" style=Plain anchor=[empty] tag=?
   4 Comment        L1:C17:I16       ..L1:C55:I54        inline=true value="C35 after anchor before nested block"
-  5 Comment        L2:C3:I58        ..L2:C32:I87        inline=false value="C36 inside anchored mapping"
-  6 MappingStart   L1:C11:I10       ..L3:C3:I91         style=Block anchor=base tag=?
-  7 Scalar         L3:C3:I91        ..L3:C8:I96         value="child" style=Plain anchor=[empty] tag=?
-  8 Scalar         L3:C10:I98       ..L3:C15:I103       value="value" style=Plain anchor=[empty] tag=?
-  9 MappingEnd     L4:C1:I105       ..L4:C1:I105        
- 10 Scalar         L4:C1:I105       ..L4:C6:I110        value="alias" style=Plain anchor=[empty] tag=?
- 11 AnchorAlias    L4:C8:I112       ..L4:C13:I117       alias=base
- 12 Comment        L4:C14:I118      ..L4:C31:I135       inline=true value="C37 after alias"
- 13 Scalar         L5:C1:I137       ..L5:C7:I143        value="tagged" style=Plain anchor=[empty] tag=?
- 14 Scalar         L5:C9:I145       ..L5:C21:I157       value="value" style=Plain anchor=[empty] tag=!local
- 15 Comment        L5:C22:I158      ..L5:C47:I183       inline=true value="C38 after tagged scalar"
- 16 Comment        L6:C1:I185       ..L6:C29:I213       inline=false value="C39 before anchored scalar"
- 17 Scalar         L7:C1:I215       ..L7:C14:I228       value="scalar_anchor" style=Plain anchor=[empty] tag=?
- 18 Scalar         L7:C16:I230      ..L7:C38:I252       value="anchored-value" style=Plain anchor=scalar tag=?
- 19 MappingEnd     L8:C1:I254       ..L8:C1:I254        
- 20 DocumentEnd    L8:C1:I254       ..L8:C1:I254        implicit=true
- 21 StreamEnd      L8:C1:I254       ..L8:C1:I254        
+  5 Comment        L2:C3:I57        ..L2:C32:I86        inline=false value="C36 inside anchored mapping"
+  6 MappingStart   L1:C11:I10       ..L3:C3:I89         style=Block anchor=base tag=?
+  7 Scalar         L3:C3:I89        ..L3:C8:I94         value="child" style=Plain anchor=[empty] tag=?
+  8 Scalar         L3:C10:I96       ..L3:C15:I101       value="value" style=Plain anchor=[empty] tag=?
+  9 MappingEnd     L4:C1:I102       ..L4:C1:I102        
+ 10 Scalar         L4:C1:I102       ..L4:C6:I107        value="alias" style=Plain anchor=[empty] tag=?
+ 11 AnchorAlias    L4:C8:I109       ..L4:C13:I114       alias=base
+ 12 Comment        L4:C14:I115      ..L4:C31:I132       inline=true value="C37 after alias"
+ 13 Scalar         L5:C1:I133       ..L5:C7:I139        value="tagged" style=Plain anchor=[empty] tag=?
+ 14 Scalar         L5:C9:I141       ..L5:C21:I153       value="value" style=Plain anchor=[empty] tag=!local
+ 15 Comment        L5:C22:I154      ..L5:C47:I179       inline=true value="C38 after tagged scalar"
+ 16 Comment        L6:C1:I180       ..L6:C29:I208       inline=false value="C39 before anchored scalar"
+ 17 Scalar         L7:C1:I209       ..L7:C14:I222       value="scalar_anchor" style=Plain anchor=[empty] tag=?
+ 18 Scalar         L7:C16:I224      ..L7:C38:I246       value="anchored-value" style=Plain anchor=scalar tag=?
+ 19 MappingEnd     L8:C1:I247       ..L8:C1:I247        
+ 20 DocumentEnd    L8:C1:I247       ..L8:C1:I247        implicit=true
+ 21 StreamEnd      L8:C1:I247       ..L8:C1:I247        
 --- comment associations ---
 C35  parser=yes/inline=true; Inline $.anchored                                  PASS
 C36  parser=yes/inline=false; Leading $.anchored.child                          PASS
@@ -285,17 +285,17 @@ C39  parser=yes/inline=false; Leading $.scalar_anchor                           
   3 Scalar         L1:C1:I0         ..L1:C6:I5          value="empty" style=Plain anchor=[empty] tag=?
   4 Comment        L1:C8:I7         ..L1:C31:I30        inline=true value="C40 after empty value"
   5 Scalar         L1:C7:I6         ..L1:C7:I6          value="" style=Plain anchor=[empty] tag=?
-  6 Scalar         L2:C1:I32        ..L2:C5:I36         value="next" style=Plain anchor=[empty] tag=?
-  7 Scalar         L2:C7:I38        ..L2:C12:I43        value="value" style=Plain anchor=[empty] tag=?
-  8 Scalar         L3:C1:I45        ..L3:C9:I53         value="explicit" style=Plain anchor=[empty] tag=?
-  9 MappingStart   L4:C3:I58        ..L4:C3:I58         style=Block anchor=[empty] tag=?
- 10 Scalar         L4:C5:I60        ..L4:C8:I63         value="key" style=Plain anchor=[empty] tag=?
- 11 Comment        L4:C9:I64        ..L4:C33:I88        inline=true value="C41 after explicit key"
- 12 Scalar         L5:C5:I94        ..L5:C10:I99        value="value" style=Plain anchor=[empty] tag=?
- 13 MappingEnd     L6:C1:I101       ..L6:C1:I101        
- 14 MappingEnd     L6:C1:I101       ..L6:C1:I101        
- 15 DocumentEnd    L6:C1:I101       ..L6:C1:I101        implicit=true
- 16 StreamEnd      L6:C1:I101       ..L6:C1:I101        
+  6 Scalar         L2:C1:I31        ..L2:C5:I35         value="next" style=Plain anchor=[empty] tag=?
+  7 Scalar         L2:C7:I37        ..L2:C12:I42        value="value" style=Plain anchor=[empty] tag=?
+  8 Scalar         L3:C1:I43        ..L3:C9:I51         value="explicit" style=Plain anchor=[empty] tag=?
+  9 MappingStart   L4:C3:I55        ..L4:C3:I55         style=Block anchor=[empty] tag=?
+ 10 Scalar         L4:C5:I57        ..L4:C8:I60         value="key" style=Plain anchor=[empty] tag=?
+ 11 Comment        L4:C9:I61        ..L4:C33:I85        inline=true value="C41 after explicit key"
+ 12 Scalar         L5:C5:I90        ..L5:C10:I95        value="value" style=Plain anchor=[empty] tag=?
+ 13 MappingEnd     L6:C1:I96        ..L6:C1:I96         
+ 14 MappingEnd     L6:C1:I96        ..L6:C1:I96         
+ 15 DocumentEnd    L6:C1:I96        ..L6:C1:I96         implicit=true
+ 16 StreamEnd      L6:C1:I96        ..L6:C1:I96         
 --- comment associations ---
 C40  parser=yes/inline=true; Inline $.empty                                     PASS
 C41  parser=yes/inline=true; Inline $.explicit.key                              PASS
@@ -311,16 +311,16 @@ C43  parser=NO (scanner compensation); DocumentOnly                             
 === 13-root-values.yaml ===
 --- parser event stream ---
   0 StreamStart    L1:C1:I0         ..L1:C1:I0          
-  1 DocumentStart  L2:C1:I28        ..L2:C1:I28         implicit=true
+  1 DocumentStart  L2:C1:I27        ..L2:C1:I27         implicit=true
   2 Comment        L1:C1:I0         ..L1:C27:I26        inline=false value="C44 before root sequence"
-  3 SequenceStart  L2:C1:I28        ..L2:C1:I28         style=Block anchor=[empty] tag=?
-  4 Scalar         L2:C3:I30        ..L2:C6:I33         value="one" style=Plain anchor=[empty] tag=?
-  5 Scalar         L3:C3:I37        ..L3:C6:I40         value="two" style=Plain anchor=[empty] tag=?
-  6 Comment        L3:C7:I41        ..L3:C29:I63        inline=true value="C45 inline root item"
-  7 Comment        L4:C1:I65        ..L4:C26:I90        inline=false value="C46 after root sequence"
-  8 SequenceEnd    L5:C1:I92        ..L5:C1:I92         
-  9 DocumentEnd    L5:C1:I92        ..L5:C1:I92         implicit=true
- 10 StreamEnd      L5:C1:I92        ..L5:C1:I92         
+  3 SequenceStart  L2:C1:I27        ..L2:C1:I27         style=Block anchor=[empty] tag=?
+  4 Scalar         L2:C3:I29        ..L2:C6:I32         value="one" style=Plain anchor=[empty] tag=?
+  5 Scalar         L3:C3:I35        ..L3:C6:I38         value="two" style=Plain anchor=[empty] tag=?
+  6 Comment        L3:C7:I39        ..L3:C29:I61        inline=true value="C45 inline root item"
+  7 Comment        L4:C1:I62        ..L4:C26:I87        inline=false value="C46 after root sequence"
+  8 SequenceEnd    L5:C1:I88        ..L5:C1:I88         
+  9 DocumentEnd    L5:C1:I88        ..L5:C1:I88         implicit=true
+ 10 StreamEnd      L5:C1:I88        ..L5:C1:I88         
 --- comment associations ---
 C44  parser=yes/inline=false; DocumentLeading                                   PASS
 C45  parser=yes/inline=true; Inline $[1]                                        PASS
@@ -333,20 +333,20 @@ C46  parser=yes/inline=false; DocumentTrailing                                  
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C7:I6          value="before" style=Plain anchor=[empty] tag=?
   4 Scalar         L1:C9:I8         ..L1:C10:I9         value="0" style=Plain anchor=[empty] tag=?
-  5 Scalar         L2:C1:I11        ..L2:C4:I14         value="key" style=Plain anchor=[empty] tag=?
-  6 Comment        L3:C3:I19        ..L3:C34:I50        inline=false value="C47 before first nested value"
-  7 MappingStart   L4:C3:I54        ..L4:C3:I54         style=Block anchor=[empty] tag=?
-  8 Scalar         L4:C3:I54        ..L4:C8:I59         value="child" style=Plain anchor=[empty] tag=?
-  9 Scalar         L4:C10:I61       ..L4:C11:I62        value="1" style=Plain anchor=[empty] tag=?
- 10 MappingEnd     L5:C1:I64        ..L5:C1:I64         
- 11 Scalar         L5:C1:I64        ..L5:C9:I72         value="sequence" style=Plain anchor=[empty] tag=?
- 12 Comment        L6:C3:I77        ..L6:C35:I109       inline=false value="C48 before first sequence item"
- 13 SequenceStart  L7:C3:I113       ..L7:C3:I113        style=Block anchor=[empty] tag=?
- 14 Scalar         L7:C5:I115       ..L7:C8:I118        value="one" style=Plain anchor=[empty] tag=?
- 15 SequenceEnd    L8:C1:I120       ..L8:C1:I120        
- 16 MappingEnd     L8:C1:I120       ..L8:C1:I120        
- 17 DocumentEnd    L8:C1:I120       ..L8:C1:I120        implicit=true
- 18 StreamEnd      L8:C1:I120       ..L8:C1:I120        
+  5 Scalar         L2:C1:I10        ..L2:C4:I13         value="key" style=Plain anchor=[empty] tag=?
+  6 Comment        L3:C3:I17        ..L3:C34:I48        inline=false value="C47 before first nested value"
+  7 MappingStart   L4:C3:I51        ..L4:C3:I51         style=Block anchor=[empty] tag=?
+  8 Scalar         L4:C3:I51        ..L4:C8:I56         value="child" style=Plain anchor=[empty] tag=?
+  9 Scalar         L4:C10:I58       ..L4:C11:I59        value="1" style=Plain anchor=[empty] tag=?
+ 10 MappingEnd     L5:C1:I60        ..L5:C1:I60         
+ 11 Scalar         L5:C1:I60        ..L5:C9:I68         value="sequence" style=Plain anchor=[empty] tag=?
+ 12 Comment        L6:C3:I72        ..L6:C35:I104       inline=false value="C48 before first sequence item"
+ 13 SequenceStart  L7:C3:I107       ..L7:C3:I107        style=Block anchor=[empty] tag=?
+ 14 Scalar         L7:C5:I109       ..L7:C8:I112        value="one" style=Plain anchor=[empty] tag=?
+ 15 SequenceEnd    L8:C1:I113       ..L8:C1:I113        
+ 16 MappingEnd     L8:C1:I113       ..L8:C1:I113        
+ 17 DocumentEnd    L8:C1:I113       ..L8:C1:I113        implicit=true
+ 18 StreamEnd      L8:C1:I113       ..L8:C1:I113        
 --- comment associations ---
 C47  parser=yes/inline=false; Leading $.key.child                               PASS
 C48  parser=yes/inline=false; Leading $.sequence[0]                             PASS
@@ -357,23 +357,23 @@ C48  parser=yes/inline=false; Leading $.sequence[0]                             
   1 DocumentStart  L1:C1:I0         ..L1:C1:I0          implicit=true
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C6:I5          value="items" style=Plain anchor=[empty] tag=?
-  4 SequenceStart  L2:C3:I10        ..L2:C3:I10         style=Block anchor=[empty] tag=?
-  5 MappingStart   L2:C5:I12        ..L2:C5:I12         style=Block anchor=[empty] tag=?
-  6 Scalar         L2:C5:I12        ..L2:C8:I15         value="key" style=Plain anchor=[empty] tag=?
-  7 Scalar         L2:C10:I17       ..L2:C15:I22        value="value" style=Plain anchor=[empty] tag=?
-  8 Comment        L2:C16:I23       ..L2:C43:I50        inline=true value="C49 compact mapping child"
-  9 MappingEnd     L3:C3:I54        ..L3:C3:I54         
- 10 MappingStart   L3:C5:I56        ..L3:C5:I56         style=Block anchor=[empty] tag=?
- 11 Scalar         L3:C5:I56        ..L3:C10:I61        value="other" style=Plain anchor=[empty] tag=?
- 12 Scalar         L3:C12:I63       ..L3:C17:I68        value="value" style=Plain anchor=[empty] tag=?
- 13 Comment        L4:C5:I74        ..L4:C43:I112       inline=false value="C50 between compact mapping children"
- 14 Scalar         L5:C5:I118       ..L5:C11:I124       value="second" style=Plain anchor=[empty] tag=?
- 15 Scalar         L5:C13:I126      ..L5:C18:I131       value="value" style=Plain anchor=[empty] tag=?
- 16 MappingEnd     L6:C1:I133       ..L6:C1:I133        
- 17 SequenceEnd    L6:C1:I133       ..L6:C1:I133        
- 18 MappingEnd     L6:C1:I133       ..L6:C1:I133        
- 19 DocumentEnd    L6:C1:I133       ..L6:C1:I133        implicit=true
- 20 StreamEnd      L6:C1:I133       ..L6:C1:I133        
+  4 SequenceStart  L2:C3:I9         ..L2:C3:I9          style=Block anchor=[empty] tag=?
+  5 MappingStart   L2:C5:I11        ..L2:C5:I11         style=Block anchor=[empty] tag=?
+  6 Scalar         L2:C5:I11        ..L2:C8:I14         value="key" style=Plain anchor=[empty] tag=?
+  7 Scalar         L2:C10:I16       ..L2:C15:I21        value="value" style=Plain anchor=[empty] tag=?
+  8 Comment        L2:C16:I22       ..L2:C43:I49        inline=true value="C49 compact mapping child"
+  9 MappingEnd     L3:C3:I52        ..L3:C3:I52         
+ 10 MappingStart   L3:C5:I54        ..L3:C5:I54         style=Block anchor=[empty] tag=?
+ 11 Scalar         L3:C5:I54        ..L3:C10:I59        value="other" style=Plain anchor=[empty] tag=?
+ 12 Scalar         L3:C12:I61       ..L3:C17:I66        value="value" style=Plain anchor=[empty] tag=?
+ 13 Comment        L4:C5:I71        ..L4:C43:I109       inline=false value="C50 between compact mapping children"
+ 14 Scalar         L5:C5:I114       ..L5:C11:I120       value="second" style=Plain anchor=[empty] tag=?
+ 15 Scalar         L5:C13:I122      ..L5:C18:I127       value="value" style=Plain anchor=[empty] tag=?
+ 16 MappingEnd     L6:C1:I128       ..L6:C1:I128        
+ 17 SequenceEnd    L6:C1:I128       ..L6:C1:I128        
+ 18 MappingEnd     L6:C1:I128       ..L6:C1:I128        
+ 19 DocumentEnd    L6:C1:I128       ..L6:C1:I128        implicit=true
+ 20 StreamEnd      L6:C1:I128       ..L6:C1:I128        
 --- comment associations ---
 C49  parser=yes/inline=true; Inline $.items[0].key                              PASS
 C50  parser=yes/inline=false; Leading $.items[1].second                         PASS
@@ -381,17 +381,17 @@ C50  parser=yes/inline=false; Leading $.items[1].second                         
 === 16-edge-comment-blocks.yaml ===
 --- parser event stream ---
   0 StreamStart    L1:C1:I0         ..L1:C1:I0          
-  1 DocumentStart  L4:C1:I63        ..L4:C1:I63         implicit=true
+  1 DocumentStart  L4:C1:I60        ..L4:C1:I60         implicit=true
   2 Comment        L1:C1:I0         ..L1:C29:I28        inline=false value="C51 document leading first"
-  3 Comment        L2:C1:I30        ..L2:C30:I59        inline=false value="C52 document leading second"
-  4 MappingStart   L4:C1:I63        ..L4:C1:I63         style=Block anchor=[empty] tag=?
-  5 Scalar         L4:C1:I63        ..L4:C4:I66         value="key" style=Plain anchor=[empty] tag=?
-  6 Scalar         L4:C6:I68        ..L4:C11:I73        value="value" style=Plain anchor=[empty] tag=?
-  7 Comment        L6:C1:I77        ..L6:C30:I106       inline=false value="C53 document trailing first"
-  8 Comment        L7:C1:I108       ..L7:C31:I138       inline=false value="C54 document trailing second"
-  9 MappingEnd     L8:C1:I140       ..L8:C1:I140        
- 10 DocumentEnd    L8:C1:I140       ..L8:C1:I140        implicit=true
- 11 StreamEnd      L8:C1:I140       ..L8:C1:I140        
+  3 Comment        L2:C1:I29        ..L2:C30:I58        inline=false value="C52 document leading second"
+  4 MappingStart   L4:C1:I60        ..L4:C1:I60         style=Block anchor=[empty] tag=?
+  5 Scalar         L4:C1:I60        ..L4:C4:I63         value="key" style=Plain anchor=[empty] tag=?
+  6 Scalar         L4:C6:I65        ..L4:C11:I70        value="value" style=Plain anchor=[empty] tag=?
+  7 Comment        L6:C1:I72        ..L6:C30:I101       inline=false value="C53 document trailing first"
+  8 Comment        L7:C1:I102       ..L7:C31:I132       inline=false value="C54 document trailing second"
+  9 MappingEnd     L8:C1:I133       ..L8:C1:I133        
+ 10 DocumentEnd    L8:C1:I133       ..L8:C1:I133        implicit=true
+ 11 StreamEnd      L8:C1:I133       ..L8:C1:I133        
 --- comment associations ---
 C51  parser=yes/inline=false; DocumentLeading                                   PASS
 C52  parser=yes/inline=false; DocumentLeading                                   PASS
@@ -401,13 +401,13 @@ C54  parser=yes/inline=false; DocumentTrailing                                  
 === 17-root-scalar.yaml ===
 --- parser event stream ---
   0 StreamStart    L1:C1:I0         ..L1:C1:I0          
-  1 DocumentStart  L2:C1:I26        ..L2:C11:I36        implicit=true
+  1 DocumentStart  L2:C1:I25        ..L2:C11:I35        implicit=true
   2 Comment        L1:C1:I0         ..L1:C25:I24        inline=false value="C55 before root scalar"
-  3 Scalar         L2:C1:I26        ..L2:C11:I36        value="root-value" style=Plain anchor=[empty] tag=?
-  4 Comment        L2:C12:I37       ..L2:C36:I61        inline=false value="C56 inline root scalar"
-  5 Comment        L3:C1:I63        ..L3:C24:I86        inline=false value="C57 after root scalar"
-  6 DocumentEnd    L4:C1:I88        ..L4:C1:I88         implicit=true
-  7 StreamEnd      L4:C1:I88        ..L4:C1:I88         
+  3 Scalar         L2:C1:I25        ..L2:C11:I35        value="root-value" style=Plain anchor=[empty] tag=?
+  4 Comment        L2:C12:I36       ..L2:C36:I60        inline=false value="C56 inline root scalar"
+  5 Comment        L3:C1:I61        ..L3:C24:I84        inline=false value="C57 after root scalar"
+  6 DocumentEnd    L4:C1:I85        ..L4:C1:I85         implicit=true
+  7 StreamEnd      L4:C1:I85        ..L4:C1:I85         
 --- comment associations ---
 C55  parser=yes/inline=false; DocumentLeading                                   PASS
 C56  parser=yes/inline=false; Inline $                                          PASS
@@ -420,23 +420,23 @@ C57  parser=yes/inline=false; DocumentTrailing                                  
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C8:I7          value="mapping" style=Plain anchor=[empty] tag=?
   4 MappingStart   L1:C10:I9        ..L1:C10:I9         style=Flow anchor=[empty] tag=?
-  5 Comment        L2:C3:I14        ..L2:C35:I46        inline=false value="C58 leading flow mapping entry"
-  6 Scalar         L3:C3:I50        ..L3:C8:I55         value="first" style=Plain anchor=[empty] tag=?
-  7 Scalar         L3:C10:I57       ..L3:C11:I58        value="1" style=Plain anchor=[empty] tag=?
-  8 Comment        L4:C3:I63        ..L4:C42:I102       inline=false value="C59 leading second flow mapping entry"
-  9 Scalar         L5:C3:I106       ..L5:C9:I112        value="second" style=Plain anchor=[empty] tag=?
- 10 Scalar         L5:C11:I114      ..L5:C12:I115       value="2" style=Plain anchor=[empty] tag=?
- 11 MappingEnd     L6:C1:I117       ..L6:C1:I117        
- 12 Scalar         L7:C1:I120       ..L7:C9:I128        value="sequence" style=Plain anchor=[empty] tag=?
- 13 SequenceStart  L7:C11:I130      ..L7:C11:I130       style=Flow anchor=[empty] tag=?
- 14 Comment        L8:C3:I135       ..L8:C35:I167       inline=false value="C60 leading flow sequence item"
- 15 Scalar         L9:C3:I171       ..L9:C6:I174        value="one" style=Plain anchor=[empty] tag=?
- 16 Comment        L10:C3:I179      ..L10:C42:I218      inline=false value="C61 leading second flow sequence item"
- 17 Scalar         L11:C3:I222      ..L11:C6:I225       value="two" style=Plain anchor=[empty] tag=?
- 18 SequenceEnd    L12:C1:I227      ..L12:C1:I227       
- 19 MappingEnd     L13:C1:I230      ..L13:C1:I230       
- 20 DocumentEnd    L13:C1:I230      ..L13:C1:I230       implicit=true
- 21 StreamEnd      L13:C1:I230      ..L13:C1:I230       
+  5 Comment        L2:C3:I13        ..L2:C35:I45        inline=false value="C58 leading flow mapping entry"
+  6 Scalar         L3:C3:I48        ..L3:C8:I53         value="first" style=Plain anchor=[empty] tag=?
+  7 Scalar         L3:C10:I55       ..L3:C11:I56        value="1" style=Plain anchor=[empty] tag=?
+  8 Comment        L4:C3:I60        ..L4:C42:I99        inline=false value="C59 leading second flow mapping entry"
+  9 Scalar         L5:C3:I102       ..L5:C9:I108        value="second" style=Plain anchor=[empty] tag=?
+ 10 Scalar         L5:C11:I110      ..L5:C12:I111       value="2" style=Plain anchor=[empty] tag=?
+ 11 MappingEnd     L6:C1:I112       ..L6:C1:I112        
+ 12 Scalar         L7:C1:I114       ..L7:C9:I122        value="sequence" style=Plain anchor=[empty] tag=?
+ 13 SequenceStart  L7:C11:I124      ..L7:C11:I124       style=Flow anchor=[empty] tag=?
+ 14 Comment        L8:C3:I128       ..L8:C35:I160       inline=false value="C60 leading flow sequence item"
+ 15 Scalar         L9:C3:I163       ..L9:C6:I166        value="one" style=Plain anchor=[empty] tag=?
+ 16 Comment        L10:C3:I170      ..L10:C42:I209      inline=false value="C61 leading second flow sequence item"
+ 17 Scalar         L11:C3:I212      ..L11:C6:I215       value="two" style=Plain anchor=[empty] tag=?
+ 18 SequenceEnd    L12:C1:I216      ..L12:C1:I216       
+ 19 MappingEnd     L13:C1:I218      ..L13:C1:I218       
+ 20 DocumentEnd    L13:C1:I218      ..L13:C1:I218       implicit=true
+ 21 StreamEnd      L13:C1:I218      ..L13:C1:I218       
 --- comment associations ---
 C58  parser=yes/inline=false; Leading $.mapping.first                           PASS
 C59  parser=yes/inline=false; Leading $.mapping.second                          PASS
@@ -450,16 +450,16 @@ C61  parser=yes/inline=false; Leading $.sequence[1]                             
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C13:I12        value="literal_keep" style=Plain anchor=[empty] tag=?
   4 Comment        L1:C18:I17       ..L1:C43:I42        inline=true value="C62 literal keep header"
-  5 Scalar         L1:C15:I14       ..L3:C1:I52         value="body\n" style=Literal anchor=[empty] tag=?
-  6 Scalar         L3:C1:I52        ..L3:C15:I66        value="literal_indent" style=Plain anchor=[empty] tag=?
-  7 Comment        L3:C21:I72       ..L3:C48:I99        inline=true value="C63 literal indent header"
-  8 Scalar         L3:C17:I68       ..L5:C1:I109        value="body" style=Literal anchor=[empty] tag=?
-  9 Scalar         L5:C1:I109       ..L5:C12:I120       value="folded_keep" style=Plain anchor=[empty] tag=?
- 10 Comment        L5:C17:I125      ..L5:C41:I149       inline=true value="C64 folded keep header"
- 11 Scalar         L5:C14:I122      ..L7:C1:I159        value="body\n" style=Folded anchor=[empty] tag=?
- 12 MappingEnd     L7:C1:I159       ..L7:C1:I159        
- 13 DocumentEnd    L7:C1:I159       ..L7:C1:I159        implicit=true
- 14 StreamEnd      L7:C1:I159       ..L7:C1:I159        
+  5 Scalar         L1:C15:I14       ..L3:C1:I50         value="body\n" style=Literal anchor=[empty] tag=?
+  6 Scalar         L3:C1:I50        ..L3:C15:I64        value="literal_indent" style=Plain anchor=[empty] tag=?
+  7 Comment        L3:C21:I70       ..L3:C48:I97        inline=true value="C63 literal indent header"
+  8 Scalar         L3:C17:I66       ..L5:C1:I105        value="body" style=Literal anchor=[empty] tag=?
+  9 Scalar         L5:C1:I105       ..L5:C12:I116       value="folded_keep" style=Plain anchor=[empty] tag=?
+ 10 Comment        L5:C17:I121      ..L5:C41:I145       inline=true value="C64 folded keep header"
+ 11 Scalar         L5:C14:I118      ..L7:C1:I153        value="body\n" style=Folded anchor=[empty] tag=?
+ 12 MappingEnd     L7:C1:I153       ..L7:C1:I153        
+ 13 DocumentEnd    L7:C1:I153       ..L7:C1:I153        implicit=true
+ 14 StreamEnd      L7:C1:I153       ..L7:C1:I153        
 --- comment associations ---
 C62  parser=yes/inline=true; Inline $.literal_keep                              PASS
 C63  parser=yes/inline=true; Inline $.literal_indent                            PASS
@@ -471,14 +471,14 @@ C64  parser=yes/inline=true; Inline $.folded_keep                               
   1 DocumentStart  L1:C1:I0         ..L1:C1:I0          implicit=true
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C7:I6          value="parent" style=Plain anchor=[empty] tag=?
-  4 MappingStart   L2:C3:I11        ..L2:C3:I11         style=Block anchor=[empty] tag=?
-  5 Scalar         L2:C3:I11        ..L2:C8:I16         value="first" style=Plain anchor=[empty] tag=?
-  6 Scalar         L2:C10:I18       ..L2:C11:I19        value="1" style=Plain anchor=[empty] tag=?
-  7 Comment        L3:C3:I23        ..L3:C30:I50        inline=false value="C65 trailing nested entry"
-  8 MappingEnd     L4:C1:I52        ..L4:C1:I52         
-  9 MappingEnd     L4:C1:I52        ..L4:C1:I52         
- 10 DocumentEnd    L4:C1:I52        ..L4:C1:I52         implicit=true
- 11 StreamEnd      L4:C1:I52        ..L4:C1:I52         
+  4 MappingStart   L2:C3:I10        ..L2:C3:I10         style=Block anchor=[empty] tag=?
+  5 Scalar         L2:C3:I10        ..L2:C8:I15         value="first" style=Plain anchor=[empty] tag=?
+  6 Scalar         L2:C10:I17       ..L2:C11:I18        value="1" style=Plain anchor=[empty] tag=?
+  7 Comment        L3:C3:I21        ..L3:C30:I48        inline=false value="C65 trailing nested entry"
+  8 MappingEnd     L4:C1:I49        ..L4:C1:I49         
+  9 MappingEnd     L4:C1:I49        ..L4:C1:I49         
+ 10 DocumentEnd    L4:C1:I49        ..L4:C1:I49         implicit=true
+ 11 StreamEnd      L4:C1:I49        ..L4:C1:I49         
 --- comment associations ---
 C65  parser=yes/inline=false; Trailing $.parent.first                           PASS
 
@@ -491,8 +491,8 @@ C65  parser=yes/inline=false; Trailing $.parent.first                           
   4 Scalar         L1:C7:I6         ..L1:C10:I9         value="two" style=Plain anchor=[empty] tag=?
   5 SequenceEnd    L1:C10:I9        ..L1:C10:I9         
   6 Comment        L1:C12:I11       ..L1:C43:I42        inline=false value="C66 inline root flow sequence"
-  7 DocumentEnd    L2:C1:I44        ..L2:C1:I44         implicit=true
-  8 StreamEnd      L2:C1:I44        ..L2:C1:I44         
+  7 DocumentEnd    L2:C1:I43        ..L2:C1:I43         implicit=true
+  8 StreamEnd      L2:C1:I43        ..L2:C1:I43         
 --- comment associations ---
 C66  parser=yes/inline=false; Inline $                                          PASS
 
@@ -502,26 +502,26 @@ C66  parser=yes/inline=false; Inline $                                          
   1 DocumentStart  L1:C1:I0         ..L1:C1:I0          implicit=true
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C6:I5          value="items" style=Plain anchor=[empty] tag=?
-  4 SequenceStart  L2:C3:I10        ..L2:C3:I10         style=Block anchor=[empty] tag=?
-  5 Comment        L2:C5:I12        ..L2:C37:I44        inline=true value="C67 inline empty sequence item"
-  6 Scalar         L2:C4:I11        ..L2:C4:I11         value="" style=Plain anchor=[empty] tag=?
-  7 Scalar         L3:C5:I50        ..L3:C8:I53         value="two" style=Plain anchor=[empty] tag=?
-  8 SequenceEnd    L4:C1:I55        ..L4:C1:I55         
-  9 MappingEnd     L4:C1:I55        ..L4:C1:I55         
- 10 DocumentEnd    L4:C1:I55        ..L4:C1:I55         implicit=true
- 11 StreamEnd      L4:C1:I55        ..L4:C1:I55         
+  4 SequenceStart  L2:C3:I9         ..L2:C3:I9          style=Block anchor=[empty] tag=?
+  5 Comment        L2:C5:I11        ..L2:C37:I43        inline=true value="C67 inline empty sequence item"
+  6 Scalar         L2:C4:I10        ..L2:C4:I10         value="" style=Plain anchor=[empty] tag=?
+  7 Scalar         L3:C5:I48        ..L3:C8:I51         value="two" style=Plain anchor=[empty] tag=?
+  8 SequenceEnd    L4:C1:I52        ..L4:C1:I52         
+  9 MappingEnd     L4:C1:I52        ..L4:C1:I52         
+ 10 DocumentEnd    L4:C1:I52        ..L4:C1:I52         implicit=true
+ 11 StreamEnd      L4:C1:I52        ..L4:C1:I52         
 --- comment associations ---
 C67  parser=yes/inline=true; Inline $.items[0]                                  PASS
 
 === 23-root-block-scalar.yaml ===
 --- parser event stream ---
   0 StreamStart    L1:C1:I0         ..L1:C1:I0          
-  1 DocumentStart  L1:C1:I0         ..L3:C1:I49         implicit=true
+  1 DocumentStart  L1:C1:I0         ..L3:C1:I47         implicit=true
   2 Comment        L1:C3:I2         ..L1:C40:I39        inline=false value="C68 inline root block scalar header"
-  3 Scalar         L1:C1:I0         ..L3:C1:I49         value="body\n" style=Literal anchor=[empty] tag=?
-  4 Comment        L3:C1:I49        ..L3:C30:I78        inline=false value="C69 after root block scalar"
-  5 DocumentEnd    L4:C1:I80        ..L4:C1:I80         implicit=true
-  6 StreamEnd      L4:C1:I80        ..L4:C1:I80         
+  3 Scalar         L1:C1:I0         ..L3:C1:I47         value="body\n" style=Literal anchor=[empty] tag=?
+  4 Comment        L3:C1:I47        ..L3:C30:I76        inline=false value="C69 after root block scalar"
+  5 DocumentEnd    L4:C1:I77        ..L4:C1:I77         implicit=true
+  6 StreamEnd      L4:C1:I77        ..L4:C1:I77         
 --- comment associations ---
 C68  parser=yes/inline=false; Inline $                                          PASS
 C69  parser=yes/inline=false; DocumentTrailing                                  PASS
@@ -532,20 +532,20 @@ C69  parser=yes/inline=false; DocumentTrailing                                  
   1 DocumentStart  L1:C1:I0         ..L1:C1:I0          implicit=true
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C14:I13        value="double_quoted" style=Plain anchor=[empty] tag=?
-  4 Scalar         L1:C16:I15       ..L3:C8:I73         value="first # C70 double-quoted body, not a comment last" style=DoubleQuoted anchor=[empty] tag=?
-  5 Comment        L3:C9:I74        ..L3:C50:I115       inline=true value="C71 actual double-quoted inline comment"
-  6 Scalar         L4:C1:I117       ..L4:C14:I130       value="single_quoted" style=Plain anchor=[empty] tag=?
-  7 Scalar         L4:C16:I132      ..L6:C8:I190        value="first # C72 single-quoted body, not a comment last" style=SingleQuoted anchor=[empty] tag=?
-  8 Comment        L6:C9:I191       ..L6:C50:I232       inline=true value="C73 actual single-quoted inline comment"
-  9 Scalar         L7:C1:I234       ..L7:C5:I238        value="flow" style=Plain anchor=[empty] tag=?
- 10 SequenceStart  L7:C7:I240       ..L7:C7:I240        style=Flow anchor=[empty] tag=?
- 11 Scalar         L7:C8:I241       ..L7:C42:I275       value="# C74 flow scalar, not a comment" style=DoubleQuoted anchor=[empty] tag=?
- 12 Scalar         L7:C44:I277      ..L7:C49:I282       value="value" style=Plain anchor=[empty] tag=?
- 13 SequenceEnd    L7:C49:I282      ..L7:C49:I282       
- 14 Comment        L7:C51:I284      ..L7:C83:I316       inline=true value="C75 actual flow inline comment"
- 15 MappingEnd     L8:C1:I318       ..L8:C1:I318        
- 16 DocumentEnd    L8:C1:I318       ..L8:C1:I318        implicit=true
- 17 StreamEnd      L8:C1:I318       ..L8:C1:I318        
+  4 Scalar         L1:C16:I15       ..L3:C8:I71         value="first # C70 double-quoted body, not a comment last" style=DoubleQuoted anchor=[empty] tag=?
+  5 Comment        L3:C9:I72        ..L3:C50:I113       inline=true value="C71 actual double-quoted inline comment"
+  6 Scalar         L4:C1:I114       ..L4:C14:I127       value="single_quoted" style=Plain anchor=[empty] tag=?
+  7 Scalar         L4:C16:I129      ..L6:C8:I185        value="first # C72 single-quoted body, not a comment last" style=SingleQuoted anchor=[empty] tag=?
+  8 Comment        L6:C9:I186       ..L6:C50:I227       inline=true value="C73 actual single-quoted inline comment"
+  9 Scalar         L7:C1:I228       ..L7:C5:I232        value="flow" style=Plain anchor=[empty] tag=?
+ 10 SequenceStart  L7:C7:I234       ..L7:C7:I234        style=Flow anchor=[empty] tag=?
+ 11 Scalar         L7:C8:I235       ..L7:C42:I269       value="# C74 flow scalar, not a comment" style=DoubleQuoted anchor=[empty] tag=?
+ 12 Scalar         L7:C44:I271      ..L7:C49:I276       value="value" style=Plain anchor=[empty] tag=?
+ 13 SequenceEnd    L7:C49:I276      ..L7:C49:I276       
+ 14 Comment        L7:C51:I278      ..L7:C83:I310       inline=true value="C75 actual flow inline comment"
+ 15 MappingEnd     L8:C1:I311       ..L8:C1:I311        
+ 16 DocumentEnd    L8:C1:I311       ..L8:C1:I311        implicit=true
+ 17 StreamEnd      L8:C1:I311       ..L8:C1:I311        
 --- comment associations ---
 C70  correctly remains scalar content                                           PASS
 C71  parser=yes/inline=true; Inline $.double_quoted                             PASS
@@ -592,22 +592,22 @@ C78  parser=yes/inline=false; DocumentTrailing                                  
   1 DocumentStart  L1:C1:I0         ..L1:C1:I0          implicit=true
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C6:I5          value="outer" style=Plain anchor=[empty] tag=?
-  4 Comment        L2:C1:I8         ..L2:C44:I51        inline=false value="C79 shallower comment before nested child"
-  5 MappingStart   L3:C3:I55        ..L3:C3:I55         style=Block anchor=[empty] tag=?
-  6 Scalar         L3:C3:I55        ..L3:C8:I60         value="child" style=Plain anchor=[empty] tag=?
-  7 Scalar         L3:C10:I62       ..L3:C11:I63        value="1" style=Plain anchor=[empty] tag=?
-  8 MappingEnd     L4:C1:I65        ..L4:C1:I65         
-  9 Scalar         L4:C1:I65        ..L4:C6:I70         value="other" style=Plain anchor=[empty] tag=?
- 10 MappingStart   L5:C3:I75        ..L5:C3:I75         style=Block anchor=[empty] tag=?
- 11 Scalar         L5:C3:I75        ..L5:C8:I80         value="child" style=Plain anchor=[empty] tag=?
- 12 Scalar         L5:C10:I82       ..L5:C11:I83        value="2" style=Plain anchor=[empty] tag=?
- 13 Comment        L6:C5:I89        ..L6:C43:I127       inline=false value="C80 over-indented after nested child"
- 14 MappingEnd     L7:C1:I129       ..L7:C1:I129        
- 15 Scalar         L7:C1:I129       ..L7:C6:I134        value="final" style=Plain anchor=[empty] tag=?
- 16 Scalar         L7:C8:I136       ..L7:C9:I137        value="3" style=Plain anchor=[empty] tag=?
- 17 MappingEnd     L8:C1:I139       ..L8:C1:I139        
- 18 DocumentEnd    L8:C1:I139       ..L8:C1:I139        implicit=true
- 19 StreamEnd      L8:C1:I139       ..L8:C1:I139        
+  4 Comment        L2:C1:I7         ..L2:C44:I50        inline=false value="C79 shallower comment before nested child"
+  5 MappingStart   L3:C3:I53        ..L3:C3:I53         style=Block anchor=[empty] tag=?
+  6 Scalar         L3:C3:I53        ..L3:C8:I58         value="child" style=Plain anchor=[empty] tag=?
+  7 Scalar         L3:C10:I60       ..L3:C11:I61        value="1" style=Plain anchor=[empty] tag=?
+  8 MappingEnd     L4:C1:I62        ..L4:C1:I62         
+  9 Scalar         L4:C1:I62        ..L4:C6:I67         value="other" style=Plain anchor=[empty] tag=?
+ 10 MappingStart   L5:C3:I71        ..L5:C3:I71         style=Block anchor=[empty] tag=?
+ 11 Scalar         L5:C3:I71        ..L5:C8:I76         value="child" style=Plain anchor=[empty] tag=?
+ 12 Scalar         L5:C10:I78       ..L5:C11:I79        value="2" style=Plain anchor=[empty] tag=?
+ 13 Comment        L6:C5:I84        ..L6:C43:I122       inline=false value="C80 over-indented after nested child"
+ 14 MappingEnd     L7:C1:I123       ..L7:C1:I123        
+ 15 Scalar         L7:C1:I123       ..L7:C6:I128        value="final" style=Plain anchor=[empty] tag=?
+ 16 Scalar         L7:C8:I130       ..L7:C9:I131        value="3" style=Plain anchor=[empty] tag=?
+ 17 MappingEnd     L8:C1:I132       ..L8:C1:I132        
+ 18 DocumentEnd    L8:C1:I132       ..L8:C1:I132        implicit=true
+ 19 StreamEnd      L8:C1:I132       ..L8:C1:I132        
 --- comment associations ---
 C79  parser=yes/inline=false; Leading $.outer.child                             PASS
 C80  parser=yes/inline=false; Trailing $.other.child                            PASS
@@ -618,16 +618,16 @@ C80  parser=yes/inline=false; Trailing $.other.child                            
   1 DocumentStart  L1:C1:I0         ..L1:C1:I0          implicit=true
   2 MappingStart   L1:C1:I0         ..L1:C1:I0          style=Block anchor=[empty] tag=?
   3 Scalar         L1:C1:I0         ..L1:C15:I14        value="mapping_scalar" style=Plain anchor=[empty] tag=?
-  4 Comment        L2:C3:I19        ..L2:C45:I61        inline=false value="C81 before indented scalar mapping value"
-  5 Scalar         L3:C3:I65        ..L3:C8:I70         value="value" style=Plain anchor=[empty] tag=?
-  6 Scalar         L4:C1:I72        ..L4:C9:I80         value="sequence" style=Plain anchor=[empty] tag=?
-  7 SequenceStart  L5:C3:I85        ..L5:C3:I85         style=Block anchor=[empty] tag=?
-  8 Comment        L6:C5:I92        ..L6:C53:I140       inline=false value="C82 before indented scalar sequence item value"
-  9 Scalar         L7:C5:I146       ..L7:C10:I151       value="value" style=Plain anchor=[empty] tag=?
- 10 SequenceEnd    L8:C1:I153       ..L8:C1:I153        
- 11 MappingEnd     L8:C1:I153       ..L8:C1:I153        
- 12 DocumentEnd    L8:C1:I153       ..L8:C1:I153        implicit=true
- 13 StreamEnd      L8:C1:I153       ..L8:C1:I153        
+  4 Comment        L2:C3:I18        ..L2:C45:I60        inline=false value="C81 before indented scalar mapping value"
+  5 Scalar         L3:C3:I63        ..L3:C8:I68         value="value" style=Plain anchor=[empty] tag=?
+  6 Scalar         L4:C1:I69        ..L4:C9:I77         value="sequence" style=Plain anchor=[empty] tag=?
+  7 SequenceStart  L5:C3:I81        ..L5:C3:I81         style=Block anchor=[empty] tag=?
+  8 Comment        L6:C5:I87        ..L6:C53:I135       inline=false value="C82 before indented scalar sequence item value"
+  9 Scalar         L7:C5:I140       ..L7:C10:I145       value="value" style=Plain anchor=[empty] tag=?
+ 10 SequenceEnd    L8:C1:I146       ..L8:C1:I146        
+ 11 MappingEnd     L8:C1:I146       ..L8:C1:I146        
+ 12 DocumentEnd    L8:C1:I146       ..L8:C1:I146        implicit=true
+ 13 StreamEnd      L8:C1:I146       ..L8:C1:I146        
 --- comment associations ---
 C81  parser=yes/inline=false; Leading $.mapping_scalar                          PASS
 C82  parser=yes/inline=false; Leading $.sequence[0]                             PASS

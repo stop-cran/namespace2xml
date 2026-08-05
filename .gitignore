@@ -271,3 +271,16 @@ TestResults/
 
 # Spike scratch: SDK advertising, tool state, downloaded packages.
 spikes/**/.dotnet/
+
+# The legacy template above ignores [Bb]in/, [Oo]bj/, [Dd]ebug/, [Rr]elease/, *.log, *.cache,
+# *.tmp, publish/ and **/packages/*. This tool transforms configuration files, so a fixture tree
+# containing Release/, bin/ or app.log is entirely ordinary -- and every one of those would have
+# been silently dropped from a commit, giving a corpus that passes locally and asserts less in CI.
+# Fixtures and evidence are data, never build output. A later pattern wins, so these re-include
+# the directories as well as the files, which is what lets git descend into them at all.
+!/conformance/**
+!/spikes/**
+!/tests/**/fixtures/**
+spikes/**/.dotnet/
+spikes/**/bin/
+spikes/**/obj/
