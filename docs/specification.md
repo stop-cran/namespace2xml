@@ -575,7 +575,9 @@ A byte-order mark is an encoding of U+FEFF, and U+FEFF has exactly five encoding
 qualified.name=value
 ```
 
-The first `=` separates the name and value. Values may be empty. An ordinary namespace name cannot contain `=`.
+The first separating `=` divides the name from the value. Values may be empty. An ordinary namespace name cannot contain a separating `=`.
+
+A separating `=` is an unescaped `=` that does not fall inside a `Q{...}` URI. Section 11.4 makes `Q{...}` one atomic lexer context whose only escapes are `\}` and `\\`, so an `=` in a namespace URI cannot be escaped and must be recognized by position instead, exactly as Section 8.4 recognizes the first unescaped `}` that terminates a reference. Without this rule a namespace URI containing `=` would be unwritable: XML input could produce such a path and a reference in a value could address it, but no profile entry could define one and no scheme record could select one. Section 16.4 also emits such a URI with a literal `=`, so the tool's own namespace-profile output would not be readable as its input.
 
 A namespace-profile file is a sequence of physical records:
 
@@ -583,15 +585,15 @@ A namespace-profile file is a sequence of physical records:
 - the final record need not have a terminator;
 - U+0085, U+2028, and U+2029 are ordinary data and never terminate a record;
 - an empty record or one containing only spaces and tabs contributes nothing;
-- every other record is not trimmed: all characters before the first unescaped `=` are the name and all characters after it are the value, including leading and trailing spaces and tabs.
+- every other record is not trimmed: all characters before the first separating `=` are the name and all characters after it are the value, including leading and trailing spaces and tabs.
 
 Records are classified in this order:
 
 1. an empty or space/tab-only record is ignored;
 2. if the first non-space/tab character is `#`, the record is a comment and preceding spaces/tabs are not comment text; a record beginning with `\#` is not a comment;
 3. if the first non-space/tab character is `!`, the record is a permanent mask and preceding spaces/tabs are not part of its pattern; a record beginning with `\!` is not a mask;
-4. otherwise the record must contain an unescaped `=` and is an ordinary entry;
-5. any remaining record without an unescaped `=` is `PARSE001`.
+4. otherwise the record must contain a separating `=` and is an ordinary entry;
+5. any remaining record without a separating `=` is `PARSE001`.
 
 Each `--variables` argument is exactly one namespace record. It accepts ordinary entries and permanent `!pattern` masks but not comment records.
 
@@ -3062,8 +3064,10 @@ Each `record` is classified in the exact order from Section 8.1:
 1. empty or spaces/tabs only;
 2. comment when its first non-space/tab scalar is `#`;
 3. permanent mask when its first non-space/tab scalar is `!`;
-4. ordinary entry when it contains an unescaped `=`;
+4. ordinary entry when it contains a separating `=`;
 5. malformed `PARSE001`.
+
+A separating `=` is defined in Section 8.1: an unescaped `=` outside a `Q{...}` URI. Recognizing it therefore requires scanning the name with the `qname` productions of A.2 rather than searching the record for a character.
 
 `U+0085`, `U+2028`, and `U+2029` are `record-scalar`, not `line-end`.
 
