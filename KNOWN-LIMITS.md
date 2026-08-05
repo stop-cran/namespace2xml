@@ -43,9 +43,22 @@ Do not read a passing test run as evidence about a `pending` item.
 ## 3. Platform and environment
 
 - **Supported:** Linux, Windows and macOS on x64 and arm64, via the .NET 10 runtime.
-- **Not yet validated:** any platform where the retained-handle publication path cannot be
-  established. The Windows path in particular is under active investigation; see `spikes/`.
+- **Not yet validated:** nothing. The Windows publication path is proven by the
+  `spikes/windows-publication` prototype, which walks destinations component-by-component with
+  `NtCreateFile` relative to retained parent handles, and is therefore TOCTOU-safe by construction
+  rather than by a check. Two cases could not be exercised where the spike ran because creating a
+  symbolic link needed privileges that were unavailable; they are recorded as untested rather than
+  as passing.
+- **Hard-link escape is out of scope.** A destination reached through a hard link to a file outside
+  the output root cannot be detected by any no-follow walk, on any platform, because a hard link is
+  not distinguishable from the original name. An optional refusal based on link count is
+  demonstrated in the spike but is not enabled.
 - **Native AOT** is a non-blocking investigation, not a shipped configuration.
+- **YAML comment preservation** relies on a two-pass read: parser events for structure, plus a
+  second scanner pass for the comment token inventory, because the parser event stream truncates
+  comment-only documents and misreports inline-ness on root values. This is proven in
+  `spikes/yaml-comments` but not yet implemented.
+
 - **Globalisation is invariant by construction.** The tool sets `InvariantGlobalization`, so
   behaviour cannot vary with the host locale. This is deliberate and will not become configurable:
   it is what makes byte-identical output achievable.
