@@ -1,0 +1,116 @@
+namespace2xml v3 SPIKE — Windows secure publication
+OS: Microsoft Windows NT 10.0.26310.0   .NET: 10.0.10   64-bit: True
+corpus working directory: C:\Users\romanko\Documents\namespace2xml\repo\spikes\windows-publication\bin\Debug\net10.0\_corpus\a124c0811a044a7b89a9e5b6a6dc1a3f
+
+
+----------------------------------------------------------------------
+SUITE A — PathValidator (string layer): raw filename -> canonical or PATH001
+----------------------------------------------------------------------
+  A01 rooted '\rooted.txt'
+      -> PATH001  rooted path form '\rooted.txt'
+      [PASS] A01 rooted '\rooted.txt' -> PATH001
+  A02 drive-absolute 'C:\Windows\x.txt'
+      -> PATH001  drive-qualified path form 'C:\Windows\x.txt' (e.g. C:\x or C:x)
+      [PASS] A02 drive-absolute 'C:\Windows\x.txt' -> PATH001
+  A03 drive-relative 'C:x'
+      -> PATH001  drive-qualified path form 'C:x' (e.g. C:\x or C:x)
+      [PASS] A03 drive-relative 'C:x' -> PATH001
+  A04 UNC '\\server\share\x'
+      -> PATH001  UNC / device / extended-length form '\\server\share\x' (\\server, \\?\, \\.\ )
+      [PASS] A04 UNC '\\server\share\x' -> PATH001
+  A05 extended-length '\\?\C:\x'
+      -> PATH001  UNC / device / extended-length form '\\?\C:\x' (\\server, \\?\, \\.\ )
+      [PASS] A05 extended-length '\\?\C:\x' -> PATH001
+  A06 device '\\.\PIPE\x'
+      -> PATH001  UNC / device / extended-length form '\\.\PIPE\x' (\\server, \\?\, \\.\ )
+      [PASS] A06 device '\\.\PIPE\x' -> PATH001
+  A07 parent traversal '..\escape.txt'
+      -> PATH001  prohibited '..' segment in '..\escape.txt'
+      [PASS] A07 parent traversal '..\escape.txt' -> PATH001
+  A08 interior traversal 'a/../b'
+      -> PATH001  prohibited '..' segment in 'a/../b'
+      [PASS] A08 interior traversal 'a/../b' -> PATH001
+  A09 explicit '.' segment 'a/./b'
+      -> PATH001  prohibited '.' segment in 'a/./b'
+      [PASS] A09 explicit '.' segment 'a/./b' -> PATH001
+  A10 empty segment 'a//b'
+      -> PATH001  empty/redundant path segment in 'a//b'
+      [PASS] A10 empty segment 'a//b' -> PATH001
+  A11 device name 'CON'
+      -> canonical '%5FCON'  key '%5FCON'
+      [PASS] A11 device name 'CON' -> '%5FCON'
+  A12 device name 'nul'
+      -> canonical '%5Fnul'  key '%5FNUL'
+      [PASS] A12 device name 'nul' -> '%5Fnul'
+  A13 device name 'COM1'
+      -> canonical '%5FCOM1'  key '%5FCOM1'
+      [PASS] A13 device name 'COM1' -> '%5FCOM1'
+  A14 device name 'LPT9.txt'
+      -> canonical '%5FLPT9.txt'  key '%5FLPT9.TXT'
+      [PASS] A14 device name 'LPT9.txt' -> '%5FLPT9.txt'
+  A15 non-device 'COM0'
+      -> canonical 'COM0'  key 'COM0'
+      [PASS] A15 non-device 'COM0' -> 'COM0'
+  A16 ADS suffix 'file.txt:stream'
+      -> canonical 'file.txt%3Astream'  key 'FILE.TXT%3ASTREAM'
+      [PASS] A16 ADS suffix 'file.txt:stream' -> 'file.txt%3Astream'
+  A17 trailing dot 'name.'
+      -> canonical 'name%2E'  key 'NAME%2E'
+      [PASS] A17 trailing dot 'name.' -> 'name%2E'
+  A18 trailing space 'name '
+      -> canonical 'name%20'  key 'NAME%20'
+      [PASS] A18 trailing space 'name ' -> 'name%20'
+  A19 non-ASCII 'résumé.txt'
+      -> canonical 'r%C3%A9sum%C3%A9.txt'  key 'R%C3%A9SUM%C3%A9.TXT'
+      [PASS] A19 non-ASCII 'résumé.txt' -> 'r%C3%A9sum%C3%A9.txt'
+  A20 nested subdirs 'a/b/c.txt'
+      -> canonical 'a/b/c.txt'  key 'A/B/C.TXT'
+      [PASS] A20 nested subdirs 'a/b/c.txt' -> 'a/b/c.txt'
+  A21 literal percent 'a%b'
+      -> canonical 'a%25b'  key 'A%25B'
+      [PASS] A21 literal percent 'a%b' -> 'a%25b'
+
+      [PASS] A22 case-collision set yields 2 PATH001 collisions
+
+----------------------------------------------------------------------
+SUITE B — SecureWriter (runtime layer): clean path vs adversarial FILESYSTEM
+----------------------------------------------------------------------
+  B01 happy path 'a/b/c.txt'
+      -> WRITTEN  -> C:\Users\romanko\Documents\namespace2xml\repo\spikes\windows-publication\bin\Debug\net10.0\_corpus\a124c0811a044a7b89a9e5b6a6dc1a3f\root_33f5dcc3\a\b\c.txt
+      [PASS] B01 written under root with correct content
+      (relative length = 484 chars, full path >> 260)
+  B02 deep path immune to MAX_PATH
+      -> WRITTEN  -> C:\Users\romanko\Documents\namespace2xml\repo\spikes\windows-publication\bin\Debug\net10.0\_corpus\a124c0811a044a7b89a9e5b6a6dc1a3f\root_2083209e\segment00xxxx\segment01xxxx\segment02xxxx\segment03xxxx\segment04xxxx\segment05xxxx\segment06xxxx\segment07xxxx\segment08xxxx\segment09xxxx\segment10xxxx\segment11xxxx\segment12xxxx\segment13xxxx\segment14xxxx\segment15xxxx\segment16xxxx\segment17xxxx\segment18xxxx\segment19xxxx\segment20xxxx\segment21xxxx\segment22xxxx\segment23xxxx\segment24xxxx\segment25xxxx\segment26xxxx\segment27xxxx\segment28xxxx\segment29xxxx\segment30xxxx\segment31xxxx\segment32xxxx\segment33xxxx\leaf.txt
+      [PASS] B02 deep write succeeded by construction (never formed a long string)
+  B03 junction 'viajunction' -> outside, dest 'viajunction/pwned.txt'
+      -> PATH001  reparse point in path at component 'viajunction' (tag 0xA0000003 = junction); refusing to traverse
+      [PASS] B03 refused PATH001 (reparse) and nothing escaped
+  B04 directory symlink escape
+      -> [SKIP] symlink creation unavailable (IOException: A required privilege is not held by the client. : 'C:\Users\romanko\Documents\namespace2xml\repo\spikes\windows-publication\bin\Debug\net10.0\_corpus\a124c0811a044a7b89a9e5b6a6dc1a3f\root_459f7ead\viasymlink'.)
+      [SKIP] B04 directory symlink escape
+  B05 file symlink final component
+      -> [SKIP] symlink creation unavailable (IOException: A required privilege is not held by the client. : 'C:\Users\romanko\Documents\namespace2xml\repo\spikes\windows-publication\bin\Debug\net10.0\_corpus\a124c0811a044a7b89a9e5b6a6dc1a3f\root_58be0c4c\secret_link.txt'.)
+      [SKIP] B05 file symlink final component
+  B06 raw 'CON' via NtCreateFile
+      -> WRITTEN  -> C:\Users\romanko\Documents\namespace2xml\repo\spikes\windows-publication\bin\Debug\net10.0\_corpus\a124c0811a044a7b89a9e5b6a6dc1a3f\root_5315f39f\CON
+      [PASS] B06 NtCreateFile made a REAL file named CON (no device magic)
+  B07 raw 'name' and 'name.' via NtCreateFile
+      -> WRITTEN  -> C:\Users\romanko\Documents\namespace2xml\repo\spikes\windows-publication\bin\Debug\net10.0\_corpus\a124c0811a044a7b89a9e5b6a6dc1a3f\root_9bec2cd9\name.
+      [PASS] B07 NtCreateFile preserved trailing dot as a DISTINCT file
+  B08 raw 'host.txt:evil' via NtCreateFile
+      -> WRITTEN  -> C:\Users\romanko\Documents\namespace2xml\repo\spikes\windows-publication\bin\Debug\net10.0\_corpus\a124c0811a044a7b89a9e5b6a6dc1a3f\root_22d848d8\host.txt:evil
+      [PASS] B08 NT layer created an ADS (=> colon MUST be encoded by the validator, A16)
+  B09 hardlink 'hard.txt' == outside/secret.txt
+      -> WRITTEN  -> C:\Users\romanko\Documents\namespace2xml\repo\spikes\windows-publication\bin\Debug\net10.0\_corpus\a124c0811a044a7b89a9e5b6a6dc1a3f\root_5ad1ce8b\hard.txt
+      NumberOfLinks probe on 'hard.txt' before write = 2 (a >1 result is the optional defence-in-depth signal)
+      [PASS] B09 DEMONSTRATES residual hardlink escape (expected: not caught by no-follow)
+  B10 absolute 'C:/Windows/system32/x.txt' at writer
+      -> PATH001  invalid path component 'C:': 0xC0000033 (The filename, directory name, or volume label syntax is incorrect.)
+      [PASS] B10 writer also refuses PATH001 (never opens outside root)
+  B11 junction as final component 'finaljunction' -> outside
+      -> PATH001  final component 'finaljunction' is a reparse point (tag 0xA0000003 = junction); refusing to publish through it
+      [PASS] B11 refused PATH001 (final reparse) via privilege-free junction; victim intact
+
+======================================================================
+ RESULT: 31 passed, 0 failed
+======================================================================

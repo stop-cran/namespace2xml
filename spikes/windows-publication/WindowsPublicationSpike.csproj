@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Standalone SPIKE project. Intentionally NOT added to namespace2xml.slnx.
+
+    The nearest Directory.Build.props (this folder) shadows the repository-root one
+    (MSBuild uses the nearest file and does not merge upward unless it imports the
+    parent), so this project does NOT inherit the repo's TreatWarningsAsErrors=true,
+    SourceLink package, Version, etc. Everything the spike needs is set locally here.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AssemblyName>WindowsPublicationSpike</AssemblyName>
+    <RootNamespace>Namespace2Xml.Spikes.WindowsPublication</RootNamespace>
+    <!-- Spike code: warnings are informative, not fatal (reinforced by Directory.Build.props). -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+</Project>
