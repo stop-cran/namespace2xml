@@ -138,10 +138,16 @@ jobs:
           set -euo pipefail
           # git status, not git diff: a generator that creates a new untracked artifact is drift
           # too, and git diff cannot see it.
-          derived="spec conformance/assertions.json docs/diagnostics.md docs/migration-2.x-to-3.0.md src/Namespace2Xml.Core/Diagnostics/DiagnosticCodes.g.cs"
-          if [ -n "$(git status --porcelain -- $derived)" ]; then
-            git status --porcelain -- $derived
-            git diff -- $derived
+          derived=(
+            spec
+            conformance/assertions.json
+            docs/diagnostics.md
+            docs/migration-2.x-to-3.0.md
+            src/Namespace2Xml.Core/Diagnostics/DiagnosticCodes.g.cs
+          )
+          if [ -n "$(git status --porcelain -- "${derived[@]}")" ]; then
+            git status --porcelain -- "${derived[@]}"
+            git diff -- "${derived[@]}"
             echo "::error::the specification or corpus changed without the derived artifacts being regenerated."
             echo "::error::run the tools/sync-*.ps1 generators and commit the result."
             exit 1

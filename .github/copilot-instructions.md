@@ -79,7 +79,17 @@ not read the triggers either.
 
 `tools/check-publication-triggers.py` cannot catch this: the file is valid YAML, and the defect lives
 only in the expression grammar layered on top. `actionlint` catches it with a precise location and
-runs in the `lint` job. Run it locally when editing workflows.
+runs in the `lint` job. Run it locally when editing workflows:
+
+```powershell
+curl.exe -sSLo actionlint.zip https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_windows_amd64.zip
+Expand-Archive actionlint.zip -DestinationPath . -Force
+.\actionlint.exe -no-color -oneline
+```
+
+`actionlint` also runs **shellcheck** over every `run:` block, and shellcheck `info` findings fail
+the job. Unquoted variable expansion is the one you will hit: a shared path list must be a bash
+array expanded as `"${paths[@]}"`, not a space-separated string expanded bare (SC2086).
 
 ### PowerShell backticks in double-quoted strings
 
