@@ -623,6 +623,8 @@ Every other backslash sequence in a name is a blocking parse error.
 
 At the start of a name part, unescaped `@`, `#` followed by canonical decimal digits, and `Q{` introduce typed XML canonical components in namespace-profile input, command-line variables, namespace-profile scheme paths, references, and `root` values. Escaped forms such as `\@x`, `\#0`, and `\Q{urn:x}name` are ordinary literal name parts.
 
+Marker recognition commits. Once an unescaped `@`, `#`, or `Q{` is recognized at the start of a name part, that part must match the typed production in full; text that begins like a typed marker without completing one is `PARSE001`, not an ordinary part. `#1x`, `@`, and `Q{urn:x` are therefore each errors, and the ordinary parts carrying that text are written `\#1x`, `\@`, and `\Q{urn:x`, which is exactly what Section 21 emits for them. The rule keeps the lexer local and total, since it never has to unread a part, and it makes Section 11.4's blocking errors inside `Q{...}` consistent with the other two markers rather than an exception to them. Under the alternative, a one-character edit would silently change a part's kind: `#1` would be a content token and `#1x` an ordinary name.
+
 JSON and YAML mapping keys are always one ordinary literal component and never acquire XML node kind from marker-shaped text. XML input receives typed components from the XML parser rather than by applying this namespace lexer. `filename`, delimiter, option, `key` field-name, and other non-path directive values treat marker-shaped text as ordinary value text.
 
 An identifier consists of ASCII letters, digits, `_`, or `-` and must not be empty.
@@ -675,7 +677,7 @@ Substitution-mode path patterns are compiled from the raw scheme before structur
 
 ### 8.5 Comments
 
-A namespace comment is a physical line whose first non-whitespace character is an unescaped `#`. A `#` elsewhere in a name or value is an ordinary character.
+A namespace comment is a physical line whose first non-whitespace character is an unescaped `#`. A `#` that is not the first non-space/tab scalar of a record never begins a comment; whether it is ordinary text or a Section 8.2 typed marker is decided by Section 8.2, which makes `a.#1` a content token rather than an ordinary name.
 
 Consecutive comments are associated with the next entry. Trailing comments with no following entry remain document-trailing comments.
 
@@ -3106,7 +3108,7 @@ Semantic requirements:
 - `unicode-escape` must encode one Unicode scalar and therefore excludes surrogates and values above U+10FFFF;
 - inside `Q{...}`, only `\}` and `\\` are escapes; every other backslash sequence is `PARSE001`;
 - the first unescaped `}` ends `uri-body`;
-- at a component start, typed-marker recognition follows the source-position rules in Section 8.2;
+- at a component start, typed-marker recognition follows the source-position rules in Section 8.2, and commits: a component beginning with an unescaped marker must match that typed production in full or is `PARSE001`;
 - an escaped leading marker creates an ordinary component;
 - wildcard tokens are legal only in contexts whose effective `substitute` mode enables name interpretation.
 
