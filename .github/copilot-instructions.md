@@ -127,6 +127,26 @@ attestation instead.
 - **CS1631**: you cannot `yield` inside a `catch`. Extract a `TryX(out failure)` helper.
 - **CA1859**: for private members, return and accept the concrete type (`Dictionary<,>`), not the
   interface (`IReadOnlyDictionary<,>`).
+- **IDE0011**: `.editorconfig` sets `csharp_prefer_braces = true:error`. **Every** `if`, `else`,
+  `while` and `for` needs braces, including single-statement bodies and one-line early returns. A
+  parser written in the compact style produces twenty build errors from one file.
+- **CA1720** rejects `Integer`, `Decimal`, `Float`, `Object` and friends as member names, *even when
+  they are normative vocabulary from the specification*. `CanonicalScalarText.Integer(…)` is a build
+  failure. Name the operation instead of the type — `value.ToCanonicalText()` — which also reads
+  better at the call site.
+- A conditional whose branches are a `ReadOnlySpan<char>` and a string literal does not compile.
+  Write `.AsSpan()` on the literal branch too.
+
+### Test-authoring specifics
+
+- **Shouldly's string `ShouldContain` / `ShouldNotContain` are case-*insensitive* by default.**
+  `text.ShouldNotContain("E")` fails against `"1.0e21"`. Pass `Case.Sensitive` whenever the assertion
+  is about letter case — which, for a specification that fixes a lowercase `e`, is exactly when you
+  are reaching for it.
+- `InvariantGlobalization` is `true`, so `new CultureInfo("de-DE")` **throws**
+  `CultureNotFoundException` rather than giving you a hostile culture. To prove a conversion ignores
+  the ambient culture, clone `CultureInfo.InvariantCulture` and mutate its `NumberFormat` — setting
+  `NegativeSign = "MINUS"` makes a missing `InvariantCulture` argument visible immediately.
 
 ---
 
