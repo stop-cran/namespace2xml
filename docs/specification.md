@@ -559,7 +559,13 @@ Recognized byte-order marks are:
 
 UTF-32 and unrecognized byte-order marks are errors. Without a recognized BOM, input is strict UTF-8. Invalid byte sequences are errors.
 
+When decoding fails, the reported position is the first character position the byte stream could not produce. The longest prefix of the byte stream that decodes successfully determines it, and line and column locate the position immediately after that prefix. A prohibited byte-order mark therefore reports line 1, column 1, because no prefix of such a stream decodes.
+
 BOM detection tests four-byte signatures before three- or two-byte signatures. Consequently `FF FE 00 00` and `00 00 FE FF` are recognized as prohibited UTF-32 BOMs rather than as UTF-16 prefixes.
+
+A recognized byte-order mark is an encoding signature and not text. Decoding consumes it, and it is not part of the decoded character stream; every line, column, and offset is measured over the decoded stream after it is removed. U+FEFF anywhere else is ordinary data, including immediately after a byte-order mark, so a UTF-8 file beginning `EF BB BF EF BB BF` decodes to a single U+FEFF character.
+
+A byte-order mark is an encoding of U+FEFF, and U+FEFF has exactly five encodings. All five are named above: three are recognized and two are prohibited. The unrecognized case therefore has no members, and a conforming implementation carries no signature table beyond those five. Introducers for other encodings, notably UTF-7's `2B 2F 76` and the UTF-1, UTF-EBCDIC, SCSU, BOCU-1, and GB18030 signatures, are not byte-order marks and receive no special treatment: each is either ordinary UTF-8 text or an invalid byte sequence under the rules already stated. No input is ever decoded as anything other than UTF-8, UTF-16LE, or UTF-16BE.
 
 ## 8. Namespace profile language
 
@@ -2455,6 +2461,8 @@ Every diagnostic must include, where applicable:
 - declaration or wildcard rule;
 - destination path;
 - concise explanation.
+
+Line and column, where present, are measured over the decoded character stream defined by Section 7.4, after any byte-order mark has been removed. Line 1 is the first line. A line is terminated by LF, CRLF, or a lone CR, and by nothing else; consistently with Section 8.1, U+0085, U+2028, and U+2029 do not terminate a line. Column 1 is the first Unicode scalar value of a line, and each subsequent scalar advances the column by one, so a character outside the Basic Multilingual Plane occupies one column and a tab occupies one column. A condition with no position in a source omits line and column rather than reporting a default.
 
 Blocking errors include:
 
