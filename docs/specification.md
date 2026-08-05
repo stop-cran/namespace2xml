@@ -251,6 +251,8 @@ Every source item and generated item must have a stable ordering key derived fro
 4. wildcard match ordinal;
 5. deterministic local generation ordinal.
 
+The key is the ordered tuple of those five components. Each is a nonnegative integer, and a component that does not apply to an item is zero. Keys compare lexicographically in the order listed, and "later" everywhere in this specification means greater under that comparison. A plain source entry therefore precedes every item its own transformations generate from the same source position, which is what Section 5.3 requires of generated entries that inherit their rule's precedence position.
+
 The implementation may parse files concurrently, but concurrency must not alter this ordering key or any externally visible result.
 
 ## 5. Universal ordering and precedence
