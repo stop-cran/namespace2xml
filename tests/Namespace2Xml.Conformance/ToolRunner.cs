@@ -16,6 +16,7 @@ public sealed record ToolResult(int ExitCode, byte[] StandardOutput, byte[] Stan
 public static class ToolRunner
 {
     private static readonly string ToolAssembly = LocateToolAssembly();
+    private static readonly string DotnetHost = LocateDotnetHost();
 
     /// <summary>Invokes the tool with the given tokens and working directory.</summary>
     public static ToolResult Run(IReadOnlyList<string> arguments, string workingDirectory)
@@ -24,7 +25,7 @@ public static class ToolRunner
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = Environment.ProcessPath ?? "dotnet",
+            FileName = DotnetHost,
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -68,5 +69,51 @@ public static class ToolRunner
             ? candidate
             : throw new InvalidOperationException(
                 $"The tool assembly was not found at '{candidate}'. Build the CLI project first.");
+    }
+
+    /// <summary>
+    /// Finds the .NET muxer. <see cref="Environment.ProcessPath"/> is not it: under a test run the
+    /// current process is the test host, and asking the test host to execute a framework-dependent
+    /// assembly makes it attempt a self-contained launch and fail on a missing hostpolicy.
+    /// </summary>
+    private static string LocateDotnetHost()
+    {
+        var fromSdk = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
+
+        if (!string.IsNullOrEmpty(fromSdk) && File.Exists(fromSdk))
+        {
+            return fromSdk;
+        }
+
+        var executable = OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
+
+        // The runtime directory is <root>/shared/Microsoft.NETCore.App/<version>, so the muxer sits
+        // three levels above it.
+        var directory = new DirectoryInfo(
+            System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory());
+
+        for (var level = 0; level < 3 && directory is not null; level++)
+        {
+            directory = directory.Parent;
+        }
+
+        var candidate = directory is null ? null : Path.Combine(directory.FullName, executable);
+
+        if (candidate is not null && File.Exists(candidate))
+        {
+            return candidate;
+        }
+
+        var fromProcess = Environment.ProcessPath;
+
+        if (fromProcess is not null &&
+            string.Equals(Path.GetFileName(fromProcess), executable, StringComparison.OrdinalIgnoreCase))
+        {
+            return fromProcess;
+        }
+
+        // Last resort: PATH lookup. Better than failing outright, but it means the tool may run on
+        // a different runtime than the harness, so say so if it goes wrong.
+        return "dotnet";
     }
 }

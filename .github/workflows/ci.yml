@@ -27,21 +27,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Only tags may publish
         shell: bash
-        run: |
-          set -euo pipefail
-          for workflow in .github/workflows/*.yml; do
-            if grep -qE 'nuget\.org|NUGET_API_KEY|dotnet nuget push' "$workflow"; then
-              if ! grep -qE '^\s{4}tags:' "$workflow"; then
-                echo "::error file=$workflow::publishes packages but is not restricted to tag pushes"
-                exit 1
-              fi
-              if grep -qE '^\s{4}branches:' "$workflow"; then
-                echo "::error file=$workflow::publishes packages and also triggers on branches"
-                exit 1
-              fi
-            fi
-          done
-          echo "publication triggers are tag-only"
+        run: bash tools/check-publication-triggers.sh
 
   build-test:
     strategy:
