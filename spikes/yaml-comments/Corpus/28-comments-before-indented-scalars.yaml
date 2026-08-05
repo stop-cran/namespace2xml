@@ -1,0 +1,7 @@
+mapping_scalar:
+  # C81 before indented scalar mapping value
+  value
+sequence:
+  -
+    # C82 before indented scalar sequence item value
+    value

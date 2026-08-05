@@ -1,0 +1,10 @@
+flow_map: {
+  a: 1, # C15 flow mapping entry
+  b: 2
+}
+flow_sequence: [
+  one, # C16 flow sequence item
+  two
+]
+closed_map: {a: 1, b: 2} # C17 after flow mapping
+closed_sequence: [one, two] # C18 after flow sequence

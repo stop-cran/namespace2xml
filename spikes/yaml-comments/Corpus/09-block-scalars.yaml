@@ -1,0 +1,10 @@
+literal: | # C29 literal header comment
+  first line
+  # C30 literal body, not a comment
+  last line
+# C31 after literal scalar
+folded: > # C32 folded header comment
+  first folded line
+  # C33 folded body, not a comment
+  last folded line
+next: value # C34 after ordinary scalar

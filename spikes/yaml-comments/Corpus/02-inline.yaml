@@ -1,0 +1,7 @@
+scalar: value # C04 inline scalar value
+block: # C05 inline mapping key before nested block
+  child: value
+items:
+  - one # C06 inline scalar sequence item
+  - # C07 inline sequence indicator before nested block
+    child: two

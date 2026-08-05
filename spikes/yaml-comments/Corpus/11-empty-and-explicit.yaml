@@ -1,0 +1,5 @@
+empty: # C40 after empty value
+next: value
+explicit:
+  ? key # C41 after explicit key
+  : value
