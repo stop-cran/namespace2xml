@@ -345,6 +345,21 @@ public class OverlayMergerTests
     }
 
     /// <summary>
+    /// Section 16.10 rebases items "onto fresh implicit ordering values", and Section 5.4 adds that
+    /// "the original value is no longer addressable for that rebased item". An item that kept its
+    /// explicit provenance would advertise a supplied value it no longer has, and Section 17.1
+    /// patches on explicit provenance rather than concatenating.
+    /// </summary>
+    [Test]
+    public void ARebasedItemIsImplicitAtItsNewOrderingValue()
+    {
+        var node = Descend(
+            Merge(Strategy(MergeStrategy.Append, "a"), "a.0=x\na.1=y", "a.0=p"), "a");
+
+        node.Sequence[2].Provenance.ShouldBe(OrderingProvenance.Implicit);
+    }
+
+    /// <summary>
     /// Section 15.1 step 8: "the earliest or sole contribution retains its supplied ordering
     /// values", and Section 5.4: "A first or sole source contribution is not rebased merely because
     /// <c>merge=append</c> is configured."

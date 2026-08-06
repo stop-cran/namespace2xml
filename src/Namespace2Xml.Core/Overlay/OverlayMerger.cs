@@ -66,6 +66,27 @@ public sealed class OverlayMerger
         return MergeNode(earlier, later, []);
     }
 
+    /// <summary>
+    /// Merges two contributions that share a path the root-relative pass could not see as one.
+    /// </summary>
+    /// <param name="earlier">The earlier contribution in source order.</param>
+    /// <param name="later">The later contribution in source order.</param>
+    /// <param name="path">The shared path, from the overlay root.</param>
+    /// <remarks>
+    /// Step 9 needs this because a sequence item and a numeric mapping child only become one
+    /// literal path once ordering values are exposed. The path has to be supplied rather than
+    /// rediscovered: the Section 16.10 strategy is an exact per-path lookup, so merging such a pair
+    /// as if it sat at the root would silently apply the wrong strategy and report the wrong path.
+    /// </remarks>
+    internal OverlayNode MergeAt(
+        OverlayNode earlier, OverlayNode later, ImmutableArray<NamePart> path)
+    {
+        ArgumentNullException.ThrowIfNull(earlier);
+        ArgumentNullException.ThrowIfNull(later);
+
+        return MergeNode(earlier, later, path);
+    }
+
     private OverlayNode MergeNode(
         OverlayNode earlier, OverlayNode later, ImmutableArray<NamePart> path)
     {
@@ -190,6 +211,11 @@ public sealed class OverlayMerger
         // raise the current high-water mark to at least its supplied value, then allocate its new
         // value as high-water + 1." Any other order gives the items different values, because each
         // raise affects every allocation after it.
+        //
+        // The rebased item is implicit whatever it was before: Section 16.10 rebases "onto fresh
+        // implicit ordering values", and Section 5.4 adds that "the original value is no longer
+        // addressable for that rebased item". Keeping the explicit provenance would advertise a
+        // supplied value the item no longer has.
         foreach (var (supplied, item) in items.OrderBy(entry => entry.Key))
         {
             if (!allocator.TryRebase(supplied, out var rebased))
@@ -198,7 +224,7 @@ public sealed class OverlayMerger
                 break;
             }
 
-            sequence = sequence.SetItem(rebased, item);
+            sequence = sequence.SetItem(rebased, SequenceItem.Native(item.Node));
         }
 
         return OverlayNode.Compose(
