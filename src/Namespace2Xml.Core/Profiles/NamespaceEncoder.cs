@@ -224,7 +224,12 @@ public static class NamespaceEncoder
         switch (part)
         {
             case ContentPart content:
-                if (first)
+                // Section 19.1 refuses a leading '#' "because it would be parsed as a comment
+                // record", so the refusal belongs to record emission and not to the name. A caller
+                // spelling a path for a diagnostic's Section 6.4.3 'path' member or Section 17.5's
+                // fold tie-breaker emits no record, and must still get a spelling: refusing there
+                // left CanonicalPath with nothing to print but the record's own ToString().
+                if (first && recordLeading)
                 {
                     fault = new EncodingFault(
                         "a content-token part cannot be the first namespace path part, because a "

@@ -270,6 +270,17 @@ public sealed class NamespaceEncoderTests
     public void ALeadingContentTokenIsBlocking() =>
         EncodeFault(Name(new ContentPart(0), Ordinary("a"))).Message.ShouldContain("root");
 
+    /// <summary>
+    /// Section 19.1 refuses a leading content token "because it would be parsed as a comment
+    /// record", so the refusal is a property of record emission. A caller that emits no record —
+    /// Section 6.4.3's diagnostic <c>path</c> member, Section 17.5's fold tie-breaker — asks with
+    /// <c>recordLeading: false</c> and must get a spelling, not a fault it has nothing to print in
+    /// place of.
+    /// </summary>
+    [Test]
+    public void ALeadingContentTokenIsSpellableWhenNoRecordIsEmitted() =>
+        Encode(Name(new ContentPart(0), Ordinary("a")), recordLeading: false).ShouldBe("#0.a");
+
     [Test]
     public void ANonLeadingContentTokenIsFine() =>
         Encode(Name(Ordinary("a"), new ContentPart(0))).ShouldBe("a.#0");

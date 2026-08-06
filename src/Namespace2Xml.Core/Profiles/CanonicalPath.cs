@@ -24,10 +24,12 @@ public static class CanonicalPath
     /// </returns>
     /// <remarks>
     /// Encoding fails only for a name holding an unpaired surrogate or a URI carrying a forbidden
-    /// scalar, and Appendix A.2 admits neither in a lexed name, so no name that reached this point
-    /// from source can take the fallback. It exists because a name assembled in memory can, and a
-    /// diagnostic that says nothing about where it applies is worse than one that says it
-    /// approximately.
+    /// scalar. Appendix A.2 admits neither in a lexed name, but a name assembled in memory can hold
+    /// either, and Section 11.4 builds XML paths in memory, so this is reachable. The fallback
+    /// spells each part independently and joins the results, which is not injective and is not a
+    /// name you can feed back in — it exists because a diagnostic that says nothing about where it
+    /// applies is worse than one that says it approximately. It must never be the record's own
+    /// <c>ToString</c>: that prints the backing array's type name and locates nothing.
     /// </remarks>
     public static string? Of(QualifiedName? name) =>
         name is null || name.Parts.IsEmpty
@@ -39,11 +41,24 @@ public static class CanonicalPath
                 out var text,
                 out _)
                 ? text!
-                : name.ToString();
+                : Approximate(name);
 
     /// <summary>Spells a path, or returns null when it is empty.</summary>
     /// <param name="path">The name parts.</param>
     /// <returns>The canonical text, or <see langword="null"/> when the path is empty.</returns>
     public static string? Of(ImmutableArray<NamePart> path) =>
         path.IsEmpty ? null : Of(new QualifiedName(path));
+
+    private static string Approximate(QualifiedName name) =>
+        string.Join(
+            NamespaceEncoder.DefaultDelimiter,
+            name.Parts.Select(part =>
+                NamespaceEncoder.TryEncodeName(
+                    new QualifiedName([part]),
+                    NamespaceEncoder.DefaultDelimiter,
+                    recordLeading: false,
+                    out var text,
+                    out _)
+                    ? text!
+                    : "\uFFFD"));
 }
