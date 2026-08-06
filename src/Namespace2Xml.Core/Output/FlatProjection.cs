@@ -49,7 +49,7 @@ public sealed record FlatEntry(
 public sealed class FlatProjection
 {
     private readonly DiagnosticBuffer diagnostics;
-    private readonly string? destination;
+    private readonly DestinationRef? destination;
 
     /// <summary>Creates a projection.</summary>
     /// <param name="diagnostics">The buffer shape-conflict warnings accumulate in.</param>
@@ -57,7 +57,7 @@ public sealed class FlatProjection
     /// The Section 6.4.3 <c>destination</c> this output instance writes to, which is half of the
     /// "once per path and output instance" cardinality of <c>TYPE002</c>.
     /// </param>
-    public FlatProjection(DiagnosticBuffer diagnostics, string? destination = null)
+    public FlatProjection(DiagnosticBuffer diagnostics, DestinationRef? destination = null)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
 
@@ -137,8 +137,9 @@ public sealed class FlatProjection
                 + "renders one container shape: Section 17.1 keeps the later contribution, so the "
                 + (sequenceWins ? "mapping children are" : "sequence items are")
                 + " not emitted here.",
-                cardinalityKey: FlatIdentity.Key(destination, text),
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, text),
                 path: text,
-                destination: destination)));
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
     }
 }

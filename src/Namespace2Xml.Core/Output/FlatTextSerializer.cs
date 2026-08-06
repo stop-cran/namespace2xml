@@ -25,7 +25,7 @@ public sealed class FlatTextSerializer
     private readonly FlatFormat format;
     private readonly string delimiter;
     private readonly DiagnosticBuffer diagnostics;
-    private readonly string? destination;
+    private readonly DestinationRef? destination;
 
     /// <summary>Creates a serializer.</summary>
     /// <param name="format">Namespace or quoted namespace.</param>
@@ -39,7 +39,7 @@ public sealed class FlatTextSerializer
         FlatFormat format,
         string delimiter,
         DiagnosticBuffer diagnostics,
-        string? destination = null)
+        DestinationRef? destination = null)
     {
         ArgumentNullException.ThrowIfNull(delimiter);
         ArgumentNullException.ThrowIfNull(diagnostics);
@@ -185,9 +185,10 @@ public sealed class FlatTextSerializer
                 DiagnosticPhase.Planning,
                 "\u00A719.2",
                 message,
-                cardinalityKey: FlatIdentity.Key(destination, key),
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, key),
                 path: key,
-                destination: destination)));
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
 
     private void Report(string message) =>
         diagnostics.Add(new BufferedDiagnostic(
@@ -195,6 +196,7 @@ public sealed class FlatTextSerializer
                 DiagnosticPhase.Planning,
                 format == FlatFormat.QuotedNamespace ? "\u00A719.2" : "\u00A719.1",
                 message,
-                cardinalityKey: FlatIdentity.Key(destination, null),
-                destination: destination)));
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, null),
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
 }

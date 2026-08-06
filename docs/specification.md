@@ -2694,7 +2694,7 @@ XML's declaration is `encoding="utf-8"`.
 
 Diagnostics produced during concurrent work are buffered and emitted by pipeline phase, then by source ordering key within that phase. Scheme-loading diagnostics therefore precede input-parsing diagnostics, followed by transformation/output-planning diagnostics and publication diagnostics.
 
-A diagnostic's ordering key is the Section 4.7 stable ordering key of the item it concerns. A diagnostic that concerns a source but no individual item carries the key whose CLI source ordinal is that source's and whose remaining components are zero, so it precedes every item of that source. Within one phase the order is:
+A diagnostic's ordering key is the Section 4.7 stable ordering key of the item it concerns. A diagnostic that concerns a source but no individual item carries the key whose CLI source ordinal is that source's and whose remaining components are zero, so it precedes every item of that source. A diagnostic about a conflict between two contributions at one path concerns the later of them: that is the contribution whose arrival made the earlier one insufficient, and the one an author edits to resolve it. Keying such a diagnostic at the earlier contribution would report a later source's mistake at an earlier source's position. Within one phase the order is:
 
 1. diagnostics carrying a source ordering key, in that key's Section 4.7 comparison order;
 2. then diagnostics carrying a destination but no source ordering key, in the Section 21.3 destination order;

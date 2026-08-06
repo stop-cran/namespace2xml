@@ -21,7 +21,7 @@ public sealed class IniSerializer
 {
     private readonly IniOutputOptions options;
     private readonly DiagnosticBuffer diagnostics;
-    private readonly string? destination;
+    private readonly DestinationRef? destination;
 
     /// <summary>Creates a serializer.</summary>
     /// <param name="options">The Section 16.9 options.</param>
@@ -30,7 +30,7 @@ public sealed class IniSerializer
     public IniSerializer(
         IniOutputOptions options,
         DiagnosticBuffer diagnostics,
-        string? destination = null)
+        DestinationRef? destination = null)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
 
@@ -228,9 +228,10 @@ public sealed class IniSerializer
                 DiagnosticPhase.Planning,
                 "\u00A719.6",
                 $"the value at '{path ?? keyed.Key}' cannot be written: {message}",
-                cardinalityKey: FlatIdentity.Key(destination, path),
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, path),
                 path: path,
-                destination: destination)));
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
     }
 
     private void ReportDiscardedComments() =>
@@ -240,6 +241,7 @@ public sealed class IniSerializer
                 "\u00A720",
                 "comments were discarded because neither 'SemicolonComments' nor 'HashComments' "
                 + "is selected in 'inioutputoptions'.",
-                cardinalityKey: FlatIdentity.Key(destination, "comments"),
-                destination: destination)));
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, "comments"),
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
 }

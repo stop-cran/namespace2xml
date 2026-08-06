@@ -32,7 +32,14 @@ public static class PublicationPhase
         var planned = ImmutableArray.CreateBuilder<PlannedOutput>(contributions.Length);
         var order = 0;
 
-        foreach (var contribution in contributions.OrderBy(c => c.Key))
+        // Section 21.3's destination order is "by publication key, then by canonical relative path
+        // compared as unsigned UTF-8 bytes". The key alone is not a total order — one declaration
+        // can write two destinations — and the index assigned here is what Section 24 orders this
+        // step's diagnostics by, so a tie left to enumeration order would be a diagnostic order
+        // that depends on a dictionary.
+        foreach (var contribution in contributions
+            .OrderBy(c => c.Key)
+            .ThenBy(c => c.Path, DestinationPath.Utf8Bytes))
         {
             if (TrySerialize(contribution, budget, diagnostics, order, out var buffer))
             {
@@ -77,7 +84,7 @@ public static class PublicationPhase
         buffer = OutputBuffer.Empty;
 
         var view = contribution.View;
-        var destination = contribution.Path.Canonical;
+        var destination = new DestinationRef(contribution.Path.Canonical, order);
 
         if (!view.Format.TryAsFlat(out var flat))
         {
@@ -114,9 +121,9 @@ public static class PublicationPhase
             DiagnosticCodes.Serialize001(
                 DiagnosticPhase.Publication,
                 "\u00A724",
-                $"'{destination}' could not be serialized: {violation}",
-                cardinalityKey: destination,
-                destination: destination),
+                $"'{destination.Canonical}' could not be serialized: {violation}",
+                cardinalityKey: destination.Canonical,
+                destination: destination.Canonical),
             DestinationOrder: order));
 
         return false;

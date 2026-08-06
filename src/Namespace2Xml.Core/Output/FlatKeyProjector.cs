@@ -51,7 +51,7 @@ public sealed partial class FlatKeyProjector
     private readonly FlatFormat format;
     private readonly string delimiter;
     private readonly DiagnosticBuffer diagnostics;
-    private readonly string? destination;
+    private readonly DestinationRef? destination;
 
     /// <summary>Creates a projector.</summary>
     /// <param name="format">The output format.</param>
@@ -62,7 +62,7 @@ public sealed partial class FlatKeyProjector
         FlatFormat format,
         string delimiter,
         DiagnosticBuffer diagnostics,
-        string? destination = null)
+        DestinationRef? destination = null)
     {
         ArgumentNullException.ThrowIfNull(delimiter);
         ArgumentNullException.ThrowIfNull(diagnostics);
@@ -295,8 +295,9 @@ public sealed partial class FlatKeyProjector
                 DiagnosticPhase.Planning,
                 "\u00A719.1",
                 $"the path '{Named(entry)}' has no namespace spelling: {message}",
-                cardinalityKey: FlatIdentity.Key(destination, null),
-                destination: destination)));
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, null),
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
 
     private void ReportShellFault(FlatEntry entry, string message) =>
         diagnostics.Add(new BufferedDiagnostic(
@@ -304,9 +305,10 @@ public sealed partial class FlatKeyProjector
                 DiagnosticPhase.Planning,
                 "\u00A719.2",
                 message,
-                cardinalityKey: FlatIdentity.Key(destination, Named(entry)),
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, Named(entry)),
                 path: Named(entry),
-                destination: destination)));
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
 
     private void ReportIniFault(FlatEntry entry, string message) =>
         diagnostics.Add(new BufferedDiagnostic(
@@ -314,9 +316,10 @@ public sealed partial class FlatKeyProjector
                 DiagnosticPhase.Planning,
                 "\u00A719.6",
                 message,
-                cardinalityKey: FlatIdentity.Key(destination, Named(entry)),
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, Named(entry)),
                 path: Named(entry),
-                destination: destination)));
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
 
     private void ReportCollision(FlatEntry entry, FlatEntry first, string section, string key) =>
         diagnostics.Add(new BufferedDiagnostic(
@@ -326,9 +329,10 @@ public sealed partial class FlatKeyProjector
                 $"'{Named(entry)}' and '{Named(first)}' are distinct logical paths that both "
                 + $"project to {Spelled(section, key)}: Section 16.4 forbids two paths silently "
                 + "becoming one flat key.",
-                cardinalityKey: FlatIdentity.Key(destination, $"{section}\u0000{key}"),
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, $"{section}\u0000{key}"),
                 path: Named(entry),
-                destination: destination)));
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
 
     private static string? Named(FlatEntry entry) => FlatIdentity.PathText(entry.LogicalPath);
 

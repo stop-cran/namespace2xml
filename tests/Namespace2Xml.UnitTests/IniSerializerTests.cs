@@ -62,11 +62,11 @@ public class IniSerializerTests
             FlatFormat.Ini,
             FlatKeyProjector.DefaultDelimiter(FlatFormat.Ini),
             diagnostics,
-            "out.ini").Project(entries);
+            new DestinationRef("out.ini", 0)).Project(entries);
 
         keyed.Length.ShouldBe(entries.Length);
 
-        return new IniSerializer(options, diagnostics, "out.ini").TrySerialize(keyed, writer);
+        return new IniSerializer(options, diagnostics, new DestinationRef("out.ini", 0)).TrySerialize(keyed, writer);
     }
 
     private bool Fails(IniOutputOptions options, params FlatEntry[] entries) =>

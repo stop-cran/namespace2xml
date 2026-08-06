@@ -47,7 +47,7 @@ public class FlatKeyProjectorTests
 
     private ImmutableArray<FlatKeyedEntry> Project(
         FlatFormat format, string delimiter, params FlatEntry[] entries) =>
-        new FlatKeyProjector(format, delimiter, diagnostics, "out.txt").Project(entries);
+        new FlatKeyProjector(format, delimiter, diagnostics, new DestinationRef("out.txt", 0)).Project(entries);
 
     private string SoleCode() => diagnostics.Drain().ShouldHaveSingleItem().Code;
 

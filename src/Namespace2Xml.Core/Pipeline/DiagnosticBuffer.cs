@@ -28,6 +28,8 @@ public sealed record BufferedDiagnostic(
     StableOrderingKey? OrderingKey = null,
     int? DestinationOrder = null)
 {
+    private readonly int group = Classify(Occurrence, OrderingKey, DestinationOrder);
+
     /// <summary>The diagnostic being ordered.</summary>
     public Diagnostic Diagnostic => Occurrence.Diagnostic;
 
@@ -35,7 +37,45 @@ public sealed record BufferedDiagnostic(
     /// The Section 24 group: 0 carries a source ordering key, 1 carries a destination only, 2
     /// carries neither.
     /// </summary>
-    internal int Group => OrderingKey is not null ? 0 : DestinationOrder is not null ? 1 : 2;
+    internal int Group => group;
+
+    /// <summary>
+    /// Places a diagnostic in its Section 24 group, and refuses the one combination that has no
+    /// group: a diagnostic naming a destination, with neither a source ordering key nor the
+    /// Section 21.3 index of that destination.
+    /// </summary>
+    /// <remarks>
+    /// Section 24's second group is "diagnostics carrying a destination but no source ordering key,
+    /// <em>in the Section 21.3 destination order</em>". A site that fills the element's
+    /// <c>destination</c> member and leaves <see cref="DestinationOrder"/> null looks correct in
+    /// every stream it appears in alone, and silently falls to the third group — ordered by code
+    /// bytes then path bytes — as soon as a second destination diagnoses anything. That is a wrong
+    /// order the schema accepts, the field comparison accepts, and only a fixture with two failing
+    /// destinations would ever catch. Refusing it at construction costs one branch and removes the
+    /// whole class.
+    /// </remarks>
+    private static int Classify(
+        DiagnosticOccurrence occurrence, StableOrderingKey? key, int? destinationOrder)
+    {
+        ArgumentNullException.ThrowIfNull(occurrence);
+
+        if (key is not null)
+        {
+            return 0;
+        }
+
+        if (destinationOrder is not null)
+        {
+            return 1;
+        }
+
+        return occurrence.Diagnostic.Destination is null
+            ? 2
+            : throw new InvalidOperationException(
+                $"'{occurrence.Diagnostic.Code}' names the destination "
+                + $"'{occurrence.Diagnostic.Destination}' but carries neither an ordering key nor a "
+                + "destination order, so Section 24 has no group for it.");
+    }
 }
 
 /// <summary>

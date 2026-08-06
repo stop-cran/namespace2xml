@@ -398,4 +398,67 @@ public sealed class TransformationTests
         result.Published.ShouldBe(0);
         sink.Written.ShouldBeEmpty();
     }
+    [Test]
+    public void TwoDestinationsDiagnoseInPublicationOrderNotPathOrder()
+    {
+        // Section 24 orders diagnostics "carrying a destination but no source ordering key... in
+        // the Section 21.3 destination order", and Section 21.3 orders by publication key first,
+        // which Section 16.1 derives from declaration order. `z` is declared first, so its SHELL001
+        // precedes `a`'s even though 'a.sh' sorts before 'z.sh' as bytes.
+        //
+        // A stream ordered by path would look identical for either one alone. Two destinations that
+        // both diagnose is the only shape that can tell the two orders apart, which is why this
+        // case exists.
+        var (result, _) = Transform(
+            "z.a-b=1\na.a-b=1\n",
+            "z.output=quotednamespace\nz.filename=z.sh\na.output=quotednamespace\na.filename=a.sh\n");
+
+        Codes(result).ShouldBe(["SHELL001", "SHELL001"]);
+        result.Diagnostics.Select(d => d.Destination).ShouldBe(["z.sh", "a.sh"]);
+    }
+
+    [Test]
+    public void ADiagnosticNamingADestinationMustCarryItsOrder()
+    {
+        // Section 24 gives a diagnostic three possible groups, and a diagnostic that names a
+        // destination without its Section 21.3 index belongs to none of them: it would silently
+        // sort with the diagnostics that name nothing, by code bytes then path bytes. Refusing it
+        // at construction is what keeps every emission site honest.
+        var occurrence = DiagnosticCodes.Path002(
+            DiagnosticPhase.Publication,
+            "\u00A721.3",
+            "the destination could not be written.",
+            cardinalityKey: "out.txt",
+            destination: "out.txt");
+
+        Should.Throw<InvalidOperationException>(() => new BufferedDiagnostic(occurrence))
+            .Message.ShouldContain("out.txt");
+
+        Should.NotThrow(() => new BufferedDiagnostic(occurrence, DestinationOrder: 0));
+    }
+    [Test]
+    public void AMergeConflictIsOrderedAtTheContributionThatCausedIt()
+    {
+        // Section 24: "A diagnostic's ordering key is the Section 4.7 stable ordering key of the
+        // item it concerns", and Section 4.7 makes the CLI source ordinal that key's first
+        // component. Section 24 keys a conflict between two contributions at
+        // "the later of them", so this one carries the third source's key and orders after a
+        // warning about the second.
+        //
+        // Carrying no key would put it in Section 24's third group, after every keyed diagnostic of
+        // the same phase. Carrying the zero key would put it first. Keying it at the *earlier*
+        // contribution would put it before the missing-file warning for a source that really is
+        // earlier than the mistake. The warning sits between the two contributions so that all
+        // three wrong answers move it.
+        var sink = new Sink();
+        var sources = new Sources(
+            ("one.txt", "app.name=first\n"),
+            ("two.txt", "app.name=second\n"),
+            ("scheme.txt", "app.merge=error\n"));
+
+        var result = Run(
+            sink, sources, "-i", "one.txt", "-i", "gone.txt", "-i", "two.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldBe(["WARN001", "TYPE001"]);
+    }
 }

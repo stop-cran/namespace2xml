@@ -58,11 +58,11 @@ public class FlatTextSerializerTests
     private bool Write(FlatFormat format, OutputBufferWriter writer, params FlatEntry[] entries)
     {
         var delimiter = FlatKeyProjector.DefaultDelimiter(format);
-        var keyed = new FlatKeyProjector(format, delimiter, diagnostics, "out.txt").Project(entries);
+        var keyed = new FlatKeyProjector(format, delimiter, diagnostics, new DestinationRef("out.txt", 0)).Project(entries);
 
         keyed.Length.ShouldBe(entries.Length);
 
-        return new FlatTextSerializer(format, delimiter, diagnostics, "out.txt")
+        return new FlatTextSerializer(format, delimiter, diagnostics, new DestinationRef("out.txt", 0))
             .TrySerialize(keyed, writer);
     }
 

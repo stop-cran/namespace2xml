@@ -102,7 +102,8 @@ public sealed class OverlayMerger
                 Report(
                     path,
                     "merge=error rejects a second source contribution at this path.",
-                    "\u00A716.10");
+                    "\u00A716.10",
+                    later.Marks.Latest);
             }
 
             return DeepMerge(earlier, later, path);
@@ -190,7 +191,8 @@ public sealed class OverlayMerger
                 path,
                 "merge=append needs a sequence contribution: this one is neither a sequence nor a "
                 + "nonempty mapping whose child names are all canonical ordering values.",
-                "\u00A716.10");
+                "\u00A716.10",
+                later.Marks.Latest);
 
             return DeepMerge(earlier, later, path);
         }
@@ -220,7 +222,7 @@ public sealed class OverlayMerger
         {
             if (!allocator.TryRebase(supplied, out var rebased))
             {
-                ReportOverflow(path);
+                ReportOverflow(path, item.Node.Marks.Latest);
                 break;
             }
 
@@ -330,7 +332,7 @@ public sealed class OverlayMerger
             // Section 17.1: "implicit later items concatenate".
             if (!allocator.TryAllocate(out var allocated))
             {
-                ReportOverflow(path);
+                ReportOverflow(path, item.Node.Marks.Latest);
                 break;
             }
 
@@ -372,7 +374,8 @@ public sealed class OverlayMerger
             ({ } left, { } right) => right > left ? later.Payload : earlier.Payload,
         };
 
-    private void Report(ImmutableArray<NamePart> path, string message, string spec)
+    private void Report(
+        ImmutableArray<NamePart> path, string message, string spec, StableOrderingKey key)
     {
         var text = PathText(path);
 
@@ -382,17 +385,19 @@ public sealed class OverlayMerger
                 spec,
                 message,
                 cardinalityKey: text ?? string.Empty,
-                path: text)));
+                path: text),
+            key));
     }
 
-    private void ReportOverflow(ImmutableArray<NamePart> path) =>
+    private void ReportOverflow(ImmutableArray<NamePart> path, StableOrderingKey key) =>
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Limit001(
                 DiagnosticPhase.Input,
                 "\u00A75.4",
                 "this sequence has no ordering value left: Section 5.4 allocates above the "
                 + "greatest value ever used at the path, and that is already the maximum.",
-                path: PathText(path))));
+                path: PathText(path)),
+            key));
 
     /// <summary>
     /// The Appendix A spelling of a path, for the diagnostic's <c>path</c> field, or

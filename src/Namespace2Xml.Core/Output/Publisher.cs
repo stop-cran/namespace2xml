@@ -54,14 +54,14 @@ public sealed class Publisher
 
         var created = new HashSet<string>(StringComparer.Ordinal);
 
-        if (!TryCreateDirectory(string.Empty, created, null))
+        if (!TryCreateDirectory(string.Empty, created, null, null))
         {
             return false;
         }
 
-        foreach (var output in ordered)
+        for (var order = 0; order < ordered.Length; order++)
         {
-            if (!TryPublishOne(output, created))
+            if (!TryPublishOne(ordered[order], order, created))
             {
                 return false;
             }
@@ -70,8 +70,9 @@ public sealed class Publisher
         return true;
     }
 
-    private bool TryPublishOne(PlannedOutput output, HashSet<string> created)
+    private bool TryPublishOne(PlannedOutput output, int order, HashSet<string> created)
     {
+        var destination = new DestinationRef(output.Path.Canonical, order);
         var segments = output.Path.Canonical.Split('/');
 
         // Section 21.3 creates "each destination's missing parent directories immediately before
@@ -79,7 +80,7 @@ public sealed class Publisher
         // for destinations that were never reached.
         for (var i = 1; i < segments.Length; i++)
         {
-            if (!TryCreateDirectory(string.Join('/', segments.Take(i)), created, output))
+            if (!TryCreateDirectory(string.Join('/', segments.Take(i)), created, destination, output))
             {
                 return false;
             }
@@ -91,19 +92,20 @@ public sealed class Publisher
         }
         catch (UncontainableDestinationException e)
         {
-            ReportUncontainable(output.Path.Canonical, output, e.Message);
+            ReportUncontainable(output.Path.Canonical, destination, e.Message);
             return false;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            ReportWriteFailure(output, e.Message);
+            ReportWriteFailure(output, destination, e.Message);
             return false;
         }
 
         return true;
     }
 
-    private bool TryCreateDirectory(string relative, HashSet<string> created, PlannedOutput? output)
+    private bool TryCreateDirectory(
+        string relative, HashSet<string> created, DestinationRef? destination, PlannedOutput? output)
     {
         if (!created.Add(relative))
         {
@@ -116,12 +118,12 @@ public sealed class Publisher
         }
         catch (UncontainableDestinationException e)
         {
-            ReportUncontainable(relative, output, e.Message);
+            ReportUncontainable(relative, destination, e.Message);
             return false;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            ReportDirectoryFailure(relative, output, e.Message);
+            ReportDirectoryFailure(relative, destination, output, e.Message);
             return false;
         }
 
@@ -132,40 +134,43 @@ public sealed class Publisher
     /// Appendix B: an "uncontainable destination path" is <c>PATH001</c>. Nothing was opened,
     /// created, or written, so this is not the <c>PATH002</c> publication failure.
     /// </summary>
-    private void ReportUncontainable(string relative, PlannedOutput? output, string message)
+    private void ReportUncontainable(string relative, DestinationRef? destination, string message)
     {
-        var destination = output?.Path.Canonical ?? relative;
+        var named = destination?.Canonical ?? relative;
 
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Path001(
                 DiagnosticPhase.Publication,
                 "\u00A721.1",
                 message,
-                cardinalityKey: destination,
-                destination: destination)));
+                cardinalityKey: named,
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
     }
 
-    private void ReportWriteFailure(PlannedOutput output, string message) =>
+    private void ReportWriteFailure(PlannedOutput output, DestinationRef destination, string message) =>
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Path002(
                 DiagnosticPhase.Publication,
                 "\u00A721.3",
                 $"the destination '{output.Path}' could not be written: {message}",
-                cardinalityKey: output.Path.Canonical,
-                destination: output.Path.Canonical)));
+                cardinalityKey: destination.Canonical,
+                destination: destination.Canonical),
+            DestinationOrder: destination.Order));
 
-    private void ReportDirectoryFailure(string relative, PlannedOutput? output, string message)
+    private void ReportDirectoryFailure(
+        string relative, DestinationRef? destination, PlannedOutput? output, string message)
     {
         var named = relative.Length == 0 ? "the output root" : $"the directory '{relative}'";
-        var destination = output?.Path.Canonical;
 
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Path002(
                 DiagnosticPhase.Publication,
                 "\u00A721.3",
                 $"{named} could not be created: {message}",
-                cardinalityKey: destination ?? relative,
-                destination: destination)));
+                cardinalityKey: destination?.Canonical ?? relative,
+                destination: output is null ? null : destination?.Canonical),
+            DestinationOrder: output is null ? null : destination?.Order));
     }
 }
 
