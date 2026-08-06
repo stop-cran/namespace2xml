@@ -184,7 +184,7 @@ public class PublisherTests
     {
         Publish(Planned("a.json"), Planned("b.json", declarationOrder: 1)).ShouldBeTrue();
 
-        sink.Concurrent.ShouldBe(0);
+        sink.MaxConcurrent.ShouldBe(1);
         sink.Calls.ShouldBe(["mkdir:", "write:a.json", "write:b.json"]);
     }
 
@@ -488,7 +488,21 @@ public class PublisherTests
 
         public string? FailOn { get; set; }
 
-        public int Concurrent { get; private set; }
+        /// <summary>
+        /// The largest number of writes that were ever in progress at once. Section 21.3 closes
+        /// each destination before beginning the next, so this is one after any publication that
+        /// wrote something.
+        /// </summary>
+        /// <remarks>
+        /// A count of writes currently in progress cannot express that: it is incremented and
+        /// decremented within a single call, so it has returned to zero by the time a test can read
+        /// it, whether or not any two writes overlapped. A peak survives the calls that set it.
+        /// </remarks>
+        public int MaxConcurrent { get; private set; }
+
+        private readonly Lock gate = new();
+
+        private int open;
 
         public ReadOnlyCollection<string> Calls => calls.AsReadOnly();
 
@@ -508,10 +522,13 @@ public class PublisherTests
 
         public void Write(string root, string relative, OutputBuffer buffer)
         {
-            calls.Add($"write:{relative}");
-            writes.Add(relative);
-
-            Concurrent++;
+            lock (gate)
+            {
+                calls.Add($"write:{relative}");
+                writes.Add(relative);
+                open++;
+                MaxConcurrent = Math.Max(MaxConcurrent, open);
+            }
 
             try
             {
@@ -527,7 +544,10 @@ public class PublisherTests
             }
             finally
             {
-                Concurrent--;
+                lock (gate)
+                {
+                    open--;
+                }
             }
         }
     }
