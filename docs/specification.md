@@ -687,6 +687,8 @@ A namespace comment is a physical line whose first non-whitespace character is a
 
 Consecutive comments are associated with the next entry. Trailing comments with no following entry remain document-trailing comments.
 
+Only an entry ends a run of comments. A record ignored under Section 8.1 rule 1, a permanent mask, and a record reported as `PARSE001` all leave the run open, so comments separated from their entry by any of them still bind to it, and comments on either side of such a record bind to the same entry. Requiring adjacency instead would let a blank line silently discard a comment block, and would let inserting an unrelated mask move a comment onto a different value. A wildcard template is an entry, so a run binds to it and Section 4.5 clones the run onto each contribution the template generates.
+
 The association is made with the following entry's logical qualified path before overrides are evaluated. It therefore survives replacement of that path and moves to the winning contribution's output position as specified in Sections 4.5 and 5.2.
 
 ### 8.6 Ignore entries

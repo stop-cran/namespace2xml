@@ -36,12 +36,12 @@ public static class NamespaceRecordClassifier
         // needed for the escaped forms Section 8.1 calls out.
         if (text[first] == '#')
         {
-            return NamespaceRecord.OfComment(text[first..], line);
+            return NamespaceRecord.OfComment(text[first..], line, first + 1);
         }
 
         if (text[first] == '!')
         {
-            return NamespaceRecord.OfMask(text[(first + 1)..], line);
+            return NamespaceRecord.OfMask(text[(first + 1)..], line, first + 2);
         }
 
         var separator = FindSeparatingEquals(text);

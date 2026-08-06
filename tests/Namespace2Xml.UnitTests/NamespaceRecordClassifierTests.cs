@@ -290,6 +290,40 @@ public sealed class NamespaceRecordClassifierTests
         record.Value.ShouldBe("2");
     }
 
+    // Section 22 requires a column, and Section 8.1 strips leading spaces and tabs from a comment
+    // and from a mask pattern, so the record text alone can no longer say where its content began.
+
+    /// <summary>
+    /// The column is one-based and names the record's first content character: the `#` of a
+    /// comment, the character after the `!` of a mask, and the first character of an entry, which
+    /// Section 8.1 does not trim.
+    /// </summary>
+    [Test]
+    public void TheColumnNamesTheFirstContentCharacter()
+    {
+        NamespaceRecordClassifier.Classify("  \t#c", line: 1).Column.ShouldBe(4);
+        NamespaceRecordClassifier.Classify("  !a.*", line: 1).Column.ShouldBe(4);
+        NamespaceRecordClassifier.Classify("  a=1", line: 1).Column.ShouldBe(1);
+        NamespaceRecordClassifier.Classify("bad", line: 1).Column.ShouldBe(1);
+        NamespaceRecordClassifier.Classify("   ", line: 1).Column.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// A column locates text inside the record, so adding one character before the content must
+    /// move the column by exactly one.
+    /// </summary>
+    [Test]
+    public void EachLeadingBlankMovesTheColumnByOne()
+    {
+        for (var blanks = 0; blanks < 5; blanks++)
+        {
+            var prefix = new string(' ', blanks);
+
+            NamespaceRecordClassifier.Classify(prefix + "#c", line: 1).Column.ShouldBe(blanks + 1);
+            NamespaceRecordClassifier.Classify(prefix + "!p", line: 1).Column.ShouldBe(blanks + 2);
+        }
+    }
+
     // Totality.
 
     [Test]
