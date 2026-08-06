@@ -578,7 +578,14 @@ public sealed class NamespaceEncoderTests
             NamespaceEncoder.TryEncodeValue(value, ".", out var text, out var fault)
                 .ShouldBeTrue(fault.Message);
 
-            var result = ValueLexer.Lex(text!, ValueSyntax.Profile);
+            // Section 12.1 recognizes one capture form per rule, so a round trip is only defined
+            // against the form the value itself uses: '*[id]' read where only the bare form is
+            // recognized is a bare capture followed by literal brackets, which is a different value.
+            var syntax = ValueSyntax.Profile(
+                tokens.OfType<ValueWildcardToken>().Any(wildcard => wildcard.CaptureId is not null)
+                    ? WildcardSyntax.Explicit
+                    : WildcardSyntax.Unnamed);
+            var result = ValueLexer.Lex(text!, syntax);
             result.Fault.ShouldBeNull();
             result.Value.ShouldBe(value);
         }

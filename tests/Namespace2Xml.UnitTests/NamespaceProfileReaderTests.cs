@@ -408,4 +408,59 @@ public class NamespaceProfileReaderTests
     public void EveryFaultingRecordIsReported() =>
         Diagnose("bad\na=${x\nb.*[c=1").Select(diagnostic => diagnostic.Line)
             .ShouldBe([1, 2, 3]);
+    /// <summary>
+    /// Section 12.1: wildcard recognition is "decided before the value is lexed, from the owning
+    /// name's captures", so in an entry whose name defines none, "values such as pattern=*.txt
+    /// require no escape".
+    /// </summary>
+    [Test]
+    public void AnAsteriskIsLiteralWhereTheNameDefinesNoCaptures()
+    {
+        var payload = Descend(Read("a.pattern=*.txt").Overlay, "a", "pattern").Payload!;
+
+        payload.ToCanonicalText().ShouldBe("*.txt");
+    }
+
+    /// <summary>
+    /// Section 12.1: the bracketed form is covered by the same decision, so
+    /// <c>path=/opt/x*[0-9]/y</c> "is a glob, not an undefined capture" and not a lexical error.
+    /// </summary>
+    [Test]
+    public void ABracketedAsteriskIsLiteralWhereTheNameDefinesNoCaptures()
+    {
+        var buffer = new DiagnosticBuffer();
+        var contribution = Read("a.path=/opt/x*[0-9]/y", buffer);
+
+        Descend(contribution.Overlay, "a", "path").Payload!.ToCanonicalText()
+            .ShouldBe("/opt/x*[0-9]/y");
+        buffer.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 12.1: where the name defines an unnamed capture, a bare asterisk in the value
+    /// substitutes it, so the value is no longer a literal scalar.
+    /// </summary>
+    [Test]
+    public void AnAsteriskSubstitutesWhereTheNameDefinesAnUnnamedCapture()
+    {
+        var entry = Read("a.*.pattern=*.txt").Templates.ShouldHaveSingleItem();
+
+        entry.Value.ContainsWildcard.ShouldBeTrue();
+        entry.Value.LiteralText.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Section 12.1: "Where the name defines explicit captures, a bare '*' in the value is likewise
+    /// literal text, because the name defines no unnamed capture for it to substitute; that is what
+    /// incompatibility means here, and it is not a mixed-capture error."
+    /// </summary>
+    [Test]
+    public void ABareAsteriskIsLiteralWhereTheNameDefinesExplicitCaptures()
+    {
+        var buffer = new DiagnosticBuffer();
+        var entry = Read("a.*[n].pattern=*.txt", buffer).Templates.ShouldHaveSingleItem();
+
+        entry.Value.LiteralText.ShouldBe("*.txt");
+        buffer.Drain().ShouldBeEmpty();
+    }
 }

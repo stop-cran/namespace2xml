@@ -21,6 +21,36 @@ public enum ValueEscapeStyle
 }
 
 /// <summary>
+/// Which Section 12.1 capture form an unescaped <c>*</c> spells in a value.
+/// </summary>
+/// <remarks>
+/// Section 12.1 decides this before the value is lexed, from the owning name's captures and the
+/// effective <c>substitute</c> mode, and "a single rule must not mix explicit and legacy unnamed
+/// captures", so exactly one form is ever recognized. It is not a boolean: a name defining explicit
+/// captures leaves a bare <c>*</c> literal just as a name defining none does.
+/// </remarks>
+public enum WildcardSyntax
+{
+    /// <summary>
+    /// Neither form is a capture. Both <c>*</c> and <c>*[</c> are literal text, so a glob such as
+    /// <c>/opt/x*[0-9]/y</c> needs no escape.
+    /// </summary>
+    None,
+
+    /// <summary>
+    /// The owning name defines unnamed captures, so a bare <c>*</c> substitutes one. It consumes
+    /// the asterisk alone; a following <c>[</c> is literal text.
+    /// </summary>
+    Unnamed,
+
+    /// <summary>
+    /// The owning name defines explicit captures, so <c>*[identifier]</c> substitutes one and a
+    /// bare <c>*</c> is literal text.
+    /// </summary>
+    Explicit,
+}
+
+/// <summary>
 /// How a value is to be interpreted: everything the Appendix A.3 pass needs that is not in the text.
 /// </summary>
 /// <param name="Escapes">Which escape table applies.</param>
@@ -28,42 +58,32 @@ public enum ValueEscapeStyle
 /// Whether an unescaped <c>${</c> begins a Section 8.4 reference. False under <c>substitute=Key</c>
 /// and <c>substitute=None</c>, where Section 13.4 still decodes lexical escapes.
 /// </param>
-/// <param name="InterpretWildcards">
-/// Whether an unescaped <c>*</c> is a Section 12.1 or 12.2 capture substitution. Section 12.1
-/// decides this before lexing, from the owning name's captures and the effective <c>substitute</c>
-/// mode; when it is false, <c>*</c> and <c>*[</c> are literal text, so a glob such as
-/// <c>/opt/x*[0-9]/y</c> needs no escape.
-/// </param>
+/// <param name="Wildcards">Which Section 12.1 capture form an unescaped <c>*</c> spells.</param>
 public readonly record struct ValueSyntax(
     ValueEscapeStyle Escapes,
     bool InterpretReferences,
-    bool InterpretWildcards)
+    WildcardSyntax Wildcards)
 {
-    /// <summary>A namespace-profile value in an entry that interprets everything.</summary>
-    public static ValueSyntax Profile { get; } =
-        new(ValueEscapeStyle.NamespaceProfile, InterpretReferences: true, InterpretWildcards: true);
-
-    /// <summary>
-    /// A namespace-profile value whose name defines no captures: escapes and references are still
-    /// interpreted, and <c>*</c> is literal text.
-    /// </summary>
-    public static ValueSyntax ProfileWithoutCaptures { get; } =
-        new(ValueEscapeStyle.NamespaceProfile, InterpretReferences: true, InterpretWildcards: false);
+    /// <summary>A namespace-profile value whose name defines the given capture form.</summary>
+    /// <param name="wildcards">The form Section 12.1 recognizes for the owning name.</param>
+    public static ValueSyntax Profile(WildcardSyntax wildcards) =>
+        new(ValueEscapeStyle.NamespaceProfile, InterpretReferences: true, wildcards);
 
     /// <summary>
     /// A namespace-profile value under <c>substitute=Key</c> or <c>substitute=None</c>: Section 13.4
     /// still decodes profile escapes, and nothing else is interpreted.
     /// </summary>
     public static ValueSyntax ProfileUninterpreted { get; } =
-        new(ValueEscapeStyle.NamespaceProfile, InterpretReferences: false, InterpretWildcards: false);
+        new(ValueEscapeStyle.NamespaceProfile, InterpretReferences: false, WildcardSyntax.None);
 
-    /// <summary>A decoded native string in an entry that interprets everything.</summary>
+    /// <summary>A decoded native string whose name defines the given capture form.</summary>
+    /// <param name="wildcards">The form Section 12.1 recognizes for the owning name.</param>
     /// <remarks>
     /// Section 13.4 preserves a native string exactly under <c>Key</c> and <c>None</c>, so there is
     /// no uninterpreted native counterpart: that value is never lexed at all.
     /// </remarks>
-    public static ValueSyntax NativeString { get; } =
-        new(ValueEscapeStyle.NativeString, InterpretReferences: true, InterpretWildcards: true);
+    public static ValueSyntax NativeString(WildcardSyntax wildcards) =>
+        new(ValueEscapeStyle.NativeString, InterpretReferences: true, wildcards);
 }
 
 /// <summary>
@@ -118,7 +138,21 @@ public static class ValueLexer
                 continue;
             }
 
-            if (syntax.InterpretWildcards && c == '*')
+            // Section 12.1 recognizes exactly one capture form per rule. Under Unnamed the bare
+            // token is the recognized one and consumes the asterisk alone, so a following '[' is
+            // ordinary text; under Explicit only the bracketed form is recognized.
+            if (c == '*' && syntax.Wildcards == WildcardSyntax.Unnamed)
+            {
+                FlushLiteral();
+                tokens.Add(new ValueWildcardToken(null));
+                index++;
+                continue;
+            }
+
+            if (c == '*'
+                && syntax.Wildcards == WildcardSyntax.Explicit
+                && index + 1 < text.Length
+                && text[index + 1] == '[')
             {
                 FlushLiteral();
                 if (!QualifiedNameLexer.TryLexWildcard(text, ref index, out var wildcard, out var nameFault))

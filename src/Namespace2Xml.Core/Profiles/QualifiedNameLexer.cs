@@ -105,6 +105,25 @@ public static class QualifiedNameLexer
     /// <summary>Whether any component of a name contains a wildcard token.</summary>
     public static bool ContainsWildcard(QualifiedName name) => Wildcards(name).Any();
 
+    /// <summary>
+    /// Which Section 12.1 capture form a value owned by this name may substitute.
+    /// </summary>
+    /// <param name="name">The owning name.</param>
+    /// <remarks>
+    /// Section 12.1 decides recognition from the name's captures before the value is lexed. Section
+    /// 12.2 forbids mixing the two forms in one rule, so an unnamed capture anywhere decides for the
+    /// whole rule; a name that mixes them is rejected as a mixed-capture error elsewhere, and until
+    /// then the legacy reading is the compatible one.
+    /// </remarks>
+    public static WildcardSyntax CaptureForm(QualifiedName name)
+    {
+        var captures = Wildcards(name).ToList();
+
+        return captures.Count == 0 ? WildcardSyntax.None
+            : captures.Exists(capture => capture.CaptureId is null) ? WildcardSyntax.Unnamed
+            : WildcardSyntax.Explicit;
+    }
+
     private static IEnumerable<WildcardToken> PartWildcards(NamePart part) => part switch
     {
         OrdinaryPart ordinary => ordinary.Tokens.OfType<WildcardToken>(),

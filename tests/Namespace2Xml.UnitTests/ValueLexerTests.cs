@@ -20,7 +20,11 @@ public sealed class ValueLexerTests
         return result.Value!;
     }
 
-    private static InterpretedValue Lex(string text) => Lex(text, ValueSyntax.Profile);
+    private static InterpretedValue Lex(string text) =>
+        Lex(text, ValueSyntax.Profile(WildcardSyntax.Unnamed));
+
+    private static InterpretedValue LexExplicit(string text) =>
+        Lex(text, ValueSyntax.Profile(WildcardSyntax.Explicit));
 
     private static ValueFault LexFault(string text, ValueSyntax syntax)
     {
@@ -29,7 +33,8 @@ public sealed class ValueLexerTests
         return result.Fault!.Value;
     }
 
-    private static ValueFault LexFault(string text) => LexFault(text, ValueSyntax.Profile);
+    private static ValueFault LexFault(string text) =>
+        LexFault(text, ValueSyntax.Profile(WildcardSyntax.Explicit));
 
     private static string Describe(InterpretedValue value) =>
         string.Join("|", value.Tokens.Select(token => token switch
@@ -211,7 +216,7 @@ public sealed class ValueLexerTests
 
     [Test]
     public void AnExplicitCaptureInsideAReferenceIsSyntacticallyValid() =>
-        Describe(Lex("${a.*[0].b}")).ShouldBe("ref(a.<*0>.b)");
+        Describe(LexExplicit("${a.*[0].b}")).ShouldBe("ref(a.<*0>.b)");
 
     [Test]
     public void ADollarWithoutABraceIsLiteral()
@@ -228,23 +233,23 @@ public sealed class ValueLexerTests
 
     [Test]
     public void ExplicitCapturesSubstituteByIdentifier() =>
-        Describe(Lex("text1*[1]-repeat-*[1]"))
+        Describe(LexExplicit("text1*[1]-repeat-*[1]"))
             .ShouldBe("'text1'|<*1>|'-repeat-'|<*1>");
 
     [Test]
     public void AnAsteriskIsLiteralWhenTheNameDefinesNoCaptures()
     {
         // Section 12.1: "values such as pattern=*.txt require no escape".
-        Describe(Lex("*.txt", ValueSyntax.ProfileWithoutCaptures)).ShouldBe("'*.txt'");
+        Describe(Lex("*.txt", ValueSyntax.Profile(WildcardSyntax.None))).ShouldBe("'*.txt'");
     }
 
     [Test]
     public void ABracketedAsteriskIsLiteralWhenTheNameDefinesNoCaptures()
     {
         // Section 12.1: a glob, not an undefined capture, and not a lexical error.
-        Describe(Lex("/opt/x*[0-9]/y", ValueSyntax.ProfileWithoutCaptures))
+        Describe(Lex("/opt/x*[0-9]/y", ValueSyntax.Profile(WildcardSyntax.None)))
             .ShouldBe("'/opt/x*[0-9]/y'");
-        Describe(Lex("a*[", ValueSyntax.ProfileWithoutCaptures)).ShouldBe("'a*['");
+        Describe(Lex("a*[", ValueSyntax.Profile(WildcardSyntax.None))).ShouldBe("'a*['");
     }
 
     [Test]
@@ -296,8 +301,8 @@ public sealed class ValueLexerTests
     [Test]
     public void ANativeStringRecognizesOnlyTwoEscapes()
     {
-        Describe(Lex("a\\*b", ValueSyntax.NativeString)).ShouldBe("'a*b'");
-        Describe(Lex("a\\${b", ValueSyntax.NativeString)).ShouldBe("'a${b'");
+        Describe(Lex("a\\*b", ValueSyntax.NativeString(WildcardSyntax.Unnamed))).ShouldBe("'a*b'");
+        Describe(Lex("a\\${b", ValueSyntax.NativeString(WildcardSyntax.Explicit))).ShouldBe("'a${b'");
     }
 
     [Test]
@@ -305,11 +310,11 @@ public sealed class ValueLexerTests
     {
         // Rule 4: the backslash emits itself and consumes nothing after it, so "\n" stays two
         // scalars rather than becoming LF.
-        Describe(Lex("a\\nb", ValueSyntax.NativeString)).ShouldBe("'a\\nb'");
-        Describe(Lex("a\\tb", ValueSyntax.NativeString)).ShouldBe("'a\\tb'");
-        Describe(Lex("a\\qb", ValueSyntax.NativeString)).ShouldBe("'a\\qb'");
-        Describe(Lex("a\\$b", ValueSyntax.NativeString)).ShouldBe("'a\\$b'");
-        Describe(Lex("a\\", ValueSyntax.NativeString)).ShouldBe("'a\\'");
+        Describe(Lex("a\\nb", ValueSyntax.NativeString(WildcardSyntax.Explicit))).ShouldBe("'a\\nb'");
+        Describe(Lex("a\\tb", ValueSyntax.NativeString(WildcardSyntax.Explicit))).ShouldBe("'a\\tb'");
+        Describe(Lex("a\\qb", ValueSyntax.NativeString(WildcardSyntax.Explicit))).ShouldBe("'a\\qb'");
+        Describe(Lex("a\\$b", ValueSyntax.NativeString(WildcardSyntax.Explicit))).ShouldBe("'a\\$b'");
+        Describe(Lex("a\\", ValueSyntax.NativeString(WildcardSyntax.Explicit))).ShouldBe("'a\\'");
     }
 
     [Test]
@@ -317,9 +322,9 @@ public sealed class ValueLexerTests
     {
         // "no substring rescanning or second general \\ decoding pass occurs": the first backslash
         // emits itself and consumes only itself, so the second one still escapes the asterisk.
-        Describe(Lex("\\\\*", ValueSyntax.NativeString)).ShouldBe("'\\*'");
-        Describe(Lex("\\\\${a}", ValueSyntax.NativeString)).ShouldBe("'\\${a}'");
-        Describe(Lex("a\\\\b", ValueSyntax.NativeString)).ShouldBe("'a\\\\b'");
+        Describe(Lex("\\\\*", ValueSyntax.NativeString(WildcardSyntax.Explicit))).ShouldBe("'\\*'");
+        Describe(Lex("\\\\${a}", ValueSyntax.NativeString(WildcardSyntax.Explicit))).ShouldBe("'\\${a}'");
+        Describe(Lex("a\\\\b", ValueSyntax.NativeString(WildcardSyntax.Explicit))).ShouldBe("'a\\\\b'");
     }
 
     [Test]
@@ -327,8 +332,8 @@ public sealed class ValueLexerTests
     {
         // Sections 9.1 and 10: native strings use "the same strict reference and value-escape
         // lexer as namespace values"; only the escape table differs.
-        Describe(Lex("${a}", ValueSyntax.NativeString)).ShouldBe("ref(a)");
-        Describe(Lex("x*y", ValueSyntax.NativeString)).ShouldBe("'x'|<*>|'y'");
+        Describe(Lex("${a}", ValueSyntax.NativeString(WildcardSyntax.Explicit))).ShouldBe("ref(a)");
+        Describe(Lex("x*y", ValueSyntax.NativeString(WildcardSyntax.Unnamed))).ShouldBe("'x'|<*>|'y'");
     }
 
     // Structural identity.
@@ -336,8 +341,8 @@ public sealed class ValueLexerTests
     [Test]
     public void EqualValuesAreEqualAndHashAlike()
     {
-        var left = Lex("a${b.c}d*[0]");
-        var right = Lex("a${b.c}d*[0]");
+        var left = LexExplicit("a${b.c}d*[0]");
+        var right = LexExplicit("a${b.c}d*[0]");
 
         left.ShouldBe(right);
         left.GetHashCode().ShouldBe(right.GetHashCode());
@@ -367,10 +372,11 @@ public sealed class ValueLexerTests
         string[] alphabet = ["a", "\\", "$", "{", "}", "*", "[", "]", "0", ".", "n", "Q", "@", "#"];
         ValueSyntax[] syntaxes =
         [
-            ValueSyntax.Profile,
-            ValueSyntax.ProfileWithoutCaptures,
+            ValueSyntax.Profile(WildcardSyntax.Unnamed),
+            ValueSyntax.Profile(WildcardSyntax.Explicit),
+            ValueSyntax.Profile(WildcardSyntax.None),
             ValueSyntax.ProfileUninterpreted,
-            ValueSyntax.NativeString,
+            ValueSyntax.NativeString(WildcardSyntax.Explicit),
         ];
         var random = new Random(20260806);
 

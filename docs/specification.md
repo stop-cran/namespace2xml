@@ -1163,6 +1163,10 @@ An asterisk in a value is a legacy capture substitution only when the same rule'
 
 Whether a value contains wildcard tokens at all is therefore decided before the value is lexed, from the owning name's captures and the effective `substitute` mode, and the decision covers the bracketed form too. In an entry whose name defines no captures, `*[identifier]` in the value is literal text along with its brackets: `path=/opt/x*[0-9]/y` is a glob, not an undefined capture. Where the name defines explicit captures, a bare `*` in the value is likewise literal text, because the name defines no unnamed capture for it to substitute; that is what incompatibility means here, and it is not a mixed-capture error. Only where recognition is enabled is an unterminated `*[` a `WILDCARD001`.
 
+Exactly one capture form is recognized in any one value, so where the name defines unnamed captures the bare form is the recognized one and it consumes the asterisk alone: in `x*[0-9]y` the asterisk is an unnamed capture substitution and `[0-9]` is literal text. The bracketed form is not recognized there, so its brackets never terminate a token.
+
+A scheme directive's value is decided the same way, from the captures its selector defines. The `substitute` directive does not apply to scheme declarations, so the selector alone decides: in a scheme whose selector contains no wildcard, `*` in a `filename`, `root`, or `delimiter` value is literal text.
+
 A legacy unnamed capture inside a `${...}` reference is not supported and is `REFERENCE001`. References from templates must use explicit named or numbered captures.
 
 ### 12.2 Explicit captures
@@ -1447,6 +1451,8 @@ JSON, YAML, and XML scheme files use secure default parsing because input-option
 
 The final qualified-name part identifies a directive.
 
+Directive names are matched under ASCII case-insensitive comparison, as is every other name and value in the scheme language: formats in Section 16.1, type names in Section 16.6, substitute modes in Section 16.7, output-option flags in Section 16.9, and merge strategies in Sections 16.10 and 16.11. The Section 15.3 deprecated aliases are matched the same way. Comparison is ASCII-only, so no directive name changes meaning with the host locale.
+
 Recognized compatibility directives are:
 
 - `output`;
@@ -1469,6 +1475,8 @@ Recognized compatibility directives are:
 - `filemerge`.
 
 Unknown directives are blocking errors.
+
+A namespace-profile scheme file contains only entries and comments. A Section 8.6 mask record projects to neither a qualified directive path nor a scalar directive value, so it is `SCHEME001` rather than a run-wide exclusion: a mask applies to input data, and a scheme file supplies none.
 
 Every recognized directive requires a nonempty scalar value after format parsing. An empty value, null, container value, unknown directive value, or illegal option/type combination is `SCHEME001`.
 
@@ -1929,6 +1937,8 @@ Selector-qualified input-option directives are blocking scheme errors because in
 ### 16.9 Format output options
 
 For every output-options directive, the later complete directive replaces the earlier complete flag set. Flags from separate declarations do not accumulate. When a replacement omits every flag from a mutually exclusive mode group, that group's documented default is reapplied.
+
+Flag names are case-insensitive and surrounding whitespace is ignored, as for the comma-separated values of Section 16.1. Naming both flags of a contradictory pair in one declaration is `SCHEME001`; naming neither selects that group's default rather than leaving the group unset, because every flag group governs a decision the serializer has to make.
 
 #### XML
 

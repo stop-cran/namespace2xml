@@ -1,0 +1,494 @@
+using System.Collections.Immutable;
+using Namespace2Xml.Diagnostics;
+using Namespace2Xml.Output;
+using Namespace2Xml.Overlay;
+using Namespace2Xml.Pipeline;
+using Namespace2Xml.Profiles;
+
+namespace Namespace2Xml.Scheme;
+
+/// <summary>
+/// A selector used as a dictionary key, including the root selector.
+/// </summary>
+/// <param name="Name">The selector, or <see langword="null"/> for the root.</param>
+/// <remarks>
+/// Appendix A.2 spells a qualified name as one or more components, so the root selector cannot be
+/// an empty <see cref="QualifiedName"/>, and a dictionary cannot take a null key. Wrapping both in
+/// one value keeps Section 15.2's "one source-ordered override stream" per selector expressible as
+/// a single lookup.
+/// </remarks>
+public readonly record struct SelectorKey(QualifiedName? Name)
+{
+    /// <summary>The root selector, which Section 16.2 names <c>output</c> by default.</summary>
+    public static SelectorKey Root => default;
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        Name is null ? string.Empty : string.Join('.', Name.Parts.Select(Describe));
+
+    private static string Describe(NamePart part) => part switch
+    {
+        OrdinaryPart { LiteralText: { } text } => text,
+        _ => part.ToString(),
+    };
+}
+
+/// <summary>
+/// One Section 15.2 concrete output instance and the configuration bound to it.
+/// </summary>
+/// <param name="Selector">The selector that produced the instance.</param>
+/// <param name="Formats">
+/// The Section 16.1 formats, in declaration order. Empty when <c>ignore</c> won, which suppresses
+/// the instance without removing data from any other.
+/// </param>
+/// <param name="DeclarationOrder">Source order of the winning <c>output</c> declaration.</param>
+/// <param name="Filename">The Section 16.2 relative path, or null for the default file names.</param>
+/// <param name="Root">The Section 16.3 wrapping path, or null when content is not wrapped.</param>
+/// <param name="Delimiter">The Section 16.4 delimiter, or null for each format's own default.</param>
+/// <param name="IniOptions">The Section 16.9 INI options, defaulted when undeclared.</param>
+/// <param name="FileMerge">The Section 16.11 destination-collision strategy.</param>
+public sealed record OutputInstance(
+    SelectorKey Selector,
+    ImmutableArray<OutputFormat> Formats,
+    long DeclarationOrder,
+    string? Filename,
+    QualifiedName? Root,
+    string? Delimiter,
+    IniOutputOptions IniOptions,
+    MergeStrategy FileMerge);
+
+/// <summary>
+/// One Section 16.10 literal-path input merge directive, as compiled at pipeline step 4.
+/// </summary>
+/// <param name="Path">The path the strategy governs, or null when it governs the root.</param>
+/// <param name="Strategy">The strategy.</param>
+public sealed record InputMerge(QualifiedName? Path, MergeStrategy Strategy);
+
+/// <summary>
+/// The compiled scheme: Section 15.1 steps 2 through 4, for the directives this build implements.
+/// </summary>
+/// <param name="Outputs">The concrete output instances, in declaration order.</param>
+/// <param name="InputMerges">The literal-path input merge directives, in source order.</param>
+/// <param name="Deferred">
+/// Recognized directives this build does not compile. They are carried rather than dropped so the
+/// driver can refuse the run instead of silently ignoring configuration the user wrote.
+/// </param>
+public sealed record SchemeConfiguration(
+    ImmutableArray<OutputInstance> Outputs,
+    ImmutableArray<InputMerge> InputMerges,
+    ImmutableArray<SchemeEntry> Deferred);
+
+/// <summary>
+/// Compiles Section 15 directives into the configuration the pipeline reads.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Section 15.2 makes precedence purely source-ordered: "a later matching directive overrides an
+/// earlier matching directive for the same effective setting", and "pattern specificity does not
+/// alter precedence". Compilation therefore keeps one winner per (selector, setting) rather than
+/// scoring candidates.
+/// </para>
+/// <para>
+/// Configuration is output-instance-scoped. A directive for selector <c>a</c> does not configure an
+/// independently created <c>a.x</c> instance, so the selector is the key and no prefix relation
+/// between selectors is consulted.
+/// </para>
+/// </remarks>
+public static class SchemeCompiler
+{
+    /// <summary>Compiles one run's scheme entries.</summary>
+    /// <param name="entries">Every scheme source's entries.</param>
+    /// <param name="diagnostics">The buffer compilation diagnostics accumulate in.</param>
+    public static SchemeConfiguration Compile(
+        ImmutableArray<SchemeEntry> entries,
+        DiagnosticBuffer diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        // Section 15.2 orders directives by source only, and Section 4.7 keys already order entries
+        // across sources. The index in that order is the declaration order Section 17.5 folds by.
+        // OrderBy is a documented stable sort; ImmutableArray.Sort is not, and two entries written
+        // on one line share a key, so an unstable sort would make the winner depend on the sorting
+        // algorithm rather than on source order.
+        var ordered = entries.IsDefault
+            ? ImmutableArray<SchemeEntry>.Empty
+            : [.. entries.OrderBy(entry => entry.Order)];
+
+        var winners = new Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)>();
+        var merges = ImmutableArray.CreateBuilder<InputMerge>();
+        var deferred = ImmutableArray.CreateBuilder<SchemeEntry>();
+
+        for (var index = 0; index < ordered.Length; index++)
+        {
+            var entry = ordered[index];
+
+            if (entry.Value.ContainsReference || entry.Value.ContainsWildcard)
+            {
+                // Section 15.1 step 1 resolves scheme-internal references before anything reads a
+                // directive value. Compiling the text as written would silently treat "${x}" as a
+                // literal file name.
+                deferred.Add(entry);
+                continue;
+            }
+
+            switch (entry.Directive)
+            {
+                case SchemeDirective.Merge:
+                    CompileInputMerge(entry, diagnostics, merges);
+                    break;
+
+                case SchemeDirective.Output:
+                case SchemeDirective.Filename:
+                case SchemeDirective.Root:
+                case SchemeDirective.Delimiter:
+                case SchemeDirective.IniOutputOptions:
+                case SchemeDirective.FileMerge:
+                    winners[(new SelectorKey(entry.Selector), entry.Directive)] = (entry, index);
+                    break;
+
+                default:
+                    deferred.Add(entry);
+                    break;
+            }
+        }
+
+        return new SchemeConfiguration(
+            BuildInstances(winners, diagnostics),
+            merges.ToImmutable(),
+            deferred.ToImmutable());
+    }
+
+    private static ImmutableArray<OutputInstance> BuildInstances(
+        Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
+        DiagnosticBuffer diagnostics)
+    {
+        var instances = ImmutableArray.CreateBuilder<OutputInstance>();
+
+        foreach (var (key, winner) in winners.Where(pair => pair.Key.Directive == SchemeDirective.Output)
+            .OrderBy(pair => pair.Value.Order))
+        {
+            var selector = key.Selector;
+
+            if (!TryCompileOutput(winner.Entry, diagnostics, out var formats))
+            {
+                continue;
+            }
+
+            instances.Add(new OutputInstance(
+                selector,
+                formats,
+                winner.Order,
+                Compile(winners, selector, SchemeDirective.Filename, diagnostics, CompileFilename),
+                Compile(winners, selector, SchemeDirective.Root, diagnostics, CompileRoot),
+                CompileDelimiter(winners, selector, formats, diagnostics),
+                Compile(winners, selector, SchemeDirective.IniOutputOptions, diagnostics, CompileIniOptions)
+                    ?? IniOutput.Default,
+                Compile(winners, selector, SchemeDirective.FileMerge, diagnostics, CompileStrategy)
+                    ?? MergeStrategy.Deep));
+        }
+
+        WarnUnbound(winners, instances, diagnostics);
+
+        return instances.ToImmutable();
+    }
+
+    /// <summary>
+    /// Section 15.2: a selector-qualified directive "that binds to no concrete output instance emits
+    /// one scheme warning and is otherwise inert".
+    /// </summary>
+    private static void WarnUnbound(
+        Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
+        ImmutableArray<OutputInstance>.Builder instances,
+        DiagnosticBuffer diagnostics)
+    {
+        var bound = instances.Select(instance => instance.Selector).ToHashSet();
+
+        foreach (var (_, winner) in winners
+            .Where(pair => pair.Key.Directive != SchemeDirective.Output
+                && !bound.Contains(pair.Key.Selector))
+            .OrderBy(pair => pair.Value.Order))
+        {
+            var entry = winner.Entry;
+
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Warn009(
+                    DiagnosticPhase.Scheme,
+                    "\u00A715.2",
+                    $"'{entry.Declaration}' binds to no output instance, because no 'output' "
+                    + "declaration created one for that selector.",
+                    cardinalityKey: $"{entry.Source}:{entry.Line}",
+                    source: entry.Source,
+                    line: entry.Line,
+                    path: new SelectorKey(entry.Selector).ToString(),
+                    declaration: entry.Declaration),
+                entry.Order));
+        }
+    }
+
+    private static T? Compile<T>(
+        Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
+        SelectorKey selector,
+        SchemeDirective directive,
+        DiagnosticBuffer diagnostics,
+        Func<SchemeEntry, DiagnosticBuffer, T?> compile)
+        where T : struct =>
+        winners.TryGetValue((selector, directive), out var winner)
+            ? compile(winner.Entry, diagnostics)
+            : null;
+
+    private static string? Compile(
+        Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
+        SelectorKey selector,
+        SchemeDirective directive,
+        DiagnosticBuffer diagnostics,
+        Func<SchemeEntry, DiagnosticBuffer, string?> compile) =>
+        winners.TryGetValue((selector, directive), out var winner)
+            ? compile(winner.Entry, diagnostics)
+            : null;
+
+    private static QualifiedName? Compile(
+        Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
+        SelectorKey selector,
+        SchemeDirective directive,
+        DiagnosticBuffer diagnostics,
+        Func<SchemeEntry, DiagnosticBuffer, QualifiedName?> compile) =>
+        winners.TryGetValue((selector, directive), out var winner)
+            ? compile(winner.Entry, diagnostics)
+            : null;
+
+    /// <summary>Section 16.1.</summary>
+    private static bool TryCompileOutput(
+        SchemeEntry entry,
+        DiagnosticBuffer diagnostics,
+        out ImmutableArray<OutputFormat> formats)
+    {
+        formats = [];
+
+        var written = Split(entry.Value.LiteralText!);
+        var parsed = ImmutableArray.CreateBuilder<OutputFormat>(written.Length);
+        var ignores = 0;
+
+        foreach (var name in written)
+        {
+            if (string.Equals(name, OutputFormats.Ignore, StringComparison.OrdinalIgnoreCase))
+            {
+                ignores++;
+                continue;
+            }
+
+            if (!OutputFormats.TryParse(name, out var format))
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.1",
+                    $"'{name}' is not one of the Section 16.1 output formats.");
+                return false;
+            }
+
+            parsed.Add(format);
+        }
+
+        // Section 16.1: "'ignore' must appear alone in its declaration."
+        if (ignores > 0 && (ignores > 1 || parsed.Count > 0))
+        {
+            Reject(
+                entry,
+                diagnostics,
+                "\u00A716.1",
+                "'ignore' must appear alone in its declaration, because it is the negative "
+                + "declaration and has nothing to be combined with.");
+            return false;
+        }
+
+        formats = parsed.ToImmutable();
+        return true;
+    }
+
+    /// <summary>Section 16.2.</summary>
+    private static string? CompileFilename(SchemeEntry entry, DiagnosticBuffer diagnostics)
+    {
+        _ = diagnostics;
+
+        // Section 21.1 validates the path itself at pipeline step 14, after filename expansion,
+        // because only then is every substituted capture present. Rejecting a written path here
+        // would check a different string from the one that reaches the filesystem.
+        return entry.Value.LiteralText;
+    }
+
+    /// <summary>Section 16.3.</summary>
+    private static QualifiedName? CompileRoot(SchemeEntry entry, DiagnosticBuffer diagnostics)
+    {
+        // Section 16.3 gives the root value the name grammar, not the value grammar: "'\.'
+        // represents a literal dot inside one root name part". Appendix A.3 leaves '\.' intact
+        // because it is not a value escape, so the scalar reaching here still carries it.
+        var lexed = QualifiedNameLexer.Lex(entry.Value.LiteralText!);
+
+        if (lexed.Name is null)
+        {
+            Reject(entry, diagnostics, "\u00A716.3", lexed.Fault!.Value.Message);
+            return null;
+        }
+
+        if (QualifiedNameLexer.ContainsWildcard(lexed.Name))
+        {
+            Reject(
+                entry,
+                diagnostics,
+                "\u00A716.3",
+                "a 'root' value wraps content in named levels, so it admits no wildcard.");
+            return null;
+        }
+
+        return lexed.Name;
+    }
+
+    /// <summary>Section 16.4.</summary>
+    private static string? CompileDelimiter(
+        Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
+        SelectorKey selector,
+        ImmutableArray<OutputFormat> formats,
+        DiagnosticBuffer diagnostics)
+    {
+        if (!winners.TryGetValue((selector, SchemeDirective.Delimiter), out var winner))
+        {
+            return null;
+        }
+
+        var entry = winner.Entry;
+        var delimiter = entry.Value.LiteralText!;
+
+        // Section 16.4 states its restrictions "for namespace output", and quoted-namespace and INI
+        // output "instead apply their own validation and escaping after joining". Applying the
+        // namespace rule to an instance that renders neither would reject a legal configuration.
+        if (!formats.Contains(OutputFormat.Namespace))
+        {
+            return delimiter;
+        }
+
+        if (!NamespaceEncoder.IsValidDelimiter(delimiter, out var reason))
+        {
+            Reject(entry, diagnostics, "\u00A716.4", reason!);
+            return null;
+        }
+
+        return delimiter;
+    }
+
+    /// <summary>Section 16.9.</summary>
+    private static IniOutputOptions? CompileIniOptions(SchemeEntry entry, DiagnosticBuffer diagnostics)
+    {
+        var options = IniOutputOptions.None;
+
+        foreach (var name in Split(entry.Value.LiteralText!))
+        {
+            if (!IsName(name)
+                || !Enum.TryParse<IniOutputOptions>(name, ignoreCase: true, out var flag)
+                || !Enum.IsDefined(flag)
+                || flag == IniOutputOptions.None)
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.9",
+                    $"'{name}' is not one of the Section 16.9 'PortableIni1' options.");
+                return null;
+            }
+
+            options |= flag;
+        }
+
+        if (!options.TryValidate(out var contradiction))
+        {
+            Reject(entry, diagnostics, "\u00A716.9", contradiction!);
+            return null;
+        }
+
+        // Section 16.9: "When a replacement omits every flag from a mutually exclusive mode group,
+        // that group's documented default is reapplied." The multiline group is the only INI group
+        // with a default; comments are off unless a marker is selected.
+        if (!options.HasFlag(IniOutputOptions.EscapeMultiline))
+        {
+            options |= IniOutputOptions.RejectMultiline;
+        }
+
+        return options;
+    }
+
+    /// <summary>Sections 16.10 and 16.11.</summary>
+    private static MergeStrategy? CompileStrategy(SchemeEntry entry, DiagnosticBuffer diagnostics)
+    {
+        var written = entry.Value.LiteralText!.Trim();
+
+        if (!IsName(written)
+            || !Enum.TryParse<MergeStrategy>(written, ignoreCase: true, out var strategy)
+            || !Enum.IsDefined(strategy))
+        {
+            Reject(
+                entry,
+                diagnostics,
+                entry.Directive == SchemeDirective.Merge ? "\u00A716.10" : "\u00A716.11",
+                $"'{written}' is not one of 'deep', 'replace', 'append', or 'error'.");
+            return null;
+        }
+
+        return strategy;
+    }
+
+    private static void CompileInputMerge(
+        SchemeEntry entry,
+        DiagnosticBuffer diagnostics,
+        ImmutableArray<InputMerge>.Builder merges)
+    {
+        // Section 16.10: "Input 'merge' directives required at pipeline step 4 must use literal
+        // paths and must not contain wildcards or references." A reference-bearing value was
+        // deferred before reaching here; a wildcard in the path is rejected here.
+        if (entry.Selector is { } path && QualifiedNameLexer.ContainsWildcard(path))
+        {
+            Reject(
+                entry,
+                diagnostics,
+                "\u00A716.10",
+                "an input 'merge' path is required at pipeline step 4, before any name graph "
+                + "exists to expand a wildcard against.");
+            return;
+        }
+
+        if (CompileStrategy(entry, diagnostics) is { } strategy)
+        {
+            merges.Add(new InputMerge(entry.Selector, strategy));
+        }
+    }
+
+    private static string[] Split(string value) =>
+        value.Split(',').Select(part => part.Trim()).ToArray();
+
+    /// <summary>
+    /// Whether a token is spelled as a name rather than as a number.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Enum.TryParse{T}(string, bool, out T)"/> also accepts the underlying integer, so
+    /// <c>inioutputoptions=4</c> would otherwise select <c>RejectMultiline</c> and <c>merge=0</c>
+    /// would select <c>deep</c>. Sections 16.9 and 16.10 spell their values as names, and a scheme
+    /// that names an enum's storage rather than its meaning would silently change with the enum.
+    /// </remarks>
+    private static bool IsName(string token) =>
+        token.Length > 0 && token.All(char.IsAsciiLetter);
+
+    private static void Reject(
+        SchemeEntry entry,
+        DiagnosticBuffer diagnostics,
+        string spec,
+        string message) =>
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Scheme001(
+                DiagnosticPhase.Scheme,
+                spec,
+                message,
+                cardinalityKey: $"{entry.Source}:{entry.Line}",
+                source: entry.Source,
+                line: entry.Line,
+                path: new SelectorKey(entry.Selector).ToString(),
+                declaration: entry.Declaration),
+            entry.Order));
+}

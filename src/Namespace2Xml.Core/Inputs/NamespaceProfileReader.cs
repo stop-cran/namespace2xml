@@ -198,7 +198,11 @@ public static class NamespaceProfileReader
             return overlay;
         }
 
-        var lexedValue = ValueLexer.Lex(record.Value!, ValueSyntax.Profile);
+        // Section 12.1 decides wildcard recognition "before the value is lexed, from the owning
+        // name's captures": in an entry whose name defines none, 'pattern=*.txt' is literal text.
+        var lexedValue = ValueLexer.Lex(
+            record.Value!,
+            ValueSyntax.Profile(QualifiedNameLexer.CaptureForm(lexedName.Name)));
 
         if (lexedValue.Value is null)
         {

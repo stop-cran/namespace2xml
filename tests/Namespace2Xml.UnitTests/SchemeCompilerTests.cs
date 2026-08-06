@@ -1,0 +1,445 @@
+using System.Collections.Immutable;
+using Namespace2Xml.Diagnostics;
+using Namespace2Xml.Output;
+using Namespace2Xml.Overlay;
+using Namespace2Xml.Pipeline;
+using Namespace2Xml.Profiles;
+using Namespace2Xml.Scheme;
+using NUnit.Framework;
+using Shouldly;
+
+namespace Namespace2Xml.UnitTests;
+
+/// <summary>
+/// Pipeline steps 2 through 4: compiling Section 15 directives into effective configuration.
+/// </summary>
+/// <remarks>
+/// Every expectation here is authored from the specification clause named in the test, never from
+/// what the compiler currently produces.
+/// </remarks>
+[TestFixture]
+public class SchemeCompilerTests
+{
+    private DiagnosticBuffer diagnostics = null!;
+
+    [SetUp]
+    public void SetUp() => diagnostics = new DiagnosticBuffer();
+
+    private static ImmutableArray<NamespaceRecord> Records(string document) =>
+    [
+        .. document
+            .Split('\n')
+            .Select((line, index) => NamespaceRecordClassifier.Classify(line, index + 1)),
+    ];
+
+    private SchemeConfiguration Compile(string document)
+    {
+        var read = SchemeReader.Read(Records(document), 2, "s.properties", diagnostics);
+
+        return SchemeCompiler.Compile(read.Entries, diagnostics);
+    }
+
+    private OutputInstance One(string document) => Compile(document).Outputs.ShouldHaveSingleItem();
+
+    private Diagnostic Only(string document)
+    {
+        Compile(document);
+
+        return diagnostics.Drain().ShouldHaveSingleItem();
+    }
+
+    // ---- Section 16.1: output ---------------------------------------------------------------------
+
+    /// <summary>Section 16.1 lists six formats plus the negative declaration.</summary>
+    [TestCase("namespace", OutputFormat.Namespace)]
+    [TestCase("quotednamespace", OutputFormat.QuotedNamespace)]
+    [TestCase("json", OutputFormat.Json)]
+    [TestCase("yaml", OutputFormat.Yaml)]
+    [TestCase("xml", OutputFormat.Xml)]
+    [TestCase("ini", OutputFormat.Ini)]
+    public void EveryFormatIsRecognized(string written, OutputFormat expected) =>
+        One($"output={written}").Formats.ShouldBe([expected]);
+
+    /// <summary>Section 16.1: "Names are case-insensitive."</summary>
+    [Test]
+    public void AFormatNameIsCaseInsensitive() =>
+        One("output=QuotedNamespace").Formats.ShouldBe([OutputFormat.QuotedNamespace]);
+
+    /// <summary>Section 16.1: "Whitespace around comma-separated values is ignored."</summary>
+    [Test]
+    public void WhitespaceAroundFormatsIsIgnored() =>
+        One("output= namespace , ini ").Formats.ShouldBe([OutputFormat.Namespace, OutputFormat.Ini]);
+
+    /// <summary>
+    /// Section 16.1: "Formats in one comma-separated declaration have a left-to-right declaration
+    /// ordinal." Section 17.5 folds by that ordinal, so the order has to survive compilation.
+    /// </summary>
+    [Test]
+    public void FormatsKeepTheirDeclarationOrder() =>
+        One("output=ini,namespace").Formats.ShouldBe([OutputFormat.Ini, OutputFormat.Namespace]);
+
+    /// <summary>Section 16.1: an unrecognized format name is a scheme error.</summary>
+    [Test]
+    public void AnUnknownFormatIsRejected() => Only("output=properties").Code.ShouldBe("SCHEME001");
+
+    /// <summary>
+    /// Section 16.1: "'ignore' is a negative output declaration. When it is the winning declaration,
+    /// no output is produced for that concrete selector."
+    /// </summary>
+    [Test]
+    public void IgnoreProducesAnInstanceWithNoFormats() =>
+        One("a.output=ignore").Formats.ShouldBeEmpty();
+
+    /// <summary>Section 16.1: "'ignore' must appear alone in its declaration."</summary>
+    [TestCase("output=ignore,namespace")]
+    [TestCase("output=namespace,ignore")]
+    [TestCase("output=ignore,ignore")]
+    public void IgnoreMustAppearAlone(string document) => Only(document).Code.ShouldBe("SCHEME001");
+
+    /// <summary>
+    /// Section 16.1: "A later 'output' declaration replaces the complete earlier output-format set."
+    /// Accumulating would make a restored output carry the formats it was suppressed with.
+    /// </summary>
+    [Test]
+    public void ALaterOutputReplacesTheEarlierSet() =>
+        One("a.output=json,xml\na.output=ini").Formats.ShouldBe([OutputFormat.Ini]);
+
+    /// <summary>
+    /// Section 16.1: "a later non-ignore declaration can restore output, and a later 'ignore'
+    /// declaration can suppress it again."
+    /// </summary>
+    [Test]
+    public void IgnoreParticipatesInOrdinaryOverride()
+    {
+        One("a.output=ignore\na.output=namespace").Formats.ShouldBe([OutputFormat.Namespace]);
+        SetUp();
+        One("a.output=namespace\na.output=ignore").Formats.ShouldBeEmpty();
+    }
+
+    // ---- Section 15.2: selector scope --------------------------------------------------------------
+
+    /// <summary>
+    /// Section 15.2: "a directive for selector 'a' does not implicitly configure an independently
+    /// created 'a.x' output instance".
+    /// </summary>
+    [Test]
+    public void ConfigurationDoesNotDescendToANestedSelector()
+    {
+        var outputs = Compile("a.output=namespace\na.delimiter=_\na.x.output=namespace").Outputs;
+
+        outputs.Length.ShouldBe(2);
+        outputs.Single(output => output.Selector.ToString() == "a").Delimiter.ShouldBe("_");
+        outputs.Single(output => output.Selector.ToString() == "a.x").Delimiter.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Section 15.2: "A selector-qualified 'filename', 'root', 'delimiter', output-options,
+    /// 'filemerge', or output-view transformation that binds to no concrete output instance emits
+    /// one scheme warning and is otherwise inert."
+    /// </summary>
+    [Test]
+    public void ADirectiveBindingToNoInstanceWarns()
+    {
+        var diagnostic = Only("a.filename=x.txt");
+
+        diagnostic.Code.ShouldBe("WARN009");
+        diagnostic.Declaration.ShouldBe("a.filename");
+    }
+
+    /// <summary>
+    /// The warning is about binding, not about suppression: an <c>ignore</c> declaration still
+    /// creates the concrete instance the directive binds to, and Section 16.1 lets a later
+    /// declaration restore it.
+    /// </summary>
+    [Test]
+    public void ADirectiveOnAnIgnoredInstanceDoesNotWarn()
+    {
+        Compile("a.output=ignore\na.filename=x.txt");
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 15.2: "All scheme directives follow source order only." The later declaration wins
+    /// wherever it is written relative to the 'output' that creates the instance.
+    /// </summary>
+    [Test]
+    public void TheLaterDirectiveWinsRegardlessOfPosition() =>
+        One("a.filename=first\na.output=namespace\na.filename=second").Filename.ShouldBe("second");
+
+    // ---- Section 16.2: filename --------------------------------------------------------------------
+
+    /// <summary>
+    /// Section 16.2: "An explicit 'filename' value is the complete relative destination path and is
+    /// used verbatim after the portable path processing below."
+    /// </summary>
+    [Test]
+    public void AFilenameIsCarriedVerbatim() =>
+        One("output=namespace\nfilename=conf/app.properties").Filename
+            .ShouldBe("conf/app.properties");
+
+    /// <summary>
+    /// Section 21.1 validates a path "after filename expansion" at pipeline step 14, so a written
+    /// path is not rejected during compilation: the string checked has to be the one that reaches
+    /// the filesystem, and captures have not been substituted yet.
+    /// </summary>
+    [Test]
+    public void AWrittenPathIsNotValidatedDuringCompilation()
+    {
+        One("output=namespace\nfilename=/etc/passwd").Filename.ShouldBe("/etc/passwd");
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    // ---- Section 16.3: root ------------------------------------------------------------------------
+
+    /// <summary>Section 16.3: <c>root=x.y</c> wraps content in two named levels.</summary>
+    [Test]
+    public void ARootValueIsANamePath() =>
+        One("output=namespace\nroot=x.y").Root!.Parts.Length.ShouldBe(2);
+
+    /// <summary>
+    /// Section 16.3: "'\.' represents a literal dot inside one root name part." Appendix A.3 leaves
+    /// the sequence intact because it is not a value escape, so the name grammar still sees it and
+    /// one part is produced rather than two.
+    /// </summary>
+    [Test]
+    public void AnEscapedDotStaysInsideOneRootPart()
+    {
+        var root = One("output=namespace\nroot=x\\.y").Root!;
+
+        root.Parts.Length.ShouldBe(1);
+        ((OrdinaryPart)root.Parts[0]).LiteralText.ShouldBe("x.y");
+    }
+
+    /// <summary>
+    /// A root wraps content in named levels, so a wildcard there names no level. Section 16.3 gives
+    /// the value the name grammar, in which a bare <c>*</c> is a wildcard rather than text.
+    /// </summary>
+    [Test]
+    public void AWildcardRootIsRejected() =>
+        Only("output=namespace\nroot=x.*").Code.ShouldBe("SCHEME001");
+
+    // ---- Section 16.4: delimiter -------------------------------------------------------------------
+
+    /// <summary>Section 16.4: an explicit delimiter joins path parts for the flat formats.</summary>
+    [Test]
+    public void ADelimiterIsCarried() =>
+        One("output=namespace\ndelimiter=__").Delimiter.ShouldBe("__");
+
+    /// <summary>
+    /// Section 16.4: "For namespace output, a delimiter must not contain '=', backslash, or any
+    /// scalar in the Section 19.1 forbidden set."
+    /// </summary>
+    [TestCase("=")]
+    [TestCase("a=b")]
+    [TestCase("\\")]
+    public void AnIllegalNamespaceDelimiterIsRejected(string delimiter) =>
+        Only($"output=namespace\ndelimiter={delimiter}").Code.ShouldBe("SCHEME001");
+
+    /// <summary>
+    /// Section 16.4 excludes a delimiter "built only from 'u', braces, and upper-case hexadecimal
+    /// digits", because a consumer splitting on it would split inside a '\u{HEX}' escape.
+    /// </summary>
+    [Test]
+    public void ADelimiterThatCouldSplitAnEscapeIsRejected() =>
+        Only("output=namespace\ndelimiter=2E").Code.ShouldBe("SCHEME001");
+
+    /// <summary>
+    /// Section 16.4 scopes those restrictions to namespace output: quoted-namespace and INI output
+    /// "instead apply their own validation and escaping after joining", under Sections 19.2 and
+    /// 19.6. Rejecting here would refuse a configuration those formats can render.
+    /// </summary>
+    [Test]
+    public void TheNamespaceDelimiterRuleDoesNotConstrainOtherFormats()
+    {
+        One("output=ini\ndelimiter=2E").Delimiter.ShouldBe("2E");
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The rule applies to an instance that renders namespace output among others, because that one
+    /// destination still has to be spelled unambiguously.
+    /// </summary>
+    [Test]
+    public void TheNamespaceDelimiterRuleAppliesWhenNamespaceIsOneOfSeveralFormats() =>
+        Only("output=ini,namespace\ndelimiter=2E").Code.ShouldBe("SCHEME001");
+
+    // ---- Section 16.9: INI options -----------------------------------------------------------------
+
+    /// <summary>Section 16.9: the INI default is <c>RejectMultiline</c>.</summary>
+    [Test]
+    public void TheIniOptionsDefaultToRejectingMultiline() =>
+        One("output=ini").IniOptions.ShouldBe(IniOutputOptions.RejectMultiline);
+
+    /// <summary>Section 16.9 lists five portable INI options, matched case-insensitively.</summary>
+    [Test]
+    public void IniOptionsAreReadCaseInsensitively() =>
+        One("output=ini\ninioutputoptions=hashcomments,escapemultiline").IniOptions
+            .ShouldBe(IniOutputOptions.HashComments | IniOutputOptions.EscapeMultiline);
+
+    /// <summary>
+    /// Section 16.9: "When a replacement omits every flag from a mutually exclusive mode group,
+    /// that group's documented default is reapplied." Leaving the multiline group unset would let
+    /// a serializer choose.
+    /// </summary>
+    [Test]
+    public void AnOmittedModeGroupReappliesItsDefault() =>
+        One("output=ini\ninioutputoptions=SemicolonComments").IniOptions
+            .ShouldBe(IniOutputOptions.SemicolonComments | IniOutputOptions.RejectMultiline);
+
+    /// <summary>Section 16.9: the two comment markers are mutually exclusive.</summary>
+    [Test]
+    public void ContradictoryIniOptionsAreRejected() =>
+        Only("output=ini\ninioutputoptions=SemicolonComments,HashComments").Code
+            .ShouldBe("SCHEME001");
+
+    /// <summary>Section 16.9: the two multiline strategies are mutually exclusive.</summary>
+    [Test]
+    public void ContradictoryMultilineStrategiesAreRejected() =>
+        Only("output=ini\ninioutputoptions=RejectMultiline,EscapeMultiline").Code
+            .ShouldBe("SCHEME001");
+
+    /// <summary>Section 16.9 names its flags; it does not number them.</summary>
+    [TestCase("4")]
+    [TestCase("0")]
+    public void ANumericIniOptionIsRejected(string written) =>
+        Only($"output=ini\ninioutputoptions={written}").Code.ShouldBe("SCHEME001");
+
+    /// <summary>
+    /// Section 16.9: "the later complete directive replaces the earlier complete flag set. Flags
+    /// from separate declarations do not accumulate."
+    /// </summary>
+    [Test]
+    public void ALaterOptionsDeclarationReplacesTheEarlierSet() =>
+        One("output=ini\ninioutputoptions=HashComments\ninioutputoptions=QuoteValues").IniOptions
+            .ShouldBe(IniOutputOptions.QuoteValues | IniOutputOptions.RejectMultiline);
+
+    // ---- Sections 16.10 and 16.11: merge strategies ------------------------------------------------
+
+    /// <summary>Section 16.11: <c>filemerge</c> defaults to <c>deep</c>.</summary>
+    [Test]
+    public void FileMergeDefaultsToDeep() => One("output=namespace").FileMerge.ShouldBe(MergeStrategy.Deep);
+
+    /// <summary>Section 16.11 lists four strategies, matched case-insensitively.</summary>
+    [TestCase("deep", MergeStrategy.Deep)]
+    [TestCase("Replace", MergeStrategy.Replace)]
+    [TestCase("APPEND", MergeStrategy.Append)]
+    [TestCase("error", MergeStrategy.Error)]
+    public void EveryFileMergeStrategyIsRecognized(string written, MergeStrategy expected) =>
+        One($"output=namespace\nfilemerge={written}").FileMerge.ShouldBe(expected);
+
+    /// <summary>
+    /// Section 16.11: "'filemerge=error' is not sticky. A later matching declaration may replace it
+    /// with another complete 'filemerge' value under universal source-order precedence."
+    /// </summary>
+    [Test]
+    public void FileMergeErrorIsNotSticky() =>
+        One("output=namespace\nfilemerge=error\nfilemerge=deep").FileMerge
+            .ShouldBe(MergeStrategy.Deep);
+
+    /// <summary>Section 16.10: an unrecognized strategy is a scheme error.</summary>
+    [Test]
+    public void AnUnknownStrategyIsRejected() =>
+        Only("output=namespace\nfilemerge=merge").Code.ShouldBe("SCHEME001");
+
+    /// <summary>
+    /// Section 16.10: <c>merge</c> "applies only to common-model input", so it is not part of an
+    /// output instance and is compiled separately at pipeline step 4.
+    /// </summary>
+    [Test]
+    public void AnInputMergeIsCompiledSeparately()
+    {
+        var configuration = Compile("a.b.merge=append");
+
+        configuration.Outputs.ShouldBeEmpty();
+
+        var merge = configuration.InputMerges.ShouldHaveSingleItem();
+
+        merge.Strategy.ShouldBe(MergeStrategy.Append);
+        merge.Path!.Parts.Length.ShouldBe(2);
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 16.10: a <c>merge</c> written with no path governs the root, where every contribution
+    /// is at some path beneath it.
+    /// </summary>
+    [Test]
+    public void ARootLevelInputMergeHasNoPath() =>
+        Compile("merge=replace").InputMerges.ShouldHaveSingleItem().Path.ShouldBeNull();
+
+    /// <summary>
+    /// Section 16.10: "Input 'merge' directives required at pipeline step 4 must use literal paths
+    /// and must not contain wildcards or references." Step 4 runs before any name graph exists to
+    /// expand a wildcard against.
+    /// </summary>
+    [Test]
+    public void AWildcardInputMergePathIsRejected()
+    {
+        Only("a.*.merge=append").Code.ShouldBe("SCHEME001");
+    }
+
+    /// <summary>
+    /// Every <c>merge</c> is kept, not just the last: Section 16.10 scopes each to the node it
+    /// matches, and two different paths are two different settings.
+    /// </summary>
+    [Test]
+    public void EveryInputMergePathIsKept() =>
+        Compile("a.merge=append\nb.merge=replace").InputMerges.Length.ShouldBe(2);
+
+    // ---- Section 15.1 step 1: unresolved values ----------------------------------------------------
+
+    /// <summary>
+    /// Section 15.1 step 1 resolves scheme-internal references before any directive value is read.
+    /// A value carrying one is therefore not compiled here; compiling the text as written would
+    /// treat the reference's spelling as a literal file name.
+    /// </summary>
+    [Test]
+    public void AReferenceBearingValueIsNotCompiled()
+    {
+        var configuration = Compile("output=namespace\nfilename=${a.b}");
+
+        configuration.Outputs.ShouldHaveSingleItem().Filename.ShouldBeNull();
+        configuration.Deferred.ShouldHaveSingleItem().Directive.ShouldBe(SchemeDirective.Filename);
+    }
+
+    /// <summary>
+    /// A directive this build does not compile is carried rather than dropped, so the driver can
+    /// refuse the run. Silently ignoring configuration the user wrote is the failure mode this
+    /// list exists to prevent.
+    /// </summary>
+    [Test]
+    public void AnUncompiledDirectiveIsCarried() =>
+        Compile("a.type=array").Deferred.ShouldHaveSingleItem()
+            .Directive.ShouldBe(SchemeDirective.Type);
+
+    // ---- Section 17.5: declaration order -----------------------------------------------------------
+
+    /// <summary>
+    /// Section 17.5 folds destinations by "output-declaration source order", so each instance
+    /// carries the order of the declaration that created it, and instances are produced in that
+    /// order.
+    /// </summary>
+    [Test]
+    public void InstancesCarryAndKeepDeclarationOrder()
+    {
+        var outputs = Compile("b.output=namespace\na.output=ini").Outputs;
+
+        outputs.Select(output => output.Selector.ToString()).ShouldBe(["b", "a"]);
+        outputs[0].DeclarationOrder.ShouldBeLessThan(outputs[1].DeclarationOrder);
+    }
+
+    /// <summary>
+    /// A replaced declaration takes the later declaration's order, because Section 16.1 makes the
+    /// later one the declaration that produces the instance.
+    /// </summary>
+    [Test]
+    public void AReplacedDeclarationTakesTheLaterOrder()
+    {
+        var outputs = Compile("a.output=namespace\nb.output=ini\na.output=json").Outputs;
+
+        outputs.Select(output => output.Selector.ToString()).ShouldBe(["b", "a"]);
+    }
+}
