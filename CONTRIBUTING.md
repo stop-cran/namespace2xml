@@ -434,6 +434,30 @@ Two jobs. It proves the loop actually closed — "report #47 → clarified the �
 evidence, while "we value feedback" is not. And it forces removal: a document that only grows becomes
 unreadable and then unread, so each revision must say what it dropped.
 
+### 9.1 Publishing
+
+A release is a **tag**, and nothing else. `git tag v<version> && git push origin v<version>` on a
+commit whose `<Version>` matches the tag exactly; the workflow refuses the tag otherwise. There is
+no manual dispatch and no publish on push, because 2.x published on every push to master and that
+is how a half-finished thought reaches other people's build servers.
+
+Publishing is **irreversible**. nuget.org does not allow a version to be deleted or replaced, only
+unlisted, so a wrong tag is permanent and the next number is the only remedy. Read the run before
+you push the tag, not after.
+
+The moving parts, so nobody has to rediscover them:
+
+| Part | Value | Why it is like that |
+|---|---|---|
+| Secret | repository secret `NUGETAPIKEY` | Inherited from 2.x. An undefined secret expands to the empty string rather than failing, so the workflow checks it is non-empty before it does anything irreversible. |
+| Environment | `nuget`, restricted to `v3.*` tags | The workflow's own trigger already says tags only; the environment says it again where a workflow edit cannot reach. Add required reviewers here if you want a human gate. |
+| Order | verify → pack → check contents → install → check `--version` → follow every printed link → attest → push | Everything cheap and reversible happens before the one step that is neither. |
+
+The link check exists because `--version` reports a `specification-sha256` and a URL, and those are
+only worth printing if the URL serves bytes that hash to that value. It fetches the specification
+the tool points at and compares. A release whose contract identity cannot be resolved is worse than
+no release, because a report filed against it cannot be acted on.
+
 ---
 
 ## 10. Promotion restraint
