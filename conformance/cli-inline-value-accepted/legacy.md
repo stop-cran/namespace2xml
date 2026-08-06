@@ -10,5 +10,6 @@
   same invocation as `--input inputs/main.txt`.
 - Why this case exists: the uniform inline form is the amendment's whole point. A unit test can
   show the parser accepts it; only a corpus case shows the shipped tool does.
-- Preview scope: the expected exit code is 70 only while the transformation pipeline is
-  unimplemented. When the pipeline lands, this case must be updated with it.
+- How the case proves it: every option in `args-diagnostics.txt` uses the inline form, and the run
+  produces `app.properties` with no diagnostics. A tool that rejected the form, or that read
+  `--input=inputs/main.txt` as a path, could not produce that file.

@@ -127,7 +127,24 @@ public class ConformanceCaseTests
         var b = ToolRunner.Run(conformanceCase.DiagnosticArguments, second.Directory);
 
         b.ExitCode.ShouldBe(a.ExitCode);
-        b.StandardError.ShouldBe(a.StandardError);
+
+        // Section 24 fixes what must repeat: "Diagnostic codes, severities, structured fields, and
+        // ordering must be identical; localized human-readable prose may differ." Comparing the raw
+        // bytes would also compare the prose, and Section 7.2 requires the missing-file warning to
+        // contain "its resolved path" — a value that necessarily differs between two working
+        // copies. The comparer validates framing, layout, and every structured member, so nothing
+        // Section 24 does require goes unchecked.
+        //
+        // Section 6.4.1 gives `--help` and `--version` no diagnostic stream in either encoding. An
+        // absent stream carries no structured field, so there the bytes are the whole content.
+        if (a.StandardError.Length == 0 || b.StandardError.Length == 0)
+        {
+            b.StandardError.ShouldBe(a.StandardError);
+        }
+        else
+        {
+            DiagnosticComparer.Compare(a.StandardError, b.StandardError).ShouldBeEmpty();
+        }
 
         OutputTreeComparer
             .Compare(first.ProducedTree(ReservedNames), second.ProducedTree(ReservedNames))

@@ -68,9 +68,10 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   input.
 - Why this case exists: this is the only way to name a file whose name begins with `-`, and the
   rule is worth pinning precisely because it makes a familiar-looking token stop being an option.
-- Preview scope: the expected exit code is 70 only while the transformation pipeline is
-  unimplemented. When the pipeline lands the two extra paths will not resolve, and this case must be
-  updated with it.
+- How the case proves it: neither `-` nor `--output` exists, so each draws the Section 7.2
+  missing-file warning naming it as a *source*. A tool that still treated `--output` as an option
+  would emit one warning, or none, and would not name it. The run nevertheless succeeds and writes
+  `app.properties`, because Section 7.2 makes a missing file warn-and-ignore rather than fail.
 
 ### `cli-help-outranks-version`
 
@@ -95,8 +96,9 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   same invocation as `--input inputs/main.txt`.
 - Why this case exists: the uniform inline form is the amendment's whole point. A unit test can
   show the parser accepts it; only a corpus case shows the shipped tool does.
-- Preview scope: the expected exit code is 70 only while the transformation pipeline is
-  unimplemented. When the pipeline lands, this case must be updated with it.
+- How the case proves it: every option in `args-diagnostics.txt` uses the inline form, and the run
+  produces `app.properties` with no diagnostics. A tool that rejected the form, or that read
+  `--input=inputs/main.txt` as a path, could not produce that file.
 
 ### `cli-option-missing-value-rejected`
 

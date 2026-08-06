@@ -1,5 +1,6 @@
 using Namespace2Xml.Contract;
 using Namespace2Xml.Diagnostics;
+using Namespace2Xml.Pipeline;
 
 namespace Namespace2Xml.Cli;
 
@@ -36,16 +37,21 @@ public static class Program
                 return 0;
         }
 
-        var invalid = CommandLineParser.Parse(args).Diagnostic;
-        if (invalid is not null)
+        var parsed = CommandLineParser.Parse(args);
+        if (parsed.Diagnostic is { } invalid)
         {
             Emit(stderr, format, [invalid]);
             return 1;
         }
 
-        // M0 delivers governance, the conformance harness and the Section 6.4 diagnostic
-        // channel. The transformation pipeline lands in later milestones.
-        Emit(stderr, format, []);
+        var result = Transformation.Run(parsed.CommandLine!);
+
+        Emit(stderr, format, result.Diagnostics);
+
+        if (result.ExitCode is { } code)
+        {
+            return code;
+        }
 
         // Section 6.4.3 gives standard error to the diagnostic stream alone when the canonical
         // JSON encoding is selected, so an operational message must not follow the array. In the
@@ -54,9 +60,8 @@ public static class Program
         if (format != DiagnosticFormat.Json)
         {
             stderr.Write(
-                "namespace2xml " + ContractBundle.ProductVersion +
-                " is a preview that does not yet implement the transformation pipeline. " +
-                "Use --help, --version, or track progress at " + HelpText.RepositoryUrl + ".\n");
+                "namespace2xml " + ContractBundle.ProductVersion + ": " +
+                result.Unsupported + " See " + HelpText.RepositoryUrl + ".\n");
         }
 
         return NotImplementedInThisPreview;

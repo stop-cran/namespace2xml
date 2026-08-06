@@ -128,6 +128,26 @@ public class HarnessSelfTests
         DiagnosticComparer.Compare(expected, Utf8("[]\r\n")).ShouldNotBeEmpty();
     }
 
+    // The expected file is a diagnostic stream, so it is held to the Section 6.4.3 layout the tool
+    // must produce. Accepting a shape the tool may never emit would let a fixture assert something
+    // no conforming implementation can satisfy, and the failure would name the tool. These are
+    // fixture defects, so they throw rather than returning a comparison failure.
+    [TestCase("[\n]\n", TestName = "EmptyArrayWrittenWithMultiElementFraming")]
+    [TestCase("[]", TestName = "MissingFinalNewline")]
+    [TestCase("[ ]\n", TestName = "InsignificantWhitespace")]
+    public void ANonCanonicalExpectedStreamIsAFixtureDefect(string expected) =>
+        Should.Throw<ConformanceFormatException>(
+                () => DiagnosticComparer.Compare(Utf8(expected), Utf8("[]\n")))
+            .Message.ShouldContain("expected-diagnostics.json is not canonical");
+
+    [Test]
+    public void APrettyPrintedExpectedStreamIsAFixtureDefect() =>
+        Should.Throw<ConformanceFormatException>(
+                () => DiagnosticComparer.Compare(
+                    Utf8("[\n  {\n    \"code\": \"CLI001\"\n  }\n]\n"),
+                    Utf8("[]\n")))
+            .Message.ShouldContain("expected-diagnostics.json is not canonical");
+
     [Test]
     public void PrettyPrintedStreamIsRejected()
     {

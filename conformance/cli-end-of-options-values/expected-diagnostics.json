@@ -1,2 +1,4 @@
 [
+{"code":"WARN001","severity":"warning","phase":"input","source":"-","spec":"§7.2"},
+{"code":"WARN001","severity":"warning","phase":"input","source":"--output","spec":"§7.2"}
 ]

@@ -1,1 +1,1 @@
-app.output=xml
+app.output=namespace

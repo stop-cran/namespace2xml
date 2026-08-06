@@ -51,6 +51,22 @@ public static class DiagnosticComparer
             throw new ConformanceFormatException($"expected-diagnostics.json is not valid JSON: {exception.Message}");
         }
 
+        // The expected file is held to the same Section 6.4.3 layout as the stream, because it is a
+        // stream: a fixture author writing "[\n]\n" for the empty array has written a document the
+        // tool must never produce, and a corpus that accepts it stops being able to say what
+        // correct looks like. A defect here is the fixture's, not the tool's, so it throws.
+        var expectedFraming = ValidateFraming(expected)
+            .Concat(ValidateCanonicalLayout(expected, expectedRoot.ValueKind == JsonValueKind.Array
+                ? expectedRoot.GetArrayLength()
+                : 0))
+            .ToList();
+
+        if (expectedFraming.Count > 0)
+        {
+            throw new ConformanceFormatException(
+                "expected-diagnostics.json is not canonical: " + string.Join(" ", expectedFraming));
+        }
+
         if (actualRoot.ValueKind != JsonValueKind.Array)
         {
             failures.Add("diagnostic stream is not a JSON array.");

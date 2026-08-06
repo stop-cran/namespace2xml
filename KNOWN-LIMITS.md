@@ -1,6 +1,6 @@
 # Known limits
 
-**As of `3.0.0-preview.1`, contract bundle `r2+0654ebfa8b7a`. Dated 2026-08.**
+**As of `3.0.0-preview.1`, contract bundle `r23+56cd0cef3e95`. Dated 2026-08.**
 
 This file exists because a project that claims completeness cannot receive feedback: every gap reads
 as user error, and the reporter concludes they are holding it wrong. During the preview this list is
@@ -13,28 +13,42 @@ not a refusal. Adding your case to the relevant thread is what moves it.
 
 ## 1. Implementation completeness
 
-The 3.0 rewrite lands in milestones that follow the specification's own pipeline order. Until a
-milestone merges, the corresponding pipeline stage is **not implemented**, and the tool exits with a
-non-normative status rather than pretending to succeed.
+The 3.0 rewrite lands in milestones that follow the specification's own pipeline order. A stage that
+has not landed is **not implemented**, and the tool exits with a non-normative status rather than
+pretending to succeed.
+
+The tool currently transforms the **flat family end to end**: namespace-profile input, overlaying,
+output planning, and publication of namespace, quoted-namespace and INI destinations. Everything
+below that line is refused, not approximated.
 
 | Area | State | Specification |
 |---|---|---|
 | Command line, informational modes, diagnostics encoding | Implemented | §6, §6.4 |
 | Contract bundle reporting | Implemented | §22 |
-| Input and scheme parsing | Not yet | §7–§9 |
-| Model construction, overlaying, reference resolution | Not yet | §12–§16 |
-| Output planning | Not yet | §17–§18 |
-| Rendering: namespace, quoted namespace, JSON, YAML, INI | Not yet | §19 |
-| Rendering: XML | Not yet | §11, §19 |
-| Publication and the validation gate | Not yet | §21 |
+| Namespace-profile input parsing, encoding detection, budgets | Implemented | §7–§9 |
+| Scheme parsing, `output`, `filename`, `root`, `delimiter` | Implemented | §16 |
+| Overlaying, precedence, mapping order after override | Implemented | §5, §10 |
+| Scalar inference and canonical numeric text | Implemented | §18 |
+| Output planning, destination paths, collision folding | Implemented | §17 |
+| Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
+| Publication and the validation gate | Implemented | §21 |
+| JSON, YAML and XML **input** | Not yet | §7.1, §11 |
+| References and value wildcards | Not yet | §13 |
+| Templates and masks | Not yet | §8.6, §12 |
+| Wildcard output selectors and `substitute` | Not yet | §14, §16 |
+| Ordered sequences from numeric paths | Not yet | §8.7, §5.4 |
+| Rendering: JSON, YAML, XML | Not yet | §19.3–§19.5 |
 
-A preview binary returns exit status `70` when it reaches unimplemented pipeline work. That status is
-deliberately outside the contract: `0` and `1` are normative, and a preview must never return either
-for work it did not do.
+A preview binary returns exit status `70` when an invocation needs something in the second half of
+that table. That status is deliberately outside the contract: `0` and `1` are normative, and a
+preview must never return either for work it did not do. It is a **refusal**, not a diagnostic — the
+run decides no outcome at all, publishes nothing, and says on standard error which capability it
+lacked. A step that could not do its job never passes its input through, because a plausible wrong
+file is worse than no file.
 
 ## 2. Acceptance coverage
 
-`conformance/assertions.json` records all 85 acceptance requirements from specification §26, each
+`conformance/assertions.json` records all 86 acceptance requirements from specification §26, each
 with a status. Items marked `pending` have **no fixture coverage yet** and no claim is made about
 them. Items marked `required` are covered and can never lose coverage.
 
@@ -63,7 +77,7 @@ Do not read a passing test run as evidence about a `pending` item.
   demonstrated in the spike but is not enabled.
 - **Native AOT** is a non-blocking investigation, not a shipped configuration. Just-in-time startup
   measures ~66 ms median on `win-arm64`, and the code currently draws no AOT, trim or single-file
-  analyzer complaints — but the pipeline is largely unimplemented, so that zero is a baseline and
+  analyzer complaints — but half the pipeline is still unimplemented, so that zero is a baseline and
   not a verdict. Linking and cross-platform startup are measured by the dispatchable
   `native-aot-spike` workflow. The bar it has to clear, and the trap that already cost time, are in
   [`spikes/native-aot/FINDINGS.md`](spikes/native-aot/FINDINGS.md). Revisit at M6.
@@ -87,7 +101,7 @@ Some rules in `CONTRIBUTING.md` are stated as binding and have a CI gate; a few 
 | C3 specification decision precedes acceptance | Contract-revision job, active |
 | C4 bidirectional traceability | Active |
 | C5 determinism | Active — `tools/hash-corpus-outputs.ps1` measures exit status, standard output, standard error and the produced file tree, for every argument vector each case declares, and `cross-os-hash` requires all three platforms to agree |
-| C6 side-effect invariants first | Not yet — the §21 fixtures do not exist until publication is implemented, and no workflow contains a job by that name |
+| C6 side-effect invariants first | Not yet — publication is implemented, but no §21 fixture exercises the symlink, escape or partial-write invariants, and no workflow contains a job by that name |
 
 Stating a rule before its enforcer exists is a deliberate choice, but it is a debt. It is recorded
 here rather than left implicit. `CONTRIBUTING.md` §3 repeats these qualifications inline; if the two
