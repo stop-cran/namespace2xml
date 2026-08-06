@@ -24,16 +24,19 @@ public readonly record struct NodeMarks
 {
     /// <summary>Creates the marks for a node's first contribution.</summary>
     /// <param name="position">The contribution's position mark.</param>
+    /// <param name="addressedDirectly">Whether a contribution addresses the node itself.</param>
     /// <param name="payloadMark">The payload mark, or <see langword="null"/> when absent.</param>
     /// <param name="mappingShape">The mapping shape-mark, or <see langword="null"/> when absent.</param>
     /// <param name="sequenceShape">The sequence shape-mark, or <see langword="null"/> when absent.</param>
     private NodeMarks(
         StableOrderingKey position,
+        bool addressedDirectly,
         StableOrderingKey? payloadMark,
         StableOrderingKey? mappingShape,
         StableOrderingKey? sequenceShape)
     {
         Position = position;
+        AddressedDirectly = addressedDirectly;
         PayloadMark = payloadMark;
         MappingShape = mappingShape;
         SequenceShape = sequenceShape;
@@ -44,6 +47,20 @@ public readonly record struct NodeMarks
     /// fixes the node's place in Section 5.2 mapping order.
     /// </summary>
     public StableOrderingKey Position { get; }
+
+    /// <summary>
+    /// Whether any contribution addresses this node itself, as opposed to the node existing only
+    /// because something deeper needed a container.
+    /// </summary>
+    /// <remarks>
+    /// Section 5.2 gives an intermediate node "the position mark of the earliest contribution that
+    /// required it", while a directly addressed node takes the latest such contribution. The two
+    /// rules point in opposite directions, so merging two nodes cannot pick between their position
+    /// marks without knowing which kind each one is. The position mark alone does not say: a node
+    /// materialised at key K and a node overridden at key K carry the same mark and must merge
+    /// differently.
+    /// </remarks>
+    public bool AddressedDirectly { get; }
 
     /// <summary>
     /// The latest scalar or null contribution at this node, or <see langword="null"/> when there is
@@ -109,19 +126,19 @@ public readonly record struct NodeMarks
     /// is how an intermediate node on the way to a deeper descendant first comes into existence.
     /// </summary>
     public static NodeMarks At(StableOrderingKey position) =>
-        new(position, payloadMark: null, mappingShape: null, sequenceShape: null);
+        new(position, addressedDirectly: false, payloadMark: null, mappingShape: null, sequenceShape: null);
 
     /// <summary>Marks for a node whose first contribution is a payload.</summary>
     public static NodeMarks ForPayload(StableOrderingKey position) =>
-        new(position, payloadMark: position, mappingShape: null, sequenceShape: null);
+        new(position, addressedDirectly: true, payloadMark: position, mappingShape: null, sequenceShape: null);
 
     /// <summary>Marks for a node whose first contribution requires mapping shape.</summary>
     public static NodeMarks ForMapping(StableOrderingKey position) =>
-        new(position, payloadMark: null, mappingShape: position, sequenceShape: null);
+        new(position, addressedDirectly: true, payloadMark: null, mappingShape: position, sequenceShape: null);
 
     /// <summary>Marks for a node whose first contribution requires sequence shape.</summary>
     public static NodeMarks ForSequence(StableOrderingKey position) =>
-        new(position, payloadMark: null, mappingShape: null, sequenceShape: position);
+        new(position, addressedDirectly: true, payloadMark: null, mappingShape: null, sequenceShape: position);
 
     /// <summary>
     /// Records a contribution that addresses this node itself, advancing the position mark.
@@ -129,6 +146,7 @@ public readonly record struct NodeMarks
     public NodeMarks WithPayload(StableOrderingKey position) =>
         new(
             StableOrderingKey.Later(Position, position),
+            addressedDirectly: true,
             Later(PayloadMark, position),
             MappingShape,
             SequenceShape);
@@ -140,6 +158,7 @@ public readonly record struct NodeMarks
     public NodeMarks WithMapping(StableOrderingKey position) =>
         new(
             StableOrderingKey.Later(Position, position),
+            addressedDirectly: true,
             PayloadMark,
             Later(MappingShape, position),
             SequenceShape);
@@ -151,6 +170,7 @@ public readonly record struct NodeMarks
     public NodeMarks WithSequence(StableOrderingKey position) =>
         new(
             StableOrderingKey.Later(Position, position),
+            addressedDirectly: true,
             PayloadMark,
             MappingShape,
             Later(SequenceShape, position));
@@ -163,7 +183,7 @@ public readonly record struct NodeMarks
     /// Section 5.2: "Adding a new child therefore never moves its parent."
     /// </remarks>
     public NodeMarks WithDescendant(StableOrderingKey position) =>
-        new(Position, PayloadMark, Later(MappingShape, position), SequenceShape);
+        new(Position, AddressedDirectly, PayloadMark, Later(MappingShape, position), SequenceShape);
 
     /// <summary>
     /// Records a sequence item, which refreshes the sequence shape-mark and leaves the position
@@ -176,7 +196,46 @@ public readonly record struct NodeMarks
     /// parent.
     /// </remarks>
     public NodeMarks WithSequenceItem(StableOrderingKey position) =>
-        new(Position, PayloadMark, MappingShape, Later(SequenceShape, position));
+        new(Position, AddressedDirectly, PayloadMark, MappingShape, Later(SequenceShape, position));
+
+    /// <summary>
+    /// The marks of a node that carries both of two nodes' contributions, taking the later of each
+    /// shape mark independently.
+    /// </summary>
+    /// <param name="other">The other node's marks.</param>
+    /// <remarks>
+    /// <para>
+    /// Section 17.1 merges each facet on its own evidence: a payload plus a container "retain both
+    /// in the overlay with independent source marks". Collapsing to a single later-wins mark would
+    /// discard the losing facet's evidence and change how the merged node renders to an exclusive
+    /// destination, which Section 4.4 decides from the marks and not from what merged last.
+    /// </para>
+    /// <para>
+    /// The position mark is the exception, and it does not take the later value. Section 5.2 says a
+    /// directly addressed node moves to its latest override, while an intermediate node keeps the
+    /// earliest contribution that required it, because every contribution that could materialise it
+    /// is a descendant and "adding a new child therefore never moves its parent". Taking the later
+    /// mark unconditionally would let a second source that merely adds a child to <c>a</c> move
+    /// <c>a</c> past a sibling declared after it in the first source.
+    /// </para>
+    /// </remarks>
+    public NodeMarks Combine(NodeMarks other) =>
+        new(
+            CombinePosition(this, other),
+            AddressedDirectly || other.AddressedDirectly,
+            Later(PayloadMark, other.PayloadMark),
+            Later(MappingShape, other.MappingShape),
+            Later(SequenceShape, other.SequenceShape));
+
+    private static StableOrderingKey CombinePosition(NodeMarks left, NodeMarks right) =>
+        (left.AddressedDirectly, right.AddressedDirectly) switch
+        {
+            (true, true) => StableOrderingKey.Later(left.Position, right.Position),
+            (true, false) => left.Position,
+            (false, true) => right.Position,
+            (false, false) =>
+                left.Position < right.Position ? left.Position : right.Position,
+        };
 
     private static StableOrderingKey? Later(StableOrderingKey? left, StableOrderingKey? right) =>
         (left, right) switch

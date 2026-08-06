@@ -114,7 +114,7 @@ public class NamespaceProfileReaderTests
         var contribution = Read("#one\n#two\na=1\nb=2");
 
         Descend(contribution.Overlay, "a").Comments.Select(comment => comment.Text)
-            .ShouldBe(["#one", "#two"]);
+            .ShouldBe(["one", "two"]);
         Descend(contribution.Overlay, "b").Comments.ShouldBeEmpty();
     }
 
@@ -122,7 +122,7 @@ public class NamespaceProfileReaderTests
     [Test]
     public void LeadingSpacesAreNotCommentText() =>
         Descend(Read("  \t#one\na=1").Overlay, "a").Comments.ShouldHaveSingleItem()
-            .Text.ShouldBe("#one");
+            .Text.ShouldBe("one");
 
     /// <summary>
     /// Section 8.5: "Trailing comments with no following entry remain document-trailing comments."
@@ -133,7 +133,7 @@ public class NamespaceProfileReaderTests
         var contribution = Read("a=1\n#after");
 
         Descend(contribution.Overlay, "a").Comments.ShouldBeEmpty();
-        contribution.TrailingComments.Select(comment => comment.Text).ShouldBe(["#after"]);
+        contribution.TrailingComments.Select(comment => comment.Text).ShouldBe(["after"]);
     }
 
     /// <summary>
@@ -146,7 +146,7 @@ public class NamespaceProfileReaderTests
         var contribution = Read("#before\n!z.*\n#after\na=1");
 
         Descend(contribution.Overlay, "a").Comments.Select(comment => comment.Text)
-            .ShouldBe(["#before", "#after"]);
+            .ShouldBe(["before", "after"]);
         contribution.TrailingComments.ShouldBeEmpty();
     }
 
@@ -154,13 +154,13 @@ public class NamespaceProfileReaderTests
     [Test]
     public void ABlankRecordDoesNotInterruptARunOfComments() =>
         Descend(Read("#before\n\n#after\na=1").Overlay, "a").Comments
-            .Select(comment => comment.Text).ShouldBe(["#before", "#after"]);
+            .Select(comment => comment.Text).ShouldBe(["before", "after"]);
 
     /// <summary>Section 8.5, same clause: a `PARSE001` record leaves the run open.</summary>
     [Test]
     public void AMalformedRecordDoesNotInterruptARunOfComments() =>
         Descend(Read("#before\nbad\n#after\na=1").Overlay, "a").Comments
-            .Select(comment => comment.Text).ShouldBe(["#before", "#after"]);
+            .Select(comment => comment.Text).ShouldBe(["before", "after"]);
 
     /// <summary>Section 4.5 orders bound comments by source order.</summary>
     [Test]
@@ -168,7 +168,7 @@ public class NamespaceProfileReaderTests
     {
         var comments = Descend(Read("#1\n#2\n#3\na=1").Overlay, "a").Comments;
 
-        comments.Select(comment => comment.Text).ShouldBe(["#1", "#2", "#3"]);
+        comments.Select(comment => comment.Text).ShouldBe(["1", "2", "3"]);
         comments[0].Order.CompareTo(comments[2].Order).ShouldBeLessThan(0);
     }
 
@@ -255,7 +255,7 @@ public class NamespaceProfileReaderTests
         var contribution = Read("#t\na.*=1\nb=2");
 
         contribution.Templates.ShouldHaveSingleItem()
-            .Comments.Select(comment => comment.Text).ShouldBe(["#t"]);
+            .Comments.Select(comment => comment.Text).ShouldBe(["t"]);
         Descend(contribution.Overlay, "b").Comments.ShouldBeEmpty();
         contribution.TrailingComments.ShouldBeEmpty();
     }

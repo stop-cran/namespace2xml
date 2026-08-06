@@ -34,6 +34,9 @@ public sealed class NamespaceRecordClassifierTests
 
     // "2. if the first non-space/tab character is '#', the record is a comment and preceding
     //  spaces/tabs are not comment text; a record beginning with '\#' is not a comment"
+    //
+    // Section 8.5: the text is "the remainder of the record after that '#', with leading and
+    // trailing spaces and tabs removed", because Section 20 re-adds a marker on emission.
 
     [Test]
     public void ARecordWhoseFirstNonBlankScalarIsANumberSignIsAComment()
@@ -41,7 +44,7 @@ public sealed class NamespaceRecordClassifierTests
         var record = Classify("# hello");
 
         record.Kind.ShouldBe(NamespaceRecordKind.Comment);
-        record.Comment.ShouldBe("# hello");
+        record.Comment.ShouldBe("hello");
     }
 
     [Test]
@@ -50,7 +53,30 @@ public sealed class NamespaceRecordClassifierTests
         var record = Classify("  \t# hello");
 
         record.Kind.ShouldBe(NamespaceRecordKind.Comment);
-        record.Comment.ShouldBe("# hello");
+        record.Comment.ShouldBe("hello");
+    }
+
+    /// <summary>
+    /// Section 8.5: "Any further <c>#</c> scalars belong to the text, because only the first one is
+    /// a marker."
+    /// </summary>
+    [Test]
+    public void OnlyTheFirstNumberSignIsAMarker() =>
+        Classify("## hello #x").Comment.ShouldBe("# hello #x");
+
+    /// <summary>Section 8.5 removes "leading and trailing spaces and tabs".</summary>
+    [Test]
+    public void TrailingSpacesAndTabsAreNotCommentText() =>
+        Classify("#  hello \t ").Comment.ShouldBe("hello");
+
+    /// <summary>Section 8.1 rule 2 makes a bare marker a comment; Section 8.5 leaves it empty.</summary>
+    [Test]
+    public void ABareMarkerIsAnEmptyComment()
+    {
+        var record = Classify("#");
+
+        record.Kind.ShouldBe(NamespaceRecordKind.Comment);
+        record.Comment.ShouldBe(string.Empty);
     }
 
     [Test]

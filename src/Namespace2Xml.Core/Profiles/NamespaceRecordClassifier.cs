@@ -36,7 +36,10 @@ public static class NamespaceRecordClassifier
         // needed for the escaped forms Section 8.1 calls out.
         if (text[first] == '#')
         {
-            return NamespaceRecord.OfComment(text[first..], line, first + 1);
+            // Section 8.5: the text is "the remainder of the record after that '#', with leading
+            // and trailing spaces and tabs removed", because Section 16.9 chooses the output marker
+            // and Section 20 re-adds one.
+            return NamespaceRecord.OfComment(text[(first + 1)..].Trim(' ', '\t'), line, first + 1);
         }
 
         if (text[first] == '!')

@@ -36,6 +36,22 @@ public sealed class SequenceOrderingAllocator
     /// </summary>
     public long HighWaterMark { get; private set; } = InitialHighWaterMark;
 
+    /// <summary>Resumes allocation at a path that already has a mark.</summary>
+    /// <param name="highWaterMark">The mark carried by the path so far.</param>
+    /// <remarks>
+    /// The mark is state that belongs to the path and travels with it across pipeline phases, so
+    /// the overlay stores it and this type supplies the rule that reads and advances it. Keeping
+    /// the mark in a side table owned by one phase instead would lose it at every step that
+    /// re-addresses a path — <c>root</c>, <c>key</c>, and destination planning all do — and
+    /// Section 5.4 requires the mark to survive exactly those.
+    /// </remarks>
+    public static SequenceOrderingAllocator From(long highWaterMark)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(highWaterMark, InitialHighWaterMark);
+
+        return new SequenceOrderingAllocator { HighWaterMark = highWaterMark };
+    }
+
     /// <summary>Whether a value is a Section 5.4 ordering value.</summary>
     public static bool IsOrderingValue(long value) =>
         value is >= MinOrderingValue and <= MaxOrderingValue;

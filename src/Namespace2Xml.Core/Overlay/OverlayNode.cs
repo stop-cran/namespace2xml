@@ -35,7 +35,8 @@ public sealed class OverlayNode
         bool hasExplicitMapping,
         ImmutableDictionary<NamePart, OverlayNode> children,
         ImmutableDictionary<long, SequenceItem> sequence,
-        ImmutableList<BoundComment> comments)
+        ImmutableList<BoundComment> comments,
+        long sequenceHighWater)
     {
         Marks = marks;
         Payload = payload;
@@ -43,6 +44,7 @@ public sealed class OverlayNode
         Children = children;
         Sequence = sequence;
         Comments = comments;
+        SequenceHighWater = sequenceHighWater;
     }
 
     /// <summary>The Section 4.4 marks that decide this node's order and rendered shape.</summary>
@@ -75,11 +77,48 @@ public sealed class OverlayNode
     /// <summary>Comments bound to this node, unordered. Use <see cref="OrderedComments"/> to render.</summary>
     public ImmutableList<BoundComment> Comments { get; }
 
+    /// <summary>
+    /// The Section 5.4 high-water mark of this path: "the greatest ordering value ever allocated or
+    /// explicitly supplied at that path earlier in source order, including values later removed or
+    /// replaced".
+    /// </summary>
+    /// <remarks>
+    /// Stored rather than derived from <see cref="Sequence"/>, because the two differ exactly when
+    /// it matters. Section 5.4 forbids automatic allocation from reusing a value "because an item
+    /// was removed or replaced", and Section 17.2 states that <c>merge=replace</c> "does not lower
+    /// the path's allocation high-water mark". A high-water read off the surviving items would fall
+    /// after a replacement and hand the next item an ordering value a removed item once held, so a
+    /// later reference or explicit contribution addressing that value would silently hit a
+    /// different item.
+    /// </remarks>
+    public long SequenceHighWater { get; }
+
     /// <summary>A node with no payload, no children, no sequence and no comments.</summary>
     /// <param name="marks">The marks of the contribution that created it.</param>
     public static OverlayNode Empty(NodeMarks marks) =>
         new(marks, null, false, ImmutableDictionary<NamePart, OverlayNode>.Empty,
-            ImmutableDictionary<long, SequenceItem>.Empty, ImmutableList<BoundComment>.Empty);
+            ImmutableDictionary<long, SequenceItem>.Empty, ImmutableList<BoundComment>.Empty,
+            SequenceOrderingAllocator.InitialHighWaterMark);
+
+    /// <summary>
+    /// Builds a node from facets that already exist, for the merge engine.
+    /// </summary>
+    /// <remarks>
+    /// Section 17.1 merges facets independently, so the merged node's marks are not reachable by
+    /// replaying <c>With*</c> calls: replaying would advance the position mark for each replayed
+    /// contribution and lose the distinction between a contribution at the node and one beneath it.
+    /// Internal because it is the one way to build a node whose marks do not follow from its own
+    /// construction, and only the merge engine has independent evidence for them.
+    /// </remarks>
+    internal static OverlayNode Compose(
+        NodeMarks marks,
+        ScalarPayload? payload,
+        bool hasExplicitMapping,
+        ImmutableDictionary<NamePart, OverlayNode> children,
+        ImmutableDictionary<long, SequenceItem> sequence,
+        ImmutableList<BoundComment> comments,
+        long sequenceHighWater) =>
+        new(marks, payload, hasExplicitMapping, children, sequence, comments, sequenceHighWater);
 
     /// <summary>
     /// An intermediate node materialised only because something deeper needed a container.
@@ -101,7 +140,8 @@ public sealed class OverlayNode
             false,
             ImmutableDictionary<NamePart, OverlayNode>.Empty,
             ImmutableDictionary<long, SequenceItem>.Empty,
-            ImmutableList<BoundComment>.Empty);
+            ImmutableList<BoundComment>.Empty,
+            SequenceOrderingAllocator.InitialHighWaterMark);
     }
 
     /// <summary>
@@ -138,13 +178,15 @@ public sealed class OverlayNode
         var winner = Marks.PayloadMark is { } existing && existing > position ? Payload : payload;
 
         return new OverlayNode(
-            Marks.WithPayload(position), winner, HasExplicitMapping, Children, Sequence, Comments);
+            Marks.WithPayload(position), winner, HasExplicitMapping, Children, Sequence, Comments,
+            SequenceHighWater);
     }
 
     /// <summary>Records an explicit mapping-presence contribution at this node.</summary>
     /// <param name="position">The contribution's position mark.</param>
     public OverlayNode WithExplicitMapping(StableOrderingKey position) =>
-        new(Marks.WithMapping(position), Payload, true, Children, Sequence, Comments);
+        new(Marks.WithMapping(position), Payload, true, Children, Sequence, Comments,
+            SequenceHighWater);
 
     /// <summary>Replaces or adds a mapping child, refreshing this node's mapping shape-mark.</summary>
     /// <param name="name">The child's name part.</param>
@@ -164,7 +206,33 @@ public sealed class OverlayNode
             HasExplicitMapping,
             Children.SetItem(name, child),
             Sequence,
-            Comments);
+            Comments,
+            // Section 5.4: a mapping child whose name is a canonical in-range decimal "reserves
+            // that ordering value at its own source position during concrete merging, whether or
+            // not its containing mapping ultimately qualifies for sequence inference". Reserving
+            // here rather than at inference time is what keeps step 11 from retroactively
+            // reallocating a native item that was allocated in between.
+            OrderingValues.TryRead(name, out var reserved)
+                ? Math.Max(SequenceHighWater, reserved)
+                : SequenceHighWater);
+    }
+
+    /// <summary>
+    /// Raises the Section 5.4 high-water mark without creating an item.
+    /// </summary>
+    /// <param name="orderingValue">The value being reserved.</param>
+    /// <remarks>
+    /// The mark never falls: Section 5.4 records "the greatest ordering value ever allocated or
+    /// explicitly supplied", so a lower reservation is not an error, it simply changes nothing.
+    /// </remarks>
+    public OverlayNode WithReservedOrderingValue(long orderingValue)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(orderingValue);
+
+        return orderingValue <= SequenceHighWater
+            ? this
+            : new OverlayNode(
+                Marks, Payload, HasExplicitMapping, Children, Sequence, Comments, orderingValue);
     }
 
     /// <summary>Replaces or adds a sequence item, refreshing this node's sequence shape-mark.</summary>
@@ -186,7 +254,34 @@ public sealed class OverlayNode
             HasExplicitMapping,
             Children,
             Sequence.SetItem(orderingValue, item),
-            Comments);
+            Comments,
+            Math.Max(SequenceHighWater, orderingValue));
+    }
+
+    /// <summary>
+    /// Appends an item at the next Section 5.4 implicit ordering value.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <param name="appended">The node with the item appended, when one fits.</param>
+    /// <returns>
+    /// Whether an ordering value was available. Section 5.4 makes allocating above
+    /// <see cref="SequenceOrderingAllocator.MaxOrderingValue"/> "a blocking limit error", which is a
+    /// diagnostic and not an exception, so the caller decides how to report it.
+    /// </returns>
+    public bool TryAppendSequenceItem(SequenceItem item, out OverlayNode appended)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        var allocator = SequenceOrderingAllocator.From(SequenceHighWater);
+
+        if (!allocator.TryAllocate(out var value))
+        {
+            appended = this;
+            return false;
+        }
+
+        appended = WithSequenceItem(value, item);
+        return true;
     }
 
     /// <summary>Binds a comment to this node.</summary>
@@ -201,7 +296,8 @@ public sealed class OverlayNode
         ArgumentNullException.ThrowIfNull(comment);
 
         return new OverlayNode(
-            Marks, Payload, HasExplicitMapping, Children, Sequence, Comments.Add(comment));
+            Marks, Payload, HasExplicitMapping, Children, Sequence, Comments.Add(comment),
+            SequenceHighWater);
     }
 
     /// <summary>Removes a mapping child, as a Section 8.4 permanent exclusion mask does.</summary>
@@ -218,15 +314,30 @@ public sealed class OverlayNode
 
         return Children.ContainsKey(name)
             ? new OverlayNode(
-                Marks, Payload, HasExplicitMapping, Children.Remove(name), Sequence, Comments)
+                Marks, Payload, HasExplicitMapping, Children.Remove(name), Sequence, Comments,
+                SequenceHighWater)
             : this;
     }
+
+    /// <summary>Removes a sequence item, as a Section 8.6 permanent exclusion mask does.</summary>
+    /// <param name="orderingValue">The item's ordering value.</param>
+    /// <remarks>
+    /// The high-water mark is not lowered. Section 5.4: automatic allocation "never shifts,
+    /// defragments, or reuses an ordering value because an item was removed or replaced".
+    /// </remarks>
+    public OverlayNode WithoutSequenceItem(long orderingValue) =>
+        Sequence.ContainsKey(orderingValue)
+            ? new OverlayNode(
+                Marks, Payload, HasExplicitMapping, Children, Sequence.Remove(orderingValue),
+                Comments, SequenceHighWater)
+            : this;
 
     /// <summary>Removes this node's payload, leaving its container facets intact.</summary>
     public OverlayNode WithoutPayload() =>
         Payload is null
             ? this
-            : new OverlayNode(Marks, null, HasExplicitMapping, Children, Sequence, Comments);
+            : new OverlayNode(
+                Marks, null, HasExplicitMapping, Children, Sequence, Comments, SequenceHighWater);
 
     /// <inheritdoc/>
     public override string ToString() =>

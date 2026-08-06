@@ -29,6 +29,39 @@ public class OverlayNodeTests
         OverlayNode.OfPayload(ScalarPayload.Untyped(text), position);
 
     /// <summary>
+    /// Section 5.2 moves a mapping key when a contribution addresses it, and leaves it where it is
+    /// when a descendant arrives. Every factory must therefore record which kind of contribution it
+    /// represents: the position mark alone cannot tell an override at key K from a materialisation
+    /// at key K, and merging the two needs opposite answers.
+    /// </summary>
+    [Test]
+    public void OnlyAContributionAtTheNodeItselfAddressesItDirectly()
+    {
+        NodeMarks.At(Early).AddressedDirectly.ShouldBeFalse();
+        NodeMarks.ForPayload(Early).AddressedDirectly.ShouldBeTrue();
+        NodeMarks.ForMapping(Early).AddressedDirectly.ShouldBeTrue();
+        NodeMarks.ForSequence(Early).AddressedDirectly.ShouldBeTrue();
+
+        NodeMarks.At(Early).WithPayload(Late).AddressedDirectly.ShouldBeTrue();
+        NodeMarks.At(Early).WithMapping(Late).AddressedDirectly.ShouldBeTrue();
+        NodeMarks.At(Early).WithSequence(Late).AddressedDirectly.ShouldBeTrue();
+
+        NodeMarks.At(Early).WithDescendant(Late).AddressedDirectly.ShouldBeFalse();
+        NodeMarks.At(Early).WithSequenceItem(Late).AddressedDirectly.ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Section 5.2: an intermediate node keeps "the position mark of the earliest contribution that
+    /// required it", so a descendant never moves it.
+    /// </summary>
+    [Test]
+    public void ADescendantNeverMovesTheNodeItMaterialised()
+    {
+        NodeMarks.At(Early).WithDescendant(Late).Position.ShouldBe(Early);
+        NodeMarks.At(Early).WithSequenceItem(Late).Position.ShouldBe(Early);
+    }
+
+    /// <summary>
     /// Section 4.2: "Mapping, sequence, scalar, and null are therefore projections of an overlay
     /// node, not mutually exclusive internal node kinds." The worked example is <c>a.x=1</c>
     /// followed by <c>a.x.z=3</c>, where <c>x</c> must retain both facts so that namespace can emit
