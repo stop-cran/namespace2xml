@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using NUnit.Framework;
 using Shouldly;
 
@@ -348,6 +349,169 @@ public class HarnessSelfTests
     {
         var anchor = spec is null ? string.Empty : $"\"spec\":\"{spec}\",";
         return $"[\n{{\"code\":\"CLI001\",\"severity\":\"error\",\"phase\":\"cli\",{anchor}{tail}}}\n]\n";
+    }
+
+    // ---- Appendix C.5 standard output ----
+    //
+    // Every case below must fail the comparer. The rule this suite defends is that the corpus
+    // could previously claim Section 26 item 85 while asserting nothing a silent binary would
+    // violate, so a comparer that is merely present is not enough: it has to reject.
+
+    /// <summary>Writes an <c>expected-stdout.txt</c> and compares the given output against it.</summary>
+    private static IEnumerable<string> CompareStdout(TemporaryDirectory directory, string? expected, string actual)
+    {
+        if (expected is not null)
+        {
+            directory.Write("expected-stdout.txt", expected);
+        }
+
+        return StandardOutputComparer.Compare(
+            System.IO.Path.Combine(directory.Path, "expected-stdout.txt"),
+            Utf8(actual));
+    }
+
+    [Test]
+    public void RequiredStandardOutputLinesAreMatchedInOrder()
+    {
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "name: namespace2xml\nversion: 3.0\n", "name: namespace2xml\nversion: 3.0\n")
+            .ShouldBeEmpty();
+    }
+
+    [Test]
+    public void AMissingRequiredLineFails()
+    {
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "contract-bundle: r1\n", "name: namespace2xml\n")
+            .ShouldContain(failure => failure.Contains("does not contain the line 'contract-bundle: r1'"));
+    }
+
+    [Test]
+    public void SilentStandardOutputFailsEveryRequiredLine()
+    {
+        // The defect that motivated this comparer: a binary printing nothing satisfied the exit
+        // code and the empty output tree, and the case still claimed to cover --version.
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "name: namespace2xml\ncontract-bundle: r1\n", string.Empty)
+            .Count().ShouldBe(2);
+    }
+
+    [Test]
+    public void RequiredLinesOutOfOrderFail()
+    {
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "first\nsecond\n", "second\nfirst\n")
+            .ShouldContain(failure => failure.Contains("out of the expected order"));
+    }
+
+    [Test]
+    public void ARequiredLineMustMatchAWholeLine()
+    {
+        // Substring matching would accept 'contract-bundle: r13-tampered' for 'contract-bundle: r13'.
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "contract-bundle: r13\n", "contract-bundle: r13-tampered\n")
+            .ShouldNotBeEmpty();
+    }
+
+    [Test]
+    public void RequiredLinesAreCaseSensitive()
+    {
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "USAGE\n", "usage\n").ShouldNotBeEmpty();
+    }
+
+    [Test]
+    public void AForbiddenLineThatOccursFails()
+    {
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "USAGE\n!version: 3.0\n", "USAGE\nversion: 3.0\n")
+            .ShouldContain(failure => failure.Contains("forbidden line 'version: 3.0'"));
+    }
+
+    [Test]
+    public void AForbiddenLineThatIsAbsentPasses()
+    {
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "USAGE\n!version: 3.0\n", "USAGE\n").ShouldBeEmpty();
+    }
+
+    [Test]
+    public void ABackslashEscapesALiteralExclamationMark()
+    {
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "\\!literal\n", "!literal\n").ShouldBeEmpty();
+        CompareStdout(directory, "\\!literal\n", "literal\n").ShouldNotBeEmpty();
+    }
+
+    [Test]
+    public void BlankLinesInTheExpectationAreIgnored()
+    {
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "\nfirst\n\n\nsecond\n\n", "first\nsecond\n").ShouldBeEmpty();
+    }
+
+    [Test]
+    public void AnAbsentExpectationRequiresEmptyStandardOutput()
+    {
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, null, string.Empty).ShouldBeEmpty();
+        CompareStdout(directory, null, "generated content\n")
+            .ShouldContain(failure => failure.Contains("standard output must be empty"));
+    }
+
+    [Test]
+    public void PlaceholdersResolveFromTheContractBundleAndNotFromTheTool()
+    {
+        using var directory = new TemporaryDirectory();
+
+        using var bundle = JsonDocument.Parse(File.ReadAllBytes(CorpusLayout.ContractBundle));
+        var revision = bundle.RootElement.GetProperty("revision").GetString();
+
+        CompareStdout(directory, "contract-bundle: ${contract-bundle}\n", $"contract-bundle: {revision}\n")
+            .ShouldBeEmpty();
+
+        CompareStdout(directory, "contract-bundle: ${contract-bundle}\n", "contract-bundle: r0+deadbeef\n")
+            .ShouldNotBeEmpty();
+    }
+
+    [Test]
+    public void AnUnknownPlaceholderIsAFixtureDefectRatherThanAToolDefect()
+    {
+        using var directory = new TemporaryDirectory();
+
+        Should.Throw<ConformanceFormatException>(
+            () => CompareStdout(directory, "x: ${no-such-field}\n", "x: y\n").ToList());
+    }
+
+    [Test]
+    public void CarriageReturnInTheExpectationIsRejected()
+    {
+        using var directory = new TemporaryDirectory();
+
+        CompareStdout(directory, "USAGE\r\n", "USAGE\n")
+            .ShouldContain(failure => failure.Contains("LF line endings"));
+    }
+
+    [Test]
+    public void InvalidUtf8OnStandardOutputIsRejected()
+    {
+        using var directory = new TemporaryDirectory();
+        directory.Write("expected-stdout.txt", "USAGE\n");
+
+        StandardOutputComparer
+            .Compare(System.IO.Path.Combine(directory.Path, "expected-stdout.txt"), [0xC3, 0x28])
+            .ShouldContain(failure => failure.Contains("not valid UTF-8"));
     }
 
     private sealed class TemporaryDirectory : IDisposable

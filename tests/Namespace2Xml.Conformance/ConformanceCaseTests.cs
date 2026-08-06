@@ -15,7 +15,8 @@ public class ConformanceCaseTests
     private static readonly HashSet<string> ReservedNames = new(StringComparer.Ordinal)
     {
         "args.txt", "args-diagnostics.txt", "inputs", "schemes", "expected",
-        "expected-diagnostics.json", "expected-exit-code.txt", "requirements.txt", "legacy.md",
+        "expected-diagnostics.json", "expected-exit-code.txt", "expected-stdout.txt",
+        "requirements.txt", "legacy.md",
     };
 
     public static IEnumerable<ConformanceCase> Cases => ConformanceCase.Discover(CorpusLayout.Corpus);
@@ -40,6 +41,7 @@ public class ConformanceCaseTests
         }
 
         failures.AddRange(OutputTreeComparer.Compare(conformanceCase.ExpectedTree, run.ProducedTree(ReservedNames)));
+        failures.AddRange(StandardOutputComparer.Compare(conformanceCase.ExpectedStandardOutput, result.StandardOutput));
         failures.AddRange(CompareFixtureSnapshots(before, run.FixtureSnapshot(ReservedNames)));
 
         failures.ShouldBeEmpty(Describe(conformanceCase, failures, result));
@@ -81,6 +83,7 @@ public class ConformanceCaseTests
         }
 
         failures.AddRange(OutputTreeComparer.Compare(conformanceCase.ExpectedTree, run.ProducedTree(ReservedNames)));
+        failures.AddRange(StandardOutputComparer.Compare(conformanceCase.ExpectedStandardOutput, result.StandardOutput));
         failures.AddRange(CompareFixtureSnapshots(before, run.FixtureSnapshot(ReservedNames)));
 
         failures.ShouldBeEmpty(Describe(conformanceCase, failures, result));

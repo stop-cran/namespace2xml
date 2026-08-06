@@ -253,6 +253,23 @@ Join the lines explicitly:
 $from = @('        if (State == Aborted)', '        {', '            return;', '        }') -join "`n"
 ```
 
+### The gitignore gate is noisier locally than in CI
+
+`git ls-files --others --ignored --exclude-standard -- conformance spec tools spikes` is clean on a
+CI runner, which never builds `spikes/`, and lists a hundred `bin/` and `obj/` paths on a
+workstation where a spike has been run once. Those are genuinely ignored and genuinely fine. The
+gate is aimed at a *fixture* named `release/`, `packages/` or `x.log`; read its output with that in
+mind rather than concluding the tree is broken. `git status --porcelain` on the trees you touched is
+the check that answers the question you actually have.
+
+### A `--version` apphost failure is usually an architecture mismatch
+
+`0x800700C1` from `hostfxr.dll`, or exit `2147516546`, means the published RID does not match the
+installed runtime. This workstation is **Windows on ARM**, so `-r win-x64` produces an apphost that
+cannot load the arm64 host, and `-r win-arm64` is the local RID. The CI matrix is `win-x64` and is
+correct for the runners. Any harness that runs the published binary must surface its standard error
+rather than only its exit code, or this reads as an unexplained numeric failure.
+
 ### Sorting two elements asks the comparer once
 
 A comparer with symmetric branches — `left is null` and `right is null`, or a length tiebreak — has

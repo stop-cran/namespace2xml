@@ -35,6 +35,13 @@ public sealed class ConformanceCase
         }
     }
 
+    /// <summary>
+    /// Path to <c>expected-stdout.txt</c>, which need not exist. Appendix C.5 makes its absence
+    /// the assertion that standard output is empty, so the path is returned rather than its
+    /// content.
+    /// </summary>
+    public string ExpectedStandardOutput => Path.Combine(Directory, "expected-stdout.txt");
+
     /// <summary>Section 26 item numbers this case exercises.</summary>
     public IReadOnlyList<int> Requirements =>
         File.ReadAllLines(Path.Combine(Directory, "requirements.txt"))

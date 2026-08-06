@@ -1,0 +1,5 @@
+name: namespace2xml
+version: 3.0.0-preview.1
+contract-bundle: ${contract-bundle}
+specification-sha256: ${specification-sha256}
+registry-sha256: ${registry-sha256}

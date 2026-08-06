@@ -46,6 +46,9 @@ internal static class HelpText
         EXIT CODES
           0  Success, including success with warnings.
           1  Invalid CLI, input, scheme, reference, rendering, path or publication failure.
+          70 Preview only: this build has not implemented the requested work. Nothing was
+             written and nothing about your input was judged. Not a failure of your
+             configuration. Released builds return only 0 or 1.
 
         FOR AUTOMATION AND AI AGENTS
           This tool is specified before it is implemented. The specification is the single

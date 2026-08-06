@@ -53,7 +53,12 @@ Do not read a passing test run as evidence about a `pending` item.
   the output root cannot be detected by any no-follow walk, on any platform, because a hard link is
   not distinguishable from the original name. An optional refusal based on link count is
   demonstrated in the spike but is not enabled.
-- **Native AOT** is a non-blocking investigation, not a shipped configuration.
+- **Native AOT** is a non-blocking investigation, not a shipped configuration. Just-in-time startup
+  measures ~66 ms median on `win-arm64`, and the code currently draws no AOT, trim or single-file
+  analyzer complaints — but the pipeline is largely unimplemented, so that zero is a baseline and
+  not a verdict. Linking and cross-platform startup are measured by the dispatchable
+  `native-aot-spike` workflow. The bar it has to clear, and the trap that already cost time, are in
+  [`spikes/native-aot/FINDINGS.md`](spikes/native-aot/FINDINGS.md). Revisit at M6.
 - **YAML comment preservation** relies on a two-pass read: parser events for structure, plus a
   second scanner pass for the comment token inventory, because the parser event stream truncates
   comment-only documents and misreports inline-ness on root values. This is proven in

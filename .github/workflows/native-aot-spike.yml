@@ -1,0 +1,125 @@
+name: native-aot-spike
+
+# A time-boxed investigation, not a shipped configuration. It runs only when asked, because
+# its output is evidence to read once per question rather than a gate to satisfy on every push.
+#
+# It answers two things and refuses to guess at either:
+#   1. does an ahead-of-time publish link at all, on each supported platform;
+#   2. what does startup actually cost, ahead-of-time versus just-in-time, measured rather
+#      than quoted from a blog post.
+#
+# The ahead-of-time publish is allowed to fail. A precise blocker list from three platforms is
+# a better result than a green run on the one platform that happened to have a linker.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Timed iterations per configuration.
+        required: false
+        default: '20'
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+
+jobs:
+  measure:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            exe: ''
+          - os: windows-latest
+            rid: win-x64
+            exe: '.exe'
+          - os: macos-latest
+            rid: osx-arm64
+            exe: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Publish just-in-time baseline
+        shell: bash
+        env:
+          RID: ${{ matrix.rid }}
+        run: |
+          set -euo pipefail
+          dotnet publish src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj \
+            -c Release -r "$RID" --self-contained false -o out/jit
+
+      - name: Publish ahead-of-time
+        id: aot
+        continue-on-error: true
+        shell: bash
+        env:
+          RID: ${{ matrix.rid }}
+        run: |
+          set -euo pipefail
+          dotnet publish src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj \
+            -c Release -r "$RID" -p:PublishAot=true -o out/aot 2>&1 | tee aot-publish.log
+
+      - name: Measure just-in-time startup
+        shell: bash
+        env:
+          EXE: ${{ matrix.exe }}
+          RUNS: ${{ inputs.runs }}
+        run: |
+          set -euo pipefail
+          python3 spikes/native-aot/measure-startup.py \
+            --label jit --runs "$RUNS" -- "./out/jit/namespace2xml$EXE" --version | tee jit.json
+
+      - name: Measure ahead-of-time startup
+        if: steps.aot.outcome == 'success'
+        shell: bash
+        env:
+          EXE: ${{ matrix.exe }}
+          RUNS: ${{ inputs.runs }}
+        run: |
+          set -euo pipefail
+          python3 spikes/native-aot/measure-startup.py \
+            --label aot --runs "$RUNS" -- "./out/aot/namespace2xml$EXE" --version | tee aot.json
+
+      - name: Record sizes and outcome
+        if: always()
+        shell: bash
+        env:
+          RID: ${{ matrix.rid }}
+          AOT_OUTCOME: ${{ steps.aot.outcome }}
+        run: |
+          set -euo pipefail
+          {
+            echo "rid: $RID"
+            echo "aot-publish: $AOT_OUTCOME"
+            echo '--- jit payload ---'
+            du -sk out/jit 2>/dev/null || true
+            echo '--- aot payload ---'
+            du -sk out/aot 2>/dev/null || echo 'not produced'
+          } | tee outcome.txt
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-aot-spike-${{ matrix.rid }}
+          path: |
+            jit.json
+            aot.json
+            outcome.txt
+            aot-publish.log
+          if-no-files-found: warn

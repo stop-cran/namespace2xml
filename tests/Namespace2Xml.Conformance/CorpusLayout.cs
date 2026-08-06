@@ -17,6 +17,13 @@ internal static class CorpusLayout
     /// </summary>
     internal static string StreamSchema => Path.Combine(Root, "spec", "diagnostic-stream.schema.json");
 
+    /// <summary>
+    /// The committed contract bundle. Appendix C.5 placeholders resolve from this file, so that a
+    /// case asserting a contract revision is asserting it against the contract rather than against
+    /// the binary that reports it.
+    /// </summary>
+    internal static string ContractBundle => Path.Combine(Root, "spec", "contract-bundle.json");
+
     private static string Locate()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

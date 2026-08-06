@@ -3244,6 +3244,7 @@ conformance/<case-name>/
   expected/
   expected-diagnostics.json
   expected-exit-code.txt
+  expected-stdout.txt          (only when the case asserts standard output)
   requirements.txt
   legacy.md
 ```
@@ -3293,16 +3294,38 @@ Fields that are inapplicable are omitted rather than set to null. Paths use `/` 
 
 The harness runs every case twice:
 
-- run A uses the `args.txt` tokens verbatim and verifies the exit code and the expected output tree;
+- run A uses the `args.txt` tokens verbatim and verifies the exit code, standard output, and the expected output tree;
 - run B obtains the JSON diagnostic stream and verifies it.
 
 Run B's token vector is formed as follows. When the case supplies `args-diagnostics.txt`, those tokens are used verbatim. Otherwise, when `args.txt` contains neither a bare `--` nor any `--diagnostics-format` token, the harness appends `--diagnostics-format` and `json`. Otherwise the case is malformed and the harness fails it, because appending after a bare `--` would turn the appended tokens into list-option values, and appending after an existing `--diagnostics-format` would silently mask the value the case is exercising. A case that deliberately exercises `--` or `--diagnostics-format` therefore states its second token vector explicitly, and that vector must select the `json` encoding.
 
 Run B's stream is validated in three steps: it must parse as JSON, it must conform to the Section 6.4.3 schema and byte layout, and it must match `expected-diagnostics.json` structurally. Structural matching compares array length, element order, and every member exactly, except that `message` is never compared and `spec` is compared only when the expected object declares it. Codes, severities, phases, structured fields, cardinality, and array order are therefore compared exactly, while localized prose and specification renumbering do not invalidate the corpus.
 
-### C.5 Exit code and requirement traceability
+### C.5 Exit code, standard output, and requirement traceability
 
 `expected-exit-code.txt` contains one ASCII decimal exit code followed by LF.
+
+`expected-stdout.txt` constrains standard output. It is UTF-8 without BOM with LF line endings, and each of its non-empty lines is an assertion about one line of standard output. Blank lines are ignored, so a case may group its assertions readably.
+
+- A line beginning with `!` asserts that the rest of that line does **not** occur as a complete line of standard output.
+- A line beginning with `\` drops that first character and is then read as a required line, which is how a case requires a line that genuinely begins with `!` or `\`.
+- Every other line is required: it must occur, exactly, as a complete line of standard output.
+
+Required lines must occur in standard output in the relative order the file states, though standard output may contain other lines between and around them. Forbidden lines carry no ordering.
+
+Standard output is asserted rather than reproduced because Section 6.4.1 fixes a *minimum* field set for `--version` and leaves informational prose localizable under Section 6.4.2. A byte-exact expectation would therefore fail an implementation that conforms, and asserting nothing would pass an implementation that prints nothing at all. The forbidden form exists because the Section 6.1 precedence between `--help` and `--version` is a statement about what must *not* be printed, which no set of required lines can express.
+
+A line may contain a placeholder of the form `${name}`, which the harness expands before comparing. The placeholder set is closed:
+
+| Placeholder | Value |
+|---|---|
+| `${contract-bundle}` | the bundle revision identifier |
+| `${specification-sha256}` | the digest of the specification text the bundle covers |
+| `${registry-sha256}` | the digest of the diagnostic registry the bundle covers |
+
+Every placeholder is resolved from the distributed contract bundle described in Section 22, never from the binary under test. A harness that asked the tool what its own contract revision is would report agreement between a binary and itself, which is not the property Section 22 exists to establish.
+
+When `expected-stdout.txt` is absent, standard output must be empty. Section 6.2 confines standard output to the informational text of `--help` and `--version`, so a case that does not declare that text asserts its absence; anything else on standard output is a defect, and most obviously the generated configuration content that Section 6.2 requires be written only to planned destination files.
 
 `requirements.txt` contains one Section 26 item number per line. Every Section 26 item must be referenced by at least one fixture, and every fixture must reference at least one item.
 

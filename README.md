@@ -115,6 +115,11 @@ This tool is designed to be used by programs, and to be **argued with** by them.
 - **`--version`** prints one `<field>: <value>` line per field, including the `contract-bundle`
   revision that identifies exactly which specification and diagnostic registry the binary implements.
 - **Exit codes are contractual.** `0` is success, including success with warnings; `1` is failure.
+  Specification Section 6.3 fixes those two and no others. During the `3.0.0-preview` line a third
+  code, **`70`**, means *this preview has not implemented the requested work* — the pipeline was
+  never entered, no destination was written, and nothing about the input has been judged. An agent
+  must treat `70` as "come back later", never as a failure of the configuration it supplied. It
+  disappears at `3.0.0`; a released build returns only `0` or `1`.
 - **The specification ships inside the package**, so an agent can read the contract offline.
 - **Symbols and source link** are published alongside every release, so a stack trace resolves to
   the exact source that produced it.
