@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (15)
+## Deliberate differences (17)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -220,6 +220,36 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: hoisting is a format projection that does not change precedence,
   and ordering sections by the emission stream keeps every INI rule a function of that stream
   alone.
+
+### `json-scalar-kinds-and-sequence-order`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 9.1, 18, 19.6, and 5.4.
+- Legacy observation: JSON numbers were read through a binary floating-point type, so precision
+  beyond a `double` was lost silently and a number's written form did not decide its kind. Property
+  names were split on `.`, so one JSON key could become several namespace parts.
+- Clean behavior: a JSON number's *lexical* form decides its kind, so `1e0` is a decimal that
+  Section 18 renders `1.0` while `1` is an integer rendered `1`, and an integer wider than any
+  binary floating-point type survives exactly. `-0` has no fraction or exponent, so it is an
+  integer, and integers have no negative zero. Each property name is exactly one literal part, so
+  `a.b` stays one INI key rather than becoming a section.
+- The difference is intentional: Section 9.1 fixes both rules, and either legacy behavior loses
+  information the source contained.
+
+### `json-strict-parsing-refusals`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 9.2, 9.3, 22, and 24.
+- Legacy observation: the JSON reader accepted comments and trailing commas, and a duplicate object
+  key silently kept whichever the parser visited last, so a typo that shadowed a real setting
+  produced no message at all.
+- Clean behavior: each nonstandard extension is `PARSE001` against the source that carries it, at
+  the Section 22 one-based line and character column of the offending token. Every failing source
+  reports, in the Section 7.3 command-line order, so one run names every bad file rather than
+  stopping at the first.
+- The difference is intentional: Section 9.3 states that rejecting duplicates "avoids
+  parser-dependent behavior and accidental hidden overrides", which is exactly what the legacy
+  reader did.
 
 ### `namespace-escaping-round-trip`
 

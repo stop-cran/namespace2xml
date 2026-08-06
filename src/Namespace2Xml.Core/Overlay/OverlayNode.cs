@@ -33,6 +33,7 @@ public sealed class OverlayNode
         NodeMarks marks,
         ScalarPayload? payload,
         bool hasExplicitMapping,
+        bool hasExplicitSequence,
         ImmutableDictionary<NamePart, OverlayNode> children,
         ImmutableDictionary<long, SequenceItem> sequence,
         ImmutableList<BoundComment> comments,
@@ -41,6 +42,7 @@ public sealed class OverlayNode
         Marks = marks;
         Payload = payload;
         HasExplicitMapping = hasExplicitMapping;
+        HasExplicitSequence = hasExplicitSequence;
         Children = children;
         Sequence = sequence;
         Comments = comments;
@@ -64,6 +66,17 @@ public sealed class OverlayNode
     /// inferred from <see cref="Children"/> being nonempty.
     /// </summary>
     public bool HasExplicitMapping { get; }
+
+    /// <summary>
+    /// Whether Section 4.4 recorded an explicit sequence-presence contribution at this node.
+    /// </summary>
+    /// <remarks>
+    /// Section 4.4 makes the sequence shape-mark "the latest surviving sequence contribution", and
+    /// an empty native sequence is one. Without this flag an empty JSON array and a node that was
+    /// never a sequence are the same node, and the array vanishes on the way through the tool for
+    /// the same reason Section 4.2 gives for keeping empty mappings.
+    /// </remarks>
+    public bool HasExplicitSequence { get; }
 
     /// <summary>Mapping children by name, unordered. Use <see cref="OrderedChildren"/> to render.</summary>
     public ImmutableDictionary<NamePart, OverlayNode> Children { get; }
@@ -96,7 +109,7 @@ public sealed class OverlayNode
     /// <summary>A node with no payload, no children, no sequence and no comments.</summary>
     /// <param name="marks">The marks of the contribution that created it.</param>
     public static OverlayNode Empty(NodeMarks marks) =>
-        new(marks, null, false, ImmutableDictionary<NamePart, OverlayNode>.Empty,
+        new(marks, null, false, false, ImmutableDictionary<NamePart, OverlayNode>.Empty,
             ImmutableDictionary<long, SequenceItem>.Empty, ImmutableList<BoundComment>.Empty,
             SequenceOrderingAllocator.InitialHighWaterMark);
 
@@ -114,11 +127,14 @@ public sealed class OverlayNode
         NodeMarks marks,
         ScalarPayload? payload,
         bool hasExplicitMapping,
+        bool hasExplicitSequence,
         ImmutableDictionary<NamePart, OverlayNode> children,
         ImmutableDictionary<long, SequenceItem> sequence,
         ImmutableList<BoundComment> comments,
         long sequenceHighWater) =>
-        new(marks, payload, hasExplicitMapping, children, sequence, comments, sequenceHighWater);
+        new(
+            marks, payload, hasExplicitMapping, hasExplicitSequence, children, sequence, comments,
+            sequenceHighWater);
 
     /// <summary>
     /// An intermediate node materialised only because something deeper needed a container.
@@ -137,6 +153,7 @@ public sealed class OverlayNode
         return new OverlayNode(
             NodeMarks.ForPayload(position),
             payload,
+            false,
             false,
             ImmutableDictionary<NamePart, OverlayNode>.Empty,
             ImmutableDictionary<long, SequenceItem>.Empty,
@@ -160,7 +177,11 @@ public sealed class OverlayNode
 
     /// <summary>Whether this node holds anything a format could render.</summary>
     public bool IsEmpty =>
-        Payload is null && !HasExplicitMapping && Children.IsEmpty && Sequence.IsEmpty;
+        Payload is null
+        && !HasExplicitMapping
+        && !HasExplicitSequence
+        && Children.IsEmpty
+        && Sequence.IsEmpty;
 
     /// <summary>Records a payload contribution at this node.</summary>
     /// <param name="payload">The scalar or null payload.</param>
@@ -178,15 +199,27 @@ public sealed class OverlayNode
         var winner = Marks.PayloadMark is { } existing && existing > position ? Payload : payload;
 
         return new OverlayNode(
-            Marks.WithPayload(position), winner, HasExplicitMapping, Children, Sequence, Comments,
-            SequenceHighWater);
+            Marks.WithPayload(position), winner, HasExplicitMapping, HasExplicitSequence,
+            Children, Sequence, Comments, SequenceHighWater);
     }
 
     /// <summary>Records an explicit mapping-presence contribution at this node.</summary>
     /// <param name="position">The contribution's position mark.</param>
     public OverlayNode WithExplicitMapping(StableOrderingKey position) =>
-        new(Marks.WithMapping(position), Payload, true, Children, Sequence, Comments,
-            SequenceHighWater);
+        new(Marks.WithMapping(position), Payload, true, HasExplicitSequence, Children, Sequence,
+            Comments, SequenceHighWater);
+
+    /// <summary>Records an explicit sequence-presence contribution at this node.</summary>
+    /// <param name="position">The contribution's position mark.</param>
+    /// <remarks>
+    /// Section 4.4 counts an empty native sequence as a sequence contribution, exactly as it counts
+    /// an empty mapping as a mapping contribution, so this exists for the same reason
+    /// <see cref="WithExplicitMapping"/> does. A sequence that has items records its shape through
+    /// them and does not need this.
+    /// </remarks>
+    public OverlayNode WithExplicitSequence(StableOrderingKey position) =>
+        new(Marks.WithSequence(position), Payload, HasExplicitMapping, true, Children, Sequence,
+            Comments, SequenceHighWater);
 
     /// <summary>Replaces or adds a mapping child, refreshing this node's mapping shape-mark.</summary>
     /// <param name="name">The child's name part.</param>
@@ -208,6 +241,7 @@ public sealed class OverlayNode
             Marks.WithDescendant(child.Marks.Latest),
             Payload,
             HasExplicitMapping,
+            HasExplicitSequence,
             Children.SetItem(name, child),
             Sequence,
             Comments,
@@ -236,7 +270,8 @@ public sealed class OverlayNode
         return orderingValue <= SequenceHighWater
             ? this
             : new OverlayNode(
-                Marks, Payload, HasExplicitMapping, Children, Sequence, Comments, orderingValue);
+                Marks, Payload, HasExplicitMapping, HasExplicitSequence, Children, Sequence,
+                Comments, orderingValue);
     }
 
     /// <summary>Replaces or adds a sequence item, refreshing this node's sequence shape-mark.</summary>
@@ -256,6 +291,7 @@ public sealed class OverlayNode
             Marks.WithSequenceItem(item.Node.Marks.Latest),
             Payload,
             HasExplicitMapping,
+            true,
             Children,
             Sequence.SetItem(orderingValue, item),
             Comments,
@@ -300,8 +336,8 @@ public sealed class OverlayNode
         ArgumentNullException.ThrowIfNull(comment);
 
         return new OverlayNode(
-            Marks, Payload, HasExplicitMapping, Children, Sequence, Comments.Add(comment),
-            SequenceHighWater);
+            Marks, Payload, HasExplicitMapping, HasExplicitSequence, Children, Sequence,
+            Comments.Add(comment), SequenceHighWater);
     }
 
     /// <summary>Removes a mapping child, as a Section 8.4 permanent exclusion mask does.</summary>
@@ -318,8 +354,8 @@ public sealed class OverlayNode
 
         return Children.ContainsKey(name)
             ? new OverlayNode(
-                Marks, Payload, HasExplicitMapping, Children.Remove(name), Sequence, Comments,
-                SequenceHighWater)
+                Marks, Payload, HasExplicitMapping, HasExplicitSequence, Children.Remove(name),
+                Sequence, Comments, SequenceHighWater)
             : this;
     }
 
@@ -332,8 +368,8 @@ public sealed class OverlayNode
     public OverlayNode WithoutSequenceItem(long orderingValue) =>
         Sequence.ContainsKey(orderingValue)
             ? new OverlayNode(
-                Marks, Payload, HasExplicitMapping, Children, Sequence.Remove(orderingValue),
-                Comments, SequenceHighWater)
+                Marks, Payload, HasExplicitMapping, HasExplicitSequence, Children,
+                Sequence.Remove(orderingValue), Comments, SequenceHighWater)
             : this;
 
     /// <summary>Removes this node's payload, leaving its container facets intact.</summary>
@@ -341,8 +377,8 @@ public sealed class OverlayNode
         Payload is null
             ? this
             : new OverlayNode(
-                Marks, null, HasExplicitMapping, Children, Sequence, Comments, SequenceHighWater);
-
+                Marks, null, HasExplicitMapping, HasExplicitSequence, Children, Sequence,
+                Comments, SequenceHighWater);
     /// <inheritdoc/>
     public override string ToString() =>
         $"payload={Payload?.ToString() ?? "-"} children={Children.Count} sequence={Sequence.Count}";

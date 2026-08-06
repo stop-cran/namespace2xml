@@ -528,6 +528,23 @@ public class OverlayMergerTests
         merged.SequenceHighWater.ShouldBe(2);
     }
 
+    /// <summary>
+    /// Section 4.4 counts an empty native sequence as a sequence contribution. A merge that judged
+    /// sequence presence by item count alone would lose it, and the node would come out of the
+    /// merge shapeless, so the flag must survive in whichever order the two nodes arrive.
+    /// </summary>
+    [Test]
+    public void MergingPreservesAnEmptySequenceContributionInEitherOrder()
+    {
+        var empty = OverlayNode.Empty(NodeMarks.At(StableOrderingKey.FromSource(1, 0)))
+            .WithExplicitSequence(StableOrderingKey.FromSource(1, 0));
+        var scalar = Payload("1", 2);
+        var merger = new OverlayMerger(MergeStrategyMap.Default, diagnostics);
+
+        merger.Merge(empty, scalar).HasExplicitSequence.ShouldBeTrue();
+        merger.Merge(scalar, empty).HasExplicitSequence.ShouldBeTrue();
+    }
+
     private static OverlayNode Payload(string text, int source) =>
         OverlayNode.OfPayload(
             ScalarPayload.Untyped(text), StableOrderingKey.FromSource(source, 0));

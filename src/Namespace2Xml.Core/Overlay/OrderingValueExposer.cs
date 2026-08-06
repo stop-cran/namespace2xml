@@ -154,6 +154,7 @@ public sealed class OrderingValueExposer
             node.Marks,
             node.Payload,
             node.HasExplicitMapping,
+            node.HasExplicitSequence,
             children,
             sequence,
             node.Comments,

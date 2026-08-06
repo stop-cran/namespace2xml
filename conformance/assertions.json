@@ -113,10 +113,16 @@
     {
       "item": 14,
       "text": "JSON strict parsing and absence of comments.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "A standard JSON document parses, and Section 9.1 decides a number's kind from its lexical form.",
+        "Comments, trailing commas, and duplicate object keys are each PARSE001 against the source that carries them."
+      ],
+      "fixtures": [
+        "json-scalar-kinds-and-sequence-order",
+        "json-strict-parsing-refusals"
+      ]
     },
     {
       "item": 15,

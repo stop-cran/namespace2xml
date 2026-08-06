@@ -46,7 +46,7 @@ public static class InputPhase
 
         foreach (var input in command.Inputs)
         {
-            if (SourceLoader.StructuredFormat(input) is { } format)
+            if (SourceLoader.StructuredFormat(input) is { } format and not "JSON")
             {
                 return StepOutcome.Unsupported<ImmutableArray<InputContribution>>(
                     new UnsupportedCapability(
@@ -65,7 +65,8 @@ public static class InputPhase
 
         foreach (var input in command.Inputs)
         {
-            var source = loader.LoadFile(input, next++, DiagnosticPhase.Input, diagnostics);
+            var source = loader.LoadFile(
+                input, next++, DiagnosticPhase.Input, diagnostics, structured: true);
 
             if (source is not null)
             {
@@ -91,6 +92,20 @@ public static class InputPhase
         {
             if (!source.Admitted)
             {
+                continue;
+            }
+
+            if (source.Document is { } document)
+            {
+                var native = StructuredProfileReader.Read(
+                    document, source.Ordinal, source.Origin, diagnostics, out var unsupported);
+
+                if (unsupported is not null)
+                {
+                    return StepOutcome.Unsupported<ImmutableArray<InputContribution>>(unsupported);
+                }
+
+                contributions.Add(new InputContribution(source.Origin, native));
                 continue;
             }
 

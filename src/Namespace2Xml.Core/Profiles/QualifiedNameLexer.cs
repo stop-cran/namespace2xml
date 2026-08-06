@@ -61,6 +61,81 @@ public static class QualifiedNameLexer
         return result;
     }
 
+    /// <summary>
+    /// Lexes a native mapping key as the single component Sections 9.1, 10.4, and 11.4 make it.
+    /// </summary>
+    /// <param name="text">The key, as the native parser decoded it.</param>
+    /// <remarks>
+    /// <para>
+    /// Section 9.1: "Each object-property name becomes one literal qualified-name part. Dots and
+    /// backslashes in the native property name remain literal characters." So none of Appendix A.2
+    /// applies here: <c>.</c> does not separate, <c>@</c>, <c>#</c>, and <c>Q{</c> are ordinary
+    /// text, and <c>\u{...}</c> is not an escape. A key is not a written qualified name; it is one
+    /// part's worth of text that the tool never asked its author to escape.
+    /// </para>
+    /// <para>
+    /// The two exceptions are the ones Section 9.1 names: an unescaped <c>*</c> or
+    /// <c>*[identifier]</c> is still a wildcard token "for compatibility", and <c>\*</c> suppresses
+    /// that. Every other backslash emits itself and consumes nothing after it, which is the
+    /// Appendix A.5 rule for text a native parser has already decoded.
+    /// </para>
+    /// </remarks>
+    public static QualifiedNameResult LexNativePart(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        var tokens = ImmutableArray.CreateBuilder<NameToken>();
+        var literal = new StringBuilder();
+        var index = 0;
+
+        void FlushLiteral()
+        {
+            if (literal.Length > 0)
+            {
+                tokens.Add(new LiteralToken(literal.ToString()));
+                literal.Clear();
+            }
+        }
+
+        while (index < text.Length)
+        {
+            if (text[index] == '\\' && index + 1 < text.Length && text[index + 1] == '*')
+            {
+                literal.Append('*');
+                index += 2;
+                continue;
+            }
+
+            if (text[index] == '*')
+            {
+                FlushLiteral();
+
+                if (!TryLexWildcard(text, ref index, out var wildcard, out var fault))
+                {
+                    return new QualifiedNameResult(fault);
+                }
+
+                tokens.Add(wildcard);
+                continue;
+            }
+
+            literal.Append(text[index]);
+            index++;
+        }
+
+        FlushLiteral();
+
+        if (tokens.Count == 0)
+        {
+            return new QualifiedNameResult(new NameFault(
+                "a qualified name has no empty parts, so a native key contributes no name.",
+                0));
+        }
+
+        return new QualifiedNameResult(
+            new QualifiedName([new OrdinaryPart(tokens.ToImmutable())]));
+    }
+
     private static QualifiedNameResult Lex(string text, ref int index, bool inReference)
     {
         var parts = ImmutableArray.CreateBuilder<NamePart>();

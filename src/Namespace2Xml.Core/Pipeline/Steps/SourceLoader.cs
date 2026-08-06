@@ -24,7 +24,19 @@ public sealed record LoadedSource(
     long Ordinal,
     ImmutableArray<NamespaceRecord> Records,
     SourceTally Tally,
-    bool Admitted);
+    bool Admitted)
+{
+    /// <summary>
+    /// The parsed native document, when Section 7.1 selected a structured format for this source.
+    /// </summary>
+    /// <remarks>
+    /// A structured source has no Section 8.1 records, so <see cref="Records"/> is empty for one and
+    /// this carries its contribution instead. It is parsed before admission for the reason Section
+    /// 7.3 gives: a source that crosses a bound "still had to be parsed for its contribution to be
+    /// known".
+    /// </remarks>
+    public StructuredNode? Document { get; init; }
+}
 
 /// <summary>
 /// Reads, decodes, and classifies one source, charging Section 25 per-source budgets as it goes.
@@ -96,7 +108,25 @@ public sealed class SourceLoader
     /// <param name="diagnostics">The buffer its diagnostics accumulate in.</param>
     /// <returns>The loaded source, or <c>null</c> when it contributed nothing at all.</returns>
     public LoadedSource? LoadFile(
-        string path, long ordinal, DiagnosticPhase phase, DiagnosticBuffer diagnostics)
+        string path, long ordinal, DiagnosticPhase phase, DiagnosticBuffer diagnostics) =>
+        LoadFile(path, ordinal, phase, diagnostics, structured: false);
+
+    /// <summary>Reads one file source.</summary>
+    /// <param name="path">The path as written on the command line.</param>
+    /// <param name="ordinal">The Section 4.7 CLI source ordinal.</param>
+    /// <param name="phase">The phase its diagnostics report.</param>
+    /// <param name="diagnostics">The buffer its diagnostics accumulate in.</param>
+    /// <param name="structured">
+    /// Whether Section 7.1's extension table applies. It governs "input file extensions", so a
+    /// scheme file is a namespace profile whatever it is called.
+    /// </param>
+    /// <returns>The loaded source, or <c>null</c> when it contributed nothing at all.</returns>
+    public LoadedSource? LoadFile(
+        string path,
+        long ordinal,
+        DiagnosticPhase phase,
+        DiagnosticBuffer diagnostics,
+        bool structured)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         ArgumentNullException.ThrowIfNull(diagnostics);
@@ -150,6 +180,32 @@ public sealed class SourceLoader
         {
             diagnostics.Add(new BufferedDiagnostic(decoded.Diagnostic!, key));
             return null;
+        }
+
+        if (structured && StructuredFormat(path) is { } format)
+        {
+            var document = format switch
+            {
+                "JSON" => JsonInputReader.Read(
+                    decoded.Text!, limits, budget, origin, phase, diagnostics, key),
+                _ => throw new InvalidOperationException(
+                    $"Section 7.1 names no structured format '{format}'."),
+            };
+
+            if (document is null)
+            {
+                if (budget.Fault is { } fault)
+                {
+                    EmitLimit(fault, origin, phase, diagnostics, key);
+                }
+
+                return null;
+            }
+
+            return new LoadedSource(origin, ordinal, [], budget.Tally, Admitted: true)
+            {
+                Document = document,
+            };
         }
 
         var records = NamespaceRecordClassifier.Classify(PhysicalRecordReader.Read(decoded.Text!));

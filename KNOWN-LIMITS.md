@@ -17,22 +17,23 @@ The 3.0 rewrite lands in milestones that follow the specification's own pipeline
 has not landed is **not implemented**, and the tool exits with a non-normative status rather than
 pretending to succeed.
 
-The tool currently transforms the **flat family end to end**: namespace-profile input, overlaying,
-output planning, and publication of namespace, quoted-namespace and INI destinations. Everything
-below that line is refused, not approximated.
+The tool currently transforms the **flat family end to end**: namespace-profile and JSON input,
+overlaying, output planning, and publication of namespace, quoted-namespace and INI destinations.
+Everything below that line is refused, not approximated.
 
 | Area | State | Specification |
 |---|---|---|
 | Command line, informational modes, diagnostics encoding | Implemented | §6, §6.4 |
 | Contract bundle reporting | Implemented | §22 |
 | Namespace-profile input parsing, encoding detection, budgets | Implemented | §7–§9 |
+| JSON **input** | Implemented, with the reductions in §1.1 | §7.1, §9, §15.1 |
 | Scheme parsing, `output`, `filename`, `root`, `delimiter` | Implemented | §16 |
 | Overlaying, precedence, mapping order after override | Implemented | §5, §10 |
 | Scalar inference and canonical numeric text | Implemented | §18 |
 | Output planning, destination paths, collision folding | Implemented | §17 |
 | Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
 | Publication and the validation gate | Implemented | §21 |
-| JSON, YAML and XML **input** | Not yet | §7.1, §11 |
+| YAML and XML **input** | Not yet | §7.1, §11 |
 | References and value wildcards | Not yet | §13 |
 | Templates and masks | Not yet | §8.6, §12 |
 | Wildcard output selectors and `substitute` | Not yet | §14, §16 |
@@ -45,6 +46,29 @@ preview must never return either for work it did not do. It is a **refusal**, no
 run decides no outcome at all, publishes nothing, and says on standard error which capability it
 lacked. A step that could not do its job never passes its input through, because a plausible wrong
 file is worse than no file.
+
+### 1.1 Reductions inside JSON input
+
+JSON input is complete for §9 syntax, the §18 typed-scalar rules and the §15.1 projection, and these
+three cases are declined or unfinished within it.
+
+- **A wildcard in a native key is declined**, with exit `70` and no output. `{"*": 1}` has no
+  representation in the overlay this preview builds, so it is refused rather than guessed at. `\*`
+  for a literal asterisk works and is tested. §9.1 keeps the syntax reserved; §12 evaluation is a
+  later milestone in any case.
+- **`substitute=Key` and `substitute=None` are parsed and not applied.** This is not specific to
+  JSON — no format applies them yet, because the machinery §13.4 describes does not exist. A scheme
+  that sets `substitute` is accepted and has no effect on any input.
+- **§4.4 exclusive-shape resolution has no end-to-end coverage.** An empty container is recorded as
+  a shape contribution and its precedence is proved by unit test, but neither implemented output
+  format requires one exclusive shape — §19.1 and §19.6 both emit a scalar and its descendants
+  together — so no conformance fixture can yet observe the contest, or the shape-conflict warning it
+  produces. This closes when JSON or YAML rendering lands.
+
+A reference nested inside a native sequence is a fourth case, but it cannot be reached: any
+unresolved value declines the whole invocation under §13, so no path exists today by which the
+overlay is consulted. It is recorded in the source at `StructuredProfileReader.BuildSequence` as a
+prerequisite for §15.1 step 15 rather than as a limit you can encounter.
 
 ## 2. Acceptance coverage
 

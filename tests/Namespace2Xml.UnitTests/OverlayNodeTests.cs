@@ -188,6 +188,44 @@ public class OverlayNodeTests
     }
 
     /// <summary>
+    /// Section 4.4 makes the sequence shape-mark "the latest surviving sequence contribution", and
+    /// an empty native sequence is one. Without a presence flag its only evidence would be its
+    /// items, of which it has none, so it would vanish and leave the node shapeless.
+    /// </summary>
+    [Test]
+    public void AnEmptyExplicitSequenceIsDistinctFromNoSequence()
+    {
+        var empty = OverlayNode.Intermediate(Early).WithExplicitSequence(Early);
+
+        empty.HasExplicitSequence.ShouldBeTrue();
+        empty.Sequence.ShouldBeEmpty();
+        empty.Marks.RendersAsSequence.ShouldBeTrue();
+        empty.IsEmpty.ShouldBeFalse();
+        OverlayNode.Intermediate(Early).HasExplicitSequence.ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Section 4.4 resolves an exclusive-shape destination by comparing the latest scalar
+    /// contribution with the latest container contribution, so an empty sequence arriving after a
+    /// scalar must win the shape. The scalar survives in the overlay for other outputs.
+    /// </summary>
+    [Test]
+    public void AnEmptySequenceArrivingLastWinsTheShapeContest()
+    {
+        var scalarThenSequence = Payload("1", Early).WithExplicitSequence(Late);
+
+        scalarThenSequence.Marks.RendersAsSequence.ShouldBeTrue();
+        scalarThenSequence.Payload.ShouldNotBeNull();
+
+        var sequenceThenScalar = OverlayNode.Intermediate(Early)
+            .WithExplicitSequence(Early)
+            .WithPayload(ScalarPayload.Untyped("1"), Late);
+
+        sequenceThenScalar.Marks.PayloadMark.ShouldBe(Late);
+        sequenceThenScalar.Marks.SequenceShape.ShouldBe(Early);
+    }
+
+    /// <summary>
     /// Section 4.2 distinguishes a null payload from having no payload, which is the difference
     /// between JSON emitting <c>null</c> and emitting nothing.
     /// </summary>

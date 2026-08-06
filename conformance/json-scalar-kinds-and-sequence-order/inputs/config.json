@@ -1,0 +1,16 @@
+{
+  "app": {
+    "name": "demo",
+    "port": 8080,
+    "ratio": 1.50,
+    "exponent": 1e0,
+    "signed": -0,
+    "enabled": true,
+    "absent": null,
+    "tags": ["first", "second"],
+    "db": {
+      "host": "localhost"
+    },
+    "a.b": "dotted"
+  }
+}

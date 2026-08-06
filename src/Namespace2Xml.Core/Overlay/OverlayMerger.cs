@@ -148,6 +148,7 @@ public sealed class OverlayMerger
             // that is earlier than the other node's mapping contribution.
             LaterPayload(earlier, later),
             earlier.HasExplicitMapping || later.HasExplicitMapping,
+            earlier.HasExplicitSequence || later.HasExplicitSequence,
             children,
             sequence,
             // Section 17.1: comments "accumulate and survive merge whenever their logical path
@@ -179,6 +180,7 @@ public sealed class OverlayMerger
             earlier.Marks.Combine(later.Marks),
             later.Payload,
             later.HasExplicitMapping,
+            later.HasExplicitSequence,
             later.Children,
             later.Sequence,
             earlier.Comments.AddRange(later.Comments),
@@ -241,6 +243,7 @@ public sealed class OverlayMerger
             AppendedMarks(earlier.Marks, later.Marks),
             LaterPayload(earlier, later),
             earlier.HasExplicitMapping,
+            earlier.HasExplicitSequence || later.HasExplicitSequence,
             earlier.Children,
             sequence,
             earlier.Comments.AddRange(later.Comments),
