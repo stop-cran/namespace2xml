@@ -19,22 +19,7 @@ internal static class FlatIdentity
     /// name cannot be spelled at all the structural form stands in: it is stable and distinguishes
     /// the path from every other, which is what a cardinality key needs.
     /// </remarks>
-    public static string? PathText(ImmutableArray<NamePart> path)
-    {
-        if (path.IsEmpty)
-        {
-            return null;
-        }
-
-        var name = new QualifiedName(path);
-
-        // A Section 6.4.3 path member is a canonical qualified path, not a physical record, so
-        // Section 19.1's record-leading escape does not apply to it.
-        return NamespaceEncoder.TryEncodeName(
-            name, NamespaceEncoder.DefaultDelimiter, recordLeading: false, out var text, out _)
-            ? text!
-            : name.ToString();
-    }
+    public static string? PathText(ImmutableArray<NamePart> path) => CanonicalPath.Of(path);
 
     /// <summary>Combines a destination with a path or projected key into one cardinality slot.</summary>
     /// <param name="destination">The output instance, or <see langword="null"/> when there is none.</param>

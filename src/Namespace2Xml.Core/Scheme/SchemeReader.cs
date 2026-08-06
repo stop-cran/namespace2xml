@@ -100,6 +100,7 @@ public static class SchemeReader
                         source,
                         diagnostics,
                         key,
+                        name: null,
                         declaration: "!" + record.Pattern);
                     break;
 
@@ -146,6 +147,7 @@ public static class SchemeReader
                 source,
                 diagnostics,
                 key,
+                lexedName.Name,
                 declaration: written);
             return;
         }
@@ -158,6 +160,7 @@ public static class SchemeReader
                 source,
                 diagnostics,
                 key,
+                lexedName.Name,
                 declaration: written);
             return;
         }
@@ -187,6 +190,7 @@ public static class SchemeReader
                 source,
                 diagnostics,
                 key,
+                lexedName.Name,
                 declaration: written);
             return;
         }
@@ -220,12 +224,17 @@ public static class SchemeReader
             written));
     }
 
+    // 'name' is the lexed name, or null when the record spells none. Section 6.4.3 requires the
+    // 'path' member to be a canonical qualified path, which the written text is not: a mask is not
+    // a name at all, and a name that lexed may still have been written with a different escape
+    // spelling than Section 19.1 emits.
     private static void Reject(
         string message,
         NamespaceRecord record,
         string source,
         DiagnosticBuffer diagnostics,
         StableOrderingKey key,
+        QualifiedName? name,
         string declaration) =>
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Scheme001(
@@ -236,7 +245,7 @@ public static class SchemeReader
                 source: source,
                 line: record.Line,
                 column: record.Column,
-                path: declaration,
+                path: CanonicalPath.Of(name),
                 declaration: declaration),
             key));
 

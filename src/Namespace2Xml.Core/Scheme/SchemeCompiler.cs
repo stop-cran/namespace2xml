@@ -23,14 +23,12 @@ public readonly record struct SelectorKey(QualifiedName? Name)
     public static SelectorKey Root => default;
 
     /// <inheritdoc/>
-    public override string ToString() =>
-        Name is null ? string.Empty : string.Join('.', Name.Parts.Select(Describe));
-
-    private static string Describe(NamePart part) => part switch
-    {
-        OrdinaryPart { LiteralText: { } text } => text,
-        _ => part.ToString(),
-    };
+    /// <remarks>
+    /// Section 17.5 compares the UTF-8 bytes of this text as the fold order's final tie-breaker,
+    /// and Section 6.4.3 puts it in a diagnostic's <c>path</c> member, so it must be the Section
+    /// 19.1 encoding: only that spelling is injective, and a tie-breaker that can tie is not one.
+    /// </remarks>
+    public override string ToString() => CanonicalPath.Of(Name) ?? string.Empty;
 }
 
 /// <summary>
@@ -238,7 +236,7 @@ public static class SchemeCompiler
                     cardinalityKey: $"{entry.Source}:{entry.Line}",
                     source: entry.Source,
                     line: entry.Line,
-                    path: new SelectorKey(entry.Selector).ToString(),
+                    path: CanonicalPath.Of(entry.Selector),
                     declaration: entry.Declaration),
                 entry.Order));
         }
@@ -524,7 +522,7 @@ public static class SchemeCompiler
                 cardinalityKey: $"{entry.Source}:{entry.Line}",
                 source: entry.Source,
                 line: entry.Line,
-                path: new SelectorKey(entry.Selector).ToString(),
+                path: CanonicalPath.Of(entry.Selector),
                 declaration: entry.Declaration),
             entry.Order));
 }

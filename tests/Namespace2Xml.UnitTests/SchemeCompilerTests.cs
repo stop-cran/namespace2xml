@@ -488,4 +488,27 @@ public class SchemeCompilerTests
 
         outputs.Select(output => output.Selector.ToString()).ShouldBe(["b", "a"]);
     }
+    /// <summary>
+    /// Section 17.5 makes the encoded selector the fold order's "final deterministic tie-breaker",
+    /// which requires the spelling to be injective. Joining part texts with the delimiter is not:
+    /// the one-part selector whose literal text is <c>a.b</c> and the two-part selector <c>a</c>,
+    /// <c>b</c> would both join to <c>a.b</c>, and two distinct contributions would fold in
+    /// arrival order.
+    /// </summary>
+    [Test]
+    public void TwoDistinctSelectorsNeverEncodeAlike()
+    {
+        var joined = new SelectorKey(
+            new QualifiedName([new OrdinaryPart([new LiteralToken("a.b")])]));
+
+        var separate = new SelectorKey(new QualifiedName(
+            [new OrdinaryPart([new LiteralToken("a")]), new OrdinaryPart([new LiteralToken("b")])]));
+
+        joined.ToString().ShouldNotBe(separate.ToString());
+    }
+
+    /// <summary>Section 15.2's root selector spells the empty path.</summary>
+    [Test]
+    public void TheRootSelectorEncodesAsEmpty() =>
+        SelectorKey.Root.ToString().ShouldBe(string.Empty);
 }

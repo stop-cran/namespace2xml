@@ -2141,6 +2141,8 @@ Contributions are folded strictly left to right by:
 3. wildcard match order;
 4. concrete selector encoded as UTF-8 and compared by unsigned-byte ordinal order as the final deterministic tie-breaker.
 
+The selector is spelled by the Section 19.1 namespace name encoding before those bytes are taken. That encoding is total and injective, which is what makes this component a tie-breaker rather than another way to tie: a spelling that merely joined part texts with the delimiter would map the one-part selector `a\.b` and the two-part selector `a.b` to the same bytes, leaving two distinct contributions to fold in arrival order.
+
 A cross-format replacement discards the complete accumulated plan for that destination, including document data, comments, renderer state, sequence provenance, and every destination high-water mark. Later contributions then fold onto the replacement from a fresh destination state. Implementations must not group by format before folding.
 
 For every destination collision, emit a warning identifying:

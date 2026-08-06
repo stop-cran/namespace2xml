@@ -138,6 +138,30 @@ public class SchemeReaderTests
         diagnostic.Message.ShouldContain("mask");
     }
 
+    /// <summary>
+    /// Section 6.4.3: "<c>path</c> is a canonical qualified path under Appendix A." The written
+    /// text is not one. Here <c>\.</c> is an admissible input spelling of a literal delimiter that
+    /// Section 19.1 never emits, so reporting what was written would report a path the reader
+    /// cannot look up.
+    /// </summary>
+    [Test]
+    public void ARejectionReportsTheCanonicalPathNotTheWrittenOne()
+    {
+        var diagnostic = Isolated("a\\.b.nosuchdirective=x");
+
+        diagnostic.Code.ShouldBe("SCHEME001");
+        diagnostic.Path.ShouldBe("a\\u{2E}b.nosuchdirective");
+        diagnostic.Declaration.ShouldBe("a\\.b.nosuchdirective");
+    }
+
+    /// <summary>
+    /// Section 6.4.3 admits no path that is not a qualified path, and a Section 5 mask spells none,
+    /// so the member is absent rather than carrying the mask pattern.
+    /// </summary>
+    [Test]
+    public void AMaskRejectionReportsNoPath() =>
+        Isolated("!a.b").Path.ShouldBeNull();
+
     /// <summary>Section 8.1 rule 2: a comment is not an entry, and carries no directive.</summary>
     [Test]
     public void ACommentContributesNoDirective()
