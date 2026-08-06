@@ -43,35 +43,58 @@ public enum MergeStrategy
 public sealed class MergeStrategyMap
 {
     private readonly ImmutableDictionary<QualifiedName, MergeStrategy> strategies;
+    private readonly MergeStrategy root;
 
-    private MergeStrategyMap(ImmutableDictionary<QualifiedName, MergeStrategy> strategies) =>
+    private MergeStrategyMap(
+        ImmutableDictionary<QualifiedName, MergeStrategy> strategies, MergeStrategy root)
+    {
         this.strategies = strategies;
+        this.root = root;
+    }
 
     /// <summary>The map in which every path uses the Section 16.10 default.</summary>
     public static MergeStrategyMap Default { get; } =
-        new(ImmutableDictionary<QualifiedName, MergeStrategy>.Empty);
+        new(ImmutableDictionary<QualifiedName, MergeStrategy>.Empty, MergeStrategy.Deep);
 
     /// <summary>Builds a map from compiled literal-path <c>merge</c> directives.</summary>
     /// <param name="strategies">The strategy declared at each literal path.</param>
+    /// <param name="root">
+    /// The strategy declared by a directive with no path at all. Section 16.10 spells the directive
+    /// <c>[path.]merge=…</c>, so the path is optional and a bare <c>merge=replace</c> governs the
+    /// overlay root.
+    /// </param>
+    /// <remarks>
+    /// The root is a separate parameter because Appendix A.2 spells a qname as "one or more
+    /// components": the root has no name, so it cannot be a key of the dictionary. Modelling it as
+    /// an absent key instead would make a declared root strategy indistinguishable from no
+    /// declaration, which is exactly the silence this parameter exists to break.
+    /// </remarks>
     public static MergeStrategyMap Create(
-        IEnumerable<KeyValuePair<QualifiedName, MergeStrategy>> strategies)
+        IEnumerable<KeyValuePair<QualifiedName, MergeStrategy>> strategies,
+        MergeStrategy root = MergeStrategy.Deep)
     {
         ArgumentNullException.ThrowIfNull(strategies);
 
-        return new MergeStrategyMap(ImmutableDictionary.CreateRange(strategies));
+        // Last wins, per Section 15.2: "A later matching directive overrides an earlier matching
+        // directive for the same effective setting." ImmutableDictionary.CreateRange throws on a
+        // repeated key, so building the map that way would turn two 'merge' directives at one path
+        // into an unhandled exception rather than an override.
+        var builder = ImmutableDictionary.CreateBuilder<QualifiedName, MergeStrategy>();
+
+        foreach (var (path, strategy) in strategies)
+        {
+            builder[path] = strategy;
+        }
+
+        return new MergeStrategyMap(builder.ToImmutable(), root);
     }
 
     /// <summary>The effective strategy at one path.</summary>
     /// <param name="path">The literal path, from the overlay root.</param>
-    /// <remarks>
-    /// The empty path addresses the overlay root, which has no name. Section 16.10 requires a
-    /// <c>merge</c> directive to name a literal path, and Appendix A.2 spells a name as "one or more
-    /// components", so no directive can reach the root and it always uses the default.
-    /// </remarks>
     public MergeStrategy For(ImmutableArray<NamePart> path) =>
-        !strategies.IsEmpty
-        && !path.IsEmpty
-        && strategies.TryGetValue(new QualifiedName(path), out var strategy)
-            ? strategy
-            : MergeStrategy.Deep;
+        path.IsDefaultOrEmpty
+            ? root
+            : strategies.TryGetValue(new QualifiedName(path), out var strategy)
+                ? strategy
+                : MergeStrategy.Deep;
 }

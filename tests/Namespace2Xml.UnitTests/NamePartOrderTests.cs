@@ -72,6 +72,40 @@ public class NamePartOrderTests
         NamePartOrder.Instance.Compare(Wild(), Ordinary("zzz")).ShouldBeGreaterThan(0);
     }
 
+    /// <summary>
+    /// "At the same position" means a position in the component's text, not in its token list.
+    /// </summary>
+    /// <remarks>
+    /// <c>a*</c> is two tokens and <c>ab</c> is one, so a token-by-token comparison meets the
+    /// literals <c>"a"</c> and <c>"ab"</c> and decides on those, never reaching the wildcard. That
+    /// puts the wildcard before a literal — the reverse of Section 5.2 — and the reversal is
+    /// invisible to a total-order property test, because the order it produces is still total.
+    /// </remarks>
+    [Test]
+    public void AWildcardSortsAfterALiteralThatContinuesAfterASharedPrefix()
+    {
+        var prefixedWildcard = new OrdinaryPart([new LiteralToken("a"), new WildcardToken(null)]);
+
+        NamePartOrder.Instance.Compare(Ordinary("ab"), prefixedWildcard).ShouldBeLessThan(0);
+        NamePartOrder.Instance.Compare(prefixedWildcard, Ordinary("ab")).ShouldBeGreaterThan(0);
+
+        // A literal that stops at the shared prefix is shorter, so it still sorts first.
+        NamePartOrder.Instance.Compare(Ordinary("a"), prefixedWildcard).ShouldBeLessThan(0);
+    }
+
+    /// <summary>
+    /// A wildcard in the middle of a component is still one position, so what follows it compares
+    /// against what follows the other side's wildcard.
+    /// </summary>
+    [Test]
+    public void TextAfterAWildcardStillParticipatesInTheComparison()
+    {
+        var wildcardThenA = new OrdinaryPart([new WildcardToken(null), new LiteralToken("a")]);
+        var wildcardThenB = new OrdinaryPart([new WildcardToken(null), new LiteralToken("b")]);
+
+        NamePartOrder.Instance.Compare(wildcardThenA, wildcardThenB).ShouldBeLessThan(0);
+    }
+
     /// <summary>Section 5.2: "two wildcard tokens compare by capture identifier with the bare form first".</summary>
     [Test]
     public void WildcardsCompareByCaptureIdentifierWithTheBareFormFirst()

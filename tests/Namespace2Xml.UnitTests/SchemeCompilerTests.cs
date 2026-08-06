@@ -71,6 +71,28 @@ public class SchemeCompilerTests
         One("output= namespace , ini ").Formats.ShouldBe([OutputFormat.Namespace, OutputFormat.Ini]);
 
     /// <summary>
+    /// Section 17.5: "Duplicate formats within one <c>output</c> declaration, such as
+    /// <c>output=json,json</c>, are blocking scheme errors rather than self-collisions."
+    /// </summary>
+    /// <remarks>
+    /// Accepting it produces two contributions to one destination, which Section 17.5 would then
+    /// fold and warn about — reporting a collision between a declaration and itself, and quietly
+    /// applying <c>filemerge</c> to a file merged with its own content.
+    /// </remarks>
+    [Test]
+    public void ADuplicateFormatInOneDeclarationIsRejected()
+    {
+        Only("output=json,json").Code.ShouldBe("SCHEME001");
+
+        Compile("output=json,json").Outputs.ShouldBeEmpty();
+    }
+
+    /// <summary>Case-insensitive names make the same format, so the duplicate is still a duplicate.</summary>
+    [Test]
+    public void ADuplicateFormatSpelledDifferentlyIsStillRejected() =>
+        Only("output=json,JSON").Code.ShouldBe("SCHEME001");
+
+    /// <summary>
     /// Section 16.1: "Formats in one comma-separated declaration have a left-to-right declaration
     /// ordinal." Section 17.5 folds by that ordinal, so the order has to survive compilation.
     /// </summary>
@@ -388,6 +410,30 @@ public class SchemeCompilerTests
     [Test]
     public void EveryInputMergePathIsKept() =>
         Compile("a.merge=append\nb.merge=replace").InputMerges.Length.ShouldBe(2);
+
+    /// <summary>
+    /// Section 15.2: "A later matching directive overrides an earlier matching directive for the
+    /// same effective setting." One path has one effective input merge strategy.
+    /// </summary>
+    /// <remarks>
+    /// Keeping both would not merely be untidy. The overlay's strategy map is a dictionary keyed by
+    /// path, so a repeated path reaches it as a duplicate key — a user-caused condition escaping as
+    /// an unhandled exception, which Section 6.3 forbids.
+    /// </remarks>
+    [Test]
+    public void ARepeatedInputMergePathKeepsOnlyTheLaterStrategy()
+    {
+        var merges = Compile("a.merge=append\na.merge=replace").InputMerges;
+
+        merges.ShouldHaveSingleItem().Strategy.ShouldBe(MergeStrategy.Replace);
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>A repeated root <c>merge</c> overrides in the same way.</summary>
+    [Test]
+    public void ARepeatedRootInputMergeKeepsOnlyTheLaterStrategy() =>
+        Compile("merge=append\nmerge=error").InputMerges.ShouldHaveSingleItem()
+            .Strategy.ShouldBe(MergeStrategy.Error);
 
     // ---- Section 15.1 step 1: unresolved values ----------------------------------------------------
 

@@ -261,6 +261,27 @@ public sealed class QualifiedNameLexerTests
     public void AContentOrdinalMayHaveSeveralDigits() =>
         Describe(Lex("#123")).ShouldBe("content(123)");
 
+    /// <summary>
+    /// Section 11.4 assigns content-token addresses "using Section 5.4", and Section 5.4 ordering
+    /// values are "stable signed 64-bit integer ordering values in the range 0 through
+    /// 9,223,372,036,854,775,807".
+    /// </summary>
+    /// <remarks>
+    /// A 32-bit ordinal stops at 2,147,483,647. Every address above that belongs to a document a
+    /// high-water allocator can legitimately produce, and rejecting one makes the address
+    /// unwritable in a scheme selector or a canonical reference — the model would hold a node no
+    /// path could name.
+    /// </remarks>
+    [TestCase("#2147483648", "content(2147483648)")]
+    [TestCase("#9223372036854775807", "content(9223372036854775807)")]
+    public void AContentOrdinalSpansTheWholeSignedSixtyFourBitRange(string written, string expected) =>
+        Describe(Lex(written)).ShouldBe(expected);
+
+    /// <summary>One past the Section 5.4 maximum is not an ordering value at all.</summary>
+    [Test]
+    public void AContentOrdinalAboveTheMaximumIsRejected() =>
+        LexFault("#9223372036854775808").Message.ShouldContain("9223372036854775807");
+
     [Test]
     public void TheSpecificationsMixedContentExampleLexes() =>
         Describe(Lex("a.#1.Q{urn:p}b.@x"))

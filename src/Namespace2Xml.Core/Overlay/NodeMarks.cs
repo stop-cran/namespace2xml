@@ -89,6 +89,22 @@ public readonly record struct NodeMarks
     public StableOrderingKey? ContainerShape => Later(MappingShape, SequenceShape);
 
     /// <summary>
+    /// The latest contribution anywhere in this node's subtree, including the node itself.
+    /// </summary>
+    /// <remarks>
+    /// This is what an ancestor's mapping shape-mark must be refreshed with. Section 4.4 says "any
+    /// later deep descendant refreshes the mapping shape-mark of every ancestor required to contain
+    /// it", and <em>deep</em> is the load-bearing word: a contribution three levels down still
+    /// requires every ancestor above it to have mapping shape. <see cref="Position"/> alone cannot
+    /// carry that, because Section 5.2 forbids a descendant from moving an ancestor's position mark,
+    /// so an intermediate node keeps the position of whatever first materialised it no matter how
+    /// much later arrives beneath it. Refreshing an ancestor with a child's position mark therefore
+    /// loses every contribution that did not create the child.
+    /// </remarks>
+    public StableOrderingKey Latest =>
+        Later(Later(PayloadMark, ContainerShape), Position)!.Value;
+
+    /// <summary>
     /// Whether the scalar or null payload wins the Section 4.4 exclusive-shape contest, so an
     /// exclusive destination renders this node as a scalar and omits its container facets.
     /// </summary>

@@ -23,10 +23,11 @@ public sealed record StepProduct<T>(PipelineStep? Step, T Value);
 /// <typeparam name="T">The product type.</typeparam>
 public readonly record struct StepOutcome<T>
 {
-    internal StepOutcome(bool faulted, T? value)
+    internal StepOutcome(bool faulted, T? value, UnsupportedCapability? unsupported)
     {
         Faulted = faulted;
         Value = value;
+        Unsupported = unsupported;
     }
 
     /// <summary>Whether the step failed to produce a result.</summary>
@@ -34,6 +35,9 @@ public readonly record struct StepOutcome<T>
 
     /// <summary>The product, or <c>default</c> when <see cref="Faulted"/>.</summary>
     public T? Value { get; }
+
+    /// <summary>The capability this build lacks, when the step declined to run at all.</summary>
+    public UnsupportedCapability? Unsupported { get; }
 }
 
 /// <summary>Creates <see cref="StepOutcome{T}"/> values.</summary>
@@ -43,7 +47,7 @@ public static class StepOutcome
     /// <typeparam name="T">The product type.</typeparam>
     /// <param name="value">The product.</param>
     /// <returns>A successful outcome.</returns>
-    public static StepOutcome<T> Produced<T>(T value) => new(faulted: false, value);
+    public static StepOutcome<T> Produced<T>(T value) => new(faulted: false, value, unsupported: null);
 
     /// <summary>The step did not produce a usable result.</summary>
     /// <remarks>
@@ -53,7 +57,20 @@ public static class StepOutcome
     /// </remarks>
     /// <typeparam name="T">The product type.</typeparam>
     /// <returns>A failed outcome.</returns>
-    public static StepOutcome<T> Failed<T>() => new(faulted: true, value: default);
+    public static StepOutcome<T> Failed<T>() => new(faulted: true, value: default, unsupported: null);
+
+    /// <summary>
+    /// The step declined to run because the invocation needs a capability this build does not have.
+    /// </summary>
+    /// <typeparam name="T">The product type.</typeparam>
+    /// <param name="capability">The missing capability.</param>
+    /// <returns>An outcome that stops the run without deciding a Section 6.3 exit code.</returns>
+    public static StepOutcome<T> Unsupported<T>(UnsupportedCapability capability)
+    {
+        ArgumentNullException.ThrowIfNull(capability);
+
+        return new StepOutcome<T>(faulted: true, value: default, capability);
+    }
 }
 
 /// <summary>The state of a <see cref="PipelineRun"/>.</summary>
@@ -67,6 +84,12 @@ public enum PipelineRunState
 
     /// <summary>Every step has run.</summary>
     Finished,
+
+    /// <summary>
+    /// A step declined because the invocation needs a capability this build does not have. The run
+    /// decides no Section 6.3 outcome at all: it did not happen.
+    /// </summary>
+    Unsupported,
 }
 
 /// <summary>
@@ -101,6 +124,12 @@ public sealed class PipelineRun
     /// <summary>The step whose phase boundary aborted the run, or <c>null</c> if none has.</summary>
     public PipelineStep? AbortedAfter { get; private set; }
 
+    /// <summary>
+    /// The capability that stopped the run, or <c>null</c> when every step this run reached was one
+    /// this build implements.
+    /// </summary>
+    public UnsupportedCapability? Unsupported { get; private set; }
+
     /// <summary>Where the run stands under Section 15.4.</summary>
     public PipelineRunState State { get; private set; } = PipelineRunState.Running;
 
@@ -109,6 +138,41 @@ public sealed class PipelineRun
     /// <param name="value">The value.</param>
     /// <returns>A product tagged as preceding every step.</returns>
     public static StepProduct<T> Seed<T>(T value) => new(Step: null, value);
+
+    /// <summary>
+    /// Pairs two products so that a step consuming both can be expressed as a single
+    /// <see cref="Run{TIn, TOut}"/>.
+    /// </summary>
+    /// <remarks>
+    /// Step 8 consumes the source contributions and the effective merge strategy; step 14 consumes
+    /// the merged model and the compiled scheme. The pair is tagged with the <em>later</em> of the
+    /// two producing steps so that the cycle check in <see cref="Run{TIn, TOut}"/> still sees the
+    /// most recent dependency: tagging it with the earlier one would let a step consume a product
+    /// from its own future as long as it also consumed something old.
+    /// </remarks>
+    /// <typeparam name="T1">The first product type.</typeparam>
+    /// <typeparam name="T2">The second product type.</typeparam>
+    /// <param name="first">The first product, or <c>null</c> when its step failed or was skipped.</param>
+    /// <param name="second">The second product, or <c>null</c> when its step failed or was skipped.</param>
+    /// <returns>The paired product, or <c>null</c> when either input is absent.</returns>
+    public static StepProduct<(T1 First, T2 Second)>? Both<T1, T2>(
+        StepProduct<T1>? first,
+        StepProduct<T2>? second)
+    {
+        if (first is null || second is null)
+        {
+            return null;
+        }
+
+        var step = (first.Step, second.Step) switch
+        {
+            (null, var b) => b,
+            (var a, null) => a,
+            var (a, b) => a > b ? a : b,
+        };
+
+        return new StepProduct<(T1, T2)>(step, (first.Value, second.Value));
+    }
 
     /// <summary>
     /// Runs one Section 15.1 step, or skips it when the product it consumes was not produced.
@@ -158,7 +222,7 @@ public sealed class PipelineRun
 
         completed = step;
 
-        if (State == PipelineRunState.Aborted || input is null)
+        if (State != PipelineRunState.Running || input is null)
         {
             CloseStep(step);
             return null;
@@ -166,6 +230,17 @@ public sealed class PipelineRun
 
         var stepDiagnostics = new DiagnosticBuffer();
         var outcome = body(input.Value, stepDiagnostics);
+
+        if (outcome.Unsupported is { } capability)
+        {
+            // Deliberately before the blocking-diagnostic check: a step that declines has not
+            // examined the input closely enough to have an opinion about it, and inventing a
+            // diagnostic here would put a code in the stream that Section 22 does not define.
+            Diagnostics.Merge(stepDiagnostics);
+            Unsupported = capability;
+            State = PipelineRunState.Unsupported;
+            return null;
+        }
 
         if (outcome.Faulted && !stepDiagnostics.HasBlockingError)
         {
@@ -186,7 +261,7 @@ public sealed class PipelineRun
     /// </summary>
     private void CloseStep(PipelineStep step)
     {
-        if (State == PipelineRunState.Aborted)
+        if (State != PipelineRunState.Running)
         {
             return;
         }

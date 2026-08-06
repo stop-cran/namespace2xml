@@ -182,13 +182,14 @@ public class FlatTextSerializerTests
     /// <summary>
     /// Section 19.2 makes NUL an error rather than dropping it: a shell word cannot carry NUL, and
     /// silently truncating the value there would publish a different value than the model holds.
+    /// Appendix B maps "invalid quoted-namespace identifier or NUL value" to <c>SHELL001</c>.
     /// </summary>
     [Test]
-    public void QuotedNamespaceRejectsNul()
+    public void QuotedNamespaceRejectsNulAsAShellFault()
     {
         Fails(FlatFormat.QuotedNamespace, Entry("a", "x\0y")).ShouldBeTrue();
 
-        SoleCode().ShouldBe("SERIALIZE001");
+        SoleCode().ShouldBe("SHELL001");
     }
 
     /// <summary>

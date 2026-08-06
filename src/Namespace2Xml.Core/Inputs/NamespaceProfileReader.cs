@@ -75,12 +75,12 @@ public static class NamespaceProfileReader
     /// <summary>Reads one source's records.</summary>
     /// <param name="records">The Section 8.1 classified records, in source order.</param>
     /// <param name="sourceOrdinal">The Section 4.7 CLI source ordinal.</param>
-    /// <param name="source">The source name diagnostics report.</param>
+    /// <param name="source">The source diagnostics report this contribution against.</param>
     /// <param name="diagnostics">The buffer this source's diagnostics accumulate in.</param>
     public static ProfileContribution Read(
         ImmutableArray<NamespaceRecord> records,
         long sourceOrdinal,
-        string source,
+        ProfileSource source,
         DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -108,10 +108,10 @@ public static class NamespaceProfileReader
                             "\u00A78.1",
                             "this record is neither a comment nor a mask and has no separating '=', "
                             + "so Section 8.1 rule 5 makes it a parse error.",
-                            cardinalityKey: $"{source}:{record.Line}:{record.Column}",
-                            source: source,
-                            line: record.Line,
-                            column: record.Column),
+                            cardinalityKey: source.SourceKey,
+                            source: source.File,
+                            line: source.LineOf(record.Line),
+                            column: source.ColumnOf(record.Column)),
                         key));
                     break;
 
@@ -146,7 +146,7 @@ public static class NamespaceProfileReader
     private static void ReadMask(
         NamespaceRecord record,
         StableOrderingKey key,
-        string source,
+        ProfileSource source,
         DiagnosticBuffer diagnostics,
         ImmutableArray<ProfileMask>.Builder masks)
     {
@@ -177,7 +177,7 @@ public static class NamespaceProfileReader
     private static OverlayNode ReadEntry(
         NamespaceRecord record,
         StableOrderingKey key,
-        string source,
+        ProfileSource source,
         DiagnosticBuffer diagnostics,
         OverlayNode overlay,
         ImmutableArray<ProfileEntry>.Builder templates,
@@ -276,7 +276,7 @@ public static class NamespaceProfileReader
         NameFault fault,
         int line,
         int column,
-        string source,
+        ProfileSource source,
         DiagnosticBuffer diagnostics,
         StableOrderingKey key)
     {
@@ -287,18 +287,18 @@ public static class NamespaceProfileReader
                 DiagnosticPhase.Input,
                 "\u00A78.2",
                 fault.Message,
-                cardinalityKey: $"{source}:{line}:{column}",
-                source: source,
-                line: line,
-                column: column)
+                cardinalityKey: source.RecordKey(line),
+                source: source.File,
+                line: source.LineOf(line),
+                column: source.ColumnOf(column))
             : DiagnosticCodes.Parse001(
                 DiagnosticPhase.Input,
                 "\u00A78.2",
                 fault.Message,
-                cardinalityKey: $"{source}:{line}:{column}",
-                source: source,
-                line: line,
-                column: column);
+                cardinalityKey: source.SourceKey,
+                source: source.File,
+                line: source.LineOf(line),
+                column: source.ColumnOf(column));
 
         diagnostics.Add(new BufferedDiagnostic(occurrence, key));
     }
@@ -307,7 +307,7 @@ public static class NamespaceProfileReader
         ValueFault fault,
         int line,
         int column,
-        string source,
+        ProfileSource source,
         DiagnosticBuffer diagnostics,
         StableOrderingKey key)
     {
@@ -317,18 +317,18 @@ public static class NamespaceProfileReader
                 DiagnosticPhase.Input,
                 "\u00A78.4",
                 fault.Message,
-                cardinalityKey: $"{source}:{line}:{column}",
-                source: source,
-                line: line,
-                column: column),
+                cardinalityKey: source.RecordKey(line),
+                source: source.File,
+                line: source.LineOf(line),
+                column: source.ColumnOf(column)),
             ValueFaultKind.Wildcard => DiagnosticCodes.Wildcard001(
                 DiagnosticPhase.Input,
                 "\u00A78.3",
                 fault.Message,
-                cardinalityKey: $"{source}:{line}:{column}",
-                source: source,
-                line: line,
-                column: column),
+                cardinalityKey: source.RecordKey(line),
+                source: source.File,
+                line: source.LineOf(line),
+                column: source.ColumnOf(column)),
             _ => throw new InvalidOperationException(
                 $"'{fault.Kind}' is not a {nameof(ValueFaultKind)}."),
         };

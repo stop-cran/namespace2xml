@@ -328,7 +328,7 @@ public class PublisherTests
 
             new Publisher(root, diagnostics).TryPublish([Planned("link/x.json")]).ShouldBeFalse();
 
-            diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("PATH002");
+            diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("PATH001");
             File.Exists(Path.Combine(outside, "x.json")).ShouldBeFalse();
         }
         finally
@@ -336,6 +336,60 @@ public class PublisherTests
             // A recursive delete refuses to descend through the link, so the link goes first. This
             // removes the link alone and leaves its target, which the recursive delete then reaches
             // as an ordinary directory.
+            if (Directory.Exists(link))
+            {
+                Directory.Delete(link);
+            }
+
+            Directory.Delete(work, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The containment check is exercised on its own, because the Publisher's ancestor walk refuses
+    /// a link before containment is ever consulted.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the honest statement of what Section 21.1's two mechanisms each do. The link refusal
+    /// is what stops every deterministic escape; the containment comparison exists for the case the
+    /// link refusal cannot see, which is a path swapped between the check and the open. Driving the
+    /// sink directly is the only way to reach it without a race, and reaching it is the point: a
+    /// containment check no test can enter is a claim, not a guard.
+    /// </para>
+    /// <para>
+    /// Section 21.1's <c>PATH001</c> is asserted through the exception type rather than the
+    /// diagnostic, because the sink is below the layer that reports.
+    /// </para>
+    /// </remarks>
+    [Test]
+    public void TheSinkRefusesADestinationResolvingOutsideTheRoot()
+    {
+        var work = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
+        var root = Path.Combine(work, "out");
+        var outside = Path.Combine(work, "elsewhere");
+        var link = Path.Combine(root, "link");
+
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(outside);
+
+        try
+        {
+            if (!TryLinkDirectory(link, outside))
+            {
+                Assert.Ignore("this host does not permit creating directory links.");
+            }
+
+            var sink = new FileSystemPublicationSink();
+
+            Should.Throw<UncontainableDestinationException>(
+                    () => sink.Write(root, "link/x.json", OutputBuffer.Empty))
+                .Message.ShouldContain("outside the output root");
+
+            File.Exists(Path.Combine(outside, "x.json")).ShouldBeFalse();
+        }
+        finally
+        {
             if (Directory.Exists(link))
             {
                 Directory.Delete(link);
@@ -354,8 +408,8 @@ public class PublisherTests
     /// The link here is a directory link because that is the kind every supported host can create
     /// unprivileged; the guard it exercises reads the reparse point, not the kind. The diagnostic
     /// message is asserted rather than only the code, because a directory sitting at a destination
-    /// also fails to open — with the guard removed the run still reports <c>PATH002</c>, just for
-    /// the operating system's reason instead of this one.
+    /// also fails to open — with the guard removed the run still fails, just for the operating
+    /// system's reason instead of this one, so the code alone would not discriminate.
     /// </remarks>
     [Test]
     public void ADestinationThatIsItselfALinkIsRefused()
@@ -379,7 +433,7 @@ public class PublisherTests
 
             var diagnostic = diagnostics.Drain().ShouldHaveSingleItem();
 
-            diagnostic.Code.ShouldBe("PATH002");
+            diagnostic.Code.ShouldBe("PATH001");
             diagnostic.Message.ShouldContain("is a link to");
         }
         finally

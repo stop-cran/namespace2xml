@@ -105,8 +105,13 @@ public sealed record AttributePart(XmlNameComponent Name) : NamePart;
 /// <summary>
 /// An Appendix A.2 <c>typed-content</c>: <c>#n</c>, the Section 11.4 content-token ordering value.
 /// </summary>
-/// <param name="Ordinal">The ordering value. Never negative, and never written with a leading zero.</param>
-public sealed record ContentPart(int Ordinal) : NamePart;
+/// <param name="Ordinal">
+/// The ordering value. Never negative, and never written with a leading zero. Section 11.4 assigns
+/// content-token addresses "using Section 5.4", which makes them stable signed 64-bit ordering
+/// values through 9,223,372,036,854,775,807; a 32-bit ordinal would reject a valid address a
+/// sequence high-water allocator can legitimately reach.
+/// </param>
+public sealed record ContentPart(long Ordinal) : NamePart;
 
 /// <summary>Structural comparison and canonical form for token sequences.</summary>
 /// <remarks>

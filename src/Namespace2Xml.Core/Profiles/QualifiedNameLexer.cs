@@ -294,10 +294,11 @@ public static class QualifiedNameLexer
             return false;
         }
 
-        if (!int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var ordinal))
+        if (!long.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var ordinal))
         {
             fault = new NameFault(
-                "this content-token ordering value is larger than any a document can assign.",
+                "this content-token ordering value exceeds 9223372036854775807, the Section 5.4 "
+                + "maximum, so no document can assign it.",
                 start);
             return false;
         }

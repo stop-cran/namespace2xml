@@ -62,6 +62,49 @@ public class OverlayNodeTests
     }
 
     /// <summary>
+    /// Section 4.4: "Any later deep descendant refreshes the mapping shape-mark of every ancestor
+    /// required to contain it." <em>Deep</em> means at any depth, not only immediately below.
+    /// </summary>
+    /// <remarks>
+    /// The worked case is one source reading <c>a.b.c=1</c>, then <c>a=2</c>, then <c>a.b.d=3</c>.
+    /// The third record is later than the scalar at <c>a</c>, so <c>a</c> renders as a mapping. An
+    /// ancestor refreshed with its child's <em>position</em> mark instead cannot see it: Section 5.2
+    /// pins <c>b</c>'s position to the first record that materialised it, which is earlier than the
+    /// scalar, so <c>a</c> would render as the scalar <c>2</c> and silently drop <c>c</c> and
+    /// <c>d</c> from every exclusive-shape output.
+    /// </remarks>
+    [Test]
+    public void ADescendantTwoLevelsDownRefreshesTheAncestorShapeMark()
+    {
+        var b = OverlayNode.Intermediate(Early).WithChild(Part("c"), Payload("1", Early));
+        var a = OverlayNode.Intermediate(Early)
+            .WithChild(Part("b"), b)
+            .WithPayload(ScalarPayload.Untyped("2"), Middle);
+
+        a.Marks.RendersAsScalar.ShouldBeTrue("only the first two records exist yet");
+
+        var deepened = a.WithChild(Part("b"), a.Children[Part("b")].WithChild(Part("d"), Payload("3", Late)));
+
+        deepened.Marks.RendersAsMapping.ShouldBeTrue();
+        deepened.Marks.RendersAsScalar.ShouldBeFalse();
+        deepened.Marks.Position.ShouldBe(Middle, "a descendant must not move the node it deepens");
+    }
+
+    /// <summary>
+    /// The same rule through a sequence item, which Section 4.4 treats as a descendant too.
+    /// </summary>
+    [Test]
+    public void ADeepDescendantUnderASequenceItemRefreshesTheAncestorShapeMark()
+    {
+        var item = OverlayNode.Intermediate(Early).WithChild(Part("c"), Payload("1", Late));
+        var node = OverlayNode.OfPayload(ScalarPayload.Untyped("2"), Middle)
+            .WithSequenceItem(0, SequenceItem.Native(item));
+
+        node.Marks.RendersAsSequence.ShouldBeTrue();
+        node.Marks.RendersAsScalar.ShouldBeFalse();
+    }
+
+    /// <summary>
     /// Section 4.2: "Mapping, sequence, scalar, and null are therefore projections of an overlay
     /// node, not mutually exclusive internal node kinds." The worked example is <c>a.x=1</c>
     /// followed by <c>a.x.z=3</c>, where <c>x</c> must retain both facts so that namespace can emit

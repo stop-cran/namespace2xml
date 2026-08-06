@@ -37,7 +37,7 @@ public class OverlayMergerTests
                     .Select((line, index) => NamespaceRecordClassifier.Classify(line, index + 1)),
             ],
             ordinal,
-            $"p{ordinal}.txt",
+            ProfileSource.OfFile($"p{ordinal}.txt"),
             new DiagnosticBuffer())
         .Overlay;
 

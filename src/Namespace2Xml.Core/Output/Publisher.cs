@@ -89,6 +89,11 @@ public sealed class Publisher
         {
             sink.Write(outputRoot, output.Path.Canonical, output.Buffer);
         }
+        catch (UncontainableDestinationException e)
+        {
+            ReportUncontainable(output.Path.Canonical, output, e.Message);
+            return false;
+        }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             ReportWriteFailure(output, e.Message);
@@ -109,6 +114,11 @@ public sealed class Publisher
         {
             sink.CreateDirectory(outputRoot, relative);
         }
+        catch (UncontainableDestinationException e)
+        {
+            ReportUncontainable(relative, output, e.Message);
+            return false;
+        }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             ReportDirectoryFailure(relative, output, e.Message);
@@ -116,6 +126,23 @@ public sealed class Publisher
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Appendix B: an "uncontainable destination path" is <c>PATH001</c>. Nothing was opened,
+    /// created, or written, so this is not the <c>PATH002</c> publication failure.
+    /// </summary>
+    private void ReportUncontainable(string relative, PlannedOutput? output, string message)
+    {
+        var destination = output?.Path.Canonical ?? relative;
+
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Path001(
+                DiagnosticPhase.Publication,
+                "\u00A721.1",
+                message,
+                cardinalityKey: destination,
+                destination: destination)));
     }
 
     private void ReportWriteFailure(PlannedOutput output, string message) =>
@@ -168,6 +195,16 @@ internal sealed class FileSystemPublicationSink : IPublicationSink
     {
         var path = Resolve(root, relative);
 
+        // Validate before creating, not after. Section 21.1 requires failing "before creating
+        // directories or opening destinations" when containment cannot be established, and a
+        // directory materialised outside the root is exactly the side effect this check exists to
+        // prevent: reporting it afterwards reports damage already done.
+        if (relative.Length > 0)
+        {
+            RefuseLinkPath(path);
+            VerifyContainment(root, Path.GetDirectoryName(path)!);
+        }
+
         Directory.CreateDirectory(path);
         VerifyContainment(root, path);
     }
@@ -177,7 +214,7 @@ internal sealed class FileSystemPublicationSink : IPublicationSink
         var path = Resolve(root, relative);
 
         VerifyContainment(root, Path.GetDirectoryName(path)!);
-        RefuseLinkDestination(path);
+        RefuseLinkPath(path);
 
         // Section 21.3: created or truncated "only after its complete byte buffer exists", then
         // flushed and closed "before beginning the next one". Disposing the stream here, rather
@@ -225,7 +262,7 @@ internal sealed class FileSystemPublicationSink : IPublicationSink
 
         if (!realPath.StartsWith(prefix, StringComparison.Ordinal))
         {
-            throw new IOException(
+            throw new UncontainableDestinationException(
                 $"'{path}' resolves to '{realPath}', which is outside the output root '{realRoot}'.");
         }
     }
@@ -239,14 +276,15 @@ internal sealed class FileSystemPublicationSink : IPublicationSink
     /// <see cref="FileMode.Create"/> follows a link and writes to its target, and a dangling link
     /// creates that target, so the escape needs no existing file outside the root. .NET exposes no
     /// no-follow open, so a destination that is a link is refused rather than followed: replacing it
-    /// would change filesystem state Section 21.3 does not authorize this run to change.
+    /// would change filesystem state Section 21.3 does not authorize this run to change. The same
+    /// applies to a directory component, which is why this runs on each created directory too.
     /// </remarks>
-    private static void RefuseLinkDestination(string path)
+    private static void RefuseLinkPath(string path)
     {
         if (new FileInfo(path).LinkTarget is { } target)
         {
-            throw new IOException(
-                $"the destination is a link to '{target}', and Section 21.1 requires opening "
+            throw new UncontainableDestinationException(
+                $"'{path}' is a link to '{target}', and Section 21.1 requires opening "
                 + "destinations without following links.");
         }
     }
@@ -256,4 +294,40 @@ internal sealed class FileSystemPublicationSink : IPublicationSink
             Path.GetFullPath(
                 directory.ResolveLinkTarget(returnFinalTarget: true)?.FullName
                 ?? directory.FullName));
+}
+
+/// <summary>
+/// A destination that cannot be placed inside the output root, whether because it resolves outside
+/// it or because reaching it would follow a link.
+/// </summary>
+/// <remarks>
+/// Appendix B maps "invalid, escaping, insecure, traversal, portability-key-colliding, or
+/// uncontainable destination path" to <c>PATH001</c> and reserves <c>PATH002</c> for a "destination
+/// open, create, write, flush, or close failure". A refusal is not a failure to write: nothing was
+/// attempted. Reporting one as the other tells a reader the filesystem misbehaved when in fact the
+/// tool declined, which is the difference between retrying and rewriting the scheme. The type
+/// derives from <see cref="IOException"/> so that a caller catching the broad case still catches it,
+/// and every such caller must test for this type first.
+/// </remarks>
+public sealed class UncontainableDestinationException : IOException
+{
+    /// <summary>Creates the exception.</summary>
+    public UncontainableDestinationException()
+    {
+    }
+
+    /// <summary>Creates the exception.</summary>
+    /// <param name="message">Why the destination cannot be contained.</param>
+    public UncontainableDestinationException(string message)
+        : base(message)
+    {
+    }
+
+    /// <summary>Creates the exception.</summary>
+    /// <param name="message">Why the destination cannot be contained.</param>
+    /// <param name="innerException">The underlying failure.</param>
+    public UncontainableDestinationException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
 }

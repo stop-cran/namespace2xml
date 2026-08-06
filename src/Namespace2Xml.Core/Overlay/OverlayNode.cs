@@ -201,7 +201,11 @@ public sealed class OverlayNode
         ArgumentNullException.ThrowIfNull(child);
 
         return new OverlayNode(
-            Marks.WithDescendant(child.Marks.Position),
+            // Section 4.4: "any later deep descendant refreshes the mapping shape-mark of every
+            // ancestor required to contain it". The child's own position mark is not that
+            // descendant — Section 5.2 pins it to whatever first materialised the child — so the
+            // refresh takes the latest contribution anywhere beneath it.
+            Marks.WithDescendant(child.Marks.Latest),
             Payload,
             HasExplicitMapping,
             Children.SetItem(name, child),
@@ -249,7 +253,7 @@ public sealed class OverlayNode
         ArgumentOutOfRangeException.ThrowIfNegative(orderingValue);
 
         return new OverlayNode(
-            Marks.WithSequenceItem(item.Node.Marks.Position),
+            Marks.WithSequenceItem(item.Node.Marks.Latest),
             Payload,
             HasExplicitMapping,
             Children,

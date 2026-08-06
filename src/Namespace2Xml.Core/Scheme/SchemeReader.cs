@@ -84,7 +84,7 @@ public static class SchemeReader
                             "\u00A78.1",
                             "this record is neither a comment nor a mask and has no separating '=', "
                             + "so Section 8.1 rule 5 makes it a parse error.",
-                            cardinalityKey: $"{source}:{record.Line}:{record.Column}",
+                            cardinalityKey: source,
                             source: source,
                             line: record.Line,
                             column: record.Column),
@@ -231,7 +231,7 @@ public static class SchemeReader
                 DiagnosticPhase.Scheme,
                 "\u00A715",
                 message,
-                cardinalityKey: $"{source}:{record.Line}:{record.Column}",
+                cardinalityKey: $"{source}:{record.Line}",
                 source: source,
                 line: record.Line,
                 column: record.Column,
@@ -256,7 +256,7 @@ public static class SchemeReader
                 DiagnosticPhase.Scheme,
                 "\u00A78.2",
                 fault.Message,
-                cardinalityKey: $"{source}:{record.Line}:{column}",
+                cardinalityKey: $"{source}:{record.Line}",
                 source: source,
                 line: record.Line,
                 column: column)
@@ -264,7 +264,7 @@ public static class SchemeReader
                 DiagnosticPhase.Scheme,
                 "\u00A78.2",
                 fault.Message,
-                cardinalityKey: $"{source}:{record.Line}:{column}",
+                cardinalityKey: source,
                 source: source,
                 line: record.Line,
                 column: column);
@@ -286,7 +286,7 @@ public static class SchemeReader
                 DiagnosticPhase.Scheme,
                 "\u00A78.3",
                 fault.Message,
-                cardinalityKey: $"{source}:{record.Line}:{column}",
+                cardinalityKey: $"{source}:{record.Line}",
                 source: source,
                 line: record.Line,
                 column: column)
@@ -294,7 +294,7 @@ public static class SchemeReader
                 DiagnosticPhase.Scheme,
                 "\u00A78.4",
                 fault.Message,
-                cardinalityKey: $"{source}:{record.Line}:{column}",
+                cardinalityKey: $"{source}:{record.Line}",
                 source: source,
                 line: record.Line,
                 column: column);

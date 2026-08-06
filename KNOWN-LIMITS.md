@@ -49,6 +49,14 @@ Do not read a passing test run as evidence about a `pending` item.
   rather than by a check. Two cases could not be exercised where the spike ran because creating a
   symbolic link needed privileges that were unavailable; they are recorded as untested rather than
   as passing.
+- **The shipped publication sink is not the spike.** `FileSystemPublicationSink` resolves a path,
+  checks it, and then opens it, because .NET exposes no no-follow open. The retained-handle walk
+  the spike demonstrates has not been adopted, so the shipped sink closes every escape that is
+  present when it looks, and none introduced between the check and the open. Concretely: a link
+  standing at a destination or at any ancestor is refused with `PATH001` before anything is
+  created, and a resolved path outside the output root is refused likewise — but an attacker able
+  to replace a component during publication is not defeated by this sink. Adopting the spike's walk
+  is tracked for M4. Do not read Section 21.1 conformance here as a race-free guarantee.
 - **Hard-link escape is out of scope.** A destination reached through a hard link to a file outside
   the output root cannot be detected by any no-follow walk, on any platform, because a hard link is
   not distinguishable from the original name. An optional refusal based on link count is

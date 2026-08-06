@@ -80,7 +80,7 @@ public sealed class FlatTextSerializer
                 }
             }
 
-            if (!TrySpellValue(keyed.Entry.Payload, out var value))
+            if (!TrySpellValue(keyed.Entry.Payload, keyed.Key, out var value))
             {
                 return false;
             }
@@ -124,7 +124,7 @@ public sealed class FlatTextSerializer
         return true;
     }
 
-    private bool TrySpellValue(ScalarPayload payload, out string? value)
+    private bool TrySpellValue(ScalarPayload payload, string key, out string? value)
     {
         // Section 19.1 spells null as the text "null", and Section 19.2 adopts that spelling so a
         // shell consumer is not left unable to tell null from the empty string.
@@ -132,7 +132,7 @@ public sealed class FlatTextSerializer
 
         if (format == FlatFormat.QuotedNamespace)
         {
-            return TryQuoteForShell(text, out value);
+            return TryQuoteForShell(text, key, out value);
         }
 
         if (NamespaceEncoder.TryEncodeValue(
@@ -159,11 +159,15 @@ public sealed class FlatTextSerializer
     /// an escaped quote is emitted outside it, and a new word is opened: <c>'can'\''t'</c>. The
     /// shell concatenates adjacent words, so the assignment still receives one value.
     /// </remarks>
-    private bool TryQuoteForShell(string text, out string? value)
+    private bool TryQuoteForShell(string text, string key, out string? value)
     {
         if (text.Contains('\0', StringComparison.Ordinal))
         {
-            Report(
+            // Appendix B: "Invalid quoted-namespace identifier or NUL value" is SHELL001. The value
+            // is unrepresentable as a shell word, which is a property of the shell target, not of
+            // the serializer failing to represent something it otherwise could.
+            ReportShellFault(
+                key,
                 "Section 19.2 makes NUL not representable in quoted-namespace output: a shell word "
                 + "cannot carry it and single quoting admits no escape for it.");
             value = null;
@@ -173,6 +177,17 @@ public sealed class FlatTextSerializer
         value = $"'{text.Replace("'", "'\\''", StringComparison.Ordinal)}'";
         return true;
     }
+
+    /// <summary>Section 22: <c>SHELL001</c> occurs "once per projected key and output instance".</summary>
+    private void ReportShellFault(string key, string message) =>
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Shell001(
+                DiagnosticPhase.Planning,
+                "\u00A719.2",
+                message,
+                cardinalityKey: FlatIdentity.Key(destination, key),
+                path: key,
+                destination: destination)));
 
     private void Report(string message) =>
         diagnostics.Add(new BufferedDiagnostic(

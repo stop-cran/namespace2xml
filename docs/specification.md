@@ -603,7 +603,9 @@ Records are classified in this order:
 4. otherwise the record must contain a separating `=` and is an ordinary entry;
 5. any remaining record without a separating `=` is `PARSE001`.
 
-Each `--variables` argument is exactly one namespace record. It accepts ordinary entries and permanent `!pattern` masks but not comment records.
+Each `--variables` argument is exactly one namespace record. It accepts ordinary entries and permanent `!pattern` masks but not comment records. A comment record supplied as a `--variables` argument is `PARSE001`.
+
+A diagnostic reporting a condition inside a command-line variable omits `source`, and therefore also omits `line` and `column`. The Section 6.4.3 `source` member names an input or scheme file, and a variable is neither; a synthetic file name there would be indistinguishable from a real one. The variable is identified in the diagnostic's message by its one-based position in `-v` token order, and its Section 4.7 ordering key still places it after every input file, so the stream order is unaffected.
 
 ### 8.2 Qualified names
 
@@ -1404,7 +1406,7 @@ The concrete selector prefix is unconditionally removed from the selected output
 A concrete output instance created by a literal declaration or wildcard expansion remains a planned output even when its selected view contains no surviving payload, explicit container presence, descendants, or comments:
 
 - JSON and YAML emit an empty mapping unless `root` wraps that mapping;
-- namespace, quoted namespace, and INI emit their normalized empty text file, consisting of exactly one LF under Section 24;
+- namespace, quoted namespace, and INI emit their normalized empty text file, which under Section 24 is zero bytes, because the Section 24 termination rule applies only to output that has content;
 - XML requires `root` to provide a document element and otherwise raises `TYPE001`.
 
 A wildcard output declaration that produces no concrete selector instance emits `WARN009` and creates no file. Explicit empty mapping or sequence presence is not a zero-entry selection.

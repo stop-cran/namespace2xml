@@ -115,7 +115,12 @@ public static class SchemeCompiler
             : [.. entries.OrderBy(entry => entry.Order)];
 
         var winners = new Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)>();
-        var merges = ImmutableArray.CreateBuilder<InputMerge>();
+        // Section 15.2: "A later matching directive overrides an earlier matching directive for the
+        // same effective setting." An input 'merge' has one effective setting per path, so two
+        // declarations at one path are an override, not two settings. Appending both would make
+        // "merge=append" then "merge=replace" at the same path an unhandled duplicate-key exception
+        // downstream, which Section 6.3 forbids as a way for a user-caused condition to surface.
+        var mergeWinners = new Dictionary<SelectorKey, (SchemeEntry Entry, long Order)>();
         var deferred = ImmutableArray.CreateBuilder<SchemeEntry>();
 
         for (var index = 0; index < ordered.Length; index++)
@@ -134,7 +139,7 @@ public static class SchemeCompiler
             switch (entry.Directive)
             {
                 case SchemeDirective.Merge:
-                    CompileInputMerge(entry, diagnostics, merges);
+                    mergeWinners[new SelectorKey(entry.Selector)] = (entry, index);
                     break;
 
                 case SchemeDirective.Output:
@@ -154,8 +159,22 @@ public static class SchemeCompiler
 
         return new SchemeConfiguration(
             BuildInstances(winners, diagnostics),
-            merges.ToImmutable(),
+            CompileInputMerges(mergeWinners, diagnostics),
             deferred.ToImmutable());
+    }
+
+    private static ImmutableArray<InputMerge> CompileInputMerges(
+        Dictionary<SelectorKey, (SchemeEntry Entry, long Order)> mergeWinners,
+        DiagnosticBuffer diagnostics)
+    {
+        var merges = ImmutableArray.CreateBuilder<InputMerge>(mergeWinners.Count);
+
+        foreach (var (_, winner) in mergeWinners.OrderBy(pair => pair.Value.Order))
+        {
+            CompileInputMerge(winner.Entry, diagnostics, merges);
+        }
+
+        return merges.ToImmutable();
     }
 
     private static ImmutableArray<OutputInstance> BuildInstances(
@@ -283,6 +302,23 @@ public static class SchemeCompiler
                     diagnostics,
                     "\u00A716.1",
                     $"'{name}' is not one of the Section 16.1 output formats.");
+                return false;
+            }
+
+            // Section 17.5: "Duplicate formats within one 'output' declaration, such as
+            // 'output=json,json', are blocking scheme errors rather than self-collisions." Left
+            // unchecked the two entries become two contributions to one destination, which
+            // Section 17.5 would then fold under 'filemerge' and warn about — a file merged with
+            // itself, reported as a collision between a declaration and itself.
+            if (parsed.Contains(format))
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A717.5",
+                    $"'{name}' appears more than once in this "
+                    + "declaration, and Section 17.5 makes a duplicate format within one 'output' "
+                    + "declaration a blocking scheme error rather than a self-collision.");
                 return false;
             }
 

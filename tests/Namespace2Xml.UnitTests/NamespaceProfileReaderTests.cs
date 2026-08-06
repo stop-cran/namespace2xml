@@ -27,7 +27,7 @@ public class NamespaceProfileReaderTests
     ];
 
     private static ProfileContribution Read(string document, DiagnosticBuffer diagnostics) =>
-        NamespaceProfileReader.Read(Records(document), 3, "p.txt", diagnostics);
+        NamespaceProfileReader.Read(Records(document), 3, ProfileSource.OfFile("p.txt"), diagnostics);
 
     private static ProfileContribution Read(string document) =>
         Read(document, new DiagnosticBuffer());
@@ -380,8 +380,8 @@ public class NamespaceProfileReaderTests
     {
         var buffer = new DiagnosticBuffer();
 
-        NamespaceProfileReader.Read(Records("bad"), 5, "late.txt", buffer);
-        NamespaceProfileReader.Read(Records("bad"), 2, "early.txt", buffer);
+        NamespaceProfileReader.Read(Records("bad"), 5, ProfileSource.OfFile("late.txt"), buffer);
+        NamespaceProfileReader.Read(Records("bad"), 2, ProfileSource.OfFile("early.txt"), buffer);
 
         buffer.Drain().Select(diagnostic => diagnostic.Source)
             .ShouldBe(["early.txt", "late.txt"]);
@@ -396,12 +396,49 @@ public class NamespaceProfileReaderTests
     {
         var buffer = new DiagnosticBuffer();
         var late = ImmutableArray.Create(NamespaceRecordClassifier.Classify("bad", 9));
-        var early = ImmutableArray.Create(NamespaceRecordClassifier.Classify("bad", 2));
+        var early = ImmutableArray.Create(NamespaceRecordClassifier.Classify("a=${x", 2));
 
-        NamespaceProfileReader.Read(late, 1, "p.txt", buffer);
-        NamespaceProfileReader.Read(early, 1, "p.txt", buffer);
+        NamespaceProfileReader.Read(late, 1, ProfileSource.OfFile("p.txt"), buffer);
+        NamespaceProfileReader.Read(early, 1, ProfileSource.OfFile("p.txt"), buffer);
 
         buffer.Drain().Select(diagnostic => diagnostic.Line).ShouldBe([2, 9]);
+    }
+
+    /// <summary>
+    /// Section 22 scopes <c>PARSE001</c> "once per failing source", so a file with two malformed
+    /// records reports one error, not one per record.
+    /// </summary>
+    /// <remarks>
+    /// The retained occurrence is the Section 24 earliest, because a reader shown the second fault
+    /// and not the first would start from the wrong place in the file.
+    /// </remarks>
+    [Test]
+    public void TwoMalformedRecordsInOneSourceReportOneParseErrorAtTheEarliest()
+    {
+        var buffer = new DiagnosticBuffer();
+        var records = ImmutableArray.Create(
+            NamespaceRecordClassifier.Classify("bad", 2),
+            NamespaceRecordClassifier.Classify("worse", 9));
+
+        NamespaceProfileReader.Read(records, 1, ProfileSource.OfFile("p.txt"), buffer);
+
+        var diagnostic = buffer.Drain().ShouldHaveSingleItem();
+        diagnostic.Code.ShouldBe("PARSE001");
+        diagnostic.Line.ShouldBe(2);
+    }
+
+    /// <summary>Two failing sources are two failing sources, so both are reported.</summary>
+    [Test]
+    public void MalformedRecordsInTwoSourcesReportOneParseErrorEach()
+    {
+        var buffer = new DiagnosticBuffer();
+        var records = ImmutableArray.Create(NamespaceRecordClassifier.Classify("bad", 1));
+
+        NamespaceProfileReader.Read(records, 1, ProfileSource.OfFile("first.txt"), buffer);
+        NamespaceProfileReader.Read(records, 2, ProfileSource.OfFile("second.txt"), buffer);
+
+        buffer.Drain().Select(diagnostic => diagnostic.Source)
+            .ShouldBe(["first.txt", "second.txt"]);
     }
 
     [Test]
