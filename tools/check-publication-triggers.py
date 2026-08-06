@@ -26,7 +26,10 @@ except ImportError:
     raise SystemExit(1)
 
 # Assembled from fragments so this file cannot match its own pattern.
-PATTERNS = ("nuget" ".org", "NUGET" "_API_KEY", "dotnet nuget " "push")
+# NuGet/login is here because acquiring a publishing credential is the act worth noticing: under
+# trusted publishing there is no stored key to grep for, and a workflow that exchanges an OIDC
+# token for one is a publishing workflow whether or not it has yet reached the push.
+PATTERNS = ("nuget" ".org", "NUGET" "_API_KEY", "dotnet nuget " "push", "NuGet/" "login")
 
 
 def triggers(document: object) -> object:

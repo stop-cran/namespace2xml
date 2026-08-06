@@ -449,9 +449,10 @@ The moving parts, so nobody has to rediscover them:
 
 | Part | Value | Why it is like that |
 |---|---|---|
-| Secret | repository secret `NUGETAPIKEY` | Inherited from 2.x. An undefined secret expands to the empty string rather than failing, so the workflow checks it is non-empty before it does anything irreversible. |
-| Environment | `nuget`, restricted to `v3.*` tags | The workflow's own trigger already says tags only; the environment says it again where a workflow edit cannot reach. Add required reviewers here if you want a human gate. |
-| Order | verify → pack → check contents → install → check `--version` → follow every printed link → attest → push | Everything cheap and reversible happens before the one step that is neither. |
+| Credential | none stored — nuget.org **trusted publishing** | The workflow proves its identity with a GitHub OIDC token and receives a key valid for one hour. There is no long-lived secret to leak, rotate, or forget. `NuGet/login@v1` runs immediately before the push because each token buys exactly one key. |
+| Trust policy | owner `stop-cran`, repo `namespace2xml`, workflow `release.yml` | Registered on nuget.org, and it names the **workflow file**. Renaming `release.yml` silently revokes the ability to publish; change the policy first. |
+| Environment | `nuget`, restricted to `v3.*` tags | The workflow's own trigger already says tags only; the environment says it again where a workflow edit cannot reach. Add required reviewers here if you want a human gate, and name `nuget` in the nuget.org policy to require it. |
+| Order | verify → pack → check contents → install → check `--version` → follow every printed link → attest → exchange token → push | Everything cheap and reversible happens before the one step that is neither. |
 
 The link check exists because `--version` reports a `specification-sha256` and a URL, and those are
 only worth printing if the URL serves bytes that hash to that value. It fetches the specification

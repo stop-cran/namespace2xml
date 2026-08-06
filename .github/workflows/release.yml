@@ -9,9 +9,9 @@ on:
       - 'v3.*'
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: write      # create the GitHub release
+  id-token: write      # OIDC, for both the build attestation and the nuget.org token exchange
+  attestations: write  # record the provenance attestation
 
 env:
   DOTNET_NOLOGO: 'true'
@@ -103,16 +103,25 @@ jobs:
         with:
           subject-path: 'artifacts/*.nupkg'
 
+      # Requested immediately before the push on purpose: nuget.org's short-lived key is valid for
+      # one hour and each OIDC token buys exactly one key, so anything slow placed between this
+      # step and the push is a way to expire a credential mid-release.
+      - name: Exchange this run's OIDC identity for a short-lived nuget.org key
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          # The nuget.org profile name, which is public -- it is printed on the package page. A
+          # secret here would buy nothing and would reintroduce the failure this workflow already
+          # had once: an undefined secret expands to the empty string rather than to an error.
+          user: stop-cran
+
       - name: Push to nuget.org
         env:
-          # The repository secret is spelled NUGETAPIKEY, as it was for 2.x. An invented name
-          # resolves to the empty string rather than to an error, so the first sign of the typo
-          # would have been a 401 from nuget.org after the artifacts were already attested.
-          NUGET_API_KEY: ${{ secrets.NUGETAPIKEY }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           set -euo pipefail
           if [ -z "$NUGET_API_KEY" ]; then
-            echo "::error::NUGETAPIKEY is not set for this environment; nothing was published."
+            echo "::error::the OIDC exchange returned no key; nothing was published."
             exit 1
           fi
           dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
