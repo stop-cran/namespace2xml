@@ -3363,6 +3363,8 @@ When `expected-stdout.txt` is absent, standard output must be empty. Section 6.2
 
 `requirements.txt` contains one Section 26 item number per line. Every Section 26 item must be referenced by at least one fixture, and every fixture must reference at least one item.
 
+A reference is a claim, and a number in a text file costs nothing to write and nothing to keep true. For an item the manifest marks `required`, two further conditions hold. The manifest must name exactly the fixtures that reference the item, so that adding, removing, or silently retargeting a claim fails the gate until the manifest is re-authored and reviewed. Each of those fixtures must also carry at least one expectation beyond its exit code: an expected output tree, an expected standard output, or a declared diagnostic stream. Declaring the empty array is such an expectation, because Appendix C.4 distinguishes it from writing no stream at all and the distinction is observable; declaring nothing at all is not, because an exit code alone distinguishes too little to be evidence that the item was exercised.
+
 ### C.6 Legacy differential metadata
 
 `legacy.md` is required for a Section 3 compatibility or correction case. It records:

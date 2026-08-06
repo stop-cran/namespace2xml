@@ -1,0 +1,3 @@
+app.output=ini
+cfg.output=ini
+cfg.root=x.y

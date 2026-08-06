@@ -1,0 +1,7 @@
+root.plain=text
+root.multi=first\nsecond
+root.tabbed=a\tb
+root.esc\.dot=v
+root.\#hash=v2
+root.\!bang=v3
+root.star=lit\*eral

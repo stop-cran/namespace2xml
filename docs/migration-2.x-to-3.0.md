@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r28+9e0a3c319736`.**
+**Contract bundle `r29+3df3f706dbbc`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (12)
+## Deliberate differences (14)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -188,6 +188,33 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   `contract-bundle` revision and the specification and registry digests it covers.
 - The difference is intentional: a defect report must be able to name the exact contract the
   observed behavior was measured against, which the legacy banner cannot express.
+
+### `ini-projection-and-section-order`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 19.6; resolved legacy issues 203 and 205.
+- Legacy observation: INI projection and the placement of global keys relative to sections were
+  not stated, so neither the preamble nor section order was a contract.
+- Clean behavior: a one-part path is a global key and all global keys are hoisted into one
+  preamble; a longer path splits into a delimiter-joined section and a final key; a section takes
+  the position of its first key in the Section 19.1 emission order, so `[p:x]` precedes `[p]` when
+  the container child was declared first.
+- The difference is intentional: hoisting is a format projection that does not change precedence,
+  and ordering sections by the emission stream keeps every INI rule a function of that stream
+  alone.
+
+### `namespace-escaping-round-trip`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 8.2 and 19.1; resolved legacy issue 41.
+- Legacy observation: namespace output had no general escape vocabulary, so a name part
+  containing the delimiter, a leading `#`, or a leading `!` could not be written back in a form
+  that reads as the same name.
+- Clean behavior: name encoding is total and injective. A scalar beginning a delimiter occurrence
+  is always `\u{HEX}`, so a literal dot is `\u{2E}` and never `\.`; a leading `#` on an ordinary
+  component and a record-leading `!` take their Section 8.2 forms `\#` and `\!`.
+- The difference is intentional: without it a profile could not round-trip through its own output
+  format, which is the property every other guarantee in Section 19 rests on.
 
 ## Behaviour preserved from 2.4.0 (1)
 

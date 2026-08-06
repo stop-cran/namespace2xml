@@ -74,6 +74,69 @@ public class TraceabilityTests
             "acceptance items are marked required but have no fixture: " + string.Join(", ", uncovered));
     }
 
+    /// <summary>
+    /// Appendix C.5: a required item's manifest entry must name exactly the fixtures that reference
+    /// it. Coverage stated in one place is a number in a text file; stated in two, a claim cannot be
+    /// added, dropped, or retargeted without the manifest being re-authored and reviewed.
+    /// </summary>
+    [Test]
+    public void ARequiredItemNamesExactlyTheFixturesThatClaimIt()
+    {
+        var cases = ConformanceCase.Discover(CorpusLayout.Corpus).ToList();
+
+        foreach (var item in Required())
+        {
+            var number = item.GetProperty("item").GetInt32();
+
+            var claiming = cases
+                .Where(conformanceCase => conformanceCase.Requirements.Contains(number))
+                .Select(conformanceCase => conformanceCase.Name)
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            var named = item.GetProperty("fixtures").EnumerateArray()
+                .Select(fixture => fixture.GetString()!)
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            named.ShouldBe(
+                claiming,
+                $"item {number} names fixtures [{string.Join(", ", named)}] but is claimed by "
+                + $"[{string.Join(", ", claiming)}].");
+        }
+    }
+
+    /// <summary>
+    /// Appendix C.5: a fixture claiming a required item must assert more than its exit code.
+    /// Declaring the empty array counts, because Appendix C.4 distinguishes it from writing no
+    /// stream at all; declaring nothing at all does not.
+    /// </summary>
+    [Test]
+    public void AFixtureClaimingARequiredItemAssertsMoreThanAnExitCode()
+    {
+        var required = Required().Select(item => item.GetProperty("item").GetInt32()).ToHashSet();
+
+        foreach (var conformanceCase in ConformanceCase.Discover(CorpusLayout.Corpus))
+        {
+            if (!conformanceCase.Requirements.Any(required.Contains))
+            {
+                continue;
+            }
+
+            Asserts(conformanceCase).ShouldBeTrue(
+                $"{conformanceCase.Name} claims a required item but declares no expected tree, no "
+                + "expected standard output, and no diagnostic stream.");
+        }
+    }
+
+    private static bool Asserts(ConformanceCase conformanceCase) =>
+        conformanceCase.ExpectedTree is not null
+        || File.Exists(conformanceCase.ExpectedStandardOutput)
+        || conformanceCase.ExpectedDiagnostics is not null;
+
+    private static IEnumerable<JsonElement> Required() =>
+        Items.Where(item => item.GetProperty("status").GetString() == "required");
+
     [Test]
     public void EveryItemDeclaresAKnownStatus()
     {

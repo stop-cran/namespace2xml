@@ -61,11 +61,13 @@ $rendered = foreach ($number in ($items.Keys | Sort-Object { [int]$_ })) {
     $milestone = 'unassigned'
     $status = 'pending'
     $assertions = @()
+    $fixtures = @()
 
     if ($null -ne $prior) {
         if ($prior.milestone) { $milestone = $prior.milestone }
         if ($prior.status) { $status = $prior.status }
         if ($prior.assertions) { $assertions = @($prior.assertions) }
+        if ($prior.fixtures) { $fixtures = @($prior.fixtures) }
     }
 
     [ordered]@{
@@ -74,6 +76,7 @@ $rendered = foreach ($number in ($items.Keys | Sort-Object { [int]$_ })) {
         milestone  = $milestone
         status     = $status
         assertions = @($assertions)
+        fixtures   = @($fixtures)
     }
 }
 
@@ -82,7 +85,7 @@ $document = [ordered]@{
     generatedBy = 'tools/sync-assertion-manifest.ps1'
     statuses    = [ordered]@{
         pending  = 'Not yet owned by a merged milestone. Not enforced by the traceability gate.'
-        required = 'Must be covered by at least one fixture. Enforced by the traceability gate.'
+        required = 'Appendix C.5: the fixtures field must name exactly the fixtures that reference this item, and each must assert more than an exit code. Enforced by the traceability gate.'
     }
     items       = @($rendered)
 }

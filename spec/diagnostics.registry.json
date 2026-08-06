@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "9a9299ba0688c3b3494ae86b19639ba7b1898ebe679d9a03eea14f28923816cf"
+    "sha256": "b8d1a376845b7edf27ecc9b2165114ba29785d8956fe2d4c0da61180487c3819"
   },
   "authoritativeFor": [
     "code",

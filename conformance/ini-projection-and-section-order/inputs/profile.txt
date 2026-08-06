@@ -1,0 +1,10 @@
+app.name=demo
+app.db.host=localhost
+app.db=primary
+app.port=8080
+app.z.k=1
+app.a.k=2
+app.p.x.y=1
+app.p.q=2
+cfg.k=1
+cfg.s.t=2
