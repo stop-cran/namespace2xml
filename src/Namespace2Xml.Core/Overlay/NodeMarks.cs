@@ -101,25 +101,39 @@ public readonly record struct NodeMarks
     public bool RendersAsContainer =>
         ContainerShape is { } container && (PayloadMark is not { } payload || container > payload);
 
+    /// <summary>Whether both container projections are present, so choosing one drops the other.</summary>
+    /// <remarks>
+    /// Section 17.1 keeps both in the overlay and leaves the choice to the destination, so this is
+    /// the condition a destination requiring one container shape warns on, not an error here.
+    /// </remarks>
+    public bool HasBothContainers => MappingShape is not null && SequenceShape is not null;
+
+    /// <summary>
+    /// Whether the later container contribution is the mapping, for a destination that requires one
+    /// container shape but does not make the payload compete with it.
+    /// </summary>
+    /// <remarks>
+    /// Equal shape-marks are not reachable: two contributions with one Section 4.7 key are one
+    /// contribution, so a mapping and a sequence contribution never carry the same mark. The tie
+    /// resolves to the mapping only so that this and <see cref="ContainerIsSequence"/> are
+    /// exhaustive whenever a container exists, leaving no node whose container silently vanishes.
+    /// </remarks>
+    public bool ContainerIsMapping =>
+        MappingShape is { } mapping && (SequenceShape is not { } sequence || mapping >= sequence);
+
+    /// <summary>Whether the later container contribution is the sequence.</summary>
+    public bool ContainerIsSequence =>
+        SequenceShape is { } sequence && (MappingShape is not { } mapping || sequence > mapping);
+
     /// <summary>Whether an exclusive destination renders this node as a mapping.</summary>
     /// <remarks>
     /// A node with neither shape has no container shape and is not a mapping. A node whose payload
     /// is later than every container contribution is not a mapping either, by Section 4.4 step 3.
     /// </remarks>
-    public bool RendersAsMapping =>
-        RendersAsContainer
-        && MappingShape is { } mapping
-        && (SequenceShape is not { } sequence || mapping > sequence);
+    public bool RendersAsMapping => RendersAsContainer && ContainerIsMapping;
 
     /// <summary>Whether an exclusive destination renders this node as a sequence.</summary>
-    /// <remarks>
-    /// A sequence contribution at the same key as a mapping contribution cannot happen: two
-    /// contributions with one Section 4.7 key are one contribution.
-    /// </remarks>
-    public bool RendersAsSequence =>
-        RendersAsContainer
-        && SequenceShape is { } sequence
-        && (MappingShape is not { } mapping || sequence > mapping);
+    public bool RendersAsSequence => RendersAsContainer && ContainerIsSequence;
 
     /// <summary>
     /// Marks for a node that a contribution addresses without giving it a payload or a shape, which

@@ -1675,6 +1675,8 @@ Delimiter occurrences always use `\u{HEX}` rather than an input-specific short e
 
 Before publication, every flat output must detect collisions after root application, delimiter joining, segment escaping, and identifier normalization. Two distinct logical paths must never silently become one namespace, shell, or INI key. A collision is blocking `FLAT001`.
 
+Namespace, quoted-namespace, and INI output are destinations requiring one container shape, so a node holding both a mapping and a sequence projection emits only the later container contribution and warns, under Section 17.1. Both projections supply name parts rather than a distinguishing syntax, so emitting both would give two keys to the single node Section 15.1 step 9 shares between a numeric mapping child and the sequence item at its ordering value, and would then report one logical path as a `FLAT001` collision between distinct ones.
+
 Here, identifier normalization means only shell-identifier validation under Section 19.2 and INI name validation under Section 19.6. It performs no case folding or character replacement.
 
 ### 16.5 `key`
@@ -2189,6 +2191,8 @@ qualified.name=value
 ```
 
 Mappings use name parts. Sequences use generated zero-based decimal parts after all concatenation and merging.
+
+A flat projection visits the selected view depth first in pre-order: a node's own scalar is emitted before anything beneath it, its mapping children follow in their Section 5.2 order, and its sequence items follow in ascending ordering value. Pre-order is what places `a.x=1` before `a.x.z=3` in Section 4.4. The two container facets keep their own orders rather than interleaving, because Section 5.2 orders mapping children by position mark while Section 5.4 orders items by ordering value and no comparison between the two is defined; a node emits only one of them in any case, under Section 16.4.
 
 The configured root and delimiter apply.
 

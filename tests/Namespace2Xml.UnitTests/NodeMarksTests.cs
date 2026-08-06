@@ -221,6 +221,28 @@ public sealed class NodeMarksTests
         payloadLater.RendersAsSequence.ShouldBeFalse();
     }
 
+    /// <summary>
+    /// Section 4.4 step 3 judges the payload against the container shape-mark, which is "the later
+    /// of the mapping and sequence shape-marks". A sequence contribution therefore loses to a later
+    /// payload exactly as a mapping contribution does; asserting only the mapping direction would
+    /// leave an implementation that consulted the payload for one facet and not the other intact.
+    /// </summary>
+    [Test]
+    public void ASequenceAlsoLosesToALaterPayload()
+    {
+        var sequenceLater = NodeMarks.ForPayload(Early).WithSequenceItem(Late);
+
+        sequenceLater.RendersAsSequence.ShouldBeTrue();
+        sequenceLater.RendersAsScalar.ShouldBeFalse();
+
+        var payloadLater = NodeMarks.ForSequence(Early).WithPayload(Late);
+
+        payloadLater.RendersAsScalar.ShouldBeTrue();
+        payloadLater.RendersAsContainer.ShouldBeFalse();
+        payloadLater.RendersAsSequence.ShouldBeFalse();
+        payloadLater.RendersAsMapping.ShouldBeFalse();
+    }
+
     [Test]
     public void ANodeWithNoContributionsRendersAsNothing()
     {
