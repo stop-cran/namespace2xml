@@ -18,7 +18,7 @@ public sealed class InputDecoderTests
 {
     private const string Source = "inputs/main.txt";
 
-    private static DecodedSource Decode(params byte[] bytes) => InputDecoder.Decode(bytes, Source);
+    private static DecodedSource Decode(params byte[] bytes) => InputDecoder.Decode(bytes, Source, DiagnosticPhase.Input);
 
     private static string DecodeText(params byte[] bytes)
     {
@@ -359,8 +359,8 @@ public sealed class InputDecoderTests
     public void TheCardinalityKeyIsTheFailingSourceBecauseTheRegistrySaysOncePerFailingSource()
     {
         // Two distinct sources must not collapse into one occurrence.
-        InputDecoder.Decode([0x80], "inputs/a.txt").Diagnostic!.CardinalityKey.ShouldBe("inputs/a.txt");
-        InputDecoder.Decode([0x80], "inputs/b.txt").Diagnostic!.CardinalityKey.ShouldBe("inputs/b.txt");
+        InputDecoder.Decode([0x80], "inputs/a.txt", DiagnosticPhase.Input).Diagnostic!.CardinalityKey.ShouldBe("inputs/a.txt");
+        InputDecoder.Decode([0x80], "inputs/b.txt", DiagnosticPhase.Input).Diagnostic!.CardinalityKey.ShouldBe("inputs/b.txt");
     }
 
     [Test]
@@ -375,7 +375,7 @@ public sealed class InputDecoderTests
         {
             random.NextBytes(buffer);
             var length = random.Next(buffer.Length + 1);
-            var result = InputDecoder.Decode(buffer.AsSpan(0, length), Source);
+            var result = InputDecoder.Decode(buffer.AsSpan(0, length), Source, DiagnosticPhase.Input);
 
             (result.Text is not null ^ result.Diagnostic is not null).ShouldBeTrue();
         }

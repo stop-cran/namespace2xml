@@ -500,4 +500,37 @@ public class NamespaceProfileReaderTests
         entry.Value.LiteralText.ShouldBe("*.txt");
         buffer.Drain().ShouldBeEmpty();
     }
+    /// <summary>
+    /// Section 22: "Column 1 is the first Unicode scalar value of a line, and each subsequent
+    /// scalar advances the column by one, so a character outside the Basic Multilingual Plane
+    /// occupies one column and a tab occupies one column."
+    /// </summary>
+    /// <remarks>
+    /// Asserted as an equality between two records rather than as a literal column, because the
+    /// clause under test fixes the unit a column is counted in and not where within an
+    /// unterminated reference the lexer chooses to point. The two records differ only in which
+    /// scalar sits in the name, so Section 22 requires the same column for both. U+1D11E is two
+    /// UTF-16 code units and 'x' is one, so a column counted in code units differs by one.
+    /// </remarks>
+    [Test]
+    public void AnAstralScalarInANameOccupiesOneColumn()
+    {
+        var astral = Diagnose("a\U0001D11Eb=${c").ShouldHaveSingleItem();
+        var basicPlane = Diagnose("axb=${c").ShouldHaveSingleItem();
+
+        astral.Code.ShouldBe("REFERENCE001");
+        astral.Line.ShouldBe(1);
+        astral.Column.ShouldBe(basicPlane.Column);
+    }
+
+    /// <summary>Section 22, for a scalar preceding the fault within the value.</summary>
+    [Test]
+    public void AnAstralScalarBeforeAValueFaultOccupiesOneColumn()
+    {
+        var astral = Diagnose("a=\U0001D11E${c").ShouldHaveSingleItem();
+        var basicPlane = Diagnose("a=x${c").ShouldHaveSingleItem();
+
+        astral.Code.ShouldBe("REFERENCE001");
+        astral.Column.ShouldBe(basicPlane.Column);
+    }
 }

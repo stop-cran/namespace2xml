@@ -32,8 +32,14 @@ public static class InputDecoder
     /// <param name="source">
     /// The source path reported on failure, already in the Section 6.4.3 relative form.
     /// </param>
+    /// <param name="phase">
+    /// The phase the failure reports. The same decoder reads scheme files and input files, and
+    /// Section 24 orders scheme-loading diagnostics before input-parsing ones, so a decode failure
+    /// that named its phase from where the code lives rather than from who called it would both
+    /// mislabel the Section 6.4.3 <c>phase</c> member and sort into the wrong group.
+    /// </param>
     /// <returns>The decoded text, or the <c>PARSE002</c> the source earned. Never throws.</returns>
-    public static DecodedSource Decode(ReadOnlySpan<byte> bytes, string source)
+    public static DecodedSource Decode(ReadOnlySpan<byte> bytes, string source, DiagnosticPhase phase)
     {
         ArgumentNullException.ThrowIfNull(source);
 
@@ -41,12 +47,12 @@ public static class InputDecoder
         // so FF FE 00 00 is the prohibited UTF-32LE mark and not UTF-16LE followed by a NUL.
         if (StartsWith(bytes, Utf32LittleEndianBom))
         {
-            return Prohibited(source, "UTF-32 little-endian");
+            return Prohibited(source, "UTF-32 little-endian", phase);
         }
 
         if (StartsWith(bytes, Utf32BigEndianBom))
         {
-            return Prohibited(source, "UTF-32 big-endian");
+            return Prohibited(source, "UTF-32 big-endian", phase);
         }
 
         var (encoding, markLength) =
@@ -66,7 +72,7 @@ public static class InputDecoder
         {
             var (line, column) = PositionAfterLongestDecodablePrefix(content, encoding);
             return new DecodedSource(DiagnosticCodes.Parse002(
-                DiagnosticPhase.Input,
+                phase,
                 Anchor,
                 $"{Describe(encoding)} decoding failed: the byte sequence at this position is not valid "
                 + "and Section 7.4 makes an invalid byte sequence an error.",
@@ -90,9 +96,9 @@ public static class InputDecoder
     private static bool StartsWith(ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> mark) =>
         bytes.StartsWith(mark);
 
-    private static DecodedSource Prohibited(string source, string mark) =>
+    private static DecodedSource Prohibited(string source, string mark, DiagnosticPhase phase) =>
         new(DiagnosticCodes.Parse002(
-            DiagnosticPhase.Input,
+            phase,
             Anchor,
             $"this source begins with a {mark} byte-order mark, and Section 7.4 permits only UTF-8, "
             + "UTF-16LE, and UTF-16BE.",

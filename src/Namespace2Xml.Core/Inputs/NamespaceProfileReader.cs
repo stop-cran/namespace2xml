@@ -3,6 +3,7 @@ using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Overlay;
 using Namespace2Xml.Pipeline;
 using Namespace2Xml.Profiles;
+using Namespace2Xml.Text;
 
 namespace Namespace2Xml.Inputs;
 
@@ -164,7 +165,7 @@ public static class NamespaceProfileReader
             EmitNameFault(
                 lexed.Fault!.Value,
                 record.Line,
-                record.Column + lexed.Fault.Value.Offset,
+                record.Column + ScalarColumn.Advance(pattern, lexed.Fault.Value.Offset),
                 source,
                 diagnostics,
                 key);
@@ -191,7 +192,7 @@ public static class NamespaceProfileReader
             EmitNameFault(
                 lexedName.Fault!.Value,
                 record.Line,
-                record.Column + lexedName.Fault.Value.Offset,
+                record.Column + ScalarColumn.Advance(record.Name!, lexedName.Fault.Value.Offset),
                 source,
                 diagnostics,
                 key);
@@ -206,12 +207,15 @@ public static class NamespaceProfileReader
 
         if (lexedValue.Value is null)
         {
-            // The name occupies columns [Column, Column + Name.Length), the separating '=' the one
+            // The name occupies columns [Column, Column + the name's width in Section 22 columns),
             // after it, and the value begins immediately after that.
             EmitValueFault(
                 lexedValue.Fault!.Value,
                 record.Line,
-                record.Column + record.Name!.Length + 1 + lexedValue.Fault.Value.Offset,
+                record.Column
+                    + ScalarColumn.Width(record.Name!)
+                    + 1
+                    + ScalarColumn.Advance(record.Value!, lexedValue.Fault.Value.Offset),
                 source,
                 diagnostics,
                 key);

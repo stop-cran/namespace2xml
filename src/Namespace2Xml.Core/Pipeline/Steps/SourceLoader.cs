@@ -144,7 +144,7 @@ public sealed class SourceLoader
             return null;
         }
 
-        var decoded = InputDecoder.Decode(read.Bytes, origin.File!);
+        var decoded = InputDecoder.Decode(read.Bytes, origin.File!, phase);
 
         if (!decoded.Succeeded)
         {

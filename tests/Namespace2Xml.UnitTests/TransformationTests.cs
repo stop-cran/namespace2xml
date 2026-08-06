@@ -23,14 +23,25 @@ namespace Namespace2Xml.UnitTests;
 public sealed class TransformationTests
 {
     /// <summary>An in-memory corpus of sources, keyed by the path as written on the command line.</summary>
-    private sealed class Sources(params (string Path, string Text)[] files) : ISourceReader
+    private sealed class Sources : ISourceReader
     {
-        private readonly Dictionary<string, string> files =
-            files.ToDictionary(f => f.Path, f => f.Text, StringComparer.Ordinal);
+        private readonly Dictionary<string, byte[]> files;
+
+        public Sources(params (string Path, string Text)[] files)
+            : this([.. files.Select(f => (f.Path, new UTF8Encoding(false).GetBytes(f.Text)))])
+        {
+        }
+
+        /// <summary>
+        /// Supplies bytes rather than text, so a test can present a source that does not decode.
+        /// Section 7.4 failures are byte-level and cannot be expressed as a .NET string.
+        /// </summary>
+        public Sources(params (string Path, byte[] Bytes)[] files) =>
+            this.files = files.ToDictionary(f => f.Path, f => f.Bytes, StringComparer.Ordinal);
 
         public SourceRead Read(string path) =>
-            files.TryGetValue(path, out var text)
-                ? new SourceRead(SourceReadStatus.Read, new UTF8Encoding(false).GetBytes(text), null, path)
+            files.TryGetValue(path, out var bytes)
+                ? new SourceRead(SourceReadStatus.Read, bytes, null, path)
                 : new SourceRead(SourceReadStatus.Missing, null, "not found", path);
     }
 
@@ -460,5 +471,25 @@ public sealed class TransformationTests
             sink, sources, "-i", "one.txt", "-i", "gone.txt", "-i", "two.txt", "-s", "scheme.txt");
 
         Codes(result).ShouldBe(["WARN001", "TYPE001"]);
+    }
+    /// <summary>
+    /// Section 6.4.3's `phase` member names where a condition arose, and Section 24 orders
+    /// scheme-loading diagnostics before input-parsing ones. The same decoder reads both kinds of
+    /// source, so a scheme that fails Section 7.4 must still report the scheme phase.
+    /// </summary>
+    [Test]
+    public void ASchemeThatFailsToDecodeReportsTheSchemePhase()
+    {
+        // FF FE 00 00 is the Section 7.4 prohibited UTF-32 little-endian mark.
+        var sink = new Sink();
+        var sources = new Sources(
+            ("in.txt", new UTF8Encoding(false).GetBytes("app.name=example\n")),
+            ("scheme.txt", new byte[] { 0xFF, 0xFE, 0x00, 0x00 }));
+
+        var result = Run(sink, sources, "-i", "in.txt", "-s", "scheme.txt");
+
+        var occurrence = result.Diagnostics.Single(d => d.Code == "PARSE002");
+        occurrence.Phase.ShouldBe(DiagnosticPhase.Scheme);
+        occurrence.Source.ShouldBe("scheme.txt");
     }
 }

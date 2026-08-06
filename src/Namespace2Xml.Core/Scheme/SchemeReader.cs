@@ -3,6 +3,7 @@ using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Overlay;
 using Namespace2Xml.Pipeline;
 using Namespace2Xml.Profiles;
+using Namespace2Xml.Text;
 
 namespace Namespace2Xml.Scheme;
 
@@ -246,7 +247,7 @@ public static class SchemeReader
         DiagnosticBuffer diagnostics,
         StableOrderingKey key)
     {
-        var column = record.Column + fault.Offset;
+        var column = record.Column + ScalarColumn.Advance(record.Name!, fault.Offset);
 
         // Appendix B maps every condition to exactly one most-specific code, and the codes a
         // malformed name earns do not change because the name was written in a scheme. Only the
@@ -279,7 +280,10 @@ public static class SchemeReader
         DiagnosticBuffer diagnostics,
         StableOrderingKey key)
     {
-        var column = record.Column + record.Name!.Length + 1 + fault.Offset;
+        var column = record.Column
+            + ScalarColumn.Width(record.Name!)
+            + 1
+            + ScalarColumn.Advance(record.Value!, fault.Offset);
 
         var occurrence = fault.Kind is ValueFaultKind.Wildcard
             ? DiagnosticCodes.Wildcard001(
