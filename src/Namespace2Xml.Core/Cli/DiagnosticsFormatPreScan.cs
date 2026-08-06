@@ -67,16 +67,22 @@ public static class DiagnosticsFormatPreScan
     /// Reports whether an informational mode is present, honouring the Section 6.1 precedence
     /// in which <c>--help</c> outranks <c>--version</c> and neither validates other arguments.
     /// </summary>
+    /// <remarks>
+    /// Section 6.1: presence is decided "by scanning the raw token vector for the option token, in
+    /// either the bare or the inline form, up to the first <c>--</c>", and "that scan applies no
+    /// other part of the grammar; in particular it does not work out which tokens are option
+    /// values". Skipping a detached value here would give one token two readings at once — data to
+    /// this scan, and an option token to the Section 6.2 rule that a detached value may not be an
+    /// option token — so this loop deliberately knows nothing about values.
+    /// </remarks>
     public static InformationalMode ResolveInformationalMode(IReadOnlyList<string> arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
 
         var version = false;
 
-        for (var i = 0; i < arguments.Count; i++)
+        foreach (var token in arguments)
         {
-            var token = arguments[i];
-
             if (token is null)
             {
                 continue;
@@ -100,12 +106,6 @@ public static class DiagnosticsFormatPreScan
             if (name == "--version")
             {
                 version = true;
-            }
-            else if (token == Option && i + 1 < arguments.Count && arguments[i + 1] != "--")
-            {
-                // Skip the value so that "--diagnostics-format --version" treats --version as data.
-                // Only the detached form consumes a following token; the inline form carries its own.
-                i++;
             }
         }
 

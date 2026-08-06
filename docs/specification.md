@@ -346,6 +346,8 @@ The executable may use a new product name, but it must provide a compatibility c
 
 `--help` and `--version` are immediate informational modes. Argument scanning first checks for `--help`; when present, help is printed and the process exits successfully without validating any other argument. Otherwise, when `--version` is present, version information is printed and the process exits successfully without validating any other argument. Operational options accompanying either informational option are ignored.
 
+Presence is decided by scanning the raw token vector for the option token, in either the bare or the inline form, up to the first `--`. That scan applies no other part of the grammar; in particular it does not work out which tokens are option values, because working that out is validation, and this decision precedes validation. So `namespace2xml --diagnostics-format --version` prints version information and exits `0` rather than reporting a missing value. The alternative would give one token two incompatible readings at once — a value to the informational scan, and an option token to the Section 6.2 rule that a detached value may not be an option token — and an implementation cannot be checked against a rule that contradicts itself. After `--` no token is an option, so `--version` there is an ordinary value and selects no mode.
+
 ### 6.2 Options
 
 | Option | Required | Meaning |

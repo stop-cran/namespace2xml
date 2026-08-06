@@ -1,6 +1,6 @@
 # Known limits
 
-**As of `3.0.0-preview.1`, contract bundle `r23+56cd0cef3e95`. Dated 2026-08.**
+**As of `3.0.0-preview.1`, contract bundle `r24+3455c9a3d30e`. Dated 2026-08.**
 
 This file exists because a project that claims completeness cannot receive feedback: every gap reads
 as user error, and the reporter concludes they are holding it wrong. During the preview this list is

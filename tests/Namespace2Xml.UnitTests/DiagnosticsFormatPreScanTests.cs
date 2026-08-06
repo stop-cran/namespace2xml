@@ -83,10 +83,21 @@ public class DiagnosticsFormatPreScanTests
         DiagnosticsFormatPreScan.ResolveInformationalMode(["-i", "--", "--help"])
             .ShouldBe(InformationalMode.None);
 
+    /// <summary>
+    /// Section 6.1: the presence scan "applies no other part of the grammar; in particular it does
+    /// not work out which tokens are option values". Treating this <c>--version</c> as a value
+    /// would contradict the Section 6.2 rule that a detached value may not be an option token —
+    /// which is exactly what the parser reports when it reaches the same tokens.
+    /// </summary>
     [Test]
-    public void InformationalModeSkipsAConsumedOptionValue() =>
+    public void AnOptionTokenInValuePositionStillSelectsTheInformationalMode() =>
         DiagnosticsFormatPreScan.ResolveInformationalMode(["--diagnostics-format", "--version"])
-            .ShouldBe(InformationalMode.None);
+            .ShouldBe(InformationalMode.Version);
+
+    [Test]
+    public void HelpInValuePositionStillOutranksEverything() =>
+        DiagnosticsFormatPreScan.ResolveInformationalMode(["--diagnostics-format", "--help"])
+            .ShouldBe(InformationalMode.Help);
 
     /// <summary>
     /// Section 6.2 makes the inline form uniform, and Section 6.1 decides the mode from presence,
