@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Namespace2Xml.Profiles;
 
 namespace Namespace2Xml.Overlay;
 
@@ -32,7 +33,7 @@ public sealed class OverlayNode
         NodeMarks marks,
         ScalarPayload? payload,
         bool hasExplicitMapping,
-        ImmutableDictionary<string, OverlayNode> children,
+        ImmutableDictionary<NamePart, OverlayNode> children,
         ImmutableDictionary<long, SequenceItem> sequence,
         ImmutableList<BoundComment> comments)
     {
@@ -63,7 +64,7 @@ public sealed class OverlayNode
     public bool HasExplicitMapping { get; }
 
     /// <summary>Mapping children by name, unordered. Use <see cref="OrderedChildren"/> to render.</summary>
-    public ImmutableDictionary<string, OverlayNode> Children { get; }
+    public ImmutableDictionary<NamePart, OverlayNode> Children { get; }
 
     /// <summary>
     /// Sequence items by Section 5.4 ordering value, unordered. Use <see cref="OrderedSequence"/>
@@ -77,7 +78,7 @@ public sealed class OverlayNode
     /// <summary>A node with no payload, no children, no sequence and no comments.</summary>
     /// <param name="marks">The marks of the contribution that created it.</param>
     public static OverlayNode Empty(NodeMarks marks) =>
-        new(marks, null, false, ImmutableDictionary<string, OverlayNode>.Empty,
+        new(marks, null, false, ImmutableDictionary<NamePart, OverlayNode>.Empty,
             ImmutableDictionary<long, SequenceItem>.Empty, ImmutableList<BoundComment>.Empty);
 
     /// <summary>
@@ -98,7 +99,7 @@ public sealed class OverlayNode
             NodeMarks.ForPayload(position),
             payload,
             false,
-            ImmutableDictionary<string, OverlayNode>.Empty,
+            ImmutableDictionary<NamePart, OverlayNode>.Empty,
             ImmutableDictionary<long, SequenceItem>.Empty,
             ImmutableList<BoundComment>.Empty);
     }
@@ -107,7 +108,7 @@ public sealed class OverlayNode
     /// Mapping children in Section 5.2 order: by position mark, then by name as unsigned UTF-8
     /// bytes.
     /// </summary>
-    public IEnumerable<KeyValuePair<string, OverlayNode>> OrderedChildren =>
+    public IEnumerable<KeyValuePair<NamePart, OverlayNode>> OrderedChildren =>
         Children.OrderBy(child => child, MappingOrder.Instance);
 
     /// <summary>Sequence items in ascending Section 5.4 ordering value.</summary>
@@ -152,7 +153,7 @@ public sealed class OverlayNode
     /// Section 5.2: adding a child never moves its parent, so this advances the mapping shape-mark
     /// through <see cref="NodeMarks.WithDescendant"/> and leaves the position mark alone.
     /// </remarks>
-    public OverlayNode WithChild(string name, OverlayNode child)
+    public OverlayNode WithChild(NamePart name, OverlayNode child)
     {
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(child);
@@ -211,7 +212,7 @@ public sealed class OverlayNode
     /// suppresses a path, and undoing the shape evidence of a contribution that really occurred
     /// would let a mask change how an unrelated sibling renders.
     /// </remarks>
-    public OverlayNode WithoutChild(string name)
+    public OverlayNode WithoutChild(NamePart name)
     {
         ArgumentNullException.ThrowIfNull(name);
 
@@ -232,14 +233,14 @@ public sealed class OverlayNode
         $"payload={Payload?.ToString() ?? "-"} children={Children.Count} sequence={Sequence.Count}";
 
     /// <summary>The Section 5.2 total order over mapping children.</summary>
-    private sealed class MappingOrder : IComparer<KeyValuePair<string, OverlayNode>>
+    private sealed class MappingOrder : IComparer<KeyValuePair<NamePart, OverlayNode>>
     {
         internal static MappingOrder Instance { get; } = new();
 
-        public int Compare(KeyValuePair<string, OverlayNode> x, KeyValuePair<string, OverlayNode> y)
+        public int Compare(KeyValuePair<NamePart, OverlayNode> x, KeyValuePair<NamePart, OverlayNode> y)
         {
             var byPosition = x.Value.Marks.Position.CompareTo(y.Value.Marks.Position);
-            return byPosition != 0 ? byPosition : Utf8Order.Compare(x.Key, y.Key);
+            return byPosition != 0 ? byPosition : NamePartOrder.Instance.Compare(x.Key, y.Key);
         }
     }
 }

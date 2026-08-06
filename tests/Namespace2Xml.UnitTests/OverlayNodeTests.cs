@@ -1,5 +1,7 @@
+using System.Collections.Immutable;
 using System.Text;
 using Namespace2Xml.Overlay;
+using Namespace2Xml.Profiles;
 using NUnit.Framework;
 using Shouldly;
 
@@ -17,6 +19,12 @@ public class OverlayNodeTests
     private static readonly StableOrderingKey Middle = Key(2);
     private static readonly StableOrderingKey Late = Key(3);
 
+    private static OrdinaryPart Part(string text) =>
+        new([new LiteralToken(text)]);
+
+    private static string Text(NamePart part) =>
+        ((OrdinaryPart)part).LiteralText ?? throw new InvalidOperationException("not literal");
+
     private static OverlayNode Payload(string text, StableOrderingKey position) =>
         OverlayNode.OfPayload(ScalarPayload.Untyped(text), position);
 
@@ -29,10 +37,10 @@ public class OverlayNodeTests
     [Test]
     public void ANodeRetainsAPayloadAndChildrenAtOnce()
     {
-        var node = Payload("1", Early).WithChild("z", Payload("3", Late));
+        var node = Payload("1", Early).WithChild(Part("z"), Payload("3", Late));
 
         node.Payload.ShouldNotBeNull().ToCanonicalText().ShouldBe("1");
-        node.Children["z"].Payload.ShouldNotBeNull().ToCanonicalText().ShouldBe("3");
+        node.Children[Part("z")].Payload.ShouldNotBeNull().ToCanonicalText().ShouldBe("3");
     }
 
     /// <summary>
@@ -42,7 +50,7 @@ public class OverlayNodeTests
     [Test]
     public void ALaterDescendantWinsTheShapeContestAgainstAnEarlierPayload()
     {
-        var node = Payload("1", Early).WithChild("z", Payload("3", Late));
+        var node = Payload("1", Early).WithChild(Part("z"), Payload("3", Late));
 
         node.Marks.RendersAsMapping.ShouldBeTrue();
         node.Marks.RendersAsScalar.ShouldBeFalse();
@@ -57,7 +65,7 @@ public class OverlayNodeTests
     public void ALaterPayloadWinsTheShapeContestAgainstAnEarlierDescendant()
     {
         var node = Payload("1", Early)
-            .WithChild("z", Payload("3", Middle))
+            .WithChild(Part("z"), Payload("3", Middle))
             .WithPayload(ScalarPayload.Untyped("9"), Late);
 
         node.Marks.RendersAsScalar.ShouldBeTrue();
@@ -122,11 +130,11 @@ public class OverlayNodeTests
     public void ChildrenAreOrderedByPositionMarkNotByInsertion()
     {
         var node = OverlayNode.Intermediate(Early)
-            .WithChild("late", Payload("l", Late))
-            .WithChild("early", Payload("e", Early))
-            .WithChild("middle", Payload("m", Middle));
+            .WithChild(Part("late"), Payload("l", Late))
+            .WithChild(Part("early"), Payload("e", Early))
+            .WithChild(Part("middle"), Payload("m", Middle));
 
-        node.OrderedChildren.Select(child => child.Key)
+        node.OrderedChildren.Select(child => Text(child.Key))
             .ShouldBe(["early", "middle", "late"]);
     }
 
@@ -138,13 +146,13 @@ public class OverlayNodeTests
     public void OverridingAKeyMovesItToTheWinningPosition()
     {
         var node = OverlayNode.Intermediate(Early)
-            .WithChild("a", Payload("1", Early))
-            .WithChild("b", Payload("2", Middle));
+            .WithChild(Part("a"), Payload("1", Early))
+            .WithChild(Part("b"), Payload("2", Middle));
 
         var overridden = node.WithChild(
-            "a", node.Children["a"].WithPayload(ScalarPayload.Untyped("3"), Late));
+            Part("a"), node.Children[Part("a")].WithPayload(ScalarPayload.Untyped("3"), Late));
 
-        overridden.OrderedChildren.Select(child => child.Key).ShouldBe(["b", "a"]);
+        overridden.OrderedChildren.Select(child => Text(child.Key)).ShouldBe(["b", "a"]);
     }
 
     /// <summary>
@@ -156,14 +164,14 @@ public class OverlayNodeTests
     public void AddingAGrandchildDoesNotMoveTheParentAmongItsSiblings()
     {
         var root = OverlayNode.Intermediate(Early)
-            .WithChild("a", OverlayNode.Intermediate(Early).WithChild("x", Payload("1", Early)))
-            .WithChild("b", Payload("2", Middle));
+            .WithChild(Part("a"), OverlayNode.Intermediate(Early).WithChild(Part("x"), Payload("1", Early)))
+            .WithChild(Part("b"), Payload("2", Middle));
 
         var deepened = root.WithChild(
-            "a", root.Children["a"].WithChild("y", Payload("3", Late)));
+            Part("a"), root.Children[Part("a")].WithChild(Part("y"), Payload("3", Late)));
 
-        deepened.OrderedChildren.Select(child => child.Key).ShouldBe(["a", "b"]);
-        deepened.Children["a"].Marks.Position.ShouldBe(Early);
+        deepened.OrderedChildren.Select(child => Text(child.Key)).ShouldBe(["a", "b"]);
+        deepened.Children[Part("a")].Marks.Position.ShouldBe(Early);
     }
 
     /// <summary>
@@ -178,10 +186,10 @@ public class OverlayNodeTests
         var privateUse = "\uE000";
 
         var node = OverlayNode.Intermediate(Early)
-            .WithChild(astral, Payload("1", Early))
-            .WithChild(privateUse, Payload("2", Early));
+            .WithChild(Part(astral), Payload("1", Early))
+            .WithChild(Part(privateUse), Payload("2", Early));
 
-        node.OrderedChildren.Select(child => child.Key).ShouldBe([privateUse, astral]);
+        node.OrderedChildren.Select(child => Text(child.Key)).ShouldBe([privateUse, astral]);
         string.CompareOrdinal(astral, privateUse).ShouldBeLessThan(0);
     }
 
@@ -330,7 +338,7 @@ public class OverlayNodeTests
     public void ANodeMayHoldBothAMappingAndASequence()
     {
         var node = OverlayNode.Intermediate(Early)
-            .WithChild("k", Payload("v", Middle))
+            .WithChild(Part("k"), Payload("v", Middle))
             .WithSequenceItem(0, SequenceItem.Native(Payload("i", Late)));
 
         node.Children.Count.ShouldBe(1);
@@ -389,9 +397,9 @@ public class OverlayNodeTests
     [Test]
     public void MaskingAChildDoesNotLowerTheMappingShapeMark()
     {
-        var node = OverlayNode.Intermediate(Early).WithChild("gone", Payload("1", Late));
+        var node = OverlayNode.Intermediate(Early).WithChild(Part("gone"), Payload("1", Late));
 
-        var masked = node.WithoutChild("gone");
+        var masked = node.WithoutChild(Part("gone"));
 
         masked.Children.ShouldBeEmpty();
         masked.Marks.MappingShape.ShouldBe(Late);
@@ -400,9 +408,9 @@ public class OverlayNodeTests
     [Test]
     public void MaskingAnAbsentChildChangesNothing()
     {
-        var node = OverlayNode.Intermediate(Early).WithChild("a", Payload("1", Early));
+        var node = OverlayNode.Intermediate(Early).WithChild(Part("a"), Payload("1", Early));
 
-        node.WithoutChild("b").ShouldBeSameAs(node);
+        node.WithoutChild(Part("b")).ShouldBeSameAs(node);
     }
 
     [Test]
