@@ -2032,7 +2032,7 @@ Default: `RejectMultiline`. Comments are discarded unless `SemicolonComments` or
 Values are case-insensitive.
 
 - `deep`: ordered mappings merge recursively, implicit sequence items concatenate, explicit ordering values patch matching sequence items, later scalar payloads override earlier scalar payloads, and scalar/container shape contributions coexist in the overlay until output projection.
-- `replace`: the later complete value replaces the earlier value.
+- `replace`: the later complete value replaces the earlier value. "Value" here means payload, container presence, children, and sequence projection; two things at the path are deliberately not replaced. Comments bound to the path survive, because Section 17.1 keeps a comment "whenever their logical path survives" and omits it only on "replacement of an ancestor that removes the path" — replacement *at* the path does not remove the path. The sequence allocation high-water mark also survives, by Section 17.2.
 - `append`: every item in the later sequence contribution, including explicitly indexed items, is rebased in ascending original ordering value onto fresh implicit ordering values above the current high-water mark; a source contribution that is a nonempty all-canonical-numeric mapping is sequence-eligible for this purpose; other non-sequence use is an error.
 - `error`: after entries inside each source contribution have been folded, any distinct second source or generated contribution at the path is an error. Numeric-map inference is a projection of its existing contribution and does not count again.
 

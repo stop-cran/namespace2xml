@@ -160,11 +160,19 @@ public sealed class OverlayMerger
     /// Section 16.10 <c>replace</c>: "the later complete value replaces the earlier value".
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Section 17.2 makes the high-water mark the one thing replacement does not undo: it "removes
     /// the earlier visible sequence projection but does not lower the path's allocation high-water
     /// mark", so later automatic allocation never reuses a removed value. The earlier node's own
     /// comments survive because Section 17.1 keeps comments whenever their logical path survives,
     /// and this path does; comments on descendants the replacement removes go with them.
+    /// </para>
+    /// <para>
+    /// The marks combine rather than being taken from the later contribution alone. Section 5.2
+    /// governs where a key sits in mapping order and is not a merge strategy: <c>replace</c>
+    /// decides what the node contains, and an intermediate node that exists only because something
+    /// deeper needed it still keeps the earliest position that required it.
+    /// </para>
     /// </remarks>
     private static OverlayNode ReplaceMerge(OverlayNode earlier, OverlayNode later) =>
         OverlayNode.Compose(
