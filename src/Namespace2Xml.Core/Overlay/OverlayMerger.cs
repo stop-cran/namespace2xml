@@ -433,8 +433,10 @@ public sealed class OverlayMerger
 
         var name = new QualifiedName(path);
 
+        // A Section 6.4.3 path member is a canonical qualified path, not a physical record, so
+        // Section 19.1's record-leading escape does not apply to it.
         return NamespaceEncoder.TryEncodeName(
-            name, NamespaceEncoder.DefaultDelimiter, out var text, out _)
+            name, NamespaceEncoder.DefaultDelimiter, recordLeading: false, out var text, out _)
             ? text!
             : name.ToString();
     }

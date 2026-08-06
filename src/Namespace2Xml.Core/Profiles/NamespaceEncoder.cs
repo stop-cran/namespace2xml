@@ -71,11 +71,18 @@ public static class NamespaceEncoder
     /// <summary>Encodes a qualified name for namespace output.</summary>
     /// <param name="name">The name to encode.</param>
     /// <param name="delimiter">The configured delimiter.</param>
+    /// <param name="recordLeading">
+    /// Whether everything emitted before this name in its physical record is spaces and tabs,
+    /// which is what Section 19.1 means by a leading <c>!</c> or <c>#</c> that "could begin a
+    /// physical record". It is false wherever the name is emitted after other text, as a reference
+    /// name is: the <c>${</c> ahead of it already rules the record out of being a comment.
+    /// </param>
     /// <param name="text">The encoded text, when encoding succeeds.</param>
     /// <param name="fault">Why the name has no spelling, when encoding fails.</param>
     public static bool TryEncodeName(
         QualifiedName name,
         string delimiter,
+        bool recordLeading,
         out string? text,
         out EncodingFault fault)
     {
@@ -94,7 +101,7 @@ public static class NamespaceEncoder
                 builder.Append(delimiter);
             }
 
-            if (!TryEncodePart(name.Parts[i], delimiter, first: i == 0, builder, out fault))
+            if (!TryEncodePart(name.Parts[i], delimiter, first: i == 0, recordLeading, builder, out fault))
             {
                 return false;
             }
@@ -140,7 +147,9 @@ public static class NamespaceEncoder
                     break;
 
                 case ReferenceToken reference:
-                    if (!TryEncodeName(reference.Name, delimiter, out var referenced, out fault))
+                    // A reference name follows "${", so no scalar of it can begin a record.
+                    if (!TryEncodeName(
+                            reference.Name, delimiter, recordLeading: false, out var referenced, out fault))
                     {
                         return false;
                     }
@@ -206,6 +215,7 @@ public static class NamespaceEncoder
         NamePart part,
         string delimiter,
         bool first,
+        bool recordLeading,
         StringBuilder builder,
         out EncodingFault fault)
     {
@@ -228,10 +238,10 @@ public static class NamespaceEncoder
 
             case AttributePart attribute:
                 builder.Append('@');
-                return TryEncodeXmlName(attribute.Name, delimiter, builder, out fault);
+                return TryEncodeXmlName(attribute.Name, delimiter, recordLeading, builder, out fault);
 
             case XmlNameComponent component:
-                return TryEncodeXmlName(component, delimiter, builder, out fault);
+                return TryEncodeXmlName(component, delimiter, recordLeading, builder, out fault);
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(part));
@@ -241,6 +251,7 @@ public static class NamespaceEncoder
     private static bool TryEncodeXmlName(
         XmlNameComponent component,
         string delimiter,
+        bool recordLeading,
         StringBuilder builder,
         out EncodingFault fault)
     {
@@ -256,10 +267,10 @@ public static class NamespaceEncoder
                 }
 
                 builder.Append('}');
-                return TryEncodeTokens(qualified.Local, delimiter, ordinary: false, builder, out fault);
+                return TryEncodeTokens(qualified.Local, delimiter, ordinary: false, recordLeading, builder, out fault);
 
             case OrdinaryPart ordinary:
-                return TryEncodeTokens(ordinary.Tokens, delimiter, ordinary: true, builder, out fault);
+                return TryEncodeTokens(ordinary.Tokens, delimiter, ordinary: true, recordLeading, builder, out fault);
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(component));
@@ -314,6 +325,7 @@ public static class NamespaceEncoder
         ImmutableArray<NameToken> tokens,
         string delimiter,
         bool ordinary,
+        bool recordLeading,
         StringBuilder builder,
         out EncodingFault fault)
     {
@@ -334,6 +346,7 @@ public static class NamespaceEncoder
                             literal.Text,
                             delimiter,
                             marker: ordinary && t == 0,
+                            recordLeading,
                             builder,
                             out fault))
                     {
@@ -354,6 +367,7 @@ public static class NamespaceEncoder
         string literal,
         string delimiter,
         bool marker,
+        bool recordLeading,
         StringBuilder builder,
         out EncodingFault fault)
     {
@@ -426,7 +440,7 @@ public static class NamespaceEncoder
 
             // Section 19.1: "could begin a physical record" means everything emitted before it in
             // this record is spaces and tabs.
-            if (scalar is '!' or '#' && AllSpacesAndTabs(builder))
+            if (recordLeading && scalar is '!' or '#' && AllSpacesAndTabs(builder))
             {
                 builder.Append('\\').Append((char)scalar);
                 index += width;

@@ -23,16 +23,20 @@ public sealed class NamespaceEncoderTests
 
     private static OrdinaryPart Ordinary(params NameToken[] tokens) => new([.. tokens]);
 
-    private static string Encode(QualifiedName name, string delimiter = ".")
+    private static string Encode(
+        QualifiedName name,
+        string delimiter = ".",
+        bool recordLeading = true)
     {
-        NamespaceEncoder.TryEncodeName(name, delimiter, out var text, out var fault)
+        NamespaceEncoder.TryEncodeName(name, delimiter, recordLeading, out var text, out var fault)
             .ShouldBeTrue(fault.Message);
         return text!;
     }
 
     private static EncodingFault EncodeFault(QualifiedName name, string delimiter = ".")
     {
-        NamespaceEncoder.TryEncodeName(name, delimiter, out _, out var fault).ShouldBeFalse();
+        NamespaceEncoder.TryEncodeName(name, delimiter, recordLeading: true, out _, out var fault)
+            .ShouldBeFalse();
         return fault;
     }
 
@@ -366,6 +370,26 @@ public sealed class NamespaceEncoderTests
     public void AReferenceToANameContainingABraceEscapesIt() =>
         EncodeValue(new ReferenceToken(Name(Ordinary("a}b")))).ShouldBe("${a\\}b}");
 
+    // Section 19.1 line "For record-leading escaping ... all emitted text preceding it in that
+    // record consists only of spaces and tabs". A reference is preceded by a name, '=' and '${',
+    // so the Section 5 mask marker has no meaning there and is not escaped.
+
+    [Test]
+    public void AMaskMarkerIsEscapedWhereItCouldBeginARecord() =>
+        Encode(Name(Ordinary("!a"))).ShouldBe("\\!a");
+
+    [Test]
+    public void AMaskMarkerInsideAReferenceIsNotEscaped() =>
+        EncodeValue(new ReferenceToken(Name(Ordinary("!a")))).ShouldBe("${!a}");
+
+    // Section 19.1: a leading '#' on an ordinary component is escaped for a second, unconditional
+    // reason - Section 8.2 makes marker recognition commit - so it stays escaped inside a
+    // reference even though the record-leading rule does not apply there.
+
+    [Test]
+    public void ACommentMarkerInsideAReferenceIsStillEscaped() =>
+        EncodeValue(new ReferenceToken(Name(Ordinary("#a")))).ShouldBe("${\\#a}");
+
     [Test]
     public void AnEmptyValueEmitsNothing() =>
         EncodeValue().ShouldBe(string.Empty);
@@ -532,7 +556,7 @@ public sealed class NamespaceEncoderTests
 
             var name = new QualifiedName(parts.ToImmutable());
 
-            if (!NamespaceEncoder.TryEncodeName(name, ".", out var spelling, out _))
+            if (!NamespaceEncoder.TryEncodeName(name, ".", recordLeading: true, out var spelling, out _))
             {
                 continue;
             }

@@ -140,8 +140,14 @@ public sealed partial class FlatKeyProjector
         switch (format)
         {
             case FlatFormat.Namespace:
+                // A namespace key begins its physical record, so Section 19.1's leading '!' and
+                // '#' escape applies.
                 if (!NamespaceEncoder.TryEncodeName(
-                        new QualifiedName(entry.Path), delimiter, out var encoded, out var fault))
+                        new QualifiedName(entry.Path),
+                        delimiter,
+                        recordLeading: true,
+                        out var encoded,
+                        out var fault))
                 {
                     ReportUnspellable(entry, fault.Message);
                     return false;
