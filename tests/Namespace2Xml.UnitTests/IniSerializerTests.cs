@@ -392,4 +392,37 @@ public class IniSerializerTests
         options.TryValidate(out var contradiction).ShouldBeTrue();
         contradiction.ShouldBeNull();
     }
+    /// <summary>
+    /// Section 19.6: "sections follow their mapping order under Section 5.2, which for a section is
+    /// the position of its first key in the emission order of Section 19.1", and Section 19.6
+    /// states the consequence that a nested section precedes its parent when the parent's own keys
+    /// come later.
+    /// </summary>
+    [Test]
+    public void ASectionTakesThePositionOfItsFirstKey()
+    {
+        var ini = Serialize(
+            IniOutputOptions.None,
+            Entry("a.p.x", "1"),
+            Entry("a.q", "2"),
+            Entry("b.y", "3"));
+
+        ini.ShouldBe("[a:p]\nx=1\n[a]\nq=2\n[b]\ny=3\n");
+    }
+
+    /// <summary>
+    /// Section 19.6: "Within each block the entries keep the Section 19.1 order they arrived in",
+    /// so a section interrupted by another section is written once with its keys in arrival order.
+    /// </summary>
+    [Test]
+    public void ASectionIsWrittenOnceWithEveryKeyItOwns()
+    {
+        var ini = Serialize(
+            IniOutputOptions.None,
+            Entry("a.x", "1"),
+            Entry("b.y", "2"),
+            Entry("a.z", "3"));
+
+        ini.ShouldBe("[a]\nx=1\nz=3\n[b]\ny=2\n");
+    }
 }

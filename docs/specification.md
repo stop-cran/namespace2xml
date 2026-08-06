@@ -2377,7 +2377,7 @@ INI output targets a conservative interoperable subset:
 - one key per line;
 - all global keys are emitted in one preamble before the first section;
 - global keys preserve their winning source order;
-- sections follow their mapping order under Section 5.2; a section with no direct keys is not emitted;
+- sections follow their mapping order under Section 5.2, which for a section is the position of its first key in the emission order of Section 19.1; a section with no direct keys is not emitted;
 - hoisting global keys ahead of sections is a format projection and does not change value precedence;
 - no duplicate keys after merge;
 - configured nested-section delimiter;
@@ -2403,6 +2403,8 @@ Path projection is normative:
 A null payload emits the text `null`, as in Section 19.1. `PortableIni1` has no null literal, and an empty value is a legal empty string, so spelling null as an empty value would write two distinct payloads as one line.
 
 An overlay may emit both a scalar INI key and descendant sections when their projected identities are distinct. For example, a scalar at `a.x` and a descendant at `a.x.z` may emit key `x` in section `[a]` and key `z` in section `[a:x]`. No shape warning is emitted merely because one logical path supplies both projections. A genuine post-projection key or section collision is blocking `FLAT001`.
+
+A section is a projection of a path prefix and not a node, so mapping order does not by itself place a section relative to a section nested beneath it. The order above resolves that: a section takes the position of its first key. The consequence is that a nested section precedes its parent whenever the parent's own keys come later in mapping order, as they do when a container child is declared before a scalar sibling. This is deliberate. INI output is a projection of the Section 19.1 emission stream, and every rule in this section is a function of that stream alone; ordering sections by the tree position of their prefix would require the INI writer to consult structure the projection has already discarded, and INI readers do not ascribe meaning to section order.
 
 With `root=x.y`, former global keys are emitted inside section `[x:y]`; `root` parts are section-path parts rather than part of the key text.
 

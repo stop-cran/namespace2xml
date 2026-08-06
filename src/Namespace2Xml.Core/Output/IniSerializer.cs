@@ -13,8 +13,14 @@ namespace Namespace2Xml.Output;
 /// precedence". Within each block the entries keep the Section 19.1 order they arrived in.
 /// </para>
 /// <para>
-/// Sections are emitted in first-appearance order, which is their Section 5.2 mapping order given
-/// that the projection already visits mappings in that order.
+/// Sections are emitted at the position of their first key, which is what Section 19.6 defines
+/// mapping order to mean for a section. A section is a projection of a path prefix and not a node,
+/// so nothing else about it is an order; Section 19.6 states the consequence that a nested section
+/// precedes its parent when the parent's own keys come later.
+/// </para>
+/// <para>
+/// The grouping is built in one pass. Selecting each section's entries by rescanning the whole
+/// sequence would cost the product of the two counts, and both are unbounded.
 /// </para>
 /// </remarks>
 public sealed class IniSerializer
@@ -59,19 +65,35 @@ public sealed class IniSerializer
             ReportDiscardedComments();
         }
 
-        foreach (var keyed in ordered.Where(entry => entry.Section.Length == 0))
+        var globals = new List<FlatKeyedEntry>();
+        var sections = new List<string>();
+        var bySection = new Dictionary<string, List<FlatKeyedEntry>>(StringComparer.Ordinal);
+
+        foreach (var keyed in ordered)
+        {
+            if (keyed.Section.Length == 0)
+            {
+                globals.Add(keyed);
+                continue;
+            }
+
+            if (!bySection.TryGetValue(keyed.Section, out var members))
+            {
+                members = [];
+                bySection.Add(keyed.Section, members);
+                sections.Add(keyed.Section);
+            }
+
+            members.Add(keyed);
+        }
+
+        foreach (var keyed in globals)
         {
             if (!TryWriteEntry(keyed, marker, writer))
             {
                 return false;
             }
         }
-
-        // Distinct preserves first-appearance order, which Section 19.6 requires of sections.
-        var sections = ordered
-            .Where(entry => entry.Section.Length > 0)
-            .Select(entry => entry.Section)
-            .Distinct(StringComparer.Ordinal);
 
         foreach (var section in sections)
         {
@@ -80,8 +102,7 @@ public sealed class IniSerializer
                 return false;
             }
 
-            foreach (var keyed in ordered.Where(entry =>
-                string.Equals(entry.Section, section, StringComparison.Ordinal)))
+            foreach (var keyed in bySection[section])
             {
                 if (!TryWriteEntry(keyed, marker, writer))
                 {
