@@ -1,0 +1,7 @@
+[
+{"code":"INI001","severity":"error","phase":"planning","path":"q","destination":"zzz.ini","spec":"§19.6","message":"a value beginning with ';' reads back as a comment, so Section 19.6 requires 'QuoteValues'."},
+{"code":"INI001","severity":"error","phase":"planning","path":"x.a","destination":"app.ini","spec":"§19.6","message":"a value beginning with ';' reads back as a comment, so Section 19.6 requires 'QuoteValues'."},
+{"code":"INI001","severity":"error","phase":"planning","path":"x.b","destination":"app.ini","spec":"§19.6","message":"a value beginning with ';' reads back as a comment, so Section 19.6 requires 'QuoteValues'."},
+{"code":"INI001","severity":"error","phase":"planning","path":"a","destination":"app.x.ini","spec":"§19.6","message":"a value beginning with ';' reads back as a comment, so Section 19.6 requires 'QuoteValues'."},
+{"code":"INI001","severity":"error","phase":"planning","path":"b","destination":"app.x.ini","spec":"§19.6","message":"a value beginning with ';' reads back as a comment, so Section 19.6 requires 'QuoteValues'."}
+]

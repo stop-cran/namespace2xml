@@ -52,6 +52,19 @@ public sealed class IniSerializer
     /// Whether the whole output was written. A false result means either a reported <c>INI001</c>
     /// or a budget crossing the caller reads from the writer's fault.
     /// </returns>
+    /// <remarks>
+    /// An unrepresentable value does not end the pass. Section 15.4 requires a phase to complete
+    /// "every independent check that does not depend on a failed result", and one value's failure
+    /// tells you nothing about the next one's, so every entry is checked and Section 22's "once
+    /// per path and output instance" can actually be reached. That cardinality is what
+    /// distinguishes <c>INI001</c> from <c>SERIALIZE001</c>'s "once per output instance"; a
+    /// serializer that stopped at the first offending value would make the distinction empty and
+    /// would report one of an author's mistakes per run.
+    ///
+    /// A budget fault is not like that. It is a property of the buffer rather than of an entry,
+    /// nothing written after it can succeed, and continuing would report a limit repeatedly. So
+    /// the writer's fault still ends the pass immediately.
+    /// </remarks>
     public bool TrySerialize(IEnumerable<FlatKeyedEntry> entries, OutputBufferWriter writer)
     {
         ArgumentNullException.ThrowIfNull(entries);
@@ -87,11 +100,18 @@ public sealed class IniSerializer
             members.Add(keyed);
         }
 
+        var complete = true;
+
         foreach (var keyed in globals)
         {
             if (!TryWriteEntry(keyed, marker, writer))
             {
-                return false;
+                complete = false;
+
+                if (writer.Fault is not null)
+                {
+                    return false;
+                }
             }
         }
 
@@ -106,12 +126,17 @@ public sealed class IniSerializer
             {
                 if (!TryWriteEntry(keyed, marker, writer))
                 {
-                    return false;
+                    complete = false;
+
+                    if (writer.Fault is not null)
+                    {
+                        return false;
+                    }
                 }
             }
         }
 
-        return true;
+        return complete;
     }
 
     private bool TryWriteEntry(FlatKeyedEntry keyed, char? marker, OutputBufferWriter writer)

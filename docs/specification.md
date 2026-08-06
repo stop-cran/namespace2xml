@@ -2706,6 +2706,8 @@ A diagnostic's ordering key is the Section 4.7 stable ordering key of the item i
 
 Within any one of those three groups, remaining ties are broken by diagnostic code compared as unsigned UTF-8 bytes, then by qualified path compared as unsigned UTF-8 bytes, with an absent path sorting before any present path. The Section 22 cardinalities leave no further tie to break: two occurrences agreeing on phase, ordering key, destination, code, and path are one occurrence.
 
+A diagnostic whose Section 22 cardinality counts per output instance carries a destination and no source ordering key, and is therefore ordered by group 2 even when the condition it reports is visible at one item. Section 14.1 lets nested output declarations select overlapping data, so one item can reach several destinations and fail in each; keying those occurrences at the item would make them tie on phase, ordering key and code, leaving only the qualified path to separate them. That path is expressed in the output's own frame — it is the path after `root`, `key` and the instance's prefix filtering — so it is not a source coordinate and comparing it across two destinations orders nothing meaningful. It can also invert Section 21.3: an item reported as `k` in the second destination written would precede the same item reported as `x.k` in the first. Grouping such diagnostics by destination in publication order keeps each output's report contiguous and in the order the outputs are produced.
+
 Results must not depend on:
 
 - thread scheduling;

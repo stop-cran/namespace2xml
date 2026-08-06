@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r29+3df3f706dbbc`.**
+**Contract bundle `r30+35e144372ca0`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (14)
+## Deliberate differences (15)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -188,6 +188,24 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   `contract-bundle` revision and the specification and registry digests it covers.
 - The difference is intentional: a defect report must be able to name the exact contract the
   observed behavior was measured against, which the legacy banner cannot express.
+
+### `cross-destination-diagnostic-order`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 24, 21.3, 17.5 and 19.6.
+- Legacy observation: diagnostic order was an artifact of evaluation order, so a run that
+  diagnosed several output files reported them in whatever order the work happened to complete.
+- Clean behavior: a diagnostic whose Section 22 cardinality counts per output instance carries a
+  destination and no source ordering key. Section 24 therefore orders it in group 2, by the
+  Section 21.3 destination order, which is the minimum Section 17.5 fold key -- output-declaration
+  source order first, canonical path only as a later tie-break.
+- Why the case is shaped this way: Section 14.1 lets nested output declarations select overlapping
+  data, so `app.x.a` fails in both `app.ini` (as `x.a`) and `app.x.ini` (as `a`). Keying those two
+  occurrences at the item they share would make them tie on phase, ordering key and code, leaving
+  only a path expressed in each output's own frame to separate them -- which would report `a`
+  before `x.a` and so invert the order the files are written in. The declaration order here is
+  `zzz`, `app`, `app.x`, while the canonical paths sort `app.ini`, `app.x.ini`, `zzz.ini`; the two
+  disagree, so the expected stream distinguishes the fold key from the path.
 
 ### `ini-projection-and-section-order`
 
