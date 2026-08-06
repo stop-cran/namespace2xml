@@ -7,11 +7,30 @@
     Specification Section 24 requires byte-identical output for identical inputs, on every
     supported platform, and Appendix C.7 extends that to structured diagnostics. This script runs
     each conformance case in both argument vectors, and emits a stable, ordinally sorted listing
-    of exit code, standard output digest, standard error digest and destination digests.
+    of exit code, standard output digest, standard error measurement and destination digests.
 
-    A dual-model review found the previous version discarding both streams, so the listing carried
+    A dual-model review found an earlier version discarding both streams, so the listing carried
     nothing but exit codes and the cross-platform gate compared six integers. Everything the
-    specification calls contractual is hashed here, or the gate proves nothing.
+    specification calls contractual is measured here, or the gate proves nothing.
+
+    What Section 24 calls contractual about the diagnostic stream is narrower than its bytes:
+    "Diagnostic codes, severities, structured fields, and ordering must be identical; localized
+    human-readable prose may differ", and Section 6.4.2 says of the text encoding that "Prose is
+    localizable and is not part of byte-identical determinism". Hashing standard error verbatim
+    therefore asserts more than the contract, and a conforming tool fails it: Section 7.2 requires
+    a missing input's warning to name its *resolved* path, which is host-absolute and can never
+    agree between a Linux, a macOS and a Windows runner. That is exactly how this gate first went
+    red. So:
+
+    - under the json vector, standard error is projected to its structured members with 'message'
+      removed, canonicalised, and hashed. That projection is precisely Section 24's contractual
+      set, and Section 6.4 guarantees the encoding switch "never changes which diagnostics occur,
+      their fields, their cardinality, their order";
+    - under the text vector, standard error is prose end to end and Section 6.4.2 places it
+      outside byte-identical determinism, so only its presence is recorded.
+
+    A gate must not be stronger than the contract it enforces. One that is will be silenced by
+    whoever meets it next, and the honest half goes with it.
 
     Path separators are normalised to '/' because the destination *names* are contractual but
     the host's separator is not. Sorting is ordinal because Sort-Object collates by the current
@@ -56,6 +75,77 @@ function Get-Digest([byte[]] $bytes) {
     $sha = [Security.Cryptography.SHA256]::Create()
     try { return [Convert]::ToHexString($sha.ComputeHash($bytes)).ToLowerInvariant() }
     finally { $sha.Dispose() }
+}
+
+# Renders one JSON value in a form that depends only on the value, not on the writer: object
+# members in ordinal key order, arrays in their given order because Section 24 makes diagnostic
+# order contractual, numbers and strings by their raw source text. Written here rather than with
+# ConvertTo-Json because that cmdlet neither fixes member order nor round-trips numeric text.
+function Write-Canonical([Text.StringBuilder] $builder, $element, [string[]] $drop) {
+    switch ($element.ValueKind) {
+        'Object' {
+            $names = [string[]] ($element.EnumerateObject() |
+                ForEach-Object { $_.Name } |
+                Where-Object { $drop -notcontains $_ })
+            [Array]::Sort($names, [StringComparer]::Ordinal)
+            [void] $builder.Append('{')
+            for ($i = 0; $i -lt $names.Length; $i++) {
+                if ($i -gt 0) { [void] $builder.Append(',') }
+                [void] $builder.Append(($names[$i] | ConvertTo-Json -Compress)).Append(':')
+                Write-Canonical $builder $element.GetProperty($names[$i]) @()
+            }
+            [void] $builder.Append('}')
+        }
+        'Array' {
+            [void] $builder.Append('[')
+            $first = $true
+            foreach ($item in $element.EnumerateArray()) {
+                if (-not $first) { [void] $builder.Append(',') }
+                $first = $false
+                Write-Canonical $builder $item $drop
+            }
+            [void] $builder.Append(']')
+        }
+        default { [void] $builder.Append($element.GetRawText()) }
+    }
+}
+
+# Section 24's contractual view of the diagnostic stream: every structured member, in a fixed
+# order, with the localizable prose removed. A stream that loses a diagnostic, reorders two, or
+# changes any field still moves this digest; only the wording is free.
+function Get-DiagnosticStructureDigest([byte[]] $stderr) {
+    if ($stderr.Length -eq 0) { return 'empty' }
+
+    try { $document = [Text.Json.JsonDocument]::Parse([Text.Encoding]::UTF8.GetString($stderr)) }
+    catch { throw "standard error is not the single JSON array Section 6.4.3 requires: $($_.Exception.Message)" }
+
+    try {
+        $builder = [Text.StringBuilder]::new()
+        Write-Canonical $builder $document.RootElement @('message')
+        return Get-Digest ([Text.Encoding]::UTF8.GetBytes($builder.ToString()))
+    }
+    finally { $document.Dispose() }
+}
+
+# Section 6.4.1's pre-scan, which decides the encoding of standard error before any other
+# argument is validated. Applied here rather than keying off the vector's label, because a case
+# may name --diagnostics-format in args.txt, and args-diagnostics.txt may resolve to text.
+function Resolve-DiagnosticsEncoding([string[]] $arguments) {
+    $value = $null
+    for ($i = 0; $i -lt $arguments.Count; $i++) {
+        $token = $arguments[$i]
+        if ($token -eq '--') { break }
+        if ($token -eq '--diagnostics-format') {
+            if ($i + 1 -lt $arguments.Count -and $arguments[$i + 1] -ne '--') { $value = $arguments[$i + 1] }
+            else { $value = $null }
+        }
+        elseif ($token.StartsWith('--diagnostics-format=')) {
+            $value = $token.Substring('--diagnostics-format='.Length)
+        }
+    }
+
+    if ($null -ne $value -and [string]::Equals($value, 'json', 'OrdinalIgnoreCase')) { return 'json' }
+    return 'text'
 }
 
 function Invoke-Tool([string] $workingDirectory, [string[]] $arguments) {
@@ -122,7 +212,16 @@ try {
 
             $lines.Add(("{0}`t{1}`texit`t{2}" -f $name, $vector.Label, $result.ExitCode))
             $lines.Add(("{0}`t{1}`tstdout`t{2}" -f $name, $vector.Label, (Get-Digest $result.StandardOutput)))
-            $lines.Add(("{0}`t{1}`tstderr`t{2}" -f $name, $vector.Label, (Get-Digest $result.StandardError)))
+
+            $encoding = Resolve-DiagnosticsEncoding ([string[]] $vector.Arguments)
+            $stderr = if ($encoding -eq 'json') {
+                Get-DiagnosticStructureDigest $result.StandardError
+            } elseif ($result.StandardError.Length -eq 0) {
+                'empty'
+            } else {
+                'present'
+            }
+            $lines.Add(("{0}`t{1}`tstderr-{2}`t{3}" -f $name, $vector.Label, $encoding, $stderr))
 
             foreach ($file in Get-ChildItem -Path $work -Recurse -File) {
                 $relative = $file.FullName.Substring($work.Length + 1) -replace '\\', '/'
