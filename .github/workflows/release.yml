@@ -74,6 +74,31 @@ jobs:
           grep -q "^version: ${version}$" /tmp/version.txt
           grep -q '^contract-bundle: ' /tmp/version.txt
 
+      - name: Every link the tool prints must resolve, and to these bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          # --version and --help are the tool's discovery surface, and for an automated caller
+          # they are the only one. A link that 404s turns "here is the contract" into a dead end
+          # that nobody notices until someone follows it. The links are pinned to this tag, so
+          # they can be checked now and can never drift afterwards.
+          /tmp/n2x/namespace2xml --help > /tmp/help.txt
+          urls=$(cat /tmp/version.txt /tmp/help.txt | grep -oE 'https://github\.com/[^ ]+' | sort -u)
+          test -n "$urls"
+          for url in $urls; do
+            echo "checking $url"
+            curl -fsSL -o /dev/null "$url"
+          done
+          # The reported hash must be the hash of the bytes the reported link serves, or a report
+          # naming that revision cannot be resolved to anything.
+          raw="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}/docs/specification.md"
+          declared=$(grep '^specification-sha256: ' /tmp/version.txt | cut -d' ' -f2)
+          served=$(curl -fsSL "$raw" | sha256sum | cut -d' ' -f1)
+          if [ "$declared" != "$served" ]; then
+            echo "::error::--version reports $declared but $raw hashes to $served"
+            exit 1
+          fi
+
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: 'artifacts/*.nupkg'

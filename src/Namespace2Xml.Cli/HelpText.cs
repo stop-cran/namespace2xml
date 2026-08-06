@@ -9,10 +9,25 @@ namespace Namespace2Xml.Cli;
 internal static class HelpText
 {
     internal const string RepositoryUrl = "https://github.com/stop-cran/namespace2xml";
-    internal const string SpecificationUrl = RepositoryUrl + "/blob/master/docs/specification.md";
-    internal const string DiagnosticsUrl = RepositoryUrl + "/blob/master/docs/diagnostics.md";
+    internal static readonly string SpecificationUrl = DocumentUrl("docs/specification.md");
+    internal static readonly string DiagnosticsUrl = DocumentUrl("docs/diagnostics.md");
     internal const string ReportUrl = RepositoryUrl + "/issues/new/choose";
-    internal const string AgentGuideUrl = RepositoryUrl + "/blob/master/AGENTS.md";
+    internal static readonly string AgentGuideUrl = DocumentUrl("AGENTS.md");
+
+    /// <summary>
+    /// A link to a document as it stood in the release being run, rather than on a branch.
+    /// </summary>
+    /// <remarks>
+    /// <c>--version</c> reports <c>specification-sha256</c> so a report can name the contract it
+    /// was filed against. A link to a moving branch defeats that: the reader follows it and gets
+    /// whatever the specification says today, which may not be the bytes this binary implements
+    /// or hashes to. Releases are tagged <c>v&lt;version&gt;</c> and the release workflow refuses
+    /// a tag that disagrees with the built version, so this URL resolves to exactly those bytes.
+    /// A build from an untagged working tree has no such tag and its links will not resolve; that
+    /// build is not published, and pointing it at a branch instead would only hide the difference.
+    /// </remarks>
+    private static string DocumentUrl(string path) =>
+        $"{RepositoryUrl}/blob/v{ContractBundle.ProductVersion}/{path}";
 
     internal static string Render() =>
         $"""
