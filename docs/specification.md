@@ -2270,6 +2270,8 @@ This preserves spaces, `$`, backticks, double quotes, backslashes, exclamation m
 
 NUL is not representable and is an error.
 
+A null payload emits the text `null`, as in Section 19.1. Quoted namespace is namespace output under shell quoting rather than a different value model, so a consumer reading `NAME='null'` learns what a namespace consumer reading `name=null` learns. Emitting an empty assignment instead would make null indistinguishable from the empty string, which is a different payload.
+
 When the selected output root is a bare scalar, quoted namespace retains the final concrete selector part as the assignment name. `root` may rename or wrap it.
 
 ### 19.3 JSON
@@ -2383,6 +2385,8 @@ Path projection is normative:
 - for a path with two or more parts, the final part is the key and every preceding part is joined with the configured INI delimiter to form the section name;
 - container-only paths do not emit keys;
 - `root` is applied before this section/key split.
+
+A null payload emits the text `null`, as in Section 19.1. `PortableIni1` has no null literal, and an empty value is a legal empty string, so spelling null as an empty value would write two distinct payloads as one line.
 
 An overlay may emit both a scalar INI key and descendant sections when their projected identities are distinct. For example, a scalar at `a.x` and a descendant at `a.x.z` may emit key `x` in section `[a]` and key `z` in section `[a:x]`. No shape warning is emitted merely because one logical path supplies both projections. A genuine post-projection key or section collision is blocking `FLAT001`.
 
