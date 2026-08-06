@@ -1,0 +1,259 @@
+using Namespace2Xml.Diagnostics;
+using Namespace2Xml.Pipeline;
+
+namespace Namespace2Xml.Output;
+
+/// <summary>Pipeline step 20: Section 21.3 direct publication.</summary>
+/// <remarks>
+/// <para>
+/// Section 21.2 has already completed: every buffer here is finished and immutable. That is the
+/// whole guarantee this tool offers — "all semantic work and serialization complete before the
+/// first destination is opened" — and it is why this class never computes anything, only writes.
+/// </para>
+/// <para>
+/// Section 21.3 attempts no rollback: "files already completed remain updated; the failing
+/// destination may be partial; later destinations remain untouched". Publication therefore stops
+/// at the first failure rather than continuing, so the untouched tail stays untouched.
+/// </para>
+/// </remarks>
+public sealed class Publisher
+{
+    private readonly string outputRoot;
+    private readonly DiagnosticBuffer diagnostics;
+    private readonly IPublicationSink sink;
+
+    /// <summary>Creates a publisher.</summary>
+    /// <param name="outputRoot">The configured <c>--output</c> root.</param>
+    /// <param name="diagnostics">The buffer publication faults accumulate in.</param>
+    /// <param name="sink">The filesystem, or a test double standing in for it.</param>
+    public Publisher(string outputRoot, DiagnosticBuffer diagnostics, IPublicationSink? sink = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(outputRoot);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        this.outputRoot = outputRoot;
+        this.diagnostics = diagnostics;
+        this.sink = sink ?? new FileSystemPublicationSink();
+    }
+
+    /// <summary>Publishes every planned output.</summary>
+    /// <param name="outputs">The planned outputs, in any order.</param>
+    /// <returns>Whether every destination was written.</returns>
+    public bool TryPublish(IEnumerable<PlannedOutput> outputs)
+    {
+        ArgumentNullException.ThrowIfNull(outputs);
+
+        var ordered = PlannedOutput.InPublicationOrder(outputs);
+
+        // Section 21.1: "a zero-destination plan does not create it", so an invocation that plans
+        // nothing leaves no trace at all rather than an empty directory.
+        if (ordered.IsEmpty)
+        {
+            return true;
+        }
+
+        var created = new HashSet<string>(StringComparer.Ordinal);
+
+        if (!TryCreateDirectory(string.Empty, created, null))
+        {
+            return false;
+        }
+
+        foreach (var output in ordered)
+        {
+            if (!TryPublishOne(output, created))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool TryPublishOne(PlannedOutput output, HashSet<string> created)
+    {
+        var segments = output.Path.Canonical.Split('/');
+
+        // Section 21.3 creates "each destination's missing parent directories immediately before
+        // that destination, ancestor first": immediately before, so a failure leaves no directories
+        // for destinations that were never reached.
+        for (var i = 1; i < segments.Length; i++)
+        {
+            if (!TryCreateDirectory(string.Join('/', segments.Take(i)), created, output))
+            {
+                return false;
+            }
+        }
+
+        try
+        {
+            sink.Write(outputRoot, output.Path.Canonical, output.Buffer);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            ReportWriteFailure(output, e.Message);
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool TryCreateDirectory(string relative, HashSet<string> created, PlannedOutput? output)
+    {
+        if (!created.Add(relative))
+        {
+            return true;
+        }
+
+        try
+        {
+            sink.CreateDirectory(outputRoot, relative);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            ReportDirectoryFailure(relative, output, e.Message);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ReportWriteFailure(PlannedOutput output, string message) =>
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Path002(
+                DiagnosticPhase.Publication,
+                "\u00A721.3",
+                $"the destination '{output.Path}' could not be written: {message}",
+                cardinalityKey: output.Path.Canonical,
+                destination: output.Path.Canonical)));
+
+    private void ReportDirectoryFailure(string relative, PlannedOutput? output, string message)
+    {
+        var named = relative.Length == 0 ? "the output root" : $"the directory '{relative}'";
+        var destination = output?.Path.Canonical;
+
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Path002(
+                DiagnosticPhase.Publication,
+                "\u00A721.3",
+                $"{named} could not be created: {message}",
+                cardinalityKey: destination ?? relative,
+                destination: destination)));
+    }
+}
+
+/// <summary>The filesystem operations Section 21.3 publication needs.</summary>
+/// <remarks>
+/// Publication is the one step whose correctness cannot be observed from its return value alone, so
+/// it is expressed against an interface a test can watch. The order of the calls is the contract.
+/// </remarks>
+public interface IPublicationSink
+{
+    /// <summary>Creates one directory, if it does not already exist.</summary>
+    /// <param name="root">The configured output root.</param>
+    /// <param name="relative">The canonical relative directory, empty for the root itself.</param>
+    void CreateDirectory(string root, string relative);
+
+    /// <summary>Creates or truncates one destination, writes it, flushes it, and closes it.</summary>
+    /// <param name="root">The configured output root.</param>
+    /// <param name="relative">The canonical relative destination path.</param>
+    /// <param name="buffer">The complete buffer.</param>
+    void Write(string root, string relative, OutputBuffer buffer);
+}
+
+/// <summary>The real filesystem.</summary>
+internal sealed class FileSystemPublicationSink : IPublicationSink
+{
+    public void CreateDirectory(string root, string relative)
+    {
+        var path = Resolve(root, relative);
+
+        Directory.CreateDirectory(path);
+        VerifyContainment(root, path);
+    }
+
+    public void Write(string root, string relative, OutputBuffer buffer)
+    {
+        var path = Resolve(root, relative);
+
+        VerifyContainment(root, Path.GetDirectoryName(path)!);
+        RefuseLinkDestination(path);
+
+        // Section 21.3: created or truncated "only after its complete byte buffer exists", then
+        // flushed and closed "before beginning the next one". Disposing the stream here, rather
+        // than at the end of publication, is what makes the next destination's write independent
+        // of this one.
+        using var stream = new FileStream(
+            path,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 0,
+            FileOptions.None);
+
+        buffer.WriteTo(stream);
+        stream.Flush(flushToDisk: false);
+    }
+
+    private static string Resolve(string root, string relative) =>
+        relative.Length == 0
+            ? Path.GetFullPath(root)
+            : Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+
+    /// <summary>
+    /// Section 21.1: "verify symbolic-link, junction, and reparse-point containment when opening
+    /// each destination".
+    /// </summary>
+    /// <remarks>
+    /// Syntactic validation cannot see a link, so a directory that was inside the root when its
+    /// name was checked can still resolve outside it. The final target is resolved and compared
+    /// again here, immediately before the write that would otherwise escape.
+    /// </remarks>
+    private static void VerifyContainment(string root, string path)
+    {
+        var realRoot = RealPath(new DirectoryInfo(root));
+        var realPath = RealPath(new DirectoryInfo(path));
+
+        if (realPath.Equals(realRoot, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var prefix = realRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? realRoot
+            : realRoot + Path.DirectorySeparatorChar;
+
+        if (!realPath.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            throw new IOException(
+                $"'{path}' resolves to '{realPath}', which is outside the output root '{realRoot}'.");
+        }
+    }
+
+    /// <summary>
+    /// Section 21.1: open destinations "through handle-relative or equivalent no-follow filesystem
+    /// operations".
+    /// </summary>
+    /// <remarks>
+    /// Verifying the parent directory is not enough, because the link can be the destination itself.
+    /// <see cref="FileMode.Create"/> follows a link and writes to its target, and a dangling link
+    /// creates that target, so the escape needs no existing file outside the root. .NET exposes no
+    /// no-follow open, so a destination that is a link is refused rather than followed: replacing it
+    /// would change filesystem state Section 21.3 does not authorize this run to change.
+    /// </remarks>
+    private static void RefuseLinkDestination(string path)
+    {
+        if (new FileInfo(path).LinkTarget is { } target)
+        {
+            throw new IOException(
+                $"the destination is a link to '{target}', and Section 21.1 requires opening "
+                + "destinations without following links.");
+        }
+    }
+
+    private static string RealPath(DirectoryInfo directory) =>
+        Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(
+                directory.ResolveLinkTarget(returnFinalTarget: true)?.FullName
+                ?? directory.FullName));
+}
