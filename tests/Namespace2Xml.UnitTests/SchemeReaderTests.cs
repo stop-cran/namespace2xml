@@ -320,4 +320,61 @@ public class SchemeReaderTests
         warnings.Length.ShouldBe(2);
         warnings.Select(warning => warning.Line).ShouldBe([1, 3]);
     }
+    /// <summary>
+    /// Reads one document through a buffer of its own and returns the single diagnostic it earned.
+    /// </summary>
+    /// <remarks>
+    /// <c>Only</c> shares one buffer across every call in a test, and these codes carry a
+    /// cardinality key scoped to the source, so two calls comparing two documents would find the
+    /// second deduplicated away and compare a diagnostic with itself.
+    /// </remarks>
+    private static Diagnostic Isolated(string document)
+    {
+        var buffer = new DiagnosticBuffer();
+        SchemeReader.Read(Records(document), 2, "s.properties", buffer);
+
+        return buffer.Drain().ShouldHaveSingleItem();
+    }
+
+    /// <summary>
+    /// Section 22: "a character outside the Basic Multilingual Plane occupies one column". The
+    /// codes a malformed name or value earns do not change because it was written in a scheme, and
+    /// neither does the unit its column is counted in.
+    /// </summary>
+    /// <remarks>
+    /// Asserted as an equality between two declarations differing only in one scalar, because
+    /// Section 22 fixes the unit a column is counted in and not where within the malformed text the
+    /// lexer points. U+1D11E is two UTF-16 code units and 'x' is one, so a column counted in code
+    /// units differs by one.
+    /// </remarks>
+    [Test]
+    public void AnAstralScalarInASchemeSelectorOccupiesOneColumn()
+    {
+        var astral = Isolated("a\U0001D11E.*[].output=v");
+        var basicPlane = Isolated("ax.*[].output=v");
+
+        astral.Column.ShouldBe(basicPlane.Column);
+    }
+
+    /// <summary>Section 22, for a scalar within a selector that lexes.</summary>
+    [Test]
+    public void AnAstralScalarInASchemeSelectorDoesNotWidenTheValueColumn()
+    {
+        var astral = Isolated("a\U0001D11Eb.output=${c");
+        var basicPlane = Isolated("axb.output=${c");
+
+        astral.Code.ShouldBe("REFERENCE001");
+        astral.Column.ShouldBe(basicPlane.Column);
+    }
+
+    /// <summary>Section 22, for a scalar preceding the fault within a scheme directive's value.</summary>
+    [Test]
+    public void AnAstralScalarBeforeASchemeValueFaultOccupiesOneColumn()
+    {
+        var astral = Isolated("a.output=\U0001D11E${c");
+        var basicPlane = Isolated("a.output=x${c");
+
+        astral.Code.ShouldBe("REFERENCE001");
+        astral.Column.ShouldBe(basicPlane.Column);
+    }
 }
