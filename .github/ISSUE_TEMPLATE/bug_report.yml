@@ -1,0 +1,94 @@
+name: Bug report
+description: The code should have matched the specification.
+title: "[bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Is this the right form?** Ask one question: *what would have to change so this never
+        surprises anyone again?*
+
+        - The code should have matched the specification → **you are in the right place**
+        - The specification doesn't say, says two things, or says something surprising → use
+          [Specification ambiguity](?template=spec_ambiguity.yml) instead
+        - Both are right and you couldn't work out how to do it → use
+          [Usage gap](?template=usage_gap.yml) instead
+
+        Routing matters here. A specification gap filed as a bug gets patched in code and the
+        contract silently rots — which is exactly what this project is built to prevent.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The `contract-bundle` line from `namespace2xml --version`. A report against an unknown contract revision cannot be acted on.
+      placeholder: "contract-bundle: r2+0654ebfa8b7a"
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed
+      description: Verbatim output. Redact secrets. If you are reconstructing from memory, say so.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: In your own words. Do not guess — if you are not sure what should have happened, this is probably a specification ambiguity rather than a bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: anchor
+    attributes:
+      label: Specification anchor
+      description: |
+        Section number **plus a verbatim quote** long enough to be unique. Never a bare line number —
+        line numbers drift the moment any other change lands.
+      placeholder: |
+        §6.4.3: "operational messages are suppressed entirely, so that standard error carries the
+        diagnostic stream and nothing else."
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: |
+        Minimal inputs, scheme and arguments. If you can express it in the conformance fixture
+        layout (specification Appendix C), open a pull request instead — it is worth far more than
+        an issue.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: confidence
+    attributes:
+      label: Confidence
+      description: Per claim, not per report. If some claims are observed and others reasoned, say which in the body.
+      options:
+        - verified-in-session — I ran this
+        - proposed-but-untested — I reasoned this
+        - mixed — see body
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I checked KNOWN-LIMITS.md and this is not a documented gap.
+          required: true
+        - label: If an agent drafted this, a human read and approved it before filing.
+          required: true
