@@ -159,14 +159,91 @@ public sealed class NodeMarksTests
         marks.SequenceShape.ShouldBe(Middle);
     }
 
+    /// <summary>
+    /// Marks are idempotent under re-recording the same contribution. The contribution has to be of
+    /// the same kind: Section 4.7 makes two contributions with one key the same contribution, so a
+    /// mapping-presence and a scalar contribution cannot share a key, and recording a payload
+    /// against a mapping's key is a state no input produces rather than a no-op.
+    /// </summary>
     [Test]
     public void RecordingAContributionAtTheSameKeyChangesNothing()
     {
-        var marks = NodeMarks.ForMapping(Middle);
+        var mapping = NodeMarks.ForMapping(Middle);
 
-        marks.WithPayload(Middle).ShouldBe(marks);
-        marks.WithMapping(Middle).ShouldBe(marks);
-        marks.WithDescendant(Middle).ShouldBe(marks);
+        mapping.WithMapping(Middle).ShouldBe(mapping);
+        mapping.WithDescendant(Middle).ShouldBe(mapping);
+
+        var payload = NodeMarks.ForPayload(Middle);
+
+        payload.WithPayload(Middle).ShouldBe(payload);
+
+        var sequence = NodeMarks.ForSequence(Middle);
+
+        sequence.WithSequence(Middle).ShouldBe(sequence);
+        sequence.WithSequenceItem(Middle).ShouldBe(sequence);
+    }
+
+    /// <summary>
+    /// Section 4.4 step 1 needs "the latest scalar/null contribution at the node", which the
+    /// position mark cannot supply once an explicit mapping-presence contribution has advanced it.
+    /// </summary>
+    [Test]
+    public void ThePayloadMarkTracksScalarContributionsOnly()
+    {
+        NodeMarks.ForMapping(Early).PayloadMark.ShouldBeNull();
+        NodeMarks.ForSequence(Early).PayloadMark.ShouldBeNull();
+        NodeMarks.At(Early).PayloadMark.ShouldBeNull();
+
+        var marks = NodeMarks.ForPayload(Early).WithMapping(Late);
+
+        marks.Position.ShouldBe(Late);
+        marks.PayloadMark.ShouldBe(Early);
+    }
+
+    /// <summary>
+    /// Section 4.4 steps 1 to 3, in the direction the Section 4.4 example calls out: "reversing
+    /// source order makes the later scalar win".
+    /// </summary>
+    [Test]
+    public void TheLaterOfThePayloadAndTheContainerDecidesTheShape()
+    {
+        var containerLater = NodeMarks.ForPayload(Early).WithDescendant(Late);
+
+        containerLater.RendersAsContainer.ShouldBeTrue();
+        containerLater.RendersAsMapping.ShouldBeTrue();
+        containerLater.RendersAsScalar.ShouldBeFalse();
+
+        var payloadLater = NodeMarks.ForMapping(Early).WithPayload(Late);
+
+        payloadLater.RendersAsScalar.ShouldBeTrue();
+        payloadLater.RendersAsContainer.ShouldBeFalse();
+        payloadLater.RendersAsMapping.ShouldBeFalse();
+        payloadLater.RendersAsSequence.ShouldBeFalse();
+    }
+
+    [Test]
+    public void ANodeWithNoContributionsRendersAsNothing()
+    {
+        var marks = NodeMarks.At(Early);
+
+        marks.RendersAsScalar.ShouldBeFalse();
+        marks.RendersAsContainer.ShouldBeFalse();
+        marks.RendersAsMapping.ShouldBeFalse();
+        marks.RendersAsSequence.ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// A sequence item is a descendant: it refreshes the sequence shape-mark and leaves the
+    /// position mark alone, exactly as a mapping child does for the mapping shape-mark.
+    /// </summary>
+    [Test]
+    public void ASequenceItemRefreshesShapeWithoutMovingTheNode()
+    {
+        var marks = NodeMarks.ForSequence(Early).WithSequenceItem(Late);
+
+        marks.Position.ShouldBe(Early);
+        marks.SequenceShape.ShouldBe(Late);
+        marks.MappingShape.ShouldBeNull();
     }
 
     /// <summary>

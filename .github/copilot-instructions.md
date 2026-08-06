@@ -282,6 +282,24 @@ transitivity. That is three tests, and it closes every branch at once.
 
 ---
 
+### A sorted-order test can pass with the sort removed
+
+`ImmutableDictionary<long, T>` enumerates a handful of small keys in ascending order anyway. A test
+that inserted ordering values `7, 2, 40` and expected `2, 7, 40` therefore **survived deleting the
+`OrderBy` entirely** -- it was asserting a coincidence of the backing store, not the Section 5.4
+rule. The same applies to any "is sorted" assertion over a small or clustered key set.
+
+Spread the keys across the real range and insert them out of order, then re-run the mutation that
+removes the sort and confirm it goes red. A sort assertion you have not seen fail is not evidence
+that anything is sorted.
+
+### The scalar/container shape contest needs its own mark
+
+Specification Section 4.4 step 1 asks for "the latest scalar/null contribution at the node". That is
+not the position mark: an explicit mapping-presence contribution advances the position mark without
+being a scalar contribution, so judging payload precedence by position makes a genuinely later
+`a=2` lose to an earlier `a=1` when an `a={}` landed between them. `NodeMarks.PayloadMark` exists
+for this and nothing else.
 ## Rules that are easy to violate quietly
 
 These are the ones a reviewer will reject, and the ones most likely to look reasonable while you are

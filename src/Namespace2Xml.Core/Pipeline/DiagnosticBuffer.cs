@@ -177,50 +177,7 @@ public sealed class BufferedDiagnosticOrder : IComparer<BufferedDiagnostic>
             }
         }
 
-        var byCode = CompareUtf8(x.Diagnostic.Code, y.Diagnostic.Code);
-        return byCode != 0 ? byCode : CompareUtf8(x.Diagnostic.Path, y.Diagnostic.Path);
-    }
-
-    /// <summary>
-    /// Compares two strings as unsigned UTF-8 bytes, with an absent value before any present one.
-    /// </summary>
-    /// <remarks>
-    /// Not <see cref="string.CompareOrdinal(string, string)"/>. Ordinal comparison is over UTF-16
-    /// code units, which orders a surrogate pair before U+E000 while UTF-8 orders it after; a
-    /// qualified path containing an astral character would then be emitted in an order the
-    /// specification does not permit. UTF-8 byte order is code-point order, so comparing runes
-    /// gives the specified result without encoding anything.
-    /// </remarks>
-    private static int CompareUtf8(string? left, string? right)
-    {
-        if (left is null)
-        {
-            return right is null ? 0 : -1;
-        }
-
-        if (right is null)
-        {
-            return 1;
-        }
-
-        var leftRunes = left.EnumerateRunes();
-        var rightRunes = right.EnumerateRunes();
-
-        while (true)
-        {
-            var hasLeft = leftRunes.MoveNext();
-            var hasRight = rightRunes.MoveNext();
-
-            if (!hasLeft || !hasRight)
-            {
-                return hasLeft == hasRight ? 0 : hasLeft ? 1 : -1;
-            }
-
-            var byRune = leftRunes.Current.Value.CompareTo(rightRunes.Current.Value);
-            if (byRune != 0)
-            {
-                return byRune;
-            }
-        }
+        var byCode = Utf8Order.Compare(x.Diagnostic.Code, y.Diagnostic.Code);
+        return byCode != 0 ? byCode : Utf8Order.Compare(x.Diagnostic.Path, y.Diagnostic.Path);
     }
 }

@@ -288,7 +288,9 @@ Reversing those lines causes the later wildcard declaration to restore XML outpu
 
 Mapping order follows the position mark of each surviving winning logical path.
 
-Overriding a mapping key moves that exact key, together with comments bound to it, to the winning contribution's position mark. A contribution to a strictly deeper descendant refreshes ancestor shape-marks under Section 4.4 but does not change an ancestor position mark or move an ancestor mapping key. Adding a new child therefore never moves its parent. Ties use the stable ordering key from Section 4.7.
+Overriding a mapping key moves that exact key, together with comments bound to it, to the winning contribution's position mark. A contribution to a strictly deeper descendant refreshes ancestor shape-marks under Section 4.4 but does not change an ancestor position mark or move an ancestor mapping key. Adding a new child therefore never moves its parent.
+
+The position mark is the Section 4.7 stable ordering key, so that key is already exhausted once two position marks are equal. When two sibling keys carry equal position marks, their order is decided by the child name encoded as UTF-8 and compared by unsigned-byte ordinal order, matching the final tie-breaker used in Sections 16.6 and 21.3. Mapping order is therefore total, and no output may depend on the order in which an implementation happened to visit siblings.
 
 The same rule applies to comments: refreshing an ancestor's shape-mark through a descendant does not move that ancestor or comments bound to the ancestor path.
 

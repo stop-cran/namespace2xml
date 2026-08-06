@@ -24,14 +24,17 @@ public readonly record struct NodeMarks
 {
     /// <summary>Creates the marks for a node's first contribution.</summary>
     /// <param name="position">The contribution's position mark.</param>
+    /// <param name="payloadMark">The payload mark, or <see langword="null"/> when absent.</param>
     /// <param name="mappingShape">The mapping shape-mark, or <see langword="null"/> when absent.</param>
     /// <param name="sequenceShape">The sequence shape-mark, or <see langword="null"/> when absent.</param>
     private NodeMarks(
         StableOrderingKey position,
+        StableOrderingKey? payloadMark,
         StableOrderingKey? mappingShape,
         StableOrderingKey? sequenceShape)
     {
         Position = position;
+        PayloadMark = payloadMark;
         MappingShape = mappingShape;
         SequenceShape = sequenceShape;
     }
@@ -41,6 +44,15 @@ public readonly record struct NodeMarks
     /// fixes the node's place in Section 5.2 mapping order.
     /// </summary>
     public StableOrderingKey Position { get; }
+
+    /// <summary>
+    /// The latest scalar or null contribution at this node, or <see langword="null"/> when there is
+    /// none. This is step 1 of the Section 4.4 exclusive-shape rule, and it is not the same as
+    /// <see cref="Position"/>: an explicit mapping-presence contribution advances the position mark
+    /// without being a scalar contribution, so a node whose payload, mapping and payload arrive in
+    /// that order would otherwise judge the second payload to be earlier than itself.
+    /// </summary>
+    public StableOrderingKey? PayloadMark { get; }
 
     /// <summary>
     /// The Section 4.4 mapping shape-mark: the latest explicit mapping-presence or descendant
@@ -59,38 +71,67 @@ public readonly record struct NodeMarks
     /// </summary>
     public StableOrderingKey? ContainerShape => Later(MappingShape, SequenceShape);
 
-    /// <summary>Whether a mapping contribution would win an exclusive-shape contest.</summary>
+    /// <summary>
+    /// Whether the scalar or null payload wins the Section 4.4 exclusive-shape contest, so an
+    /// exclusive destination renders this node as a scalar and omits its container facets.
+    /// </summary>
+    public bool RendersAsScalar =>
+        PayloadMark is { } payload && (ContainerShape is not { } container || payload > container);
+
+    /// <summary>
+    /// Whether a container wins the Section 4.4 exclusive-shape contest against the payload.
+    /// </summary>
+    public bool RendersAsContainer =>
+        ContainerShape is { } container && (PayloadMark is not { } payload || container > payload);
+
+    /// <summary>Whether an exclusive destination renders this node as a mapping.</summary>
     /// <remarks>
-    /// A node with neither shape has no container shape and is not a mapping.
+    /// A node with neither shape has no container shape and is not a mapping. A node whose payload
+    /// is later than every container contribution is not a mapping either, by Section 4.4 step 3.
     /// </remarks>
     public bool RendersAsMapping =>
-        MappingShape is { } mapping && (SequenceShape is not { } sequence || mapping > sequence);
+        RendersAsContainer
+        && MappingShape is { } mapping
+        && (SequenceShape is not { } sequence || mapping > sequence);
 
-    /// <summary>Whether a sequence contribution would win an exclusive-shape contest.</summary>
+    /// <summary>Whether an exclusive destination renders this node as a sequence.</summary>
     /// <remarks>
     /// A sequence contribution at the same key as a mapping contribution cannot happen: two
     /// contributions with one Section 4.7 key are one contribution.
     /// </remarks>
     public bool RendersAsSequence =>
-        SequenceShape is { } sequence && (MappingShape is not { } mapping || sequence > mapping);
+        RendersAsContainer
+        && SequenceShape is { } sequence
+        && (MappingShape is not { } mapping || sequence > mapping);
 
-    /// <summary>Marks for a node whose first contribution is a payload or a bare presence.</summary>
+    /// <summary>
+    /// Marks for a node that a contribution addresses without giving it a payload or a shape, which
+    /// is how an intermediate node on the way to a deeper descendant first comes into existence.
+    /// </summary>
+    public static NodeMarks At(StableOrderingKey position) =>
+        new(position, payloadMark: null, mappingShape: null, sequenceShape: null);
+
+    /// <summary>Marks for a node whose first contribution is a payload.</summary>
     public static NodeMarks ForPayload(StableOrderingKey position) =>
-        new(position, mappingShape: null, sequenceShape: null);
+        new(position, payloadMark: position, mappingShape: null, sequenceShape: null);
 
     /// <summary>Marks for a node whose first contribution requires mapping shape.</summary>
     public static NodeMarks ForMapping(StableOrderingKey position) =>
-        new(position, mappingShape: position, sequenceShape: null);
+        new(position, payloadMark: null, mappingShape: position, sequenceShape: null);
 
     /// <summary>Marks for a node whose first contribution requires sequence shape.</summary>
     public static NodeMarks ForSequence(StableOrderingKey position) =>
-        new(position, mappingShape: null, sequenceShape: position);
+        new(position, payloadMark: null, mappingShape: null, sequenceShape: position);
 
     /// <summary>
     /// Records a contribution that addresses this node itself, advancing the position mark.
     /// </summary>
     public NodeMarks WithPayload(StableOrderingKey position) =>
-        new(StableOrderingKey.Later(Position, position), MappingShape, SequenceShape);
+        new(
+            StableOrderingKey.Later(Position, position),
+            Later(PayloadMark, position),
+            MappingShape,
+            SequenceShape);
 
     /// <summary>
     /// Records a contribution that requires mapping shape at this node itself, advancing both the
@@ -99,6 +140,7 @@ public readonly record struct NodeMarks
     public NodeMarks WithMapping(StableOrderingKey position) =>
         new(
             StableOrderingKey.Later(Position, position),
+            PayloadMark,
             Later(MappingShape, position),
             SequenceShape);
 
@@ -109,6 +151,7 @@ public readonly record struct NodeMarks
     public NodeMarks WithSequence(StableOrderingKey position) =>
         new(
             StableOrderingKey.Later(Position, position),
+            PayloadMark,
             MappingShape,
             Later(SequenceShape, position));
 
@@ -120,7 +163,20 @@ public readonly record struct NodeMarks
     /// Section 5.2: "Adding a new child therefore never moves its parent."
     /// </remarks>
     public NodeMarks WithDescendant(StableOrderingKey position) =>
-        new(Position, Later(MappingShape, position), SequenceShape);
+        new(Position, PayloadMark, Later(MappingShape, position), SequenceShape);
+
+    /// <summary>
+    /// Records a sequence item, which refreshes the sequence shape-mark and leaves the position
+    /// mark alone.
+    /// </summary>
+    /// <remarks>
+    /// An item is a descendant, so Section 4.4's rule that a deeper contribution refreshes shape
+    /// "without changing that ancestor's position mark" applies to it exactly as Section 5.2
+    /// applies to a mapping child. Appending to a list must not move the list within its own
+    /// parent.
+    /// </remarks>
+    public NodeMarks WithSequenceItem(StableOrderingKey position) =>
+        new(Position, PayloadMark, MappingShape, Later(SequenceShape, position));
 
     private static StableOrderingKey? Later(StableOrderingKey? left, StableOrderingKey? right) =>
         (left, right) switch
