@@ -105,9 +105,16 @@ jobs:
 
       - name: Push to nuget.org
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          # The repository secret is spelled NUGETAPIKEY, as it was for 2.x. An invented name
+          # resolves to the empty string rather than to an error, so the first sign of the typo
+          # would have been a 401 from nuget.org after the artifacts were already attested.
+          NUGET_API_KEY: ${{ secrets.NUGETAPIKEY }}
         run: |
           set -euo pipefail
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::NUGETAPIKEY is not set for this environment; nothing was published."
+            exit 1
+          fi
           dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
           dotnet nuget push "artifacts/*.snupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
