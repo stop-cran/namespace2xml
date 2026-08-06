@@ -303,10 +303,16 @@
     {
       "item": 37,
       "text": "`RestrictedYaml1` scalar and key behavior.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "A RestrictedYaml1 document parses, and Section 10.1 decides a plain scalar's kind independently of the host library's own schema.",
+        "Anchors, explicit tags, document markers, duplicate keys, merge keys, and complex keys are each PARSE001 against the source that carries them."
+      ],
+      "fixtures": [
+        "yaml-restricted-schema-and-scalar-kinds",
+        "yaml-restricted-schema-refusals"
+      ]
     },
     {
       "item": 38,

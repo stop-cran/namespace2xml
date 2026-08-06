@@ -17,9 +17,9 @@ The 3.0 rewrite lands in milestones that follow the specification's own pipeline
 has not landed is **not implemented**, and the tool exits with a non-normative status rather than
 pretending to succeed.
 
-The tool currently transforms the **flat family end to end**: namespace-profile and JSON input,
-overlaying, output planning, and publication of namespace, quoted-namespace and INI destinations.
-Everything below that line is refused, not approximated.
+The tool currently transforms the **flat family end to end**: namespace-profile, JSON and YAML
+input, overlaying, output planning, and publication of namespace, quoted-namespace and INI
+destinations. Everything below that line is refused, not approximated.
 
 | Area | State | Specification |
 |---|---|---|
@@ -27,13 +27,14 @@ Everything below that line is refused, not approximated.
 | Contract bundle reporting | Implemented | §22 |
 | Namespace-profile input parsing, encoding detection, budgets | Implemented | §7–§9 |
 | JSON **input** | Implemented, with the reductions in §1.1 | §7.1, §9, §15.1 |
+| YAML **input** | Implemented, with the reductions in §1.2 | §7.1, §10, §15.1 |
 | Scheme parsing, `output`, `filename`, `root`, `delimiter` | Implemented | §16 |
 | Overlaying, precedence, mapping order after override | Implemented | §5, §10 |
 | Scalar inference and canonical numeric text | Implemented | §18 |
 | Output planning, destination paths, collision folding | Implemented | §17 |
 | Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
 | Publication and the validation gate | Implemented | §21 |
-| YAML and XML **input** | Not yet | §7.1, §11 |
+| XML **input** | Not yet | §7.1, §11 |
 | References and value wildcards | Not yet | §13 |
 | Templates and masks | Not yet | §8.6, §12 |
 | Wildcard output selectors and `substitute` | Not yet | §14, §16 |
@@ -69,6 +70,31 @@ A reference nested inside a native sequence is a fourth case, but it cannot be r
 unresolved value declines the whole invocation under §13, so no path exists today by which the
 overlay is consulted. It is recorded in the source at `StructuredProfileReader.BuildSequence` as a
 prerequisite for §15.1 step 15 rather than as a limit you can encounter.
+
+### 1.2 Reductions inside YAML input
+
+YAML input implements the whole of §10.1's `RestrictedYaml1` schema and every §10.2 and §10.3
+refusal, and shares the §15.1 projection with JSON. These cases are declined or unfinished within
+it.
+
+- **Comments are not retained.** §10.1 lists comment support among the subset's features, and this
+  preview parses a comment and discards it. Nothing is misreported — a document with comments reads
+  correctly and its values are right — but a scheme that would carry comments through to an output
+  gets none. The design for the two-pass association layer this needs is worked out and recorded in
+  `spikes/yaml-comments/FINDINGS.md`, against a 28-document corpus; only the implementation is
+  outstanding. Comment **output** is unimplemented for every format, so nothing observable is lost
+  today.
+- **A wildcard in a key is declined**, with exit `70` and no output, exactly as for JSON. `\*` for a
+  literal asterisk works.
+- **`substitute` is parsed and not applied**, again as for JSON and every other format.
+
+One §10.1 clause is under-determined and this preview chose a reading. §10.1 lists merge keys among
+the constructs `RestrictedYaml1` excludes without saying whether an unsupported merge key is an
+error or an ordinary key, and the adjacent clause — "every plain or quoted scalar mapping key is
+treated as a string without scalar tag resolution" — can be read either way. **A plain `<<` is
+refused**, on the ground that a merge key silently becoming data is the same hidden override §9.3
+rejects for duplicate keys; a quoted `"<<"` is accepted as an ordinary key. If you are relying on
+either reading, say so, because the clause should be amended rather than left to an implementation.
 
 ## 2. Acceptance coverage
 

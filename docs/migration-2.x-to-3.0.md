@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (17)
+## Deliberate differences (19)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -263,6 +263,46 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   component and a record-leading `!` take their Section 8.2 forms `\#` and `\!`.
 - The difference is intentional: without it a profile could not round-trip through its own output
   format, which is the property every other guarantee in Section 19 rests on.
+
+### `yaml-restricted-schema-and-scalar-kinds`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 10.1, 9.1, 18, 19.6, and 5.4.
+- Legacy observation: YAML was read through the host library's own schema, so YAML 1.1 spellings
+  such as `yes` became Booleans, a plain `1.` became a number, and numbers were resolved through a
+  binary floating-point type that lost precision and let the runtime rather than the written form
+  decide a value's kind. Property names were split on `.`, so one YAML key could become several
+  namespace parts.
+- Clean behavior: Section 10.1 fixes the schema as `RestrictedYaml1` "rather than an underlying
+  library's advertised YAML 1.1 or 1.2 mode". Only `true` and `false` are Booleans, resolved
+  case-insensitively, so `tRuE` is a Boolean and `yes` is the string it is written as. Only the
+  exact spellings `null`, `Null`, `NULL`, `~` and an empty plain scalar are null, so `nULL` is a
+  string. Only JSON-compatible numbers are numbers, so `+1`, `.5` and `1.` stay strings, while
+  Section 9.1's lexical rule makes `1e0` a decimal that Section 18 renders `1.0` and `-0` an
+  integer with no negative zero. Each key is exactly one literal part, so `a.b` stays one INI key
+  rather than becoming a section.
+- The difference is intentional: Section 10.1 makes the subset normative precisely so the answer
+  does not depend on which YAML library is linked, and every legacy behavior above loses
+  information the source contained.
+
+### `yaml-restricted-schema-refusals`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 10.1, 10.2, 10.3, 22, and 24.
+- Legacy observation: the YAML reader accepted whatever the host library accepted. Anchors and
+  aliases were expanded silently, so one edit to an anchored value changed every alias that
+  referenced it without saying so; explicit tags were honored; a merge key silently folded another
+  mapping into the current one; and a duplicate mapping key kept whichever the parser visited last,
+  so a typo that shadowed a real setting produced no message at all.
+- Clean behavior: Section 10.2 makes anchors, aliases and "every explicit tag token" blocking input
+  errors, and adds that "no tag is accepted implicitly". Section 10.3 refuses every explicit
+  document marker. Section 10.1 requires every mapping key to be a scalar and excludes both merge
+  keys and duplicate keys. Each is `PARSE001` against the source that carries it, at the Section 22
+  one-based line and character column of the offending token, and every failing source reports in
+  the Section 7.3 command-line order so one run names every bad file.
+- The difference is intentional: each construct either hides an override behind syntax or makes the
+  meaning of a document depend on which library read it, and Section 10.1 exists to remove exactly
+  that dependence.
 
 ## Behaviour preserved from 2.4.0 (1)
 

@@ -46,7 +46,9 @@ public static class InputPhase
 
         foreach (var input in command.Inputs)
         {
-            if (SourceLoader.StructuredFormat(input) is { } format and not "JSON")
+            if (SourceLoader.StructuredFormat(input) is { } format
+                and not "JSON"
+                and not "YAML")
             {
                 return StepOutcome.Unsupported<ImmutableArray<InputContribution>>(
                     new UnsupportedCapability(

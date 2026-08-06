@@ -188,6 +188,8 @@ public sealed class SourceLoader
             {
                 "JSON" => JsonInputReader.Read(
                     decoded.Text!, limits, budget, origin, phase, diagnostics, key),
+                "YAML" => YamlInputReader.Read(
+                    decoded.Text!, limits, budget, origin, phase, diagnostics, key),
                 _ => throw new InvalidOperationException(
                     $"Section 7.1 names no structured format '{format}'."),
             };
