@@ -100,7 +100,7 @@ Some rules in `CONTRIBUTING.md` are stated as binding and have a CI gate; a few 
 | C2 cite the specification | Partial — anchors are constrained by the registry and schema tests, but the citation itself is a template field, not a gate |
 | C3 specification decision precedes acceptance | Contract-revision job, active |
 | C4 bidirectional traceability | Active |
-| C5 determinism | Active — `tools/hash-corpus-outputs.ps1` measures exit status, standard output, standard error and the produced file tree, for every argument vector each case declares, and `cross-os-hash` requires all three platforms to agree |
+| C5 determinism | Active — `tools/hash-corpus-outputs.ps1` measures exit status, standard output, standard error and the produced file tree, for every argument vector each case declares, repeats each measurement under the three environments Appendix C.7 requires (differing in parser worker count, locale decimal convention and time zone) into a fresh output root each time and requires them to agree, and `cross-os-hash` requires all three platforms to agree |
 | C6 side-effect invariants first | Not yet — publication is implemented, but no §21 fixture exercises the symlink, escape or partial-write invariants, and no workflow contains a job by that name |
 
 Stating a rule before its enforcer exists is a deliberate choice, but it is a debt. It is recorded

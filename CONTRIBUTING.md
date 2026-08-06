@@ -145,7 +145,10 @@ it converts an honest gap into a false claim. If you are tempted, don't.
 ### C5 — Determinism is a precondition, not a feature
 
 Any change ships green on the determinism matrix: three operating systems, repeated runs,
-byte-identical corpus output.
+byte-identical corpus output. Within a single run the corpus is measured three times over —
+under one parser worker and under many, under locales that disagree about the decimal separator,
+and under different time zones — into a fresh output root each time. A case whose bytes depend on
+any of those is not merely untidy; it has failed.
 
 *Enforced by:* the `determinism` and `cross-os-hash` jobs, both required.
 

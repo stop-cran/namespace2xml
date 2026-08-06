@@ -35,15 +35,81 @@
     Path separators are normalised to '/' because the destination *names* are contractual but
     the host's separator is not. Sorting is ordinal because Sort-Object collates by the current
     culture, which would make the output of a determinism oracle depend on the runner's locale.
+
+    Appendix C.7 repeats every fixture under "at least two parser worker counts, including one",
+    "at least two supported locales with different decimal conventions", "at least two time zones",
+    and "repeated fresh output roots". An earlier version pinned one invariant environment on every
+    runner, which made the oracle blind to the whole class of defect determinism is about: a
+    culture-sensitive comparison, a localized number, or a scheduling-dependent order would have
+    agreed with itself on all three platforms. The environments below are run per case and per
+    vector, in fresh output roots, and every one must agree before a line is emitted; the emitted
+    listing is then compared across platforms by the cross-os job.
 #>
 [CmdletBinding()]
 param(
     [string] $Output = 'corpus-hashes.txt',
-    [string] $Configuration = 'Release'
+    [string] $Configuration = 'Release',
+    [string[]] $Environments = @()
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+# Appendix C.7, and a note on what each of these can actually catch, because a determinism oracle
+# that overstates its own reach is the defect it exists to prevent.
+#
+# DOTNET_PROCESSOR_COUNT is the worker-count knob and is live on every platform: it sets
+# Environment.ProcessorCount and with it the thread pool's sizing (verified — a child process
+# reports 1 and 2 under it; the camel-cased spelling does nothing at all). The tool contains no
+# parallelism today, so this dimension guards forward: it is what would catch output whose order
+# depends on scheduling if any is ever introduced.
+#
+# TZ is honoured by .NET on Unix and ignored on Windows (verified), so the time-zone dimension is
+# live on two of the three CI runners. That is enough for C.7, which asks for the repetition, not
+# for it to bite on every host.
+#
+# LANG and LC_ALL are inert under InvariantGlobalization, which this project sets and Section 3
+# says will not become configurable (verified — neither changes CurrentCulture or the decimal
+# separator in a child process). The locale dimension is therefore satisfied by construction
+# rather than by this probe, and the live guard is in-process: BigDecimalTests installs a culture
+# with hostile separators, and RuntimeConfigurationTests asserts the shipped runtimeconfig still
+# carries the invariant flag that makes the whole class impossible. These variables stay because
+# they cost nothing and would become live the moment that flag were removed — which is the
+# regression worth catching.
+#
+# tr-TR is kept for the dotless-i case mapping, which breaks culture-sensitive identifier
+# comparison, for the same forward-guard reason.
+$environmentMatrix = @(
+    [pscustomobject]@{
+        Name = 'invariant-1-worker'
+        Variables = @{
+            DOTNET_CLI_UI_LANGUAGE = 'en'; LANG = 'C'; LC_ALL = 'C'; TZ = 'UTC'
+            DOTNET_PROCESSOR_COUNT = '1'
+        }
+    }
+    [pscustomobject]@{
+        Name = 'de-DE-4-workers'
+        Variables = @{
+            DOTNET_CLI_UI_LANGUAGE = 'en'; LANG = 'de_DE.UTF-8'; LC_ALL = 'de_DE.UTF-8'
+            TZ = 'America/New_York'; DOTNET_PROCESSOR_COUNT = '4'
+        }
+    }
+    [pscustomobject]@{
+        Name = 'tr-TR-8-workers'
+        Variables = @{
+            DOTNET_CLI_UI_LANGUAGE = 'en'; LANG = 'tr_TR.UTF-8'; LC_ALL = 'tr_TR.UTF-8'
+            TZ = 'Asia/Kolkata'; DOTNET_PROCESSOR_COUNT = '8'
+        }
+    }
+)
+
+if ($Environments.Count -gt 0) {
+    $known = ($environmentMatrix | ForEach-Object Name) -join ', '
+    $environmentMatrix = @($environmentMatrix | Where-Object { $Environments -contains $_.Name })
+    if ($environmentMatrix.Count -eq 0) {
+        throw "No environment matched -Environments. Known: $known"
+    }
+}
 
 $root = Split-Path -Parent $PSScriptRoot
 $corpus = Join-Path $root 'conformance'
@@ -148,7 +214,7 @@ function Resolve-DiagnosticsEncoding([string[]] $arguments) {
     return 'text'
 }
 
-function Invoke-Tool([string] $workingDirectory, [string[]] $arguments) {
+function Invoke-Tool([string] $workingDirectory, [string[]] $arguments, [hashtable] $variables) {
     $info = New-Object Diagnostics.ProcessStartInfo
     $info.FileName = 'dotnet'
     $info.WorkingDirectory = $workingDirectory
@@ -157,10 +223,7 @@ function Invoke-Tool([string] $workingDirectory, [string[]] $arguments) {
     $info.UseShellExecute = $false
     $info.ArgumentList.Add($tool)
     foreach ($argument in $arguments) { $info.ArgumentList.Add($argument) }
-    $info.Environment['DOTNET_CLI_UI_LANGUAGE'] = 'en'
-    $info.Environment['LANG'] = 'C'
-    $info.Environment['LC_ALL'] = 'C'
-    $info.Environment['TZ'] = 'UTC'
+    foreach ($entry in $variables.GetEnumerator()) { $info.Environment[$entry.Key] = $entry.Value }
 
     $process = [Diagnostics.Process]::Start($info)
     $out = New-Object IO.MemoryStream
@@ -202,43 +265,71 @@ try {
             [pscustomobject]@{ Label = 'verbatim'; Arguments = $verbatim },
             [pscustomobject]@{ Label = 'json'; Arguments = $diagnostic })) {
 
-            # Appendix C requires a case never to run in place, so a produced destination can
-            # never be mistaken for a fixture that was there all along.
-            $work = Join-Path $scratch "$name-$($vector.Label)"
-            New-Item -ItemType Directory -Force -Path $work | Out-Null
-            Copy-Item -Path (Join-Path $source '*') -Destination $work -Recurse -Force
-
-            $result = Invoke-Tool $work ([string[]] $vector.Arguments)
-
-            $lines.Add(("{0}`t{1}`texit`t{2}" -f $name, $vector.Label, $result.ExitCode))
-            $lines.Add(("{0}`t{1}`tstdout`t{2}" -f $name, $vector.Label, (Get-Digest $result.StandardOutput)))
-
             $encoding = Resolve-DiagnosticsEncoding ([string[]] $vector.Arguments)
-            $stderr = if ($encoding -eq 'json') {
-                Get-DiagnosticStructureDigest $result.StandardError
-            } elseif ($result.StandardError.Length -eq 0) {
-                'empty'
-            } else {
-                'present'
+            $agreed = $null
+            $agreedName = $null
+
+            foreach ($environment in $environmentMatrix) {
+                # Appendix C requires a case never to run in place, so a produced destination can
+                # never be mistaken for a fixture that was there all along. C.7 additionally asks
+                # for a fresh output root per repetition, which is why the environment name is part
+                # of the path rather than the directory being reused.
+                $work = Join-Path $scratch "$name-$($vector.Label)-$($environment.Name)"
+                New-Item -ItemType Directory -Force -Path $work | Out-Null
+                Copy-Item -Path (Join-Path $source '*') -Destination $work -Recurse -Force
+
+                $result = Invoke-Tool $work ([string[]] $vector.Arguments) $environment.Variables
+
+                $measured = [Collections.Generic.List[string]]::new()
+                $measured.Add(("{0}`t{1}`texit`t{2}" -f $name, $vector.Label, $result.ExitCode))
+                $measured.Add(("{0}`t{1}`tstdout`t{2}" -f $name, $vector.Label, (Get-Digest $result.StandardOutput)))
+
+                $stderr = if ($encoding -eq 'json') {
+                    Get-DiagnosticStructureDigest $result.StandardError
+                } elseif ($result.StandardError.Length -eq 0) {
+                    'empty'
+                } else {
+                    'present'
+                }
+                $measured.Add(("{0}`t{1}`tstderr-{2}`t{3}" -f $name, $vector.Label, $encoding, $stderr))
+
+                foreach ($file in Get-ChildItem -Path $work -Recurse -File) {
+                    $relative = $file.FullName.Substring($work.Length + 1) -replace '\\', '/'
+                    $segment = ($relative -split '/', 2)[0]
+                    if ($reserved -contains $segment) { continue }
+
+                    $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                    $measured.Add(("{0}`t{1}`t{2}`t{3}" -f $name, $vector.Label, $relative, $hash))
+                }
+
+                foreach ($directory in Get-ChildItem -Path $work -Recurse -Directory) {
+                    $relative = $directory.FullName.Substring($work.Length + 1) -replace '\\', '/'
+                    $segment = ($relative -split '/', 2)[0]
+                    if ($reserved -contains $segment) { continue }
+
+                    $measured.Add(("{0}`t{1}`t{2}/`tdirectory" -f $name, $vector.Label, $relative))
+                }
+
+                $ordered = $measured.ToArray()
+                [Array]::Sort($ordered, [StringComparer]::Ordinal)
+
+                if ($null -eq $agreed) {
+                    $agreed = $ordered
+                    $agreedName = $environment.Name
+                    continue
+                }
+
+                # Section 24 makes this a contract, not a tolerance: the same inputs under a
+                # different locale, time zone or worker count are still the same inputs.
+                $difference = @(Compare-Object -ReferenceObject $agreed -DifferenceObject $ordered)
+                if ($difference.Count -gt 0) {
+                    $detail = ($difference | ForEach-Object { "$($_.SideIndicator) $($_.InputObject)" }) -join "`n  "
+                    throw ("Section 24: case '$name' vector '$($vector.Label)' is not " +
+                        "environment-independent. '$agreedName' and '$($environment.Name)' differ:`n  $detail")
+                }
             }
-            $lines.Add(("{0}`t{1}`tstderr-{2}`t{3}" -f $name, $vector.Label, $encoding, $stderr))
 
-            foreach ($file in Get-ChildItem -Path $work -Recurse -File) {
-                $relative = $file.FullName.Substring($work.Length + 1) -replace '\\', '/'
-                $segment = ($relative -split '/', 2)[0]
-                if ($reserved -contains $segment) { continue }
-
-                $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-                $lines.Add(("{0}`t{1}`t{2}`t{3}" -f $name, $vector.Label, $relative, $hash))
-            }
-
-            foreach ($directory in Get-ChildItem -Path $work -Recurse -Directory) {
-                $relative = $directory.FullName.Substring($work.Length + 1) -replace '\\', '/'
-                $segment = ($relative -split '/', 2)[0]
-                if ($reserved -contains $segment) { continue }
-
-                $lines.Add(("{0}`t{1}`t{2}/`tdirectory" -f $name, $vector.Label, $relative))
-            }
+            $lines.AddRange($agreed)
         }
     }
 }
