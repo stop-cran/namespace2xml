@@ -1,0 +1,10 @@
+-i
+inputs/wide.xml
+-i
+inputs/many.xml
+-s
+schemes/scheme.txt
+--max-nodes
+20
+--max-xml-attributes
+2

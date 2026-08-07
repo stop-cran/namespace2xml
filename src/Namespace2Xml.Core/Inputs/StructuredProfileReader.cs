@@ -18,7 +18,7 @@ namespace Namespace2Xml.Inputs;
 /// that is not theirs.
 /// </para>
 /// <para>
-/// The walk recurses, and its depth is the document's nesting, which Section 25's
+/// The walk recurses, and its depth is the document's nesting, which Section 23's
 /// <c>--max-depth</c> has already bounded by the time a document reaches this point.
 /// </para>
 /// </remarks>

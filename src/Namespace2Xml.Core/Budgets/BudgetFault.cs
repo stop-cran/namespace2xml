@@ -1,7 +1,7 @@
 namespace Namespace2Xml.Budgets;
 
 /// <summary>
-/// A crossed bound, carrying everything Section 22 needs to decide which of several crossings is
+/// A crossed bound, carrying everything Section 11.1 needs to decide which of several crossings is
 /// the one reported.
 /// </summary>
 /// <param name="Bound">The bound that was crossed.</param>
@@ -29,7 +29,7 @@ public readonly record struct BudgetFault(
 }
 
 /// <summary>
-/// The Section 22 attribution order: "the earliest under CLI source order as defined in Section 7.3,
+/// The Section 11.1 attribution order: "the earliest under CLI source order as defined in Section 7.3,
 /// then document order within that source, then element order, then the bound name compared as
 /// unsigned UTF-8 bytes".
 /// </summary>
@@ -42,7 +42,7 @@ public readonly record struct BudgetFault(
 /// </para>
 /// <para>
 /// The bound names are ASCII, so ordinal string comparison is the unsigned UTF-8 byte comparison
-/// Section 22 specifies. Culture-sensitive comparison is not: it would put <c>--max-comment-bytes</c>
+/// Section 11.1 specifies. Culture-sensitive comparison is not: it would put <c>--max-comment-bytes</c>
 /// after <c>--max-comments</c> under some collations, and which bound a run blames would then depend
 /// on the operating system's locale.
 /// </para>
@@ -52,7 +52,7 @@ public sealed class BudgetFaultOrder : IComparer<BudgetFault>
     /// <summary>The single instance.</summary>
     public static BudgetFaultOrder Instance { get; } = new();
 
-    /// <summary>The earlier of two faults under Section 22 attribution order.</summary>
+    /// <summary>The earlier of two faults under Section 11.1 attribution order.</summary>
     public static BudgetFault Earlier(BudgetFault left, BudgetFault right) =>
         Instance.Compare(left, right) <= 0 ? left : right;
 

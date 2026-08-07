@@ -71,7 +71,7 @@ public sealed class SourceBudget
     /// The first per-source bound this source crossed, or <see langword="null"/> if it crossed none.
     /// </summary>
     /// <remarks>
-    /// The first is kept rather than the earliest by Section 22 order, because a parser reaches
+    /// The first is kept rather than the earliest by Section 11.1 order, because a parser reaches
     /// positions in document order: the first crossing it sees is already the earliest one.
     /// </remarks>
     public BudgetFault? Fault { get; private set; }
@@ -80,10 +80,10 @@ public sealed class SourceBudget
     public SourceTally Tally => new(inputBytes, nodes, comments, commentBytes);
 
     /// <summary>
-    /// Accounts for bytes read from this source against the per-file bound of Section 16.2.
+    /// Accounts for bytes read from this source against the per-file bound of Section 23.
     /// </summary>
     /// <param name="count">The number of bytes.</param>
-    /// <param name="documentOrder">Position within the source, for Section 22 attribution.</param>
+    /// <param name="documentOrder">Position within the source, for Section 11.1 attribution.</param>
     /// <returns><see langword="false"/> when this source crosses <c>--max-input-bytes</c>.</returns>
     public bool TryAddInputBytes(long count, long documentOrder = 0)
     {
@@ -100,10 +100,10 @@ public sealed class SourceBudget
     }
 
     /// <summary>
-    /// Checks a nesting depth against the per-document bound of Section 16.2.
+    /// Checks a nesting depth against the per-document bound of Section 23.
     /// </summary>
     /// <param name="depth">The depth being entered, counted from zero at the document root.</param>
-    /// <param name="documentOrder">Position within the source, for Section 22 attribution.</param>
+    /// <param name="documentOrder">Position within the source, for Section 11.1 attribution.</param>
     /// <returns><see langword="false"/> when this source crosses <c>--max-depth</c>.</returns>
     /// <remarks>
     /// Depth is a level, not a running total, so it is checked rather than accumulated. Section 7.3
@@ -121,8 +121,8 @@ public sealed class SourceBudget
     /// Checks an element's attribute count against the per-element bound of Sections 11.1 and 16.2.
     /// </summary>
     /// <param name="count">The number of attributes on one element.</param>
-    /// <param name="documentOrder">Position within the source, for Section 22 attribution.</param>
-    /// <param name="elementOrder">Position within the document, for Section 22 attribution.</param>
+    /// <param name="documentOrder">Position within the source, for Section 11.1 attribution.</param>
+    /// <param name="elementOrder">Position within the document, for Section 11.1 attribution.</param>
     /// <returns><see langword="false"/> when this source crosses <c>--max-xml-attributes</c>.</returns>
     public bool TryAddXmlAttributes(long count, long documentOrder = 0, long elementOrder = 0)
     {

@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (21)
+## Deliberate differences (23)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -250,6 +250,59 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: Section 9.3 states that rejecting duplicates "avoids
   parser-dependent behavior and accidental hidden overrides", which is exactly what the legacy
   reader did.
+
+### `limit-attribution-across-sources`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 7.3, 11.1, 15.4, 22, 23, and 24.
+- Legacy observation: there were no configurable resource bounds at all. A document deep enough,
+  wide enough, or numerous enough exhausted memory and the process died without a diagnostic, so
+  the failure mode of an oversized input was a stack overflow or an allocation failure rather than
+  a report naming the file that caused it.
+- Clean behavior: Section 23 makes every bound an option, and a crossing is `LIMIT001`. Section 22
+  scopes that code to once per invocation, so when several sources cross bounds together exactly
+  one occurrence is reported and Section 11.1 fixes which one: "the earliest under CLI source order
+  as defined in Section 7.3, then document order within that source, then element order, then the
+  bound name compared as unsigned UTF-8 bytes".
+- This case crosses two different kinds of bound in two sources at once. `inputs/many.xml` crosses
+  the global `--max-nodes` total, which Section 23 accumulates "at the parse-phase join in CLI
+  source order as specified in Section 7.3" — that is, after every source has been parsed.
+  `inputs/wide.xml` crosses the per-element `--max-xml-attributes`, which Section 23 checks "per
+  element within each source" — that is, while that source is still being parsed. The reported
+  occurrence is therefore the one that is decided *later* in time and *earlier* in command-line
+  order, and Section 11.1 is explicit that command-line order is what governs: "attribution is
+  therefore independent of parser worker scheduling."
+- Nothing is published and no output tree is expected. Section 15.4 aborts before the next phase
+  when a phase holds a blocking diagnostic, so planning never runs and the run cannot report that
+  its output plan is empty.
+- The difference is intentional: a tool whose response to an oversized input is to die tells its
+  caller nothing, and a tool whose answer depends on which parser finished first cannot be
+  compared across runs. Appendix C.7 runs this case under varied worker counts for that reason.
+
+### `limit-xml-attributes-per-element`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 7.3, 11.1, 15.4, 22, 23, and 24.
+- Legacy observation: an XML element could carry any number of attributes, and nothing bounded the
+  parse. There was no option to bound it and no diagnostic when the cost became unreasonable.
+- Clean behavior: Section 23 checks XML attributes "per element within each source under
+  `--max-xml-attributes`, as specified in Section 11.1", and a crossing is `LIMIT001`.
+- This case is the mirror of `limit-attribution-across-sources`, with the two sources exchanged in
+  `-i` order. `inputs/wide.xml` now comes first and crosses the per-element attribute bound while
+  it is being parsed; `inputs/many.xml` comes second and crosses the global `--max-nodes` total at
+  the parse-phase join. Section 11.1 attributes the single reported occurrence to "the earliest
+  under CLI source order", so the per-element crossing in the first source is what is reported,
+  even though the global total is not decided until every source has been read.
+- The pair is what makes either case load-bearing. Reported alone, the winning source could be
+  explained by the order the two crossings were detected in rather than by command-line order,
+  because in one arrangement those agree. Exchanging the sources makes them disagree in the other
+  arrangement, and Section 11.1's answer is unchanged. This case additionally fails if
+  `--max-xml-attributes` is not enforced at all: `inputs/wide.xml` would then contribute its nodes
+  to the global total instead of being refused, and the reported source would be `inputs/many.xml`.
+- Nothing is published and no output tree is expected, because Section 15.4 aborts before the next
+  phase when a phase holds a blocking diagnostic.
+- The difference is intentional: Section 23 requires the tool to "fail explicitly rather than
+  degrade without bound".
 
 ### `namespace-escaping-round-trip`
 

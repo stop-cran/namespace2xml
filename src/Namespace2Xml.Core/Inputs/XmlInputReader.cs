@@ -25,7 +25,7 @@ namespace Namespace2Xml.Inputs;
 /// <para>
 /// Section 11.1 is explicit that entity expansion "must not impose" a budget of its own, so
 /// <see cref="XmlReaderSettings.MaxCharactersFromEntities"/> is left unlimited. A host knob that
-/// could become the effective limit would decide an invocation's outcome in place of Section 16.2's
+/// could become the effective limit would decide an invocation's outcome in place of Section 23's
 /// bounds, which is the failure <see cref="JsonInputReader"/> avoids for depth by the same means.
 /// </para>
 /// <para>
@@ -159,7 +159,7 @@ public static class XmlInputReader
         /// Every member here is a refusal or a preservation guarantee, so none of them is a default
         /// worth inheriting silently. <c>MaxCharactersFromEntities</c> and
         /// <c>MaxCharactersInDocument</c> are zero, which is this API's spelling of "no limit":
-        /// Section 11.1 forbids an entity-expansion budget, and Section 16.2's
+        /// Section 11.1 forbids an entity-expansion budget, and Section 23's
         /// <c>--max-input-bytes</c> is the only bound that may end a document.
         /// </remarks>
         private static XmlReaderSettings Settings => new()
@@ -384,9 +384,9 @@ public static class XmlInputReader
                 return true;
             }
 
-            // Section 16.2 has "every element, attribute, text, comment, and CDATA overlay node"
+            // Section 11.1 has "every element, attribute, text, comment, and CDATA overlay node"
             // consume --max-nodes. A comment costs the reader the same work whether or not this
-            // version keeps it, so it is charged on the count Section 16.2 names.
+            // version keeps it, so it is charged on the count Section 11.1 names.
             if (!Charge(frames.Count + 1))
             {
                 return false;
@@ -396,7 +396,7 @@ public static class XmlInputReader
             return true;
         }
 
-        /// <summary>Charges one node against Section 16.2's bounds.</summary>
+        /// <summary>Charges one node against Section 23's bounds.</summary>
         /// <param name="depth">
         /// The depth of the node. Section 11.1 counts the document element as depth 1, unlike the
         /// JSON and YAML roots, which are not nodes their source could name.

@@ -10,7 +10,7 @@ namespace Namespace2Xml.Output;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Section 16.2: "Accounting occurs before allocation or expansion whenever possible", and
+/// Section 23: "Accounting occurs before allocation or expansion whenever possible", and
 /// "serialized output buffers ... consume the corresponding global budget". Every writer sharing one
 /// <see cref="GlobalBudget"/> therefore shares one aggregate ceiling, which is what Section 21.2
 /// means by "aggregate live serialized buffer payload".

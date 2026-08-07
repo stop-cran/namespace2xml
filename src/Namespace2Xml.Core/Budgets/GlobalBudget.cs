@@ -5,12 +5,12 @@ namespace Namespace2Xml.Budgets;
 /// <summary>
 /// The global half of the Section 7.3 two-tier budget: the running totals no parse worker may see,
 /// admitted one source at a time in the order Section 7.3 fixes, plus the pipeline-phase bounds of
-/// Section 16.2.
+/// Section 23.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Everything this type does happens after the parse-phase join, on one thread, in one order. That
-/// is the whole reason it exists separately from <see cref="SourceBudget"/>: Section 16.2 requires
+/// is the whole reason it exists separately from <see cref="SourceBudget"/>: Section 23 requires
 /// that "concurrent work never races to consume a shared budget", and the way to guarantee that is
 /// for the shared budget to be reachable only from single-threaded code.
 /// </para>
@@ -70,7 +70,7 @@ public sealed class GlobalBudget
             return false;
         }
 
-        // Section 22 breaks a tie between bounds crossed at one position by bound name, and a
+        // Section 11.1 breaks a tie between bounds crossed at one position by bound name, and a
         // source's contribution is one position, so the candidates are gathered before one is chosen.
         BudgetFault? crossing = null;
 
@@ -106,14 +106,14 @@ public sealed class GlobalBudget
     }
 
     /// <summary>
-    /// Consumes a pipeline-phase bound, in the normative pipeline order of Section 16.2.
+    /// Consumes a pipeline-phase bound, in the normative pipeline order of Section 23.
     /// </summary>
     /// <param name="bound">The bound to consume.</param>
     /// <param name="amount">How much to consume.</param>
     /// <param name="fault">The crossing, when this returns <see langword="false"/>.</param>
     /// <returns><see langword="false"/> when the amount would cross the bound.</returns>
     /// <remarks>
-    /// Section 16.2: "Accounting occurs before allocation or expansion whenever possible." Nothing is
+    /// Section 23: "Accounting occurs before allocation or expansion whenever possible." Nothing is
     /// consumed when the bound would be crossed, so a refused caller may report and stop without
     /// having to unwind a partial charge.
     /// </remarks>

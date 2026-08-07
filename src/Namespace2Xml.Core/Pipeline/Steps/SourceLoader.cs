@@ -39,7 +39,7 @@ public sealed record LoadedSource(
 }
 
 /// <summary>
-/// Reads, decodes, and classifies one source, charging Section 25 per-source budgets as it goes.
+/// Reads, decodes, and classifies one source, charging Section 23 per-source budgets as it goes.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -62,7 +62,7 @@ public sealed class SourceLoader
 
     /// <summary>Creates a loader.</summary>
     /// <param name="reader">Where bytes come from.</param>
-    /// <param name="limits">The Section 25 bounds.</param>
+    /// <param name="limits">The Section 23 bounds.</param>
     public SourceLoader(ISourceReader reader, ResourceLimits limits)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -233,7 +233,7 @@ public sealed class SourceLoader
         var key = StableOrderingKey.FromSource(ordinal, 0);
         var budget = new SourceBudget(limits, ordinal);
 
-        // Section 25 applies --max-input-bytes to a variable "after encoding a variable as UTF-8",
+        // Section 23 applies --max-input-bytes to a variable "after encoding a variable as UTF-8",
         // so the charge is the encoded length rather than the character count.
         if (!budget.TryAddInputBytes(Encoding.UTF8.GetByteCount(text)))
         {
@@ -261,7 +261,7 @@ public sealed class SourceLoader
 
     /// <summary>
     /// Applies the Section 7.3 global join to sources already loaded, in the one ordered stream
-    /// Section 25 fixes.
+    /// Section 23 fixes.
     /// </summary>
     /// <param name="sources">The loaded sources, in that stream's order.</param>
     /// <param name="budget">The invocation's global budget.</param>
@@ -390,7 +390,7 @@ public sealed class SourceLoader
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Limit001(
                 phase,
-                "\u00A725",
+                "\u00A723",
                 $"'{origin.Identity}' crosses {fault.Spelling}, whose limit is {fault.Limit}.",
                 source: origin.File),
             key));

@@ -25,7 +25,7 @@ namespace Namespace2Xml.Inputs;
 /// number as a <see cref="double"/> would answer both questions wrongly and silently.
 /// </para>
 /// <para>
-/// The walk keeps its own stack rather than recursing. Section 25 lets <c>--max-depth</c> be raised,
+/// The walk keeps its own stack rather than recursing. Section 23 lets <c>--max-depth</c> be raised,
 /// and a recursive reader turns a raised bound into a stack overflow, which is a crash rather than
 /// the <c>LIMIT001</c> Section 7.3 asks for. For the same reason the depth this charges is its own
 /// source's nesting and nothing else: Section 7.3 forbids a parser from observing a global total.
@@ -35,7 +35,7 @@ public static class JsonInputReader
 {
     /// <summary>Reads one JSON document.</summary>
     /// <param name="text">The decoded document text.</param>
-    /// <param name="limits">The Section 25 bounds.</param>
+    /// <param name="limits">The Section 23 bounds.</param>
     /// <param name="budget">This source's budget, already charged for its bytes.</param>
     /// <param name="origin">How diagnostics name this source.</param>
     /// <param name="phase">The phase its diagnostics report.</param>

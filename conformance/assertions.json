@@ -608,10 +608,16 @@
     {
       "item": 72,
       "text": "Deterministic global-budget attribution under varied parser thread schedules.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "Section 23 accumulates parsed node, comment, and comment-byte totals at the parse-phase join in CLI source order, and Section 11.1 makes the single reported LIMIT001 the earliest under that order rather than the first crossing detected, so a global crossing decided at the join is reported in preference to a per-source crossing that a later source detected earlier in time.",
+        "Appendix C.7 runs every case under varied DOTNET_PROCESSOR_COUNT values and compares the structured diagnostic stream with prose removed, so Section 11.1's claim that attribution is independent of parser worker scheduling is measured rather than only stated."
+      ],
+      "fixtures": [
+        "limit-attribution-across-sources",
+        "limit-xml-attributes-per-element"
+      ]
     },
     {
       "item": 73,
@@ -718,10 +724,18 @@
     {
       "item": 84,
       "text": "XML attribute-count limits, absence of any separate entity-expansion budget, and deterministic `LIMIT001` attribution when per-source and global bounds are crossed together.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "Section 23 checks XML attributes per element within each source under --max-xml-attributes as specified in Section 11.1, and a crossing refuses that source outright, so its nodes never reach the global total the parse-phase join accumulates.",
+        "Section 11.1 prohibits a document type definition outright rather than bounding its expansion, so no separate entity-expansion budget exists to cross: a DTD in any position is XML001 and never a limit diagnostic.",
+        "Section 22 scopes LIMIT001 to once per invocation, so a per-source bound and a global bound crossed together in one run yield exactly one occurrence, attributed by Section 11.1 to the earliest source in command-line order irrespective of which crossing was detected first."
+      ],
+      "fixtures": [
+        "limit-attribution-across-sources",
+        "limit-xml-attributes-per-element",
+        "xml-prohibited-dtd-and-external-resources"
+      ]
     },
     {
       "item": 85,

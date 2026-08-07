@@ -1,0 +1,2 @@
+output=namespace
+filename=out.txt

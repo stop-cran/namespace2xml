@@ -13,7 +13,7 @@ namespace Namespace2Xml.Output;
 /// This type is that buffer.
 /// </para>
 /// <para>
-/// It is segmented rather than contiguous because Section 16.2 makes
+/// It is segmented rather than contiguous because Section 21.2 makes
 /// <c>--max-total-output-bytes</c> "the upper bound on aggregate live serialized buffer payload".
 /// A growable contiguous buffer doubles: at the 4 GiB default it would need 8 GiB live to cross 4,
 /// and the copy would exceed the very bound it is trying to respect. Segments never copy and never

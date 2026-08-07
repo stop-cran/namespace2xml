@@ -1,10 +1,10 @@
 namespace Namespace2Xml.Budgets;
 
 /// <summary>
-/// The Section 16.2 configurable bounds, named so that a crossing can be reported and ordered.
+/// The Section 23 configurable bounds, named so that a crossing can be reported and ordered.
 /// </summary>
 /// <remarks>
-/// Section 22 breaks a tie between two bounds crossed at one position by "the bound name compared as
+/// Section 11.1 breaks a tie between two bounds crossed at one position by "the bound name compared as
 /// unsigned UTF-8 bytes", so the spelling in <see cref="ResourceBoundNames.Spelling"/> is normative
 /// for ordering and not merely cosmetic.
 /// </remarks>
@@ -58,7 +58,7 @@ public static class ResourceBoundNames
 {
     /// <summary>The option spelling Section 6.2 gives a bound, including its leading hyphens.</summary>
     /// <param name="bound">The bound to name.</param>
-    /// <returns>The spelling, which Section 22 compares as unsigned UTF-8 bytes.</returns>
+    /// <returns>The spelling, which Section 11.1 compares as unsigned UTF-8 bytes.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The bound is not a declared member.</exception>
     public static string Spelling(ResourceBound bound) => bound switch
     {

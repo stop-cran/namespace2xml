@@ -33,7 +33,7 @@ public static class YamlInputReader
 {
     /// <summary>Reads one YAML document.</summary>
     /// <param name="text">The decoded document text.</param>
-    /// <param name="limits">The Section 25 bounds.</param>
+    /// <param name="limits">The Section 23 bounds.</param>
     /// <param name="budget">This source's budget, already charged for its bytes.</param>
     /// <param name="origin">How diagnostics name this source.</param>
     /// <param name="phase">The phase its diagnostics report.</param>
@@ -494,11 +494,11 @@ public static class YamlInputReader
             return true;
         }
 
-        /// <summary>Charges one node against Section 16.2's bounds.</summary>
+        /// <summary>Charges one node against Section 23's bounds.</summary>
         /// <param name="depth">The depth of the node, counted from zero at the document root.</param>
         /// <returns><see langword="false"/> when this source crossed <c>--max-depth</c>.</returns>
         /// <remarks>
-        /// Every value is charged, scalars included: Section 16.2 has "every element, attribute,
+        /// Every value is charged, scalars included: Section 11.1 has "every element, attribute,
         /// text, comment, and CDATA overlay node" consume <c>--max-nodes</c>, and a YAML scalar is
         /// the text node of that list. Charging containers alone would leave a flat mapping of a
         /// million entries costing one node. <see cref="JsonInputReader"/> charges identically,
