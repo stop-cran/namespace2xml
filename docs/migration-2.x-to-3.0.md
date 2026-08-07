@@ -638,6 +638,9 @@ defect in the fixture; see CONTRIBUTING.md.
 - `mask-candidates-consume-the-wildcard-limit`
 - `mask-clears-shape-marks`
 - `merge-strategies-over-native-sequence-shapes`
+- `wildcard-cascade-completes-within-the-iteration-bound`
+- `wildcard-cascade-crosses-the-iteration-bound`
+- `wildcard-generation-crosses-the-generated-bound`
 - `wildcard-generation-merges-at-rule-position`
 - `wildcard-repeated-capture-backtracking`
 

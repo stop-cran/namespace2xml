@@ -1,0 +1,6 @@
+-i
+inputs/first.txt
+-s
+schemes/scheme.txt
+--max-generated
+1

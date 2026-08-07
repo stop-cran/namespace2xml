@@ -70,10 +70,17 @@
         "Generation runs to a fixed point in breadth waves, so a template matches names an earlier wave generated and a two-level cascade completes in one run.",
         "A wave evaluates candidates against the items present when that wave began, so which rule sees which item depends on the wave the item appeared in rather than on rule order within a wave.",
         "A later concrete entry overrides a generated one, because Section 12.4 makes source order control precedence rather than visibility.",
-        "A permanent ignore mask consumes the shared candidate-check limit once per eligible pair, including for the items it suppresses, so a run whose only wildcard rule is a mask can cross the limit."
+        "A permanent ignore mask consumes the shared candidate-check limit once per eligible pair, including for the items it suppresses, so a run whose only wildcard rule is a mask can cross the limit.",
+        "An excessively expanding rule set, whose every wave produces the item that justifies another wave, is stopped by the iteration bound and reports it rather than running to exhaustion.",
+        "Only waves that generate are charged against the iteration bound, so the same cascade completes at a bound of one per generating level and the number behaves as a threshold rather than a refusal.",
+        "The generated-entry bound is separate from the iteration bound and counts newly materialized nodes, so a rule set that settles in one wave can still cross it.",
+        "A crossed bound names the rules that spent it, in source order, and not the rule that was about to run or the matched item."
       ],
       "fixtures": [
         "mask-candidates-consume-the-wildcard-limit",
+        "wildcard-cascade-completes-within-the-iteration-bound",
+        "wildcard-cascade-crosses-the-iteration-bound",
+        "wildcard-generation-crosses-the-generated-bound",
         "wildcard-template-generation"
       ]
     },
