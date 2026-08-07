@@ -38,7 +38,7 @@ destinations. Everything below that line is refused, not approximated.
 | References and value wildcards | Not yet | §13 |
 | Templates and masks | Implemented for namespace input | §8.6, §12 |
 | Wildcard output selectors and `substitute` | Not yet | §14, §16 |
-| Ordered sequences from numeric paths | Not yet | §8.7, §5.4 |
+| Ordered sequences from numeric paths | Implemented, except the §3.2 warning in §1.7 | §8.7, §5.4 |
 | Rendering: JSON, YAML, XML | Not yet | §19.3–§19.5 |
 | **Scheme files** written as JSON, YAML or XML | Not yet | §15 |
 
@@ -232,6 +232,39 @@ The second reading gives the clause work to do; the first is what the first bull
 ordinary mapping-name component whose text resembles XML syntax is not identical to an XML element,
 attribute, or content-token component") appears to assume. A specification amendment decides it, and
 a fixture authored before that decision would pin a guess.
+
+### 1.7 `WARN010` is not emitted
+
+Section 3.2 requires "exactly one compatibility warning for each source contribution, canonical
+mapping path, and output instance where a JSON or YAML mapping inferred at step 11 remains projected
+as a sequence". The inference itself is implemented; `WARN010` is not emitted for it.
+`{"a":{"2":"x","7":"y"}}` renders as the dense sequence §8.7 specifies, with an empty diagnostic
+stream where one warning per contributing source is owed.
+
+This is not silent success in disguise. The exception §3.2 grants is `type=mapping`, and that
+directive is step 16, which this preview refuses with exit `70`. A run that would earn the warning
+has no way to act on it yet, and a run that opts out is told so plainly. The two land together with
+wildcard output selectors and `substitute`.
+
+Emitting it needs per-source provenance the overlay does not retain: a node records the latest
+contribution to each of its marks, not the set of sources that contributed, and "one per source
+contribution" is a count over that set.
+
+### 1.8 A wildcard contribution merges as one earlier-or-later value, not interleaved
+
+§12.4 makes every generated `(rule,match)` result "a separate contribution for every merge strategy"
+and merges it "at its deterministic rule/match position". Where a path already carries contributions
+from several sources, this preview folds the generated value in as a single earlier-or-later
+neighbour of what is already there, by comparing the rule mark against the latest mark at the node.
+
+That is correct whenever the existing contributions all precede or all follow the rule. Where they
+straddle it — an earlier source and a later source both wrote the path, and the template sits
+between them — one binary split cannot express the true interleaving, and the generated value is
+ordered against the whole rather than against each part.
+
+Full fidelity means retaining each source's contribution at a path instead of the folded result,
+which is the same change §1.7 needs. No case in the corpus distinguishes the two orderings today;
+this entry exists so that one that does is read as a known gap rather than as a surprise.
 
 ## 2. Acceptance coverage
 
