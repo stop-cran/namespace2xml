@@ -1,0 +1,4 @@
+cfg.output=namespace
+cfg.b.key=name
+cfg.*.key=id
+cfg.a.key=name

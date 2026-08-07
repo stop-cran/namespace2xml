@@ -205,7 +205,8 @@ public static class Transformation
         var transformed = run.Run(
             PipelineStep.ApplyTransformations,
             PipelineRun.Both(resolved, configuration),
-            (both, _) => PlanningPhase.ApplyTransformations(both.First, both.Second));
+            (both, diagnostics) =>
+                PlanningPhase.ApplyTransformations(both.First, both.Second, diagnostics));
 
         var grouped = run.Run(
             PipelineStep.GroupByDestination,

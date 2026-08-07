@@ -268,18 +268,22 @@ public static class PlanningPhase
 
     /// <summary>Section 15.1 step 16: apply path-scoped transformations to each view.</summary>
     /// <param name="views">Step 15's product.</param>
-    /// <param name="configuration">Step 4's product, whose deferred entries are the transformations.</param>
-    /// <returns>The same views, once no transformation directive remains.</returns>
+    /// <param name="configuration">Step 4's product, which carries the compiled rules.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <returns>The transformed views.</returns>
     /// <remarks>
-    /// <c>root</c> is a step 16 transformation that this build does perform; it was resolved into
+    /// <c>root</c> is the last transformation in the step 16 order; it was resolved into
     /// <see cref="OutputView.Root"/> at step 14 because the same field carries Section 19.1's
-    /// bare-scalar key, and one field with one meaning is worth more than an extra pass.
+    /// bare-scalar key, and it is applied at serialization, which is the same position in the order
+    /// because it only wraps the finished view.
     /// </remarks>
     public static StepOutcome<ImmutableArray<OutputView>> ApplyTransformations(
         ImmutableArray<OutputView> views,
-        SchemeConfiguration configuration)
+        SchemeConfiguration configuration,
+        DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(diagnostics);
 
         if (!configuration.Deferred.IsEmpty)
         {
@@ -292,7 +296,78 @@ public static class PlanningPhase
                     "\u00A716"));
         }
 
-        return StepOutcome.Produced(views);
+        if (configuration.Transforms.IsEmpty)
+        {
+            return StepOutcome.Produced(views);
+        }
+
+        var transformed = ImmutableArray.CreateBuilder<OutputView>(views.Length);
+        var bound = new HashSet<StableOrderingKey>();
+
+        foreach (var view in views)
+        {
+            var result = ViewTransformer.Transform(
+                view.View,
+                view.Instance.Selector.Name?.Parts ?? [],
+                configuration.Transforms,
+                (occurrence, order) => diagnostics.Add(new BufferedDiagnostic(occurrence, order)),
+                bound);
+
+            // Section 16.6 removes an ignored subtree "from the selected output instance only". An
+            // ignore that reached the view root is already TYPE001, so a null here is unreachable
+            // through a successful run; dropping the view keeps the invariant explicit rather than
+            // relying on the diagnostic having been raised.
+            if (result is not null)
+            {
+                transformed.Add(view with { View = result });
+            }
+        }
+
+        WarnUnbound(configuration.Transforms, bound, diagnostics);
+
+        return diagnostics.HasBlockingError
+            ? StepOutcome.Failed<ImmutableArray<OutputView>>()
+            : StepOutcome.Produced(transformed.ToImmutable());
+    }
+
+    /// <summary>
+    /// Section 15.2: an "output-view transformation that binds to no concrete output instance emits
+    /// one scheme warning and is otherwise inert."
+    /// </summary>
+    /// <param name="rules">Every compiled rule, in source order.</param>
+    /// <param name="bound">The rules that bound to a live path in at least one view.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <remarks>
+    /// Section 22 counts <c>WARN009</c> once per declaration, so the union over every view is taken
+    /// before warning: a rule that binds in one output instance and nowhere else has bound.
+    /// </remarks>
+    private static void WarnUnbound(
+        ImmutableArray<TransformRule> rules,
+        HashSet<StableOrderingKey> bound,
+        DiagnosticBuffer diagnostics)
+    {
+        foreach (var rule in rules)
+        {
+            if (bound.Contains(rule.Order))
+            {
+                continue;
+            }
+
+            var path = rule.Path is { } pattern ? CanonicalPath.Of(pattern.Parts) : null;
+
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Warn009(
+                    DiagnosticPhase.Planning,
+                    "\u00A715.2",
+                    $"'{rule.Declaration.Text}' matches no path in any output instance, so it has "
+                    + "no effect.",
+                    cardinalityKey: $"{rule.Declaration.Source}:{rule.Declaration.Line}",
+                    source: rule.Declaration.Source,
+                    line: rule.Declaration.Line,
+                    path: path,
+                    declaration: rule.Declaration.Text),
+                rule.Order));
+        }
     }
 
     /// <summary>Section 15.1 step 17: group contributions by canonical destination path.</summary>

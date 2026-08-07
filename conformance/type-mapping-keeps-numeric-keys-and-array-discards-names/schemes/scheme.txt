@@ -1,0 +1,4 @@
+cfg.output=namespace
+cfg.m.type=mapping
+cfg.m.key=name
+cfg.s.type=array

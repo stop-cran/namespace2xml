@@ -35,9 +35,11 @@ destinations. Everything below that line is refused, not approximated.
 | Output planning, destination paths, collision folding | Implemented | §17 |
 | Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
 | Publication and the validation gate | Implemented | §21 |
-| References and value wildcards | Not yet | §13 |
+| References and value wildcards | Implemented, except the `REFERENCE005` case in §1.9 | §13 |
 | Templates and masks | Implemented for namespace input | §8.6, §12 |
-| Wildcard output selectors and `substitute` | Not yet | §14, §16 |
+| Wildcard output selectors | Implemented | §14 |
+| Path-scoped view transformations: `type`, `key`, `multiline` | Implemented, with the gaps in §1.10–§1.12 | §16.5, §16.6 |
+| `substitute` | Not yet | §16.7 |
 | Ordered sequences from numeric paths | Implemented, except the §3.2 warning in §1.7 | §8.7, §5.4 |
 | Rendering: JSON, YAML, XML | Not yet | §19.3–§19.5 |
 | **Scheme files** written as JSON, YAML or XML | Not yet | §15 |
@@ -250,10 +252,12 @@ as a sequence". The inference itself is implemented; `WARN010` is not emitted fo
 `{"a":{"2":"x","7":"y"}}` renders as the dense sequence §8.7 specifies, with an empty diagnostic
 stream where one warning per contributing source is owed.
 
-This is not silent success in disguise. The exception §3.2 grants is `type=mapping`, and that
-directive is step 16, which this preview refuses with exit `70`. A run that would earn the warning
-has no way to act on it yet, and a run that opts out is told so plainly. The two land together with
-wildcard output selectors and `substitute`.
+This is not silent success in disguise. The exception §3.2 grants is `type=mapping`, which this
+build now implements — see the `type-mapping-keeps-numeric-keys-and-array-discards-names` fixture —
+so a run that would earn the warning does have a way to act on it. What is missing is the prompt to
+do so. Until then, read the absence of a diagnostic on a numeric JSON or YAML mapping as "not
+checked" rather than "no compatibility risk", and reach for `type=mapping` on any numeric mapping
+whose keys are data.
 
 Emitting it needs per-source provenance the overlay does not retain: a node records the latest
 contribution to each of its marks, not the set of sources that contributed, and "one per source
@@ -274,6 +278,50 @@ ordered against the whole rather than against each part.
 Full fidelity means retaining each source's contribution at a path instead of the folded result,
 which is the same change §1.7 needs. No case in the corpus distinguishes the two orderings today;
 this entry exists so that one that does is read as a known gap rather than as a surprise.
+
+### 1.10 A scheme path addresses an XML component canonically, and `SCHEME002` is never raised
+
+§15.2 says "an unmarked component uses the simple alias index for compatibility and convenience;
+if ordinary and XML components make that alias ambiguous at a matched location, selector expansion
+at pipeline step 13 emits blocking `SCHEME002`". This build matches a scheme path against the same
+typed component model the data uses and nothing else, so `a.x` in a scheme binds to the element `x`
+and never to the attribute written `a.@x`. `SCHEME002` consequently has no call site. **verified**
+
+This is the §15.2 half of the same unimplemented alias index as §1.6, and it fails in the safer
+direction: the canonical spelling is always unambiguous, so a directive either binds to exactly what
+it names or binds to nothing and earns the `WARN009` from §15.2. What is lost is the compatibility
+affordance — a 2.x scheme that wrote `a.x` to mean an attribute silently stops binding, with a
+warning rather than a wrong target. Write `a.@x`.
+
+### 1.11 A directive bound beneath a node that a later step-16 pass reshapes becomes inert
+
+§15.1 says "a transformation does not cause scheme matching to restart against newly created paths",
+and this build honours that by binding every rule once, against the pre-transformation paths, before
+any pass runs. The passes then walk in the §15.1 order, each over the previous pass's output.
+
+The consequence is that a rule bound at, say, `a.b.c` is unreachable to a *later* pass if an
+earlier pass renamed `b` — `type=array` at `a` turns `b` into the ordering value `0`, and `key` at
+`a` turns it into a record. The rule matched a path that no longer exists, and the later pass walks
+the new names, so nothing applies it and nothing reports it: the `WARN009` in §15.2 counts the rule
+as bound, because it did bind.
+
+§16.6 specifies this outcome for the one case it considers — a directive under an ignored path is
+"inert and emits the unbound-directive warning" — and says nothing about the conversion cases. The
+behaviour here is inertness without the warning. Order the directives so that a reshaping `type` or
+`key` at an ancestor is the last thing that happens to a subtree, and treat a directive under one as
+having no effect.
+
+### 1.12 `key` does not merge with an independent sequence already at the node
+
+§16.5 says of the sequence a `key` transformation produces: "If an independent sequence projection
+already exists at the same node, the transformed contribution merges with it under the effective
+`merge` strategy." This build replaces rather than merges: the converted node is built from an empty
+sequence, and any sequence projection that was already there is discarded. **verified**
+
+The case needs a node carrying both an ordered mapping and an explicit independent sequence, which
+§4.4 already resolves in favour of one of them for every format this build writes, so no corpus
+fixture reaches it. It is recorded because the specification names a merge strategy there, and a
+future format that renders both projections would make the difference visible.
 
 ## 2. Acceptance coverage
 

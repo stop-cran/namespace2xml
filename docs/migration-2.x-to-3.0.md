@@ -704,12 +704,17 @@ silently.
 These cases carry a `legacy.md` that states neither agreement nor difference. That is a
 defect in the fixture; see CONTRIBUTING.md.
 
+- `key-directive-precedence-follows-source-order`
+- `key-projects-an-ordered-mapping-as-records`
 - `mask-candidates-consume-the-wildcard-limit`
 - `mask-clears-shape-marks`
 - `merge-error-rejects-a-second-source-contribution`
 - `merge-strategies-over-native-sequence-shapes`
 - `reference-scalar-only-and-free-wildcard-rejected`
 - `reference-typed-values-and-alias-addressing`
+- `type-array-with-key-is-an-illegal-combination`
+- `type-ignore-removes-a-subtree-and-strands-its-directives`
+- `type-mapping-keeps-numeric-keys-and-array-discards-names`
 - `wildcard-cascade-completes-within-the-iteration-bound`
 - `wildcard-cascade-crosses-the-iteration-bound`
 - `wildcard-filename-substitutes-the-selector-captures`

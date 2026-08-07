@@ -106,10 +106,36 @@ public sealed record OutputInstance(
 public sealed record InputMerge(QualifiedName? Path, MergeStrategy Strategy);
 
 /// <summary>
+/// One compiled Section 16.5 or 16.6 path-scoped transformation.
+/// </summary>
+/// <param name="Path">
+/// The absolute stable pre-transformation path the rule matches, or null for the model root. It may
+/// contain wildcards: Section 16.5 supports "wildcard-qualified <c>key</c> directives", and Section
+/// 15.2 puts "exact and wildcard declarations" in one source-ordered override stream.
+/// </param>
+/// <param name="Types">The Section 16.6 type set, or null when this rule is a <c>key</c>.</param>
+/// <param name="KeyField">The Section 16.5 field name, or null when this rule is a <c>type</c>.</param>
+/// <param name="Order">Source order, which Section 15.2 makes the only precedence.</param>
+/// <param name="Declaration">Where the directive was written, for the Section 22 members.</param>
+/// <remarks>
+/// Section 15.2 evaluates these "independently against absolute stable pre-transformation paths in
+/// every output instance containing the path", so unlike an <see cref="OutputInstance"/> setting a
+/// rule carries no selector and is not bound to one instance. A rule that matches a path visible in
+/// three instances transforms it in all three.
+/// </remarks>
+public sealed record TransformRule(
+    QualifiedName? Path,
+    TypeSet? Types,
+    string? KeyField,
+    StableOrderingKey Order,
+    DeclarationSite Declaration);
+
+/// <summary>
 /// The compiled scheme: Section 15.1 steps 2 through 4, for the directives this build implements.
 /// </summary>
 /// <param name="Outputs">The concrete output instances, in declaration order.</param>
 /// <param name="InputMerges">The literal-path input merge directives, in source order.</param>
+/// <param name="Transforms">The Section 16.5 and 16.6 path-scoped rules, in source order.</param>
 /// <param name="Deferred">
 /// Recognized directives this build does not compile. They are carried rather than dropped so the
 /// driver can refuse the run instead of silently ignoring configuration the user wrote.
@@ -117,6 +143,7 @@ public sealed record InputMerge(QualifiedName? Path, MergeStrategy Strategy);
 public sealed record SchemeConfiguration(
     ImmutableArray<OutputInstance> Outputs,
     ImmutableArray<InputMerge> InputMerges,
+    ImmutableArray<TransformRule> Transforms,
     ImmutableArray<SchemeEntry> Deferred);
 
 /// <summary>
@@ -162,6 +189,7 @@ public static class SchemeCompiler
         // "merge=append" then "merge=replace" at the same path an unhandled duplicate-key exception
         // downstream, which Section 6.3 forbids as a way for a user-caused condition to surface.
         var mergeWinners = new Dictionary<SelectorKey, (SchemeEntry Entry, long Order)>();
+        var transforms = ImmutableArray.CreateBuilder<TransformRule>();
         var deferred = ImmutableArray.CreateBuilder<SchemeEntry>();
 
         for (var index = 0; index < ordered.Length; index++)
@@ -190,6 +218,14 @@ public static class SchemeCompiler
                     mergeWinners[new SelectorKey(entry.Selector)] = (entry, index);
                     break;
 
+                case SchemeDirective.Type:
+                case SchemeDirective.Key:
+                    // Section 15.2 evaluates these against absolute paths in every instance rather
+                    // than binding them to one selector, so every rule is kept in source order and
+                    // the winner is decided per matched path at step 16.
+                    CompileTransform(entry, diagnostics, transforms);
+                    break;
+
                 case SchemeDirective.Output:
                 case SchemeDirective.Filename:
                 case SchemeDirective.Root:
@@ -208,7 +244,66 @@ public static class SchemeCompiler
         return new SchemeConfiguration(
             BuildInstances(winners, diagnostics),
             CompileInputMerges(mergeWinners, diagnostics),
+            transforms.ToImmutable(),
             deferred.ToImmutable());
+    }
+
+    /// <summary>Sections 16.5 and 16.6, compiled into one source-ordered rule.</summary>
+    private static void CompileTransform(
+        SchemeEntry entry,
+        DiagnosticBuffer diagnostics,
+        ImmutableArray<TransformRule>.Builder transforms)
+    {
+        var written = entry.Value.LiteralText!;
+        var site = new DeclarationSite(entry.Declaration, entry.Source, entry.Line);
+
+        if (entry.Directive == SchemeDirective.Key)
+        {
+            var field = written.Trim();
+
+            if (field.Length == 0)
+            {
+                Reject(entry, diagnostics, "\u00A716.5", "a 'key' directive names no field.");
+                return;
+            }
+
+            transforms.Add(new TransformRule(entry.Selector, null, field, entry.Order, site));
+            return;
+        }
+
+        if (!TypeSet.TryParse(written, out var types, out var failure))
+        {
+            Reject(entry, diagnostics, "\u00A716.6", failure!);
+            return;
+        }
+
+        // Section 15.3 accepts the legacy values with "one warning per scheme". They are recognized
+        // here rather than in the reader because only this directive's own section gives a value
+        // meaning, and the reader deliberately "does not interpret directive values".
+        if (written.Split(',').Any(token => TypeSet.IsLegacyNoOp(token.Trim())))
+        {
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Warn002(
+                    DiagnosticPhase.Scheme,
+                    "\u00A715.3",
+                    $"'{SchemeDirectives.Spelling(SchemeAlias.LegacyTypeValue)}' are deprecated "
+                    + "legacy 'type' values and are treated as no-ops.",
+                    cardinalityKey: $"{entry.Source}:{SchemeAlias.LegacyTypeValue}",
+                    source: entry.Source,
+                    line: entry.Line,
+                    declaration: entry.Declaration),
+                entry.Order));
+        }
+
+        if (types.Values.Count == 0)
+        {
+            // Every value written was a Section 15.3 no-op, so the directive does nothing at all.
+            // Keeping it as a rule would let it win the Section 16.6 set replacement and clear an
+            // earlier directive, which is the one thing "treated as no-ops" rules out.
+            return;
+        }
+
+        transforms.Add(new TransformRule(entry.Selector, types, null, entry.Order, site));
     }
 
     private static ImmutableArray<InputMerge> CompileInputMerges(

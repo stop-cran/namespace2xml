@@ -196,7 +196,7 @@ public class OutputInstanceExpansionTests
 
         instances.ShouldHaveSingleItem().Filename.ShouldBeNull();
 
-        PlanningPhase.ApplyTransformations([], configuration)
+        PlanningPhase.ApplyTransformations([], configuration, diagnostics)
             .Unsupported.ShouldNotBeNull().Spec.ShouldBe("\u00A716");
     }
 }

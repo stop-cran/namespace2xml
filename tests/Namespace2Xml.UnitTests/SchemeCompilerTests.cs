@@ -458,8 +458,89 @@ public class SchemeCompilerTests
     /// </summary>
     [Test]
     public void AnUncompiledDirectiveIsCarried() =>
-        Compile("a.type=array").Deferred.ShouldHaveSingleItem()
-            .Directive.ShouldBe(SchemeDirective.Type);
+        Compile("a.substitute=x").Deferred.ShouldHaveSingleItem()
+            .Directive.ShouldBe(SchemeDirective.Substitute);
+
+    // ---- Sections 16.5 and 16.6: path-scoped transformations ---------------------------------------
+
+    /// <summary>
+    /// Section 15.2 evaluates <c>type</c> "against absolute stable pre-transformation paths in
+    /// every output instance containing the path", so a rule is compiled into its own source-ordered
+    /// list rather than into the per-selector winner table the instance settings use.
+    /// </summary>
+    [Test]
+    public void ATypeDirectiveCompilesToASourceOrderedRule()
+    {
+        var configuration = Compile("a.type=array");
+
+        configuration.Deferred.ShouldBeEmpty();
+
+        var rule = configuration.Transforms.ShouldHaveSingleItem();
+
+        rule.KeyField.ShouldBeNull();
+        rule.Types.ShouldNotBeNull().ToString().ShouldBe("array");
+        CanonicalPath.Of(rule.Path.ShouldNotBeNull().Parts).ShouldBe("a");
+    }
+
+    /// <summary>Section 16.5: a <c>key</c> directive names the generated field.</summary>
+    [Test]
+    public void AKeyDirectiveCompilesToASourceOrderedRule()
+    {
+        var rule = Compile("a.key=name").Transforms.ShouldHaveSingleItem();
+
+        rule.Types.ShouldBeNull();
+        rule.KeyField.ShouldBe("name");
+    }
+
+    /// <summary>
+    /// Section 16.6 makes the set the unit of override, so two directives are two rules and the
+    /// later one is not merged into the earlier at compile time. Which one applies is a per-path
+    /// question that only step 16 can answer.
+    /// </summary>
+    [Test]
+    public void TwoTypeDirectivesForOnePathStayTwoRules() =>
+        Compile("a.type=array\na.type=mapping").Transforms
+            .Select(rule => rule.Types!.Value.ToString())
+            .ShouldBe(["array", "mapping"]);
+
+    /// <summary>Section 16.6: an illegal combination is a blocking scheme error.</summary>
+    [Test]
+    public void AnIllegalTypeCombinationIsRejected() =>
+        Only("a.type=array,mapping").Code.ShouldBe("SCHEME001");
+
+    /// <summary>Section 16.6: an unrecognized type value is a blocking scheme error.</summary>
+    [Test]
+    public void AnUnknownTypeValueIsRejected() =>
+        Only("a.type=nonsense").Code.ShouldBe("SCHEME001");
+
+    /// <summary>Section 16.5: a <c>key</c> directive that names no field is rejected.</summary>
+    [Test]
+    public void AKeyDirectiveWithNoFieldIsRejected() =>
+        Only("a.key= ").Code.ShouldBe("SCHEME001");
+
+    /// <summary>
+    /// Section 15.3 keeps the legacy <c>xmlns</c> and <c>xmlnssuffix</c> type values accepted "as
+    /// no-ops with one warning per scheme". A directive whose every value is a no-op compiles to no
+    /// rule at all, because a rule carrying an empty set would win Section 16.6's set replacement
+    /// and clear an earlier directive — which is not what doing nothing means.
+    /// </summary>
+    [Test]
+    public void ALegacyTypeValueWarnsAndIsIgnored()
+    {
+        Compile("a.type=xmlns").Transforms.ShouldBeEmpty();
+
+        diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("WARN002");
+    }
+
+    /// <summary>Section 15.3: a no-op value written beside a real one does not consume it.</summary>
+    [Test]
+    public void ALegacyTypeValueDoesNotSuppressItsNeighbour()
+    {
+        Compile("a.type=xmlnssuffix,array").Transforms.ShouldHaveSingleItem()
+            .Types.ShouldNotBeNull().ToString().ShouldBe("array");
+
+        diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("WARN002");
+    }
 
     // ---- Section 17.5: declaration order -----------------------------------------------------------
 

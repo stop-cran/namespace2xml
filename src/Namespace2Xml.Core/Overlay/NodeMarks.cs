@@ -295,6 +295,33 @@ public readonly record struct NodeMarks
             ownMappingShape: null, ownSequenceShape: Later(OwnMappingShape, OwnSequenceShape));
 
     /// <summary>
+    /// The marks after Section 16.6 <c>type=mapping</c> converts a winning sequence projection, the
+    /// mirror of <see cref="AsInferredSequence"/>.
+    /// </summary>
+    /// <remarks>
+    /// The conversion consumes the sequence rather than leaving it as a Section 4.4 loser, so the
+    /// sequence shape-mark becomes the mapping's and the node projects one container. Keeping the
+    /// sequence mark would leave the node claiming both shapes when it has one, and Section 17.1
+    /// would then warn about a shape conflict this directive exists to settle.
+    /// </remarks>
+    public NodeMarks AsForcedMapping() =>
+        new(Position, AddressedDirectly, PayloadMark, mappingShape: ContainerShape, sequenceShape: null,
+            ownMappingShape: Later(OwnMappingShape, OwnSequenceShape), ownSequenceShape: null);
+
+    /// <summary>
+    /// The marks of a node's independent payload and sequence facets, with its mapping projection
+    /// removed, for the Section 16.5 <c>value</c> field.
+    /// </summary>
+    /// <remarks>
+    /// Section 16.5 splits one child into a record and a <c>value</c> field. The two halves must
+    /// not both claim the mapping shape-mark: the record holds the mapping fields, so the
+    /// <c>value</c> field holds what is left, which by construction has no children.
+    /// </remarks>
+    public NodeMarks WithoutMapping() =>
+        new(Position, AddressedDirectly, PayloadMark, mappingShape: null, SequenceShape,
+            ownMappingShape: null, OwnSequenceShape);
+
+    /// <summary>
     /// The marks after Section 8.6 permanent masking, recomputed from the contributions that
     /// survived it.
     /// </summary>

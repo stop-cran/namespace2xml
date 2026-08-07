@@ -1,0 +1,3 @@
+cfg.output=namespace
+cfg.a.type=array
+cfg.a.key=name

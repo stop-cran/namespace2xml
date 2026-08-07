@@ -229,9 +229,15 @@
       "item": 22,
       "text": "Output-neutral `key`.",
       "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "status": "required",
+      "assertions": [
+        "The Section 16.5 worked example transforms an ordered mapping into a sequence of records, with the generated key field first in Section 5.2 mapping order and the child's own mapping fields following it.",
+        "The generated field holds the decoded mapping-key text, and each record receives a fresh implicit ordering value in mapping order because neither child carried ordering-value provenance.",
+        "The transformation is output-neutral: it happens once at pipeline step 16, so namespace and INI files from one output instance show the same records differing only in how Section 19 spells a sequence."
+      ],
+      "fixtures": [
+        "key-projects-an-ordered-mapping-as-records"
+      ]
     },
     {
       "item": 23,
@@ -581,9 +587,15 @@
       "item": 54,
       "text": "`type=mapping` preservation of numeric mapping keys and `type=array` conversion of nonnumeric mappings.",
       "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "status": "required",
+      "assertions": [
+        "type=mapping turns the Section 8.7 inferred sequence back into an ordered mapping whose keys are the ordering values as canonical decimal strings, which a following key directive then observes by copying those keys into a field.",
+        "Without type=mapping the same key directive would be TYPE001 against a sequence-only target, so the directive is what makes the mapping projection exist at step 16.",
+        "type=array on a mapping whose keys are not ordering values discards every key and allocates fresh implicit ordering values above the node's high-water mark in current mapping order."
+      ],
+      "fixtures": [
+        "type-mapping-keeps-numeric-keys-and-array-discards-names"
+      ]
     },
     {
       "item": 55,
