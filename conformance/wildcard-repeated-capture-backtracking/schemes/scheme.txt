@@ -1,0 +1,2 @@
+secret.output=namespace
+gen.output=namespace

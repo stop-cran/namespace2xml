@@ -57,6 +57,7 @@
         "A generated name takes its matched prefix from the concrete path rather than from the pattern, so capture text is ordinary literal text in one name part and is never re-lexed."
       ],
       "fixtures": [
+        "wildcard-repeated-capture-backtracking",
         "wildcard-template-generation"
       ]
     },
@@ -326,6 +327,7 @@
         "mask-after-sequence-rebasing",
         "namespace-permanent-ignore-masks",
         "wildcard-ordering-values-survive",
+        "wildcard-repeated-capture-backtracking",
         "wildcard-template-generation"
       ]
     },
@@ -542,7 +544,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "wildcard-repeated-capture-backtracking"
+      ]
     },
     {
       "item": 56,

@@ -163,6 +163,46 @@ public sealed class WildcardMatchTests
     public void AnInconsistentRepeatWithinOnePartIsANonmatch() =>
         Match("p.*[x]-*[x]", "p.aa-a").ShouldBe("no");
 
+    // Section 12.1: a capture takes "the shortest text that still permits the remaining pattern to
+    // match". Where an identifier repeats, the qualifying clause is load-bearing: the shortest text
+    // that permits the *next* token is not always the shortest that permits the rest, so a match
+    // must be able to reconsider a binding it has already made.
+
+    /// <summary>
+    /// The empty binding lets the adjacent token match, and then leaves the part unconsumed. The
+    /// shortest binding that permits the remainder is one character, not none.
+    /// </summary>
+    [Test]
+    public void AdjacentRepeatsReconsiderTheFirstBinding() =>
+        Match("p.*[x]*[x]", "p.aa").ShouldBe("x=[a]");
+
+    [Test]
+    public void AdjacentRepeatsReconsiderPastMoreThanOneLength() =>
+        Match("p.*[x]*[x]", "p.abab").ShouldBe("x=[ab]");
+
+    [Test]
+    public void AdjacentRepeatsWithNoViablePartitionAreANonmatch() =>
+        Match("p.*[x]*[x]", "p.aba").ShouldBe("no");
+
+    /// <summary>
+    /// Section 12.3 confines a wildcard to one name part, but Section 12.2 scopes a capture to the
+    /// whole entry, so a later part can reject what an earlier part chose. Here the second part
+    /// alone is happy with <c>0=p</c>, and only the fourth part reveals that <c>0=pxq</c> is the
+    /// shortest binding permitting the remaining pattern.
+    /// </summary>
+    [Test]
+    public void ARepeatInALaterPartReconsidersAnEarlierPart() =>
+        Match("a.*[0]x*[1].b.*[0]", "a.pxqxr.b.pxq").ShouldBe("0=[pxq],1=[r]");
+
+    /// <summary>
+    /// Reconsideration must not become a preference for whatever partition is found last. Several
+    /// partitions satisfy this pattern -- <c>0=a</c> with <c>1=aa</c> among them -- and Section 12.1
+    /// still selects the one whose earlier capture is shortest.
+    /// </summary>
+    [Test]
+    public void TheChosenPartitionIsTheShortestOfSeveralViableOnes() =>
+        Match("p.*[0]*[1]*[0]", "p.aaaa").ShouldBe("0=[],1=[aaaa]");
+
     [Test]
     public void DistinctIdentifiersBindIndependently() =>
         Match("*[a].*[b]", "one.two").ShouldBe("a=[one],b=[two]");
