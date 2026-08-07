@@ -16,8 +16,10 @@ internal static class FlatIdentity
     /// <remarks>
     /// The default delimiter is used rather than the configured one, so that the same path is named
     /// the same way in every diagnostic regardless of which output instance reported it. When the
-    /// name cannot be spelled at all the structural form stands in: it is stable and distinguishes
-    /// the path from every other, which is what a cardinality key needs.
+    /// name has no Section 19.1 spelling, <see cref="CanonicalPath"/>'s approximation stands in: it
+    /// writes the unspellable scalars as <c>\u{HEX}</c>, which is total and injective, so it still
+    /// distinguishes the path from every other. A cardinality key needs exactly that — two paths
+    /// that spell the same occupy one slot, and the second diagnostic is dropped as a duplicate.
     /// </remarks>
     public static string? PathText(ImmutableArray<NamePart> path) => CanonicalPath.Of(path);
 

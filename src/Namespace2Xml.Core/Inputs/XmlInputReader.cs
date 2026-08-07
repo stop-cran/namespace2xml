@@ -661,9 +661,22 @@ public static class XmlInputReader
             /// <param name="children">The child elements, in document order.</param>
             /// <param name="properties">The property list being built.</param>
             /// <remarks>
+            /// <para>
             /// Repeated same-name children "form a sequence at <c>parent.child</c>", which is what
             /// makes <c>&lt;a&gt;&lt;b/&gt;&lt;b/&gt;&lt;/a&gt;</c> address as <c>a.b.0</c> and
             /// <c>a.b.1</c> while a lone <c>&lt;b&gt;</c> stays <c>a.b</c>.
+            /// </para>
+            /// <para>
+            /// A repeat is therefore recorded once, at its first appearance, and the resulting
+            /// property order is first-appearance order rather than document order. Section 11.4
+            /// covers the difference with a content-token ordering value on every element-only
+            /// child, which this preview does not materialize, so where a later occurrence stood
+            /// among differently-named siblings is not recorded anywhere:
+            /// <c>&lt;a&gt;&lt;b/&gt;&lt;c/&gt;&lt;b/&gt;&lt;/a&gt;</c> and
+            /// <c>&lt;a&gt;&lt;b/&gt;&lt;b/&gt;&lt;c/&gt;&lt;/a&gt;</c> build the same node. That
+            /// is declined rather than wrong until Section 19.5 serialization needs the placement
+            /// those values determine; it is recorded in <c>KNOWN-LIMITS.md</c> and closes there.
+            /// </para>
             /// </remarks>
             private static void ElementOnly(
                 List<ElementToken> children,

@@ -270,6 +270,53 @@ public sealed class NamespaceEncoderTests
     public void ALeadingContentTokenIsBlocking() =>
         EncodeFault(Name(new ContentPart(0), Ordinary("a"))).Message.ShouldContain("root");
 
+    // Section 6.4.3: the approximate spelling used for a diagnostic's 'path'.
+
+    /// <summary>
+    /// Approximation is total. Every name the Section 19.1 encoder refuses must still yield text,
+    /// because <see cref="CanonicalPath"/> has nowhere to report a second failure — it is already
+    /// on the path that reports the first one.
+    /// </summary>
+    /// <param name="name">A name Section 19.1 cannot spell.</param>
+    [TestCaseSource(nameof(UnspellableNames))]
+    public void ApproximationSucceedsWhereSpellingCannot(QualifiedName name)
+    {
+        NamespaceEncoder.TryEncodeName(name, ".", recordLeading: true, out _, out _)
+            .ShouldBeFalse();
+
+        NamespaceEncoder.EncodeApproximateName(name, ".").ShouldNotBeNullOrEmpty();
+    }
+
+    /// <summary>
+    /// One name per reason Section 19.1 gives for having no spelling, in both a URI and an ordinary
+    /// part. A lone surrogate is not a valid scalar value, so the forbidden-set test has to reach it
+    /// without constructing a <c>Rune</c>.
+    /// </summary>
+    private static IEnumerable<QualifiedName> UnspellableNames()
+    {
+        yield return Name(Ordinary("a\ud800b"));
+        yield return Name(Ordinary("a\udc00"));
+        yield return Name(new QualifiedElementPart("a\u0001b", [new LiteralToken("x")]));
+        yield return Name(new QualifiedElementPart("a\u00ad", [new LiteralToken("x")]));
+        yield return Name(new QualifiedElementPart("a\ud800", [new LiteralToken("x")]));
+        yield return Name(new QualifiedElementPart("a", [new LiteralToken("x\udc00")]));
+    }
+
+    /// <summary>
+    /// Approximation applies only where spelling failed. A name Section 19.1 can spell must
+    /// approximate to exactly that spelling, or the two would be different texts for one path.
+    /// </summary>
+    [Test]
+    public void ASpellableNameApproximatesToItsSpelling()
+    {
+        var name = Name(
+            Ordinary("a.b"),
+            new QualifiedElementPart("urn:x", [new LiteralToken("c")]),
+            new ContentPart(3));
+
+        NamespaceEncoder.EncodeApproximateName(name, ".").ShouldBe(Encode(name));
+    }
+
     /// <summary>
     /// Section 19.1 refuses a leading content token "because it would be parsed as a comment
     /// record", so the refusal is a property of record emission. A caller that emits no record —

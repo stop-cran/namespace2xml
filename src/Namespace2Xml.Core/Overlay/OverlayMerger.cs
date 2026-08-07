@@ -421,10 +421,12 @@ public sealed class OverlayMerger
     /// theoretical case.
     /// </para>
     /// <para>
-    /// A name containing a <c>Q{...}</c> URI that contains the delimiter has no escaped spelling at
-    /// that delimiter, so encoding can fail. The structural form is used then: it is stable and
-    /// distinguishes the path from every other, which is what the cardinality key needs, even
-    /// though it is not the spelling a user would write.
+    /// A name whose <c>Q{...}</c> URI carries a scalar Section 19.1 forbids has no ordinary
+    /// spelling, so encoding can fail. <see cref="CanonicalPath"/>'s approximation is used then: it
+    /// writes those scalars as <c>\u{HEX}</c>, which does not read back but is total and injective,
+    /// so the path is still distinguished from every other. That is what the cardinality key needs
+    /// — a fallback that collapsed two paths onto one text would put them in one cardinality slot
+    /// and cost the second diagnostic entirely.
     /// </para>
     /// </remarks>
     private static string? PathText(ImmutableArray<NamePart> path) => CanonicalPath.Of(path);

@@ -130,12 +130,28 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   CDATA and adjacent ordinary text coalesce separately and never with each other — but the run's
   CDATA-ness does not survive projection into the common model, so from that point it is text.
   XML rendering is unimplemented, so nothing observable is lost today; this closes with §19.5.
-- **Element-only children carry no separately addressable content token.** §11.4 says every parent
-  assigns ordering values "including element-only parents", and that element-only children retain
-  element-name addressing "while also carrying their content-token ordering value". This preview
-  materializes the element-name address only. Document order is preserved — it is what the §5.2
-  position marks record — but `a.#1` does not select an element-only child, and a comment among
-  element-only children has no address at all.
+- **Element-only children carry no separately addressable content token, and interleaved repeats
+  lose their document order.** §11.4 says every parent assigns ordering values "including
+  element-only parents", and that element-only children retain element-name addressing "while also
+  carrying their content-token ordering value for deterministic placement". This preview
+  materializes the element-name address only, so `a.#1` does not select an element-only child and a
+  comment among element-only children has no address at all.
+
+  The consequence is a real loss, not only a missing address. §11.4 also says repeated same-name
+  children "form a sequence at `parent.child`", so a repeat is recorded as one property at its
+  first appearance; without the content-token value there is nothing left that says where its later
+  occurrences stood among differently-named siblings. `<a><b>1</b><c>2</c><b>3</b></a>` and
+  `<a><b>1</b><b>3</b><c>2</c></a>` therefore produce the same model, and the same output, in this
+  preview — **verified**, not merely expected. §11.4 makes content-token values "determine
+  placement in the parent's serialized stream", so this becomes observable when §19.5 lands and the
+  first document must serialize back with its `<c>` between the two `<b>` elements. Until then no
+  implemented output format orders element-only children by anything but first appearance, so
+  nothing observable is lost today.
+
+  An earlier revision of this file claimed here that "document order is preserved — it is what the
+  §5.2 position marks record". That was wrong for exactly the interleaved case above, and it is
+  recorded rather than quietly deleted because a reassurance is worth less than nothing when it is
+  the thing that stops you checking.
 - **The content-token alias for a sole text node is not materialized.** §11.4 calls the element path
   and its sole text or CDATA content-token path "two canonical addresses for one scalar identity".
   This preview exposes the element path only, so `<b>two</b>` is addressable as `b` and not as

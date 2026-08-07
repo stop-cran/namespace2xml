@@ -101,7 +101,8 @@ public static class NamespaceEncoder
                 builder.Append(delimiter);
             }
 
-            if (!TryEncodePart(name.Parts[i], delimiter, first: i == 0, recordLeading, builder, out fault))
+            if (!TryEncodePart(
+                    name.Parts[i], delimiter, first: i == 0, recordLeading, approximate: false, builder, out fault))
             {
                 return false;
             }
@@ -109,6 +110,61 @@ public static class NamespaceEncoder
 
         text = builder.ToString();
         return true;
+    }
+
+    /// <summary>
+    /// Spells a name that Section 19.1 cannot spell, injectively but not readably.
+    /// </summary>
+    /// <param name="name">The name to spell.</param>
+    /// <param name="delimiter">The configured delimiter.</param>
+    /// <returns>The approximate text, which is never null and never empty for a non-empty name.</returns>
+    /// <remarks>
+    /// <para>
+    /// This is total where <see cref="TryEncodeName"/> refuses, and it stays injective: the two
+    /// scalars Section 19.1 has no spelling for inside <c>Q{...}</c> -- a forbidden scalar and an
+    /// unpaired surrogate -- are written as <c>\u{HEX}</c> here. That text cannot be read back,
+    /// which is exactly why the real encoder refuses to emit it and earns <c>SERIALIZE001</c>
+    /// instead. Nothing that must round-trip may call this.
+    /// </para>
+    /// <para>
+    /// Injectivity is the property that matters, because the result is a diagnostic's cardinality
+    /// key as well as its prose. A collapsing fallback makes two distinct offending paths occupy
+    /// one cardinality slot, and the buffer then drops the second diagnostic as a duplicate -- so
+    /// a fallback that says less also silently reports less, which is the opposite of what a
+    /// fallback is for. It stays injective against the ordinary encoding too: a literal backslash
+    /// inside a URI is written <c>\\</c> by both, so no name Section 19.1 can spell collides with
+    /// an approximation.
+    /// </para>
+    /// </remarks>
+    public static string EncodeApproximateName(QualifiedName name, string delimiter)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(delimiter);
+
+        var builder = new StringBuilder();
+
+        for (var i = 0; i < name.Parts.Length; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(delimiter);
+            }
+
+            if (!TryEncodePart(
+                    name.Parts[i],
+                    delimiter,
+                    first: i == 0,
+                    recordLeading: false,
+                    approximate: true,
+                    builder,
+                    out _))
+            {
+                throw new InvalidOperationException(
+                    "approximate name encoding is total and must not fail.");
+            }
+        }
+
+        return builder.ToString();
     }
 
     /// <summary>Encodes an interpreted value for namespace output.</summary>
@@ -174,7 +230,7 @@ public static class NamespaceEncoder
 
         while (index < literal.Length)
         {
-            if (!TryDecodeScalar(literal, index, out var scalar, out var width, out fault))
+            if (!TryDecodeScalar(literal, index, approximate: false, out var scalar, out var width, out fault))
             {
                 return false;
             }
@@ -216,6 +272,7 @@ public static class NamespaceEncoder
         string delimiter,
         bool first,
         bool recordLeading,
+        bool approximate,
         StringBuilder builder,
         out EncodingFault fault)
     {
@@ -243,10 +300,12 @@ public static class NamespaceEncoder
 
             case AttributePart attribute:
                 builder.Append('@');
-                return TryEncodeXmlName(attribute.Name, delimiter, recordLeading, builder, out fault);
+                return TryEncodeXmlName(
+                    attribute.Name, delimiter, recordLeading, approximate, builder, out fault);
 
             case XmlNameComponent component:
-                return TryEncodeXmlName(component, delimiter, recordLeading, builder, out fault);
+                return TryEncodeXmlName(
+                    component, delimiter, recordLeading, approximate, builder, out fault);
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(part));
@@ -257,6 +316,7 @@ public static class NamespaceEncoder
         XmlNameComponent component,
         string delimiter,
         bool recordLeading,
+        bool approximate,
         StringBuilder builder,
         out EncodingFault fault)
     {
@@ -266,16 +326,18 @@ public static class NamespaceEncoder
         {
             case QualifiedElementPart qualified:
                 builder.Append("Q{");
-                if (!TryEncodeUri(qualified.Uri, builder, out fault))
+                if (!TryEncodeUri(qualified.Uri, approximate, builder, out fault))
                 {
                     return false;
                 }
 
                 builder.Append('}');
-                return TryEncodeTokens(qualified.Local, delimiter, ordinary: false, recordLeading, builder, out fault);
+                return TryEncodeTokens(
+                    qualified.Local, delimiter, ordinary: false, recordLeading, approximate, builder, out fault);
 
             case OrdinaryPart ordinary:
-                return TryEncodeTokens(ordinary.Tokens, delimiter, ordinary: true, recordLeading, builder, out fault);
+                return TryEncodeTokens(
+                    ordinary.Tokens, delimiter, ordinary: true, recordLeading, approximate, builder, out fault);
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(component));
@@ -286,25 +348,33 @@ public static class NamespaceEncoder
     /// Section 19.1: inside a URI only <c>}</c> and backslash are escaped and everything else is
     /// literal, which leaves a forbidden scalar there with no spelling at all.
     /// </summary>
-    private static bool TryEncodeUri(string uri, StringBuilder builder, out EncodingFault fault)
+    private static bool TryEncodeUri(
+        string uri, bool approximate, StringBuilder builder, out EncodingFault fault)
     {
         fault = default;
         var index = 0;
 
         while (index < uri.Length)
         {
-            if (!TryDecodeScalar(uri, index, out var scalar, out var width, out fault))
+            if (!TryDecodeScalar(uri, index, approximate, out var scalar, out var width, out fault))
             {
                 return false;
             }
 
             if (IsForbidden(scalar))
             {
-                fault = new EncodingFault(
-                    "this namespace URI contains a character namespace output cannot spell: "
-                    + "Section 11.4 admits only '\\}' and '\\\\' inside 'Q{...}', so a '\\u{HEX}' "
-                    + "escape there would not read back.");
-                return false;
+                if (!approximate)
+                {
+                    fault = new EncodingFault(
+                        "this namespace URI contains a character namespace output cannot spell: "
+                        + "Section 11.4 admits only '\\}' and '\\\\' inside 'Q{...}', so a '\\u{HEX}' "
+                        + "escape there would not read back.");
+                    return false;
+                }
+
+                AppendUnicodeEscape(scalar, builder);
+                index += width;
+                continue;
             }
 
             switch (scalar)
@@ -331,6 +401,7 @@ public static class NamespaceEncoder
         string delimiter,
         bool ordinary,
         bool recordLeading,
+        bool approximate,
         StringBuilder builder,
         out EncodingFault fault)
     {
@@ -352,6 +423,7 @@ public static class NamespaceEncoder
                             delimiter,
                             marker: ordinary && t == 0,
                             recordLeading,
+                            approximate,
                             builder,
                             out fault))
                     {
@@ -373,6 +445,7 @@ public static class NamespaceEncoder
         string delimiter,
         bool marker,
         bool recordLeading,
+        bool approximate,
         StringBuilder builder,
         out EncodingFault fault)
     {
@@ -381,7 +454,7 @@ public static class NamespaceEncoder
 
         while (index < literal.Length)
         {
-            if (!TryDecodeScalar(literal, index, out var scalar, out var width, out fault))
+            if (!TryDecodeScalar(literal, index, approximate, out var scalar, out var width, out fault))
             {
                 return false;
             }
@@ -493,15 +566,35 @@ public static class NamespaceEncoder
         return false;
     }
 
+    /// <summary>Decodes one scalar, or one lone surrogate when approximating.</summary>
+    /// <param name="text">The text to decode from.</param>
+    /// <param name="index">The zero-based UTF-16 offset to decode at.</param>
+    /// <param name="approximate">
+    /// Whether an unpaired surrogate yields its own code-unit value rather than a fault. Section
+    /// 19.1 has no spelling for one, so the real encoder must refuse; an approximation must not,
+    /// and <see cref="IsForbidden"/> reports the surrogate range so the caller escapes it.
+    /// </param>
+    /// <param name="scalar">The decoded scalar value, or the lone surrogate's code unit.</param>
+    /// <param name="width">How many UTF-16 code units it occupied.</param>
+    /// <param name="fault">Why the text has no spelling, when decoding fails.</param>
     private static bool TryDecodeScalar(
         string text,
         int index,
+        bool approximate,
         out int scalar,
         out int width,
         out EncodingFault fault)
     {
         if (Rune.DecodeFromUtf16(text.AsSpan(index), out var rune, out width) != OperationStatus.Done)
         {
+            if (approximate)
+            {
+                scalar = text[index];
+                width = 1;
+                fault = default;
+                return true;
+            }
+
             scalar = 0;
             fault = new EncodingFault(
                 "this name contains an unpaired surrogate, which Appendix A.2 excludes from "
@@ -531,8 +624,20 @@ public static class NamespaceEncoder
         index + delimiter.Length <= text.Length
         && string.CompareOrdinal(text, index, delimiter, 0, delimiter.Length) == 0;
 
+    /// <summary>
+    /// Section 19.1's forbidden set: "Unicode categories <c>Cc</c>, <c>Cf</c>, and <c>Cs</c>, plus
+    /// U+0085, U+2028, and U+2029".
+    /// </summary>
+    /// <param name="scalar">The scalar value, or a lone surrogate's code unit when approximating.</param>
+    /// <remarks>
+    /// The surrogate range is tested before <see cref="Rune"/> is constructed, because a surrogate
+    /// code point is not a scalar value and the constructor throws on one. A <see cref="Rune"/> can
+    /// never itself be a surrogate, so this arm reports only the approximate decoder's lone
+    /// surrogate -- which <c>Cs</c> makes forbidden, and therefore escaped.
+    /// </remarks>
     private static bool IsForbidden(int scalar) =>
         scalar is 0x85 or 0x2028 or 0x2029
+        || scalar is >= 0xD800 and <= 0xDFFF
         || Rune.GetUnicodeCategory(new Rune(scalar))
             is UnicodeCategory.Control or UnicodeCategory.Format;
 

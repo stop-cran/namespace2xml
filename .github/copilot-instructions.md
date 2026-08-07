@@ -190,6 +190,13 @@ rely on it, because it only fires when the doc comment and the signature disagre
   `.ShouldNotBeNull().ShouldContain(…)`.
 - **CA1000** forbids static members on a generic type, so `StepOutcome<T>.Produced` does not
   compile. Put the factories on a non-generic companion class with a generic method.
+- **A `[TestCase]` string argument cannot carry a lone surrogate.** Attribute arguments are stored
+  in metadata as UTF-8, which has no encoding for one, so the compiler substitutes **U+FFFD** and
+  `[TestCase("u\ud800", "u\udc00")]` arrives as two *equal* strings. Verified by reflecting over a
+  custom attribute: the literals read `D800`/`DC00`, the attribute reads `FFFD`/`FFFD`. This is
+  worse than a compile error, because a test asserting that two unspellable names **collapse** would
+  pass for entirely the wrong reason. Build such strings in the test body, where the literals
+  survive.
 
 ### Restoring a mutated file does not rebuild it
 
@@ -243,6 +250,12 @@ The escape is to mutate the **shared helper to the identity** instead of unhooki
 Turning `SourceLines.ColumnOf` into a pass-through kept every reference alive, compiled cleanly, and
 killed eleven tests across three fixtures at once — which is also stronger evidence, because it
 proves every caller genuinely routes through the helper rather than proving one call site at a time.
+
+The same applies to the most natural way to disable a guard. Rewriting `if (!approximate)` as
+`if (true)` makes the code after it unreachable, and **CS0162** is an error here, so the harness
+reports `KILLED (build)` for a mutation no test ever saw. Flip a value the guard reads instead —
+passing `approximate: false` at the one call site reverted the same behaviour, compiled, and killed
+thirteen tests.
 
 ### `create` writes CRLF on Windows, and a mutation harness will not tell you
 

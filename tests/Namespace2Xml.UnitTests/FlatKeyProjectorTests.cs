@@ -238,6 +238,35 @@ public class FlatKeyProjectorTests
         SoleCode().ShouldBe("SHELL001");
     }
 
+    /// <summary>
+    /// <c>SHELL001</c> is scoped "once per projected key and output instance", so two paths that
+    /// have no key spelling must each be reported. The buffer keys that scope on the diagnostic's
+    /// <c>path</c> text, so a path spelling that collapses distinct paths together silently drops
+    /// the second error — the reader fixes one namespace URI and the build fails again on a second
+    /// one that was never named.
+    /// </summary>
+    /// <remarks>
+    /// Section 19.1 has no spelling for either URI: U+00AD is <c>Cf</c>, and Section 11.4 admits
+    /// only <c>\}</c> and <c>\\</c> inside <c>Q{...}</c>. Both paths therefore take the approximate
+    /// spelling, which is exactly where a collapse would occur. The assertion is on the count and on
+    /// the two paths differing, not on the approximation itself, which the specification does not
+    /// fix.
+    /// </remarks>
+    [Test]
+    public void TwoUnspellablePathsAreEachReported()
+    {
+        Project(
+                FlatFormat.QuotedNamespace,
+                Typed(new QualifiedElementPart("urn:x\u00ad1", [new LiteralToken("b")])),
+                Typed(new QualifiedElementPart("urn:x\u00ad2", [new LiteralToken("b")])))
+            .ShouldBeEmpty();
+
+        var reported = diagnostics.Drain();
+
+        reported.Select(d => d.Code).ShouldBe(["SHELL001", "SHELL001"]);
+        reported.Select(d => d.Path).Distinct().Count().ShouldBe(2);
+    }
+
     // Section 19.6: INI keys and sections.
 
     /// <summary>Section 19.6: "a surviving scalar path with one part becomes a global key".</summary>
