@@ -4,5 +4,7 @@ inputs/comment.json
 inputs/trailing-comma.json
 -i
 inputs/duplicate-key.json
+-i
+inputs/surrogate-escape.json
 -s
 schemes/scheme.txt

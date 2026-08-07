@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (23)
+## Deliberate differences (24)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -239,7 +239,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 ### `json-strict-parsing-refusals`
 
 - namespace2xml 2.4.0: **differs**.
-- Contract: Sections 9.2, 9.3, 22, and 24.
+- Contract: Sections 9.1, 9.2, 9.3, 22, and 24.
 - Legacy observation: the JSON reader accepted comments and trailing commas, and a duplicate object
   key silently kept whichever the parser visited last, so a typo that shadowed a real setting
   produced no message at all.
@@ -250,6 +250,12 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: Section 9.3 states that rejecting duplicates "avoids
   parser-dependent behavior and accidental hidden overrides", which is exactly what the legacy
   reader did.
+- `surrogate-escape.json` carries a `\u` escape standing for an unpaired surrogate. Section 9.1
+  admits strings, and Appendix A.2 excludes surrogates from every escape, so the document denotes
+  no text and is refused rather than repaired into U+FFFD. The escape is also why this source is
+  here rather than in a reader unit test alone: the condition reaches the host parser through a
+  path that reports it as an ordinary state error, so nothing but an end-to-end run proves it does
+  not leave the process as an unhandled exception, which Section 6.3 forbids.
 
 ### `limit-attribution-across-sources`
 
@@ -342,6 +348,33 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: Section 11.4 exists so that one XML component has exactly one
   address regardless of how the document spells its prefixes, and every legacy behavior above either
   loses a component the document contained or lets the document's spelling decide its identity.
+
+### `xml-declaration-encoding-disagreement`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 7.4, 11.2, 22, and Appendix B.
+- Legacy observation: the XML declaration's `encoding` pseudo-attribute was not checked against the
+  encoding the file was actually decoded with, so a file saved as UTF-8 while still declaring a
+  single-byte code page was read as UTF-8 and its non-ASCII text silently became different
+  characters from the ones the declaration claimed.
+- Clean behavior: Section 7.4 selects the encoding from the byte-order mark, and Section 11.2 makes
+  a declared name that disagrees with that selection a blocking error rather than advice. A
+  declaration describing a different document from the one on disk is refused instead of guessed
+  at.
+- The code is `PARSE002`, not `XML002`. Section 11.2 calls the condition "a blocking XML error",
+  which reads like the latter, but Appendix B assigns "XML declaration encoding inconsistent with
+  decoded input" to `PARSE002`, excludes "byte-encoding disagreement" from `XML002` in the same
+  table, and then separates the two a third time: "encoding disagreement is `PARSE002`, while an
+  otherwise invalid XML declaration is `XML002`". This fixture is the guard on that reading.
+- The position is line 1, column 1 in both sources. Section 22 fixes how a column is measured but
+  not which construct anchors a diagnostic; the corpus convention is the first scalar of the
+  offending construct, as the `XML001` for a document type declaration reports the `<` of
+  `<!DOCTYPE`. An XML declaration may be preceded by nothing, so once Section 7.4 has removed any
+  byte-order mark its first scalar is always the first scalar of the source.
+- `named-utf16.xml` is the case a reader that only compares names would miss: `UTF-16` is a real
+  encoding this tool supports, and it is wrong here only because this particular file carries no
+  UTF-16 byte-order mark and was therefore decoded as UTF-8. Both sources report, in the Section
+  7.3 command-line order, so one run names every disagreeing file.
 
 ### `xml-prohibited-dtd-and-external-resources`
 

@@ -105,9 +105,14 @@ public static class JsonInputReader
                 switch (reader.TokenType)
                 {
                     case JsonTokenType.PropertyName:
-                        if (!ReadPropertyName(
-                            reader.GetString()!, frames.Peek(), line, column,
-                            origin, phase, diagnostics, key))
+                        var name = Decode(
+                            ref reader, "a JSON property name", line, column,
+                            origin, phase, diagnostics, key);
+
+                        if (name is null
+                            || !ReadPropertyName(
+                                name, frames.Peek(), line, column,
+                                origin, phase, diagnostics, key))
                         {
                             return null;
                         }
@@ -322,7 +327,15 @@ public static class JsonInputReader
         switch (reader.TokenType)
         {
             case JsonTokenType.String:
-                scalar = StructuredScalar.OfNativeString(reader.GetString()!, line, column);
+                var text = Decode(
+                    ref reader, "a JSON string", line, column, origin, phase, diagnostics, key);
+
+                if (text is null)
+                {
+                    return false;
+                }
+
+                scalar = StructuredScalar.OfNativeString(text, line, column);
                 return true;
 
             case JsonTokenType.True:
@@ -425,6 +438,57 @@ public static class JsonInputReader
         return true;
     }
 
+    /// <summary>
+    /// Decodes a string token, refusing an escape that stands for no Unicode scalar.
+    /// </summary>
+    /// <param name="reader">The reader positioned on the string or property-name token.</param>
+    /// <param name="what">What the token is, for the message.</param>
+    /// <param name="line">The Section 22 line the token begins at.</param>
+    /// <param name="column">The Section 22 column the token begins at.</param>
+    /// <param name="origin">The source being read.</param>
+    /// <param name="phase">The pipeline phase reading it.</param>
+    /// <param name="diagnostics">The buffer a refusal accumulates in.</param>
+    /// <param name="key">The ordering key of this source.</param>
+    /// <returns>The decoded text, or <see langword="null"/> when it was refused.</returns>
+    /// <remarks>
+    /// <c>\uD800</c> matches the RFC 8259 <c>char</c> production, so this is not a syntax error and
+    /// <see cref="JsonException"/> is not what <see cref="Utf8JsonReader.GetString"/> raises for it:
+    /// an unpaired or reversed surrogate escape is <see cref="InvalidOperationException"/>, which
+    /// the reader's outer handler does not catch. Section 6.3 forbids a user-caused error escaping
+    /// "only as an unhandled exception", so the two decode sites catch it here rather than letting
+    /// input decide whether the process survives.
+    /// </remarks>
+    private static string? Decode(
+        ref Utf8JsonReader reader,
+        string what,
+        int line,
+        int column,
+        ProfileSource origin,
+        DiagnosticPhase phase,
+        DiagnosticBuffer diagnostics,
+        StableOrderingKey key)
+    {
+        try
+        {
+            return reader.GetString()!;
+        }
+        catch (InvalidOperationException)
+        {
+            Fail(
+                $"{what} contains a \\u escape that stands for no Unicode scalar. Section 9.1 "
+                + "admits strings, and Appendix A.2 excludes surrogates from every escape, so an "
+                + "unpaired or reversed surrogate pair denotes no text.",
+                line,
+                column,
+                origin,
+                phase,
+                diagnostics,
+                key,
+                "\u00A79.1");
+            return null;
+        }
+    }
+
     private static void Fail(
         string message,
         int line,
@@ -508,6 +572,13 @@ public static class JsonInputReader
         private readonly List<int> lineStartBytes = [0];
         private readonly List<int> lineStartChars = [0];
 
+        // Section 22 ends a line at LF, CRLF, or a lone CR. Utf8JsonReader ends one at LF and
+        // nothing else, so its own line numbers index a different table from the one above. A
+        // document carrying both a lone CR and an LF makes the two disagree, and reading a
+        // JsonException's line out of the Section 22 table would then start the search on the
+        // wrong line and report a position that exists but is not the one that failed.
+        private readonly List<int> readerLineStartBytes = [0];
+
         public PositionMap(string text)
         {
             this.text = text;
@@ -532,10 +603,18 @@ public static class JsonInputReader
                     continue;
                 }
 
+                var linefeed = c == '\n';
+
                 if (c == '\r' && i + 1 < text.Length && text[i + 1] == '\n')
                 {
                     position++;
                     i++;
+                    linefeed = true;
+                }
+
+                if (linefeed)
+                {
+                    readerLineStartBytes.Add(position);
                 }
 
                 lineStartBytes.Add(position);
@@ -583,7 +662,10 @@ public static class JsonInputReader
         /// <param name="error">The exception.</param>
         /// <remarks>
         /// Its own <c>BytePositionInLine</c> is a byte count, so it goes back through the table
-        /// rather than being reported as a column.
+        /// rather than being reported as a column. Its <c>LineNumber</c> counts LF-terminated
+        /// lines, so the byte offset that line starts at comes from
+        /// <see cref="readerLineStartBytes"/> and not from the Section 22 table -- the two differ
+        /// as soon as a document holds a lone CR.
         /// </remarks>
         public (int Line, int Column) Locate(JsonException error)
         {
@@ -592,9 +674,9 @@ public static class JsonInputReader
                 return (1, 1);
             }
 
-            var index = (int)Math.Clamp(line, 0, lineStartBytes.Count - 1);
+            var index = (int)Math.Clamp(line, 0, readerLineStartBytes.Count - 1);
 
-            return Locate(lineStartBytes[index] + position);
+            return Locate(readerLineStartBytes[index] + position);
         }
     }
 }

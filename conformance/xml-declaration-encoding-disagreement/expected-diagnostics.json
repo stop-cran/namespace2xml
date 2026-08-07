@@ -1,0 +1,4 @@
+[
+{"code":"PARSE002","severity":"error","phase":"input","source":"inputs/named-other.xml","line":1,"column":1,"spec":"§11.2"},
+{"code":"PARSE002","severity":"error","phase":"input","source":"inputs/named-utf16.xml","line":1,"column":1,"spec":"§11.2"}
+]

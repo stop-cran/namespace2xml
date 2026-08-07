@@ -117,7 +117,8 @@
       "status": "required",
       "assertions": [
         "A standard JSON document parses, and Section 9.1 decides a number's kind from its lexical form.",
-        "Comments, trailing commas, and duplicate object keys are each PARSE001 against the source that carries them."
+        "Comments, trailing commas, and duplicate object keys are each PARSE001 against the source that carries them.",
+        "A \\u escape standing for an unpaired or reversed surrogate denotes no Unicode scalar, so the source is refused rather than repaired, and the condition reaches the diagnostic stream as PARSE001 rather than leaving the process as the unhandled exception Section 6.3 forbids."
       ],
       "fixtures": [
         "json-scalar-kinds-and-sequence-order",

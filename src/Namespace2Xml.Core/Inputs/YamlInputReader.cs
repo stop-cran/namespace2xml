@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
+using System.Text;
 using Namespace2Xml.Budgets;
 using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
@@ -8,6 +9,7 @@ using Namespace2Xml.Overlay;
 using Namespace2Xml.Pipeline;
 using Namespace2Xml.Profiles;
 using Namespace2Xml.Scalars;
+using Namespace2Xml.Text;
 using YamlDotNet.Core;
 using YamlDotNet.Core.Events;
 
@@ -59,7 +61,7 @@ public static class YamlInputReader
         ArgumentNullException.ThrowIfNull(origin);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        var reader = new Reader(origin, phase, diagnostics, key, budget);
+        var reader = new Reader(origin, phase, diagnostics, key, budget, new SourceLines(text));
 
         return reader.Run(text);
     }
@@ -69,7 +71,8 @@ public static class YamlInputReader
         DiagnosticPhase phase,
         DiagnosticBuffer diagnostics,
         StableOrderingKey key,
-        SourceBudget budget)
+        SourceBudget budget,
+        SourceLines lines)
     {
         private readonly Stack<Frame> frames = new();
         private StructuredNode? root;
@@ -78,7 +81,11 @@ public static class YamlInputReader
 
         public StructuredNode? Run(string text)
         {
-            var parser = new Parser(new StringReader(text));
+            // Comments are scanned rather than skipped. YamlDotNet's convenience constructor
+            // passes skipComments: true, which would make Section 11.1's "--max-comments and
+            // --max-comment-bytes exactly as other formats do" unenforceable here -- the events
+            // never reach Step, so nothing could charge them.
+            var parser = new Parser(new Scanner(new StringReader(text), skipComments: false));
 
             try
             {
@@ -95,7 +102,7 @@ public static class YamlInputReader
                 Fail(
                     Explain(error),
                     (int)error.Start.Line,
-                    (int)error.Start.Column,
+                    lines.ColumnOf((int)error.Start.Line, (int)error.Start.Column),
                     "\u00A710.1");
                 return null;
             }
@@ -119,7 +126,13 @@ public static class YamlInputReader
             {
                 case StreamStart:
                 case StreamEnd:
-                case Comment:
+                    return true;
+
+                // Section 23 has comments consume the corresponding global budget, and Section
+                // 11.1 fixes the rule for every format alike. YAML retains no comment, but the
+                // bound counts comments read.
+                case Comment comment:
+                    budget.AddComments(1, Encoding.UTF8.GetByteCount(comment.Value));
                     return true;
 
                 case DocumentStart document:
@@ -229,8 +242,7 @@ public static class YamlInputReader
 
         private bool ReadKey(Scalar scalar, Frame frame)
         {
-            var line = (int)scalar.Start.Line;
-            var column = (int)scalar.Start.Column;
+            var (line, column) = At(scalar.Start);
 
             // Section 10.1: "every plain or quoted scalar mapping key is treated as a string
             // without scalar tag resolution", so a key is never a number, a Boolean, or null. The
@@ -298,10 +310,9 @@ public static class YamlInputReader
         /// Only a plain scalar is resolved. Every quoted, literal, or folded scalar is a string by
         /// construction, which is what makes <c>"true"</c> expressible at all.
         /// </remarks>
-        private static StructuredScalar Resolve(Scalar scalar)
+        private StructuredScalar Resolve(Scalar scalar)
         {
-            var line = (int)scalar.Start.Line;
-            var column = (int)scalar.Start.Column;
+            var (line, column) = At(scalar.Start);
 
             if (scalar.Style != ScalarStyle.Plain)
             {
@@ -522,7 +533,9 @@ public static class YamlInputReader
         {
             var frame = frames.Pop();
 
-            return Attach(frame.Build(), frame.Start);
+            var (line, column) = At(frame.Start);
+
+            return Attach(frame.Build(line, column), frame.Start);
         }
 
         private bool Attach(StructuredNode node, Mark at)
@@ -561,9 +574,21 @@ public static class YamlInputReader
             return true;
         }
 
+        /// <summary>The Section 22 position of a YamlDotNet mark.</summary>
+        /// <param name="at">The mark.</param>
+        /// <remarks>
+        /// <c>Mark.Column</c> is a UTF-16 code-unit column, so a supplementary scalar earlier on
+        /// the line has already advanced it by two where Section 22 advances by one. Every host
+        /// position enters through here, so the two units cannot be confused at a call site.
+        /// </remarks>
+        private (int Line, int Column) At(Mark at) =>
+            ((int)at.Line, lines.ColumnOf((int)at.Line, (int)at.Column));
+
         private bool Reject(string message, Mark at, string spec)
         {
-            Fail(message, (int)at.Line, (int)at.Column, spec);
+            var (line, column) = At(at);
+
+            Fail(message, line, column, spec);
             return false;
         }
 
@@ -636,12 +661,10 @@ public static class YamlInputReader
                 Pending = null;
             }
 
-            public StructuredNode Build() =>
+            public StructuredNode Build(int line, int column) =>
                 sequence
-                    ? new StructuredSequence(
-                        items.ToImmutable(), (int)Start.Line, (int)Start.Column)
-                    : new StructuredMapping(
-                        properties.ToImmutable(), (int)Start.Line, (int)Start.Column);
+                    ? new StructuredSequence(items.ToImmutable(), line, column)
+                    : new StructuredMapping(properties.ToImmutable(), line, column);
         }
     }
 }

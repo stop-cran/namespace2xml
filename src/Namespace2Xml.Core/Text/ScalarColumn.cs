@@ -32,6 +32,20 @@ public static class ScalarColumn
         ArgumentOutOfRangeException.ThrowIfNegative(codeUnits);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(codeUnits, text.Length);
 
+        return Advance(text.AsSpan(), codeUnits);
+    }
+
+    /// <summary>
+    /// The number of Unicode scalar values in the first <paramref name="codeUnits"/> UTF-16 code
+    /// units of <paramref name="text"/>.
+    /// </summary>
+    /// <param name="text">The text the offset indexes.</param>
+    /// <param name="codeUnits">A zero-based UTF-16 code-unit offset into <paramref name="text"/>.</param>
+    public static int Advance(ReadOnlySpan<char> text, int codeUnits)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(codeUnits);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(codeUnits, text.Length);
+
         var scalars = 0;
 
         for (var i = 0; i < codeUnits; i++)

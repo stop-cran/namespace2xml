@@ -303,4 +303,57 @@ public class JsonInputReaderTests
         Read("[1,2]").ShouldBeOfType<StructuredSequence>();
         Read("42").ShouldBeOfType<StructuredScalar>();
     }
+
+    /// <summary>
+    /// A <c>\u</c> escape that stands for no Unicode scalar is refused as a parse error rather
+    /// than escaping as an unhandled exception.
+    /// </summary>
+    /// <param name="document">A document containing an unpaired or reversed surrogate escape.</param>
+    /// <remarks>
+    /// Section 8.2 and Appendix A.2 exclude surrogates from every escape, so such a document
+    /// denotes no text. The host reader signals this from <c>GetString</c> as
+    /// <c>InvalidOperationException</c> rather than <c>JsonException</c>, which is why it needs
+    /// its own handling: Section 6.3 says no user-caused error may escape only as an unhandled
+    /// exception, and under <c>--diagnostics-format json</c> a stack trace would also stop
+    /// standard error from being the single JSON array Section 6.4 requires.
+    /// </remarks>
+    [TestCase("{\"s\":\"\\uD800\"}")]
+    [TestCase("{\"s\":\"\\uDC00\"}")]
+    [TestCase("{\"s\":\"\\uDC00\\uD800\"}")]
+    [TestCase("{\"\\uD800\":1}")]
+    [TestCase("[\"\\uD800\"]")]
+    [TestCase("\"\\uD800\"")]
+    public void AnEscapeDenotingNoScalarIsAParseError(string document)
+    {
+        var diagnostic = Diagnose(document).ShouldHaveSingleItem();
+
+        diagnostic.Code.ShouldBe("PARSE001");
+        diagnostic.Spec.ShouldBe("\u00A79.1");
+    }
+
+    /// <summary>A well-formed surrogate pair denotes one scalar and is admitted.</summary>
+    [Test]
+    public void APairedSurrogateEscapeIsText() =>
+        Property(Read("{\"s\":\"\\uD83D\\uDE00\"}"), "s")
+            .ShouldBeOfType<StructuredScalar>()
+            .NativeString.ShouldBe("\U0001F600");
+
+    /// <summary>
+    /// A refusal's line is Section 22's line, counted over line terminators Section 22 recognizes,
+    /// and not the host reader's.
+    /// </summary>
+    /// <remarks>
+    /// Section 22 ends a line at "LF, CRLF, or a lone CR, and by nothing else".
+    /// <see cref="System.Text.Json.Utf8JsonReader"/> ends one at LF alone, so in
+    /// <c>{&lt;CR&gt;"a": 1,&lt;LF&gt;"b" 2}</c> the missing colon stands on Section 22's line 3
+    /// and on the reader's line 2. Converting the reader's line number through the Section 22
+    /// table -- rather than through one built to the reader's own rule -- starts the search on the
+    /// wrong line and reports a position that exists but is not the one that failed.
+    ///
+    /// Only the line is asserted. Section 22 fixes how a line is counted but not which byte of a
+    /// malformed construct a host reader points at, so the column is not this project's to state.
+    /// </remarks>
+    [Test]
+    public void ALoneCarriageReturnEndsALineForTheReportedPosition() =>
+        Diagnose("{\r\"a\": 1,\n\"b\" 2}").ShouldHaveSingleItem().Line.ShouldBe(3);
 }

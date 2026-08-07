@@ -107,6 +107,19 @@ public class XmlInputReaderTests
         return budget.Fault.Value.Bound;
     }
 
+    /// <summary>Everything this document charged against Section 23's bounds.</summary>
+    /// <param name="document">The document to read.</param>
+    private static SourceTally Charged(string document)
+    {
+        var budget = new SourceBudget(ResourceLimits.Defaults, 0);
+        var buffer = new DiagnosticBuffer();
+
+        Read(document, buffer, ResourceLimits.Defaults, budget).ShouldNotBeNull();
+        buffer.Drain().ShouldBeEmpty();
+
+        return budget.Tally;
+    }
+
     private static long Nodes(string document)
     {
         var budget = new SourceBudget(ResourceLimits.Defaults, 0);
@@ -245,6 +258,36 @@ public class XmlInputReaderTests
         Refusal("<a>&secret;</a>").Code.ShouldBe("PARSE001");
 
     /// <summary>
+    /// A markup declaration this reader does not recognize as a document type declaration reaches
+    /// the host, whose refusal offers a remedy that does not exist here. The advice must not
+    /// survive into the diagnostic.
+    /// </summary>
+    /// <param name="document">The document to read.</param>
+    /// <remarks>
+    /// The host answers every DTD refusal with "For security reasons DTD is prohibited in this XML
+    /// document." followed by "To enable DTD processing set the DtdProcessing property on
+    /// XmlReaderSettings to Parse and pass the settings into XmlReader.Create method." Nobody
+    /// running this tool has an <c>XmlReaderSettings</c> to set, and Section 11.1 prohibits DTDs
+    /// outright rather than behind a setting, so the second sentence describes a remedy that
+    /// cannot be taken and implies a supported mode that does not exist. Only XML 1.0's
+    /// case-sensitive <c>&lt;!DOCTYPE</c> is a document type declaration, so these spellings are
+    /// malformed markup rather than a DTD and never reach this reader's own refusal.
+    /// </remarks>
+    [TestCase("<!doctype a><a/>")]
+    [TestCase("<!DocType a><a/>")]
+    [TestCase("<!FOO a><a/>")]
+    public void AHostRemedyThisToolDoesNotOfferIsNotRepeated(string document)
+    {
+        var refusal = Refusal(document);
+
+        refusal.Code.ShouldBe("PARSE001");
+        refusal.Message.ShouldNotBeNull().ShouldNotContain("DtdProcessing", Case.Sensitive);
+        refusal.Message.ShouldNotBeNull().ShouldNotContain("XmlReader", Case.Sensitive);
+        refusal.Message.ShouldNotBeNull().ShouldBe(
+            "For security reasons DTD is prohibited in this XML document.");
+    }
+
+    /// <summary>
     /// A document type declaration may follow whitespace, comments, and processing instructions,
     /// which are the whole of what an XML prolog may hold before it.
     /// </summary>
@@ -254,6 +297,63 @@ public class XmlInputReaderTests
     [TestCase("<?xml version=\"1.0\"?><!DOCTYPE a><a/>")]
     public void ADocumentTypeDeclarationIsFoundAfterTheRestOfTheProlog(string document) =>
         Refusal(document).Code.ShouldBe("XML001");
+
+    /// <summary>
+    /// The position of the <c>&lt;!DOCTYPE</c> token is measured by Section 22's rules even when
+    /// the prolog before it must be skipped, so what a comment or processing instruction contains
+    /// cannot move the reported position.
+    /// </summary>
+    /// <param name="document">The document to refuse.</param>
+    /// <param name="line">The Section 22 line the declaration starts on.</param>
+    /// <param name="column">The Section 22 column it starts at.</param>
+    /// <remarks>
+    /// Section 22: "A line is terminated by LF, CRLF, or a lone CR, and by nothing else", and
+    /// "a character outside the Basic Multilingual Plane occupies one column". Both rules apply
+    /// inside a skipped span exactly as they do outside one. The emoji case is the discriminating
+    /// one: it is stored as two UTF-16 code units, so a scanner counting storage rather than
+    /// scalars reports column 10 for a declaration that stands in column 9.
+    /// </remarks>
+    [TestCase("<!DOCTYPE a><a/>", 1, 1)]
+    [TestCase("  <!DOCTYPE a><a/>", 1, 3)]
+    [TestCase("<!-- c -->\n<!DOCTYPE a><a/>", 2, 1)]
+    [TestCase("<!-- c --><!DOCTYPE a><a/>", 1, 11)]
+    [TestCase("<!--a\nb--><!DOCTYPE q><q/>", 2, 5)]
+    [TestCase("<!--a\r\nb--><!DOCTYPE q><q/>", 2, 5)]
+    [TestCase("<!--a\rb--><!DOCTYPE q><q/>", 2, 5)]
+    [TestCase("<?pi\rx?><!DOCTYPE q><q/>", 2, 4)]
+    [TestCase("<!--\U0001F600--><!DOCTYPE a><a/>", 1, 9)]
+    [TestCase("<?pi \U0001F600?><!DOCTYPE a><a/>", 1, 9)]
+    public void ADocumentTypeDeclarationNamesItsPosition(string document, int line, int column)
+    {
+        var refusal = Refusal(document);
+
+        refusal.Code.ShouldBe("XML001");
+        refusal.Line.ShouldBe(line);
+        refusal.Column.ShouldBe(column);
+    }
+
+    /// <summary>
+    /// Section 22: a character outside the Basic Multilingual Plane "occupies one column". Three
+    /// documents differing only in which single scalar stands before the fault therefore report
+    /// one position.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="System.Xml.IXmlLineInfo.LinePosition"/> measures a column in UTF-16 code units,
+    /// where U+1F600 occupies two, so passing it through unconverted reports the emoji document
+    /// one column further right than the other two. Comparing the three is what makes this a claim
+    /// about the unit rather than about where a host parser chooses to point.
+    /// </remarks>
+    [Test]
+    public void ASupplementaryScalarOccupiesOneColumn()
+    {
+        var ascii = Refusal("<a>x</b>");
+        var basic = Refusal("<a>\u0436</b>");
+        var supplementary = Refusal("<a>\U0001F600</b>");
+
+        basic.Column.ShouldBe(ascii.Column);
+        supplementary.Column.ShouldBe(ascii.Column);
+        ascii.Column.ShouldNotBeNull();
+    }
 
     /// <summary>
     /// Only a real declaration is one. Text that merely spells <c>&lt;!DOCTYPE</c> inside a comment
@@ -391,13 +491,36 @@ public class XmlInputReaderTests
     /// Section 11.2: an encoding name in the declaration that disagrees with the encoding Section
     /// 7.4 selected is a blocking error. It describes a different document from the one being read.
     /// </summary>
+    /// <remarks>
+    /// The code is <c>PARSE002</c>, not <c>XML002</c>. Section 11.2 calls this "a blocking XML
+    /// error", but Appendix B assigns "XML declaration encoding inconsistent with decoded input"
+    /// to <c>PARSE002</c>, excludes "byte-encoding disagreement" from <c>XML002</c>, and states
+    /// the split a third time in its disambiguation list.
+    /// </remarks>
     [TestCase("<?xml version=\"1.0\" encoding=\"windows-1251\"?><a/>", SourceEncoding.Utf8)]
     [TestCase("<?xml version=\"1.0\" encoding=\"UTF-16\"?><a/>", SourceEncoding.Utf8)]
     [TestCase("<?xml version=\"1.0\" encoding=\"utf-8\"?><a/>", SourceEncoding.Utf16LittleEndian)]
     [TestCase("<?xml version=\"1.0\" encoding=\"UTF-16BE\"?><a/>", SourceEncoding.Utf16LittleEndian)]
     public void ADisagreeingEncodingDeclarationIsBlocking(
         string document, SourceEncoding encoding) =>
-        Refusal(document, encoding).Code.ShouldBe("XML002");
+        Refusal(document, encoding).Code.ShouldBe("PARSE002");
+
+    /// <summary>
+    /// The refusal names the declaration, not the reader's token. An XML declaration may be
+    /// preceded by nothing, so after Section 7.4 removes any byte-order mark its first scalar is
+    /// line 1, column 1 -- the same construct-start convention the <c>XML001</c> for a document
+    /// type declaration follows.
+    /// </summary>
+    [Test]
+    public void ADisagreeingEncodingDeclarationNamesItsPosition()
+    {
+        var refusal = Refusal(
+            "<?xml version=\"1.0\" encoding=\"windows-1251\"?><a/>", SourceEncoding.Utf8);
+
+        refusal.Line.ShouldBe(1);
+        refusal.Column.ShouldBe(1);
+        refusal.Spec.ShouldBe("\u00A711.2");
+    }
 
     /// <summary>
     /// A declaration that agrees, or names no encoding at all, decides nothing. A byte-order mark
@@ -771,4 +894,28 @@ public class XmlInputReaderTests
     [TestCase("<a/><b/>", "\u00A711.2")]
     public void ARefusalNamesItsClause(string document, string anchor) =>
         Refusal(document).Spec.ShouldBe(anchor);
+
+    /// <summary>
+    /// Section 11.1 has decoded character data "still consume <c>--max-nodes</c>,
+    /// <c>--max-comments</c>, and <c>--max-comment-bytes</c> exactly as other formats do", and
+    /// Section 23 lists comments among what consumes the corresponding global budget. This preview
+    /// retains no comment, but the bound counts comments read, not comments kept -- otherwise the
+    /// same document costs different budget depending on the format that spells it.
+    /// </summary>
+    /// <param name="document">The document to read.</param>
+    /// <param name="comments">The comments it should charge.</param>
+    /// <param name="bytes">The decoded comment bytes it should charge.</param>
+    [TestCase("<a>t</a>", 0, 0)]
+    [TestCase("<a>t<!--xy--></a>", 1, 2)]
+    [TestCase("<a><!--xy--><!--z--></a>", 2, 3)]
+    [TestCase("<!--ab--><a/>", 1, 2)]
+    [TestCase("<a/><!--ab-->", 1, 2)]
+    [TestCase("<a><!--\U0001F600--></a>", 1, 4)]
+    public void ACommentConsumesTheCommentBudget(string document, int comments, int bytes)
+    {
+        var tally = Charged(document);
+
+        tally.Comments.ShouldBe(comments);
+        tally.CommentBytes.ShouldBe(bytes);
+    }
 }

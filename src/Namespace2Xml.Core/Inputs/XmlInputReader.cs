@@ -72,7 +72,7 @@ public static class XmlInputReader
         ArgumentNullException.ThrowIfNull(origin);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        var reader = new Reader(encoding, origin, phase, diagnostics, key, budget);
+        var reader = new Reader(encoding, origin, phase, diagnostics, key, budget, new SourceLines(text));
 
         return reader.Run(text);
     }
@@ -83,7 +83,8 @@ public static class XmlInputReader
         DiagnosticPhase phase,
         DiagnosticBuffer diagnostics,
         StableOrderingKey key,
-        SourceBudget budget)
+        SourceBudget budget,
+        SourceLines lines)
     {
         private readonly Stack<Frame> frames = new();
         private StructuredNode? root;
@@ -122,7 +123,7 @@ public static class XmlInputReader
             }
             catch (XmlException error)
             {
-                Fail(Explain(error), error.LineNumber, error.LinePosition);
+                Fail(Explain(error), error.LineNumber, lines.ColumnOf(error.LineNumber, error.LinePosition));
                 return null;
             }
 
@@ -201,7 +202,7 @@ public static class XmlInputReader
                     return Content(reader.Value, cdata: true, position);
 
                 case XmlNodeType.Comment:
-                    return Comment();
+                    return Comment(reader.Value);
 
                 case XmlNodeType.ProcessingInstruction:
                     instructions++;
@@ -219,6 +220,14 @@ public static class XmlInputReader
         /// The declaration itself is not retained -- Section 11.2 says so -- but a name that
         /// disagrees with the encoding Section 7.4 already selected describes a different document
         /// from the one being read, and Section 11.2 makes that blocking rather than advisory.
+        ///
+        /// The code is <c>PARSE002</c> and not <c>XML002</c>, although Section 11.2 calls it "a
+        /// blocking XML error". Appendix B assigns "XML declaration encoding inconsistent with
+        /// decoded input" to <c>PARSE002</c>, carves that condition out of <c>XML002</c> in the
+        /// same table -- "other than byte-encoding disagreement" -- and then states the split a
+        /// third time: "encoding disagreement is `PARSE002`, while an otherwise invalid XML
+        /// declaration is `XML002`". Section 22 requires the most specific code, and both codes are
+        /// scoped once per failing source, so nothing else distinguishes them.
         /// </remarks>
         private bool Declaration(XmlReader reader, IXmlLineInfo position)
         {
@@ -230,7 +239,7 @@ public static class XmlInputReader
             }
 
             diagnostics.Add(new BufferedDiagnostic(
-                DiagnosticCodes.Xml002(
+                DiagnosticCodes.Parse002(
                     phase,
                     "\u00A711.2",
                     $"the XML declaration names the encoding '{declared}', but Section 7.4 read "
@@ -239,7 +248,12 @@ public static class XmlInputReader
                     cardinalityKey: origin.SourceKey,
                     source: origin.File,
                     line: origin.LineOf(position.LineNumber),
-                    column: origin.ColumnOf(position.LinePosition)),
+                    // The position names the declaration, not the reader's token. Section 22 fixes
+                    // how a column is measured but not which construct anchors it, so the corpus
+                    // convention decides: the XML001 for a document type declaration reports the
+                    // '<' of '<!DOCTYPE', and this reports the '<' of '<?xml' for the same reason.
+                    // XmlReader points LinePosition at the target name, two scalars further on.
+                    column: origin.ColumnOf(lines.ColumnOf(position.LineNumber, position.LinePosition - 2))),
                 key));
 
             return false;
@@ -271,11 +285,22 @@ public static class XmlInputReader
                 nameof(value), value, "Section 7.4 permits three encodings."),
         };
 
+        /// <summary>The Section 22 position of what the parser is looking at.</summary>
+        /// <param name="position">The parser's position reporter.</param>
+        /// <remarks>
+        /// <see cref="IXmlLineInfo.LinePosition"/> is a UTF-16 code-unit column, so a supplementary
+        /// scalar earlier on the line has already advanced it by two where Section 22 advances by
+        /// one. Every host position enters through here, so the two units cannot be confused at a
+        /// call site. Positions this reader computes itself -- the prolog scan, and the fallbacks
+        /// at column 1 -- are already Section 22 positions and do not pass through it.
+        /// </remarks>
+        private (int Line, int Column) At(IXmlLineInfo position) =>
+            (position.LineNumber, lines.ColumnOf(position.LineNumber, position.LinePosition));
+
         private bool StartElement(XmlReader reader, IXmlLineInfo position)
         {
             var depth = frames.Count + 1;
-            var line = position.LineNumber;
-            var column = position.LinePosition;
+            var (line, column) = At(position);
             var empty = reader.IsEmptyElement;
 
             if (!Charge(depth))
@@ -328,14 +353,14 @@ public static class XmlInputReader
                 }
 
                 var name = new AttributePart(Component(reader.NamespaceURI, reader.LocalName));
+                var at = At(position);
 
                 frame.AddAttribute(new StructuredProperty(
                     Spell(name),
                     name,
-                    StructuredScalar.OfNativeString(
-                        reader.Value, position.LineNumber, position.LinePosition),
-                    position.LineNumber,
-                    position.LinePosition));
+                    StructuredScalar.OfNativeString(reader.Value, at.Line, at.Column),
+                    at.Line,
+                    at.Column));
             }
             while (reader.MoveToNextAttribute());
 
@@ -365,7 +390,9 @@ public static class XmlInputReader
                 return false;
             }
 
-            frame.OpenText(text, cdata, position.LineNumber, position.LinePosition);
+            var at = At(position);
+
+            frame.OpenText(text, cdata, at.Line, at.Column);
             return true;
         }
 
@@ -377,8 +404,15 @@ public static class XmlInputReader
         /// <c>&lt;a&gt;t&lt;!--c--&gt;&lt;b/&gt;&lt;/a&gt;</c> is why <c>b</c> is <c>a.#2</c>. Dropping
         /// the value as well as the comment would silently renumber its siblings.
         /// </remarks>
-        private bool Comment()
+        private bool Comment(string value)
         {
+            // Section 11.1: decoded character data "still consumes --max-nodes, --max-comments,
+            // and --max-comment-bytes exactly as other formats do", and Section 23 lists comments
+            // among the things that consume the corresponding global budget. The bound counts
+            // comments read, not comments retained, so a prolog or trailing comment -- which
+            // produces no overlay node -- is charged here too, before the node check below.
+            budget.AddComments(1, Encoding.UTF8.GetByteCount(value));
+
             if (frames.Count == 0)
             {
                 return true;
@@ -461,25 +495,41 @@ public static class XmlInputReader
                 ? new OrdinaryPart([new LiteralToken(local)])
                 : new QualifiedElementPart(uri, [new LiteralToken(local)]);
 
-        /// <summary>Strips the position trailer <see cref="XmlException"/> appends to its message.</summary>
+        /// <summary>
+        /// Removes the parts of an <see cref="XmlException"/> message that belong to the host
+        /// rather than to this tool: the position trailer, and advice naming an API knob.
+        /// </summary>
         /// <param name="error">The parser's exception.</param>
         /// <remarks>
+        /// <para>
         /// The trailer repeats the position in the library's own words, beside the Section 22 one
         /// this reader reports. Two spellings of one position invite a reader to trust the wrong
         /// one, so only ours is kept. A message whose tail is not exactly the trailer -- "Root
         /// element is missing." has none -- is left alone.
+        /// </para>
+        /// <para>
+        /// The DTD refusal carries a second sentence telling the reader to set
+        /// <c>XmlReaderSettings.DtdProcessing</c>. Nobody running this tool has an
+        /// <c>XmlReaderSettings</c>, and Section 11.1 prohibits DTDs outright rather than behind a
+        /// setting, so the advice describes a remedy that does not exist and would be actively
+        /// misleading if followed. <c>JsonInputReader.Explain</c> drops " Change the reader
+        /// options." for the same reason.
+        /// </para>
         /// </remarks>
         private static string Explain(XmlException error)
         {
             const string Opening = " Line ";
             const string Separator = ", position ";
+            const string Advice =
+                " To enable DTD processing set the DtdProcessing property on XmlReaderSettings to "
+                + "Parse and pass the settings into XmlReader.Create method.";
 
-            var text = error.Message;
+            var text = error.Message.Replace(Advice, string.Empty, StringComparison.Ordinal);
             var trailer = text.LastIndexOf(Opening, StringComparison.Ordinal);
 
             if (trailer < 0 || !text.EndsWith('.'))
             {
-                return text;
+                return text.TrimEnd();
             }
 
             var tail = text.AsSpan(trailer + Opening.Length, text.Length - trailer - Opening.Length - 1);
@@ -489,7 +539,7 @@ public static class XmlInputReader
                 || !Counted(tail[..separator])
                 || !Counted(tail[(separator + Separator.Length)..]))
             {
-                return text;
+                return text.TrimEnd();
             }
 
             return text[..trailer].TrimEnd();
@@ -790,21 +840,37 @@ public static class XmlInputReader
                     return null;
                 }
 
-                // The skipped span may hold line breaks, so it is walked rather than jumped.
-                for (var scan = index; scan < end + close.Length; scan++)
+                // The skipped span may hold line breaks, so it is walked rather than jumped -- and
+                // under the same Section 22 rules the loop above uses, or this function disagrees
+                // with itself about where line 2 starts. A lone CR ends a line, and a scalar
+                // outside the Basic Multilingual Plane occupies one column although it is stored
+                // as two UTF-16 code units.
+                var stop = end + close.Length;
+
+                for (var scan = index; scan < stop;)
                 {
-                    if (text[scan] == '\n')
+                    var skipped = text[scan];
+
+                    if (skipped == '\n')
                     {
+                        scan++;
                         line++;
                         column = 1;
                     }
-                    else if (text[scan] != '\r')
+                    else if (skipped == '\r')
                     {
+                        scan += scan + 1 < text.Length && text[scan + 1] == '\n' ? 2 : 1;
+                        line++;
+                        column = 1;
+                    }
+                    else
+                    {
+                        scan += char.IsSurrogatePair(text, scan) ? 2 : 1;
                         column++;
                     }
                 }
 
-                index = end + close.Length;
+                index = stop;
             }
 
             return null;

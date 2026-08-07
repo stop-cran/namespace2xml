@@ -488,4 +488,60 @@ public class YamlInputReaderTests
 
         budget.Tally.Nodes.ShouldBe(nodes);
     }
+
+    /// <summary>
+    /// Section 11.1 fixes <c>--max-comments</c> and <c>--max-comment-bytes</c> "exactly as other
+    /// formats do", and Section 23 has comments consume the corresponding global budget. YamlDotNet
+    /// skips comments unless its scanner is asked for them, so this is also the evidence that the
+    /// events reach the reader at all.
+    /// </summary>
+    /// <param name="document">The document to read.</param>
+    /// <param name="comments">The comments it should charge.</param>
+    /// <param name="bytes">The decoded comment bytes it should charge.</param>
+    /// <remarks>
+    /// The charge is the comment's text, not its marker: Section 8.5 defines a namespace-profile
+    /// comment as "the remainder of the record after that '#', with leading and trailing spaces
+    /// and tabs removed", and "exactly as other formats do" makes that the measure everywhere. So
+    /// <c># xy</c> costs two bytes, as <c>&lt;!--xy--&gt;</c> does. The last case is four bytes and
+    /// not two, which is what distinguishes a UTF-8 count from a UTF-16 one.
+    /// </remarks>
+    [TestCase("a: 1\n", 0, 0)]
+    [TestCase("# xy\na: 1\n", 1, 2)]
+    [TestCase("# xy\n# z\na: 1\n", 2, 3)]
+    [TestCase("a: 1 # xy\n", 1, 2)]
+    [TestCase("a: 1\n# \U0001F600\n", 1, 4)]
+    public void ACommentConsumesTheCommentBudget(string document, int comments, int bytes)
+    {
+        var budget = new SourceBudget(ResourceLimits.Defaults, 0);
+        var buffer = new DiagnosticBuffer();
+
+        Read(document, buffer, ResourceLimits.Defaults, budget).ShouldNotBeNull();
+        buffer.Drain().ShouldBeEmpty();
+
+        budget.Tally.Comments.ShouldBe(comments);
+        budget.Tally.CommentBytes.ShouldBe(bytes);
+    }
+
+    /// <summary>
+    /// Section 22: a character outside the Basic Multilingual Plane "occupies one column". Three
+    /// documents differing only in which single scalar stands before the fault therefore report
+    /// one position.
+    /// </summary>
+    /// <remarks>
+    /// YamlDotNet's <c>Mark.Column</c> measures a column in UTF-16 code units, where U+1F600
+    /// occupies two, so passing it through unconverted reports the emoji document one column
+    /// further right than the other two. Comparing the three is what makes this a claim about the
+    /// unit rather than about where the host parser chooses to point.
+    /// </remarks>
+    [Test]
+    public void ASupplementaryScalarOccupiesOneColumn()
+    {
+        var ascii = Diagnose("x: !!str v\n").ShouldHaveSingleItem();
+        var basic = Diagnose("\u0436: !!str v\n").ShouldHaveSingleItem();
+        var supplementary = Diagnose("\U0001F600: !!str v\n").ShouldHaveSingleItem();
+
+        basic.Column.ShouldBe(ascii.Column);
+        supplementary.Column.ShouldBe(ascii.Column);
+        ascii.Column.ShouldNotBeNull();
+    }
 }
