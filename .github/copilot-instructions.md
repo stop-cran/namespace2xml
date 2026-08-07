@@ -420,6 +420,33 @@ not the position mark: an explicit mapping-presence contribution advances the po
 being a scalar contribution, so judging payload precedence by position makes a genuinely later
 `a=2` lose to an earlier `a=1` when an `a={}` landed between them. `NodeMarks.PayloadMark` exists
 for this and nothing else.
+
+### A shape-mark test only bites when the new key is later than the mark it must tie with
+
+`NodeMarks.ContainerIsMapping` resolves an equal mapping/sequence shape-mark to the mapping, so the
+defect a one-sided refresh prevents is a *tie*, not an inequality. A fixture whose sequence
+shape-mark is already later than the key being grafted therefore stays a sequence under both the
+correct code and a mutant that refreshes both facets, and the mutation survives against a test that
+is otherwise exactly right.
+
+Build the node so the grafted key is **later** than both existing shape-marks — put the hand-built
+nodes at source ordinal `0` and let the rule come from a real profile at ordinal `1`. Then the
+mutant produces the tie, the tie resolves to the mapping, and the test goes red.
+
+The same shape of error hides any "resolves to X on a tie" rule: if your fixture never reaches the
+tie, you are testing the inequality branch twice.
+
+### A diagnostic member whose spelling the specification does not fix cannot go in a fixture
+
+Section 22 lists `declaration or wildcard rule` among the members a diagnostic carries, and
+Section 6.4.3 fixes the member *order* and the JSON layout — but nothing fixes the **text** of the
+`rule` member. Its spelling is therefore an implementation choice, and writing it into an
+`expected-diagnostics.json` would be capturing the tool's own opinion, which is the one rule this
+repository does not bend.
+
+Assert such a member in a unit test with a `ShouldContain` over the part that *is* specified (the
+rule's path), and leave it out of the corpus. If the member matters enough to pin, amend the
+specification first. This is a live gap for `WILDCARD002`, whose only optional member is `rule`.
 ## Rules that are easy to violate quietly
 
 These are the ones a reviewer will reject, and the ones most likely to look reasonable while you are
