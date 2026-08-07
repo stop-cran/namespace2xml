@@ -712,9 +712,11 @@ defect in the fixture; see CONTRIBUTING.md.
 - `merge-strategies-over-native-sequence-shapes`
 - `reference-scalar-only-and-free-wildcard-rejected`
 - `reference-typed-values-and-alias-addressing`
+- `selector-candidates-consume-the-wildcard-limit`
 - `type-array-with-key-is-an-illegal-combination`
 - `type-ignore-removes-a-subtree-and-strands-its-directives`
 - `type-mapping-keeps-numeric-keys-and-array-discards-names`
+- `validation-gate-leaves-the-output-root-untouched`
 - `wildcard-cascade-completes-within-the-iteration-bound`
 - `wildcard-cascade-crosses-the-iteration-bound`
 - `wildcard-filename-substitutes-the-selector-captures`

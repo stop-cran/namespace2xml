@@ -81,10 +81,12 @@
         "An excessively expanding rule set, whose every wave produces the item that justifies another wave, is stopped by the iteration bound and reports it rather than running to exhaustion.",
         "Only waves that generate are charged against the iteration bound, so the same cascade completes at a bound of one per generating level and the number behaves as a threshold rather than a refusal.",
         "The generated-entry bound is separate from the iteration bound and counts newly materialized nodes, so a rule set that settles in one wave can still cross it.",
-        "A crossed bound names the rules that spent it, in source order, and not the rule that was about to run or the matched item."
+        "A crossed bound names the rules that spent it, in source order, and not the rule that was about to run or the matched item.",
+        "A wildcard scheme selector consumes the same shared candidate-check limit, although it is expanded in the planning phase rather than inside the fixed point, so the limit bounds every wildcard rule category and not only the two the fixed point evaluates."
       ],
       "fixtures": [
         "mask-candidates-consume-the-wildcard-limit",
+        "selector-candidates-consume-the-wildcard-limit",
         "wildcard-cascade-completes-within-the-iteration-bound",
         "wildcard-cascade-crosses-the-iteration-bound",
         "wildcard-generation-crosses-the-generated-bound",
@@ -319,8 +321,12 @@
       "text": "Global semantic/serialization validation gate and deterministic direct publication.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "The gate runs across every planned output before any file is written, so a failure detected while projecting the second output instance leaves no file from the first, which had already serialized successfully."
+      ],
+      "fixtures": [
+        "validation-gate-leaves-the-output-root-untouched"
+      ]
     },
     {
       "item": 31,
@@ -383,8 +389,12 @@
       "text": "Concrete output-instance expansion and wildcard default filenames.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "Expansion walks only the items under the selector's literal prefix, and charges the shared candidate-check limit once per eligible pair, so a selector cannot expand over an unbounded number of items."
+      ],
+      "fixtures": [
+        "selector-candidates-consume-the-wildcard-limit"
+      ]
     },
     {
       "item": 37,
@@ -697,8 +707,12 @@
       "text": "INI path-to-section/key projection, namespace-only delimiter disambiguation, and `FLAT001` collisions.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "Two distinct logical paths whose INI section and key coincide are a `FLAT001` collision, and the diagnostic names the view-relative path rather than the absolute one."
+      ],
+      "fixtures": [
+        "validation-gate-leaves-the-output-root-untouched"
+      ]
     },
     {
       "item": 67,

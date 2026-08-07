@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Namespace2Xml.Budgets;
 using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Output;
 using Namespace2Xml.Overlay;
@@ -38,6 +39,7 @@ public static class PlanningPhase
     /// <summary>Section 15.1 step 13: expand wildcard scheme selectors and output declarations.</summary>
     /// <param name="configuration">Step 4's product.</param>
     /// <param name="model">Step 12's product, which supplies the concrete paths to expand against.</param>
+    /// <param name="budget">The invocation's global budget, which selector candidates also consume.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>The concrete output instances, once no selector needs expanding.</returns>
     /// <remarks>
@@ -65,13 +67,20 @@ public static class PlanningPhase
     public static StepOutcome<ImmutableArray<OutputInstance>> ExpandWildcards(
         SchemeConfiguration configuration,
         OverlayNode model,
+        GlobalBudget budget,
         DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
         var expanded = ImmutableArray.CreateBuilder<OutputInstance>();
+
+        // Section 12.4 counts a candidate check "once for a (rule,item) pair", and the pairs a
+        // selector checks are disjoint from every template's, so this set starts empty rather than
+        // continuing the evaluator's: no pair can appear in both.
+        var considered = new HashSet<(string Selector, string Path)>();
 
         foreach (var instance in configuration.Outputs)
         {
@@ -82,7 +91,10 @@ public static class PlanningPhase
                 continue;
             }
 
-            Expand(instance, pattern, model, expanded, diagnostics);
+            if (!Expand(instance, pattern, model, expanded, considered, budget, diagnostics))
+            {
+                return StepOutcome.Failed<ImmutableArray<OutputInstance>>();
+            }
         }
 
         return diagnostics.HasBlockingError
@@ -90,19 +102,44 @@ public static class PlanningPhase
             : StepOutcome.Produced(expanded.ToImmutable());
     }
 
-    private static void Expand(
+    private static bool Expand(
         OutputInstance instance,
         QualifiedName pattern,
         OverlayNode model,
         ImmutableArray<OutputInstance>.Builder expanded,
+        HashSet<(string Selector, string Path)> considered,
+        GlobalBudget budget,
         DiagnosticBuffer diagnostics)
     {
         var depth = WildcardMatch.LastWildcardPart(pattern) + 1;
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var order = 0;
+        var selector = instance.Selector.ToString();
 
-        foreach (var path in OverlayAddressing.Candidates(model, depth))
+        foreach (var path in OverlayAddressing.Candidates(model, pattern.Parts, depth))
         {
+            // Section 12.4: "Every wildcard rule category consumes the shared candidate-check limit
+            // once per eligible pair", and the categories it names include "wildcard scheme
+            // selectors". The walk above has already settled the first two conditions, so reaching
+            // here is the pair being eligible; the set settles the third. The charge precedes the
+            // match because "full capture matching may then succeed or fail without another
+            // candidate charge" -- a selector that examines an item has spent the check whether or
+            // not the captures agree.
+            if (considered.Add((selector, CanonicalPath.Of(path) ?? string.Empty))
+                && !budget.TryConsume(ResourceBound.MaxWildcardCandidates, 1, out var tooMany))
+            {
+                diagnostics.Add(new BufferedDiagnostic(
+                    DiagnosticCodes.Wildcard002(
+                        DiagnosticPhase.Planning,
+                        "\u00A712.4",
+                        $"wildcard selector expansion crosses {tooMany.Spelling}, whose limit is "
+                        + $"{tooMany.Limit}.",
+                        rule: [selector]),
+                    StableOrderingKey.FromSource(instance.DeclarationOrder, 0)));
+
+                return false;
+            }
+
             if (!WildcardMatch.TryMatchPrefix(pattern.Parts, depth, path, out var captures))
             {
                 continue;
@@ -115,7 +152,7 @@ public static class PlanningPhase
                 literalized = literalized.Add(pattern.Parts[i]);
             }
 
-            var selector = new SelectorKey(new QualifiedName(literalized));
+            var selectorKey = new SelectorKey(new QualifiedName(literalized));
 
             // Section 14.1: "There is exactly one instance per unique capture tuple and literalized
             // selector, regardless of how many descendants matched beneath it." The depth bound
@@ -126,14 +163,14 @@ public static class PlanningPhase
             // two candidates cannot literalize to one selector. It is kept because it states the
             // Section 14.1 rule at the point the rule is about. Do not write a test for it; the
             // whole corpus is green with it deleted.
-            if (!seen.Add(selector.ToString()))
+            if (!seen.Add(selectorKey.ToString()))
             {
                 continue;
             }
 
             expanded.Add(instance with
             {
-                Selector = selector,
+                Selector = selectorKey,
                 Captures = captures,
                 WildcardMatchOrder = order++,
             });
@@ -141,7 +178,7 @@ public static class PlanningPhase
 
         if (order > 0)
         {
-            return;
+            return true;
         }
 
         // Section 14.1: "A wildcard output declaration that produces no concrete selector instance
@@ -164,6 +201,8 @@ public static class PlanningPhase
                 path: instance.Selector.ToString(),
                 declaration: instance.Declaration.Text),
             StableOrderingKey.FromSource(instance.DeclarationOrder, 0)));
+
+        return true;
     }
 
     /// <summary>Section 15.1 step 14: build output instances and apply strict prefix filtering.</summary>

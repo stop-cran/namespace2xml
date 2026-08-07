@@ -178,13 +178,9 @@ public sealed class WildcardEvaluator
                     continue;
                 }
 
-                foreach (var path in OverlayAddressing.Candidates(contribution, depths[index]))
+                foreach (var path in OverlayAddressing.Candidates(
+                    contribution, rules[index].Name.Parts, depths[index]))
                 {
-                    if (!Eligible(rules[index], depths[index], path))
-                    {
-                        continue;
-                    }
-
                     if (!TryCharge(index, path, out _))
                     {
                         return false;
@@ -250,13 +246,8 @@ public sealed class WildcardEvaluator
             var rule = rules[index];
             var depth = depths[index];
 
-            foreach (var path in OverlayAddressing.Candidates(snapshot, depth))
+            foreach (var path in OverlayAddressing.Candidates(snapshot, rule.Name.Parts, depth))
             {
-                if (!Eligible(rule, depth, path))
-                {
-                    continue;
-                }
-
                 // Section 8.6: "suppressed paths and descendants never become wildcard candidates".
                 // A mask still checks them -- that check is how they came to be suppressed, and
                 // ChargeMaskedCandidates is where it is paid for -- but a generative rule never
@@ -557,30 +548,6 @@ public sealed class WildcardEvaluator
         }
 
         return path.Length - depth;
-    }
-
-    /// <summary>
-    /// Whether Section 12.4's first two candidate conditions hold, so the pair is charged at all.
-    /// </summary>
-    /// <remarks>
-    /// The first condition is satisfied by construction: candidates are enumerated at exactly the
-    /// depth the rule needs. The second — "every literal name part before that point equals the
-    /// corresponding item part" — is what this tests. Parts that contain a wildcard are not literal
-    /// and are settled by the match itself.
-    /// </remarks>
-    private static bool Eligible(WildcardRule rule, int depth, ImmutableArray<NamePart> path)
-    {
-        for (var i = 0; i < depth; i++)
-        {
-            var part = rule.Name.Parts[i];
-
-            if (!WildcardMatch.HasWildcard(part) && !part.Equals(path[i]))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /// <summary>The generative rules that have produced something, for a limit report.</summary>

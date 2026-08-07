@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using Namespace2Xml.Budgets;
+using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Inputs;
 using Namespace2Xml.Overlay;
@@ -42,13 +44,20 @@ public class OutputInstanceExpansionTests
 
     private ImmutableArray<OutputInstance> Expand(string scheme, string data)
     {
-        var read = SchemeReader.Read(Records(scheme), 2, "s.properties", diagnostics);
-        var configuration = SchemeCompiler.Compile(read.Entries, diagnostics);
-        var outcome = PlanningPhase.ExpandWildcards(configuration, Model(data), diagnostics);
+        var outcome = ExpandWith(scheme, data, new GlobalBudget(ResourceLimits.Defaults));
 
         outcome.Unsupported.ShouldBeNull();
 
         return outcome.Value;
+    }
+
+    private StepOutcome<ImmutableArray<OutputInstance>> ExpandWith(
+        string scheme, string data, GlobalBudget budget)
+    {
+        var read = SchemeReader.Read(Records(scheme), 2, "s.properties", diagnostics);
+        var configuration = SchemeCompiler.Compile(read.Entries, diagnostics);
+
+        return PlanningPhase.ExpandWildcards(configuration, Model(data), budget, diagnostics);
     }
 
     private static string[] Selectors(ImmutableArray<OutputInstance> instances) =>
@@ -190,13 +199,113 @@ public class OutputInstanceExpansionTests
         configuration.Deferred.ShouldHaveSingleItem()
             .Directive.ShouldBe(SchemeDirective.Filename);
 
-        var instances = PlanningPhase
-            .ExpandWildcards(configuration, Model("a.x=1"), diagnostics)
-            .Value;
+        var instances = ExpandWith(
+            "a.output=namespace\na.filename=${x}.conf",
+            "a.x=1",
+            new GlobalBudget(ResourceLimits.Defaults)).Value;
 
         instances.ShouldHaveSingleItem().Filename.ShouldBeNull();
 
         PlanningPhase.ApplyTransformations([], configuration, diagnostics)
             .Unsupported.ShouldNotBeNull().Spec.ShouldBe("\u00A716");
+    }
+
+    /// <summary>
+    /// Section 12.4: "A wildcard candidate check is counted once for a <c>(rule,item)</c> pair for
+    /// generative templates, permanent wildcard ignore masks, and wildcard scheme selectors", and
+    /// "Every wildcard rule category consumes the shared candidate-check limit once per eligible
+    /// pair." A selector that examines items therefore spends the limit like any other category.
+    /// </summary>
+    [Test]
+    public void AWildcardSelectorConsumesTheSharedCandidateLimit()
+    {
+        var budget = new GlobalBudget(
+            ResourceLimits.Defaults with { MaxWildcardCandidates = 2 });
+
+        var outcome = ExpandWith("a.*.output=namespace", "a.p=1\na.q=2\na.r=3", budget);
+
+        outcome.Faulted.ShouldBeTrue();
+
+        var reported = diagnostics.Drain().ShouldHaveSingleItem();
+
+        reported.Code.ShouldBe("WILDCARD002");
+        reported.Spec.ShouldBe("\u00A712.4");
+        reported.Rule.ShouldBe(["a.*"]);
+    }
+
+    /// <summary>
+    /// Section 12.4 counts a candidate only where "every literal name part before that point equals
+    /// the corresponding item part", so a selector is charged for the items under its literal prefix
+    /// and not for the whole tree at that depth.
+    /// </summary>
+    [Test]
+    public void OnlyItemsUnderTheLiteralPrefixAreCharged()
+    {
+        var budget = new GlobalBudget(
+            ResourceLimits.Defaults with { MaxWildcardCandidates = 2 });
+
+        // Six paths sit at depth two and two of them are under 'a'. A charge per node at the depth
+        // would exhaust a limit of two, so a green expansion is the prefix condition holding.
+        var outcome = ExpandWith(
+            "a.*.output=namespace", "a.p=1\na.q=2\nb.r=3\nb.s=4\nc.t=5\nc.u=6", budget);
+
+        outcome.Unsupported.ShouldBeNull();
+        Selectors(outcome.Value).ShouldBe(["a.p", "a.q"]);
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 12.4 counts the check "once for a <c>(rule,item)</c> pair", so the pair key carries
+    /// the rule: two selectors examining the same items are charged twice over, not once.
+    /// </summary>
+    [Test]
+    public void TheChargeIsPerRuleAndItemPair()
+    {
+        var budget = new GlobalBudget(
+            ResourceLimits.Defaults with { MaxWildcardCandidates = 3 });
+
+        // Both selectors stop at the same depth and share the same literal prefix, so both examine
+        // exactly 'a.p' and 'a.q'. Two items charged once would be two; charged per rule it is
+        // four, which crosses a limit of three.
+        var outcome = ExpandWith(
+            "a.*.output=namespace\na.*.b.output=namespace", "a.p=1\na.q=2", budget);
+
+        outcome.Faulted.ShouldBeTrue();
+        diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("WILDCARD002");
+    }
+
+    /// <summary>
+    /// Section 12.4's limit is shared across categories, so a selector cannot spend what a template
+    /// already spent: the counts add rather than reset per category.
+    /// </summary>
+    [Test]
+    public void TheSelectorChargeSharesTheTemplateBudget()
+    {
+        var budget = new GlobalBudget(
+            ResourceLimits.Defaults with { MaxWildcardCandidates = 2 });
+
+        budget.TryConsume(ResourceBound.MaxWildcardCandidates, 2, out _).ShouldBeTrue();
+
+        var outcome = ExpandWith("a.*.output=namespace", "a.p=1", budget);
+
+        outcome.Faulted.ShouldBeTrue();
+        diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("WILDCARD002");
+    }
+
+    /// <summary>
+    /// Section 12.4 charges only wildcard candidate checks, and a selector with no wildcard performs
+    /// none: Section 14.1 gives it one instance without consulting the model at all.
+    /// </summary>
+    [Test]
+    public void ALiteralSelectorIsChargedNothing()
+    {
+        var budget = new GlobalBudget(
+            ResourceLimits.Defaults with { MaxWildcardCandidates = 0 });
+
+        var outcome = ExpandWith("a.output=namespace", "a.p=1\na.q=2", budget);
+
+        outcome.Unsupported.ShouldBeNull();
+        Selectors(outcome.Value).ShouldBe(["a"]);
+        diagnostics.Drain().ShouldBeEmpty();
     }
 }

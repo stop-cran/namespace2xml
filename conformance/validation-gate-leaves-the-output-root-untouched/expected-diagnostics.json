@@ -1,0 +1,3 @@
+[
+{"code":"FLAT001","severity":"error","phase":"planning","path":"a:b.k","destination":"bad.ini","spec":"§16.4"}
+]

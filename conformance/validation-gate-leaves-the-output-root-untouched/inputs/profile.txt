@@ -1,0 +1,4 @@
+ok.name=demo
+ok.port=8080
+bad.a.b.k=1
+bad.a:b.k=2

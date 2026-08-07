@@ -188,7 +188,7 @@ public static class Transformation
             PipelineStep.ExpandWildcards,
             PipelineRun.Both(configuration, model),
             (both, diagnostics) =>
-                PlanningPhase.ExpandWildcards(both.First, both.Second, diagnostics));
+                PlanningPhase.ExpandWildcards(both.First, both.Second, budget, diagnostics));
 
         var views = run.Run(
             PipelineStep.BuildOutputInstances,
