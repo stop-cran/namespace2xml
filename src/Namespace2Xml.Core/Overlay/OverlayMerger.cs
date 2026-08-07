@@ -385,9 +385,31 @@ public sealed class OverlayMerger
         {
             if (item.Provenance == OrderingProvenance.Explicit)
             {
-                // Section 17.1: "explicit later ordering values patch matching items".
                 allocator.Supply(value);
-                sequence = sequence.SetItem(value, item);
+
+                // Section 17.1: an explicit later ordering value "addresses the item already at
+                // that value and the two items are then combined by the rules of this section,
+                // recursively. Provenance decides which item the later contribution meets, not how
+                // the two combine; a later contribution therefore never removes a sibling key it
+                // does not name." Replacing the item outright would make a.0.port=2 delete an
+                // a.0.name it never mentioned, which no other addressing form in this
+                // specification does.
+                //
+                // The earlier item's provenance survives, because provenance records how this
+                // slot's own value came to be and not what later addressed it. Adopting the later
+                // item's Explicit here would silently retire the Section 8.7 concatenation warning
+                // for every subsequent native contribution at the path.
+                sequence = sequence.SetItem(
+                    value,
+                    sequence.TryGetValue(value, out var existing)
+                        ? existing with
+                        {
+                            Node = MergeNode(
+                                existing.Node,
+                                item.Node,
+                                path.Add(OrderingValues.ToNamePart(value))),
+                        }
+                        : item);
                 continue;
             }
 

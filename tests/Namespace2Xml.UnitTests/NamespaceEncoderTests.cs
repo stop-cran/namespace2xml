@@ -193,9 +193,14 @@ public sealed class NamespaceEncoderTests
                 new AttributePart(new QualifiedElementPart("u", [new LiteralToken("b")]))))
             .ShouldBe("a.@Q{u}b");
 
+    /// <summary>
+    /// Section 11.4 makes an empty URI the ordinary component, so the redundant representation
+    /// does not exist to be encoded. The type refuses it; this pins that it does.
+    /// </summary>
     [Test]
-    public void AnEmptyUriEmitsExplicitly() =>
-        Encode(Name(new QualifiedElementPart(string.Empty, [new LiteralToken("a")]))).ShouldBe("Q{}a");
+    public void AnEmptyUriIsNotAQualifiedElement() =>
+        Should.Throw<ArgumentException>(
+            () => new QualifiedElementPart(string.Empty, [new LiteralToken("a")]));
 
     [Test]
     public void ATypedComponentAndAnOrdinaryOneWithTheSameTextDiffer() =>
@@ -520,7 +525,6 @@ public sealed class NamespaceEncoderTests
         Name(Ordinary("a"), new ContentPart(0)),
         Name(Ordinary("a"), new ContentPart(42)),
         Name(new QualifiedElementPart("http://e/ns", [new LiteralToken("local")])),
-        Name(new QualifiedElementPart(string.Empty, [new LiteralToken("a")])),
         Name(new QualifiedElementPart("a}b\\c", [new LiteralToken("x")])),
         Name(Ordinary("a"), new AttributePart(new QualifiedElementPart("u", [new LiteralToken("b")]))),
         Name(Ordinary(" \t"), Ordinary("b")),

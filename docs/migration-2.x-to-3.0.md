@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r31+296879e75b78`.**
+**Contract bundle `r32+ca108cd6d7af`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This

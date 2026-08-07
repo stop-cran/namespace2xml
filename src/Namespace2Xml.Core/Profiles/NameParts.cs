@@ -72,17 +72,31 @@ public sealed record OrdinaryPart : XmlNameComponent
 }
 
 /// <summary>An Appendix A.2 <c>qualified-element</c>: <c>Q{uri}local</c>.</summary>
+/// <remarks>
+/// The URI is never empty. Section 11.4: "A <c>Q{}local</c> component and an unmarked
+/// <c>local</c> component are the same component and address the same overlay node." An empty-URI
+/// instance would be a second representation of an <see cref="OrdinaryPart"/> that compares
+/// unequal to it and encodes back to text this lexer no longer produces, so it is refused here
+/// rather than left for a caller to remember.
+/// </remarks>
 public sealed record QualifiedElementPart : XmlNameComponent
 {
     /// <summary>Creates a qualified element from its URI and local tokens.</summary>
+    /// <exception cref="ArgumentException"><paramref name="uri"/> is empty.</exception>
     public QualifiedElementPart(string uri, ImmutableArray<NameToken> local)
     {
+        if (string.IsNullOrEmpty(uri))
+        {
+            throw new ArgumentException(
+                "an unqualified element is an ordinary component; see Section 11.4.",
+                nameof(uri));
+        }
+
         Uri = uri;
         Local = TokenSequence.Canonical(local);
     }
 
-    /// <summary>The URI body, already unescaped. May be empty: <c>Q{}local</c> is Section 11.4's
-    /// explicit spelling for an unqualified element.</summary>
+    /// <summary>The URI body, already unescaped. Never empty.</summary>
     public string Uri { get; }
 
     /// <summary>The local name's tokens, in source order. Never empty.</summary>

@@ -144,7 +144,7 @@ public class NamePartOrderTests
         [
             Ordinary("a"), Ordinary("b"), Ordinary("ab"), Wild(), Wild("c"),
             new OrdinaryPart([new LiteralToken("a"), new WildcardToken(null)]),
-            new QualifiedElementPart("", [new LiteralToken("a")]),
+            new QualifiedElementPart("urn:w", [new LiteralToken("a")]),
             new QualifiedElementPart("urn:x", [new LiteralToken("a")]),
             new AttributePart(Ordinary("a")),
             new AttributePart(new QualifiedElementPart("urn:x", [new LiteralToken("a")])),

@@ -287,9 +287,26 @@ public sealed class QualifiedNameLexerTests
         Describe(Lex("a.#1.Q{urn:p}b.@x"))
             .ShouldBe("ord('a')|content(1)|elem(urn:p;'b')|attr(ord('x'))");
 
+    /// <summary>
+    /// Section 11.4: "A <c>Q{}local</c> component and an unmarked <c>local</c> component are the
+    /// same component and address the same overlay node … The marker does not narrow the
+    /// component — it narrows the addressing." The XML reader builds an ordinary component for an
+    /// unqualified element, so any other reading leaves the explicit spelling addressing nothing.
+    /// </summary>
     [Test]
-    public void AnUnqualifiedElementMayBeSpeltExplicitly() =>
-        Describe(Lex("Q{}local")).ShouldBe("elem(;'local')");
+    public void AnUnqualifiedElementSpeltExplicitlyIsTheOrdinaryComponent()
+    {
+        Describe(Lex("Q{}local")).ShouldBe("ord('local')");
+        Lex("Q{}local").ShouldBe(Lex("local"));
+    }
+
+    /// <summary>
+    /// The same holds under an attribute marker, which Section 13.1's alias rule treats alongside
+    /// it: it "replaces every <c>Q{uri}local</c> or <c>@Q{uri}local</c> part with <c>local</c>".
+    /// </summary>
+    [Test]
+    public void AnEmptyUriUnderAnAttributeMarkerIsAlsoOrdinary() =>
+        Lex("a.@Q{}x").ShouldBe(Lex("a.@x"));
 
     [Test]
     public void DotsInsideAUriDoNotSplitTheName() =>
@@ -392,10 +409,12 @@ public sealed class QualifiedNameLexerTests
     public void NamesDifferingOnlyInPartKindAreNotEqual()
     {
         // Section 11.4: an ordinary mapping-name component whose text resembles XML syntax is not
-        // identical to an XML component.
+        // identical to an XML component. The clause is about text that *resembles* a marker, so
+        // 'Q{}x' is not an instance of it -- that spelling carries a real marker, and Section 11.4
+        // makes it the same component as the unmarked one.
         Lex("a.@x").ShouldNotBe(Lex("a.\\@x"));
         Lex("a.#1").ShouldNotBe(Lex("a.\\#1"));
-        Lex("a.Q{}x").ShouldNotBe(Lex("a.x"));
+        Lex("a.Q{u}x").ShouldNotBe(Lex("a.\\Q{u}x"));
     }
 
     [Test]

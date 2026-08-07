@@ -39,7 +39,7 @@ public static partial class DiagnosticCodes
             ["source", "line", "column", "path", "declaration"]),
         new DiagnosticCodeInfo("WILDCARD001", DiagnosticSeverity.Error,
             "once per rule",
-            "Invalid, undefined, mixed, or inconsistent capture",
+            "Invalid, undefined, or mixed capture",
             ["source", "line", "column", "path"]),
         new DiagnosticCodeInfo("WILDCARD002", DiagnosticSeverity.Error,
             "once per invocation",
@@ -255,7 +255,7 @@ public static partial class DiagnosticCodes
         Create("SCHEME002", DiagnosticSeverity.Error, phase, spec, message,
             cardinalityKey, source: source, line: line, column: column, path: path, declaration: declaration);
 
-    /// <summary><c>WILDCARD001</c> (error) — Invalid, undefined, mixed, or inconsistent capture.</summary>
+    /// <summary><c>WILDCARD001</c> (error) — Invalid, undefined, or mixed capture.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>

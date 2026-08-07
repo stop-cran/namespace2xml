@@ -384,12 +384,24 @@ public static class QualifiedNameLexer
         return true;
     }
 
-    /// <summary>Lexes <c>qualified-element</c>: <c>Q{</c> URI <c>}</c> local name.</summary>
+    /// <summary>
+    /// Lexes <c>qualified-element</c>: <c>Q{</c> URI <c>}</c> local name.
+    /// </summary>
+    /// <remarks>
+    /// An empty URI yields an <see cref="OrdinaryPart"/>, not an empty-URI
+    /// <see cref="QualifiedElementPart"/>. Section 11.4: "A <c>Q{}local</c> component and an
+    /// unmarked <c>local</c> component are the same component and address the same overlay node
+    /// … The marker does not narrow the component — it narrows the addressing." The XML reader
+    /// builds an ordinary component for an unqualified element, so a distinct empty-URI component
+    /// here would leave the spelling that clause calls explicit addressing nothing at all.
+    /// Canonicality is carried by the marker's presence in the path text, which Sections 13.1 and
+    /// 15.2 read, and not by the component this lexer yields.
+    /// </remarks>
     private static bool TryLexQualifiedElement(
         string text,
         ref int index,
         bool inReference,
-        out QualifiedElementPart part,
+        out XmlNameComponent part,
         out NameFault fault)
     {
         part = null!;
@@ -451,7 +463,10 @@ public static class QualifiedNameLexer
             return false;
         }
 
-        part = new QualifiedElementPart(uri.ToString(), local);
+        part = uri.Length == 0
+            ? new OrdinaryPart(local)
+            : new QualifiedElementPart(uri.ToString(), local);
+
         return true;
     }
 

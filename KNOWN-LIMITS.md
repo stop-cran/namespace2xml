@@ -204,34 +204,24 @@ If you have a real document deeper than 4096, that is a finding worth reporting 
 to convert the recursive phases to explicit traversal, and a real document is the evidence that
 justifies it.
 
-### 1.6 `Q{}local-name` does not yet address an unqualified XML element
+### 1.6 `Q{}local-name` is not separately addressable, by decision
 
-§11.4 says an unqualified element "normally uses its local name" and that ``Q{}local-name`` "is the
-explicit canonical spelling when a reference must distinguish it from a format-agnostic alias".
-
-This build reads an unqualified element into an ordinary name component and lexes ``Q{}b`` into a
-qualified component with an empty URI. Those are **different components**, ranked separately by
-`NamePartOrder`, so the explicit spelling cannot match the element the clause says it names.
+§11.4 now says a `Q{}local` component and an unmarked `local` component **are the same component**
+and address the same overlay node, and that the marker "does not narrow the component — it narrows
+the addressing". This build implements that: the lexer yields an ordinary component for an empty
+URI, and `QualifiedElementPart` refuses to represent one, so the redundant form does not exist.
 **verified**
 
-Nothing observable depends on it yet: the two places a component's identity is compared — value
-references (§13.1) and directives bound below a root selector (§15, §16) — are both unimplemented in
-this preview, and each refuses with `NOTIMPL` before any name is matched. **verified**
+What the marker still does is opt a path out of the §13.1 and §15.2 simple alias index, so that an
+attribute `@x` or a content token `#n` cannot compete with an element `x` for the same unmarked
+spelling. **That behaviour is unimplemented**, because both places a path is resolved through the
+alias index — value references (§13.1) and directives bound below a root selector (§15, §16) — are
+themselves unimplemented in this preview and refuse with `NOTIMPL` before any name is matched.
+**verified**
 
-The fix is deferred rather than guessed because the clause admits two readings, and they disagree
-about what the corpus should assert:
-
-- ``Q{}b`` and bare `b` name **one** component. The explicit spelling is then a synonym, and "must
-  distinguish it from a format-agnostic alias" describes nothing a user could ever need.
-- ``Q{}b`` names the XML element specifically and bare `b` is the format-agnostic alias that matches
-  an XML element and a JSON or YAML mapping key alike. Component equality is then asymmetric —
-  an alias matches a qualified component, but not the reverse — which touches overlay merging,
-  ordering, and reference closure.
-
-The second reading gives the clause work to do; the first is what the first bullet of §11.4 ("an
-ordinary mapping-name component whose text resembles XML syntax is not identical to an XML element,
-attribute, or content-token component") appears to assume. A specification amendment decides it, and
-a fixture authored before that decision would pin a guess.
+So `a.Q{}b` and `a.b` name the same node today and always will; what is missing is the case where
+they would *differ* from `a.@b`. It closes with §13.1. See issue #43 for the reasoning that
+settled the reading.
 
 ### 1.7 `WARN010` is not emitted
 

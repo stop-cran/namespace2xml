@@ -1034,7 +1034,7 @@ but that ordinary projection alone is not sufficient to reconstruct node kinds. 
 Scheme selectors and references use this XML path projection:
 
 - canonical paths contain typed components; an ordinary mapping-name component whose text resembles XML syntax is not identical to an XML element, attribute, or content-token component;
-- an unqualified element normally uses its local name; `Q{}local-name` is the explicit canonical spelling when a reference must distinguish it from a format-agnostic alias;
+- an unqualified element normally uses its local name; `Q{}local-name` is the explicit canonical spelling of that same component, used when a path must be distinguished from a *format-agnostic alias* in the sense of Sections 13.1 and 15.2;
 - a namespace-qualified name is `Q{namespace-uri}local-name`;
 - dots inside `Q{...}` are part of the URI and do not split the qualified path;
 - the first unescaped `}` closes the URI; a literal `}` inside the URI is written as `\}`;
@@ -1047,6 +1047,8 @@ Scheme selectors and references use this XML path projection:
 - comments may be selected for ignore and conversion through `#n`, but cannot be value-reference targets.
 
 `Q{...}` is one atomic lexer context. Inside the URI, delimiter, wildcard, reference, and ordinary name-escape recognition is suspended; `\}` encodes a literal closing brace and `\\` encodes a literal backslash. The first unescaped `}` ends the URI. The following local name uses ordinary name escaping.
+
+A `Q{}local` component and an unmarked `local` component are the same component and address the same overlay node; an XML element and a mapping key of that name are one node, which is what makes cross-format overlay possible at all. The marker does not narrow the component — it narrows the *addressing*. An unmarked component resolves through the simple alias index of Sections 13.1 and 15.2, where an attribute `@x` and a content token `#n` may alias to the same simple path and make it ambiguous; a marked component bypasses that index and names one canonical component outright. That is the whole of the distinction the second bullet draws: `${a.x}` is ambiguous when `a` has both an attribute and a child element named `x`, `${a.@x}` selects the attribute, and `${a.Q{}x}` selects the child element. Where no such alias competes, `a.b` and `a.Q{}b` name the same thing and behave identically.
 
 Inside `Q{...}`, a backslash followed by any character other than `}` or backslash is a blocking parse error.
 
@@ -1196,6 +1198,8 @@ Rules:
 - an undefined capture is an error;
 - inconsistent repeated captures are nonmatches;
 - a single rule must not mix explicit and legacy unnamed captures.
+
+The first, third and last of those are properties of the rule as written and are decidable before any item is examined, which is what `WILDCARD001`'s "once per rule" cardinality presupposes. Consistency of a repeated capture is a property of a (rule, item) pair, and the same rule may be consistent against one item and inconsistent against the next; it is therefore a nonmatch and never a diagnostic. Inconsistent repetition is how `*[identifier]` *selects* — writing the identifier twice means "only where these two parts agree" — and reporting it would leave that construct with no use.
 
 Capture text inserted into a generated name is literal text inside one name part. It is never re-lexed as delimiter, wildcard, reference, or escape syntax.
 
@@ -2031,7 +2035,7 @@ Default: `RejectMultiline`. Comments are discarded unless `SemicolonComments` or
 
 Values are case-insensitive.
 
-- `deep`: ordered mappings merge recursively, implicit sequence items concatenate, explicit ordering values patch matching sequence items, later scalar payloads override earlier scalar payloads, and scalar/container shape contributions coexist in the overlay until output projection.
+- `deep`: ordered mappings merge recursively, implicit sequence items concatenate, an explicit ordering value addresses and recursively merges the sequence item already at that value under Section 17.1, later scalar payloads override earlier scalar payloads, and scalar/container shape contributions coexist in the overlay until output projection.
 - `replace`: the later complete value replaces the earlier value. "Value" here means payload, container presence, children, and sequence projection; two things at the path are deliberately not replaced. Comments bound to the path survive, because Section 17.1 keeps a comment "whenever their logical path survives" and omits it only on "replacement of an ancestor that removes the path" — replacement *at* the path does not remove the path. The sequence allocation high-water mark also survives, by Section 17.2.
 - `append`: every item in the later sequence contribution, including explicitly indexed items, is rebased in ascending original ordering value onto fresh implicit ordering values above the current high-water mark; a source contribution that is a nonempty all-canonical-numeric mapping is sequence-eligible for this purpose; other non-sequence use is an error.
 - `error`: after entries inside each source contribution have been folded, any distinct second source or generated contribution at the path is an error. Numeric-map inference is a projection of its existing contribution and does not count again.
@@ -2070,7 +2074,7 @@ Wildcard-qualified `filemerge` selectors are supported and are expanded with the
 For two contributions `earlier` and `later`:
 
 - mapping plus mapping: recursively merge matching keys; place each surviving key at its winning contribution position;
-- sequence plus sequence: merge according to ordering-value provenance—implicit later items concatenate, while explicit later ordering values patch matching items;
+- sequence plus sequence: merge according to ordering-value provenance—implicit later items concatenate, while an explicit later ordering value addresses the item already at that value and the two items are then combined by the rules of this section, recursively. Provenance decides *which item* the later contribution meets, not *how* the two combine; a later contribution therefore never removes a sibling key it does not name;
 - scalar or null payload plus scalar or null payload: later payload wins;
 - scalar/null payload plus mapping or sequence contribution: retain both in the overlay with independent source marks;
 - mapping plus sequence contribution at one node: retain both container projections in the overlay; a destination requiring one container shape uses the later container contribution and warns;
@@ -2082,7 +2086,7 @@ Arrays use the stable ordering-value model from Sections 5.4 and 8.7.
 
 Separate native source arrays concatenate according to CLI file order and within-file order because their items receive fresh implicit ordering values.
 
-Explicit canonical numeric mapping keys are run-global ordering values at their sequence path under `deep` and patch matching values. They are not rebased unless `merge=append` explicitly requests rebasing.
+Explicit canonical numeric mapping keys are run-global ordering values at their sequence path under `deep` and address matching values, merging into the item already there under Section 17.1. They are not rebased unless `merge=append` explicitly requests rebasing.
 
 `merge=replace` removes the earlier visible sequence projection but does not lower the path's allocation high-water mark. Later automatic allocation therefore never reuses removed values; later explicit contributions may intentionally address a prior value unless permanently suppressed.
 
@@ -2566,7 +2570,7 @@ The normative diagnostic registry is:
 | `PARSE002` | error | Invalid or unsupported character encoding | once per failing source |
 | `SCHEME001` | error | Unknown directive, value, or illegal option/type combination | once per declaration |
 | `SCHEME002` | error | Ambiguous canonical/simple scheme path | once per expanded declaration |
-| `WILDCARD001` | error | Invalid, undefined, mixed, or inconsistent capture | once per rule |
+| `WILDCARD001` | error | Invalid, undefined, or mixed capture | once per rule |
 | `WILDCARD002` | error | Nonterminating expansion or wildcard limit | once per invocation |
 | `REFERENCE001` | error | Malformed or free-wildcard reference | once per reachable owning value |
 | `REFERENCE002` | error | Missing reference | once per reachable owning value |
@@ -3228,7 +3232,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Invalid byte sequence, unsupported BOM/encoding, XML declaration encoding inconsistent with decoded input | `PARSE002` |
 | Unknown/empty directive, illegal directive value, illegal option combination, `type=array` plus `key` | `SCHEME001` |
 | Ambiguous simple/canonical scheme path | `SCHEME002` |
-| Invalid, undefined, mixed, or inconsistent wildcard capture outside a reference | `WILDCARD001` |
+| Invalid, undefined, or mixed wildcard capture outside a reference | `WILDCARD001` |
 | Wildcard fixed-point, candidate, generated-node, or iteration limit | `WILDCARD002` |
 | Malformed/unterminated reference, legacy bare wildcard in reference, free explicit capture | `REFERENCE001` |
 | Missing exact or alias reference target | `REFERENCE002` |

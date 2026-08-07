@@ -493,11 +493,11 @@ public class OverlayMergerTests
     }
 
     /// <summary>
-    /// Section 17.1: "explicit later ordering values patch matching items", and Section 5.4:
-    /// "Reusing an explicit ordering value overrides the existing item at that value."
+    /// Section 17.1: an explicit later ordering value "addresses the item already at that value".
+    /// Two scalar payloads at one item still resolve by "later payload wins".
     /// </summary>
     [Test]
-    public void ExplicitLaterOrderingValuesPatchMatchingItems()
+    public void AnExplicitLaterOrderingValueAddressesTheItemAlreadyThere()
     {
         var later = OverlayNode.Empty(NodeMarks.At(StableOrderingKey.FromSource(2, 0)))
             .WithSequenceItem(1, SequenceItem.Numbered(Payload("patched", 2)));
@@ -507,6 +507,55 @@ public class OverlayMergerTests
 
         merged.OrderedSequence.Select(item => item.Key).ShouldBe([0L, 1L]);
         merged.OrderedSequence.Select(item => Value(item.Value.Node)).ShouldBe(["x", "patched"]);
+    }
+
+    /// <summary>
+    /// Section 17.1: the two items "are then combined by the rules of this section, recursively.
+    /// Provenance decides which item the later contribution meets, not how the two combine; a
+    /// later contribution therefore never removes a sibling key it does not name."
+    /// </summary>
+    [Test]
+    public void AnExplicitLaterOrderingValueMergesIntoTheItemRatherThanReplacingIt()
+    {
+        var item = OverlayNode.Empty(NodeMarks.At(StableOrderingKey.FromSource(1, 0)))
+            .WithChild(Ordinary("name"), Payload("alpha", 1))
+            .WithChild(Ordinary("port"), Payload("1", 1));
+
+        var earlier = OverlayNode.Empty(NodeMarks.At(StableOrderingKey.FromSource(1, 0)));
+        earlier.TryAppendSequenceItem(SequenceItem.Native(item), out earlier).ShouldBeTrue();
+
+        var later = OverlayNode.Empty(NodeMarks.At(StableOrderingKey.FromSource(2, 0)))
+            .WithSequenceItem(
+                0,
+                SequenceItem.Numbered(
+                    OverlayNode.Empty(NodeMarks.At(StableOrderingKey.FromSource(2, 0)))
+                        .WithChild(Ordinary("port"), Payload("2", 2))));
+
+        var merged = new OverlayMerger(MergeStrategyMap.Default, diagnostics)
+            .Merge(earlier, later);
+
+        var patched = merged.Sequence[0].Node;
+
+        ChildNames(patched).ShouldBe(["name", "port"]);
+        Value(patched.Children[Ordinary("name")]).ShouldBe("alpha");
+        Value(patched.Children[Ordinary("port")]).ShouldBe("2");
+    }
+
+    /// <summary>
+    /// Provenance records how a slot's own value came to be, not what later addressed it. Adopting
+    /// the later item's <see cref="OrderingProvenance.Explicit"/> would retire the Section 8.7
+    /// concatenation warning for every subsequent native contribution at the path.
+    /// </summary>
+    [Test]
+    public void AddressingAnImplicitItemLeavesItImplicit()
+    {
+        var later = OverlayNode.Empty(NodeMarks.At(StableOrderingKey.FromSource(2, 0)))
+            .WithSequenceItem(0, SequenceItem.Numbered(Payload("patched", 2)));
+
+        var merged = new OverlayMerger(MergeStrategyMap.Default, diagnostics)
+            .Merge(NativeSequence(1, "x"), later);
+
+        merged.Sequence[0].Provenance.ShouldBe(OrderingProvenance.Implicit);
     }
 
     /// <summary>
