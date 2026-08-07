@@ -69,9 +69,11 @@
       "assertions": [
         "Generation runs to a fixed point in breadth waves, so a template matches names an earlier wave generated and a two-level cascade completes in one run.",
         "A wave evaluates candidates against the items present when that wave began, so which rule sees which item depends on the wave the item appeared in rather than on rule order within a wave.",
-        "A later concrete entry overrides a generated one, because Section 12.4 makes source order control precedence rather than visibility."
+        "A later concrete entry overrides a generated one, because Section 12.4 makes source order control precedence rather than visibility.",
+        "A permanent ignore mask consumes the shared candidate-check limit once per eligible pair, including for the items it suppresses, so a run whose only wildcard rule is a mask can cross the limit."
       ],
       "fixtures": [
+        "mask-candidates-consume-the-wildcard-limit",
         "wildcard-template-generation"
       ]
     },
@@ -325,10 +327,12 @@
         "A masked contribution is discarded before literal-path merge validation, so a masked path under merge=error does not report a second contribution.",
         "Masks remain active after contributions are merged, so a mask naming an ordering value that merge=append assigned during rebasing suppresses the item at that value.",
         "A mask suppresses a name a wildcard template generated exactly as it suppresses a written one, so the generated sibling of a masked path still appears.",
-        "A mask removes a candidate before wildcard matching enumerates it, so a masked sequence item produces no generated contribution and no capture."
+        "A mask removes a candidate before wildcard matching enumerates it, so a masked sequence item produces no generated contribution and no capture.",
+        "A mask is charged a candidate check for every eligible item it examines, including the ones it goes on to suppress and which therefore never reach the merged model."
       ],
       "fixtures": [
         "mask-after-sequence-rebasing",
+        "mask-candidates-consume-the-wildcard-limit",
         "namespace-permanent-ignore-masks",
         "wildcard-ordering-values-survive",
         "wildcard-repeated-capture-backtracking",

@@ -270,6 +270,15 @@ public static class InputPhase
             budget,
             diagnostics);
 
+        // Section 8.6 discards masked contributions before step 8 merges, so the pairs a successful
+        // mask checked are already absent from what this step evaluates. They are charged from the
+        // unmasked contributions first; the evaluator carries one considered set across both
+        // passes, so Section 12.4's third condition still holds.
+        if (!evaluator.ChargeMaskedCandidates(contributions.Select(c => c.Contribution.Overlay)))
+        {
+            return StepOutcome.Failed<OverlayNode>();
+        }
+
         var evaluated = evaluator.Evaluate(mask.Apply(exposed));
 
         return diagnostics.HasBlockingError

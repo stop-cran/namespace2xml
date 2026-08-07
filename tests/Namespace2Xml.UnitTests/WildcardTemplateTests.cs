@@ -475,6 +475,34 @@ public sealed class WildcardTemplateTests
     }
 
     /// <summary>
+    /// Section 12.4 charges a candidate check on eligibility -- "full capture matching may then
+    /// succeed or fail without another candidate charge" -- so a mask is charged for the items it
+    /// suppresses as well as for the ones it leaves alone.
+    /// </summary>
+    /// <remarks>
+    /// Section 8.6 discards a masked contribution "before literal-path merge validation", so these
+    /// two items are absent from the model the fixed point runs over and an implementation that
+    /// counts only what survives counts nothing here. Both bounds are asserted because only the
+    /// pair pins the count: the loose one fails if anything is charged twice, the tight one if the
+    /// suppressed items are charged not at all.
+    /// </remarks>
+    [Test]
+    public void AMaskIsChargedForTheItemsItSuppresses()
+    {
+        var scheme = ("scheme.txt", "b.output=namespace\n");
+        var input = ("in.txt", "a.x=1\na.y=2\nb.keep=3\n!a.*\n");
+
+        Transformation(["--max-wildcard-candidates", "2"], input, scheme)
+            .Result.ExitCode.ShouldBe(0);
+
+        var tight = Transformation(["--max-wildcard-candidates", "1"], input, scheme);
+
+        tight.Result.ExitCode.ShouldBe(1);
+        Codes(tight.Result).ShouldBe(["WILDCARD002"]);
+        tight.Result.Diagnostics.Single().Rule.ShouldNotBeNull().ShouldContain("a.*");
+    }
+
+    /// <summary>
     /// The rule limit is charged for the whole worklist before any evaluation, so it is crossed by
     /// declaring the rules rather than by matching anything.
     /// </summary>

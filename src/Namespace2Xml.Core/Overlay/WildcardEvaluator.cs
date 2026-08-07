@@ -139,6 +139,63 @@ public sealed class WildcardEvaluator
         return accepted.ToImmutable();
     }
 
+    /// <summary>
+    /// Charges the candidate checks a mask performs against contributions the prune removes.
+    /// </summary>
+    /// <param name="unmasked">Step 5's contribution overlays, before any mask is applied.</param>
+    /// <returns>Whether the run may continue.</returns>
+    /// <remarks>
+    /// Section 8.6 discards a masked contribution "before literal-path merge validation", so by the
+    /// time <see cref="Evaluate"/> sees the model the pairs a successful mask checked are gone from
+    /// it. Charging only what survives makes the limit measure the mask's failures and not its
+    /// work, which is the opposite of the Section 12.4 rule that "full capture matching may then
+    /// succeed or fail without another candidate charge": the charge is levied on eligibility,
+    /// before the outcome is known, so a mask that suppresses every item it checks is charged for
+    /// every one of them.
+    /// <para>
+    /// Only masks are charged here. Section 8.6 says "suppressed paths and descendants never become
+    /// wildcard candidates", so a generative rule is charged for none of them; a path that no mask
+    /// suppresses is present in the evaluated model and is charged there. The
+    /// <see cref="considered"/> set spans both passes, so Section 12.4's third condition holds
+    /// across them and a surviving path charged here is not charged again.
+    /// </para>
+    /// <para>
+    /// Contributions are enumerated rather than the merged model, because the merged model is the
+    /// masked one. Merging is a union over paths, so the distinct depth-<c>k</c> prefixes of the
+    /// contributions are the distinct depth-<c>k</c> prefixes the unmasked model would have had.
+    /// </para>
+    /// </remarks>
+    public bool ChargeMaskedCandidates(IEnumerable<OverlayNode> unmasked)
+    {
+        ArgumentNullException.ThrowIfNull(unmasked);
+
+        foreach (var contribution in unmasked)
+        {
+            for (var index = 0; index < rules.Length; index++)
+            {
+                if (rules[index].IsGenerative)
+                {
+                    continue;
+                }
+
+                foreach (var path in Candidates(contribution, depths[index]))
+                {
+                    if (!Eligible(rules[index], depths[index], path))
+                    {
+                        continue;
+                    }
+
+                    if (!TryCharge(index, path, out _))
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>Evaluates every rule against an exposed overlay until the fixed point is reached.</summary>
     /// <param name="root">Step 9's product, with the run's masks already applied.</param>
     /// <returns>The overlay including every generated contribution.</returns>
@@ -200,19 +257,27 @@ public sealed class WildcardEvaluator
                     continue;
                 }
 
-                if (!considered.Add((index, CanonicalPath.Of(path) ?? string.Empty)))
+                // Section 8.6: "suppressed paths and descendants never become wildcard candidates".
+                // A mask still checks them -- that check is how they came to be suppressed, and
+                // ChargeMaskedCandidates is where it is paid for -- but a generative rule never
+                // sees them, so it is not charged for them either.
+                //
+                // Removing this is not observable today: the mask is applied to the tree before
+                // Evaluate runs, so no suppressed path reaches the snapshot. It is kept because it
+                // states the rule at the point the rule is about. Do not write a test for it; the
+                // whole suite is green with it deleted.
+                if (rule.IsGenerative && mask.Suppresses(path))
                 {
                     continue;
                 }
 
-                if (!budget.TryConsume(ResourceBound.MaxWildcardCandidates, 1, out var tooMany))
+                if (!TryCharge(index, path, out var fresh))
                 {
-                    ReportLimit(tooMany, [rule]);
                     return false;
                 }
 
-                if (!rule.IsGenerative
-                    || mask.Suppresses(path)
+                if (!fresh
+                    || !rule.IsGenerative
                     || !WildcardMatch.TryMatchPrefix(rule.Name.Parts, depth, path, out var captures))
                 {
                     continue;
@@ -228,6 +293,24 @@ public sealed class WildcardEvaluator
         }
 
         return true;
+    }
+
+    /// <summary>Levies Section 12.4's candidate charge for one eligible pair, once.</summary>
+    /// <param name="index">The rule's position in the worklist.</param>
+    /// <param name="path">The candidate item.</param>
+    /// <param name="fresh">Whether Section 12.4's third condition held, so the pair was charged.</param>
+    /// <returns>Whether the run may continue.</returns>
+    private bool TryCharge(int index, ImmutableArray<NamePart> path, out bool fresh)
+    {
+        fresh = considered.Add((index, CanonicalPath.Of(path) ?? string.Empty));
+
+        if (!fresh || budget.TryConsume(ResourceBound.MaxWildcardCandidates, 1, out var tooMany))
+        {
+            return true;
+        }
+
+        ReportLimit(tooMany, [rules[index]]);
+        return false;
     }
 
     private bool TryGenerate(

@@ -635,6 +635,7 @@ silently.
 These cases carry a `legacy.md` that states neither agreement nor difference. That is a
 defect in the fixture; see CONTRIBUTING.md.
 
+- `mask-candidates-consume-the-wildcard-limit`
 - `mask-clears-shape-marks`
 - `merge-strategies-over-native-sequence-shapes`
 - `wildcard-generation-merges-at-rule-position`
