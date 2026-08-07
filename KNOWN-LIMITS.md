@@ -36,7 +36,7 @@ destinations. Everything below that line is refused, not approximated.
 | Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
 | Publication and the validation gate | Implemented | §21 |
 | References and value wildcards | Not yet | §13 |
-| Templates and masks | Not yet | §8.6, §12 |
+| Templates and masks | Implemented for namespace input | §8.6, §12 |
 | Wildcard output selectors and `substitute` | Not yet | §14, §16 |
 | Ordered sequences from numeric paths | Not yet | §8.7, §5.4 |
 | Rendering: JSON, YAML, XML | Not yet | §19.3–§19.5 |
@@ -56,8 +56,11 @@ three cases are declined or unfinished within it.
 
 - **A wildcard in a native key is declined**, with exit `70` and no output. `{"*": 1}` has no
   representation in the overlay this preview builds, so it is refused rather than guessed at. `\*`
-  for a literal asterisk works and is tested. §9.1 keeps the syntax reserved; §12 evaluation is a
-  later milestone in any case.
+  for a literal asterisk works and is tested. §9.1 keeps the syntax reserved. §12 evaluation is
+  implemented for namespace-profile rules; what is missing is §12.3's requirement that
+  "template-bearing JSON or YAML branches are extracted entry-by-entry", because the entry a
+  structured reader emits carries an interpreted value and cannot express a typed payload, an empty
+  container, or a sequence ordering value beneath a wildcard key. Acceptance item 12 covers it.
 - **`substitute=Key` and `substitute=None` are parsed and not applied.** This is not specific to
   JSON — no format applies them yet, because the machinery §13.4 describes does not exist. A scheme
   that sets `substitute` is accepted and has no effect on any input.
@@ -85,8 +88,8 @@ it.
   `spikes/yaml-comments/FINDINGS.md`, against a 28-document corpus; only the implementation is
   outstanding. Comment **output** is unimplemented for every format, so nothing observable is lost
   today.
-- **A wildcard in a key is declined**, with exit `70` and no output, exactly as for JSON. `\*` for a
-  literal asterisk works.
+- **A wildcard in a key is declined**, with exit `70` and no output, exactly as for JSON, and for the
+  same §12.3 reason. `\*` for a literal asterisk works.
 - **`substitute` is parsed and not applied**, again as for JSON and every other format.
 
 One §10.1 clause is under-determined and this preview chose a reading. §10.1 lists merge keys among

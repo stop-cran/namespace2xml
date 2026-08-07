@@ -222,7 +222,10 @@ public static class InputPhase
     /// <summary>Section 15.1 step 10: evaluate templates under the permanent exclusion masks.</summary>
     /// <param name="exposed">Step 9's product.</param>
     /// <param name="contributions">Step 5's product, which carries the templates and masks.</param>
-    /// <returns>The overlay, once every template is known to be absent.</returns>
+    /// <param name="configuration">Step 4's product, whose merge directives govern each generated contribution.</param>
+    /// <param name="budget">The invocation's global budget, which Section 23 charges this step against.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <returns>The overlay including every generated contribution.</returns>
     /// <remarks>
     /// The masks are applied again here rather than only at step 8. Step 9 turns ordering values
     /// and numeric mapping keys into path parts, so a path spelled with an ordering value first
@@ -231,24 +234,97 @@ public static class InputPhase
     /// </remarks>
     public static StepOutcome<OverlayNode> EvaluateTemplates(
         OverlayNode exposed,
-        ImmutableArray<InputContribution> contributions)
+        ImmutableArray<InputContribution> contributions,
+        SchemeConfiguration configuration,
+        GlobalBudget budget,
+        DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(exposed);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(budget);
+        ArgumentNullException.ThrowIfNull(diagnostics);
 
         foreach (var contribution in contributions)
         {
-            if (!contribution.Contribution.Templates.IsEmpty)
+            foreach (var template in contribution.Contribution.Templates)
             {
-                return StepOutcome.Unsupported<OverlayNode>(
-                    new UnsupportedCapability(
-                        "wildcard templates",
-                        $"{contribution.Origin.Identity} declares a wildcard entry on line "
-                        + $"{contribution.Contribution.Templates[0].Line}.",
-                        "\u00A712"));
+                // Section 15.1 resolves references at step 15, five steps after this one, so a
+                // template value carrying one has no text to substitute a capture into yet.
+                if (template.Value.ContainsReference)
+                {
+                    return StepOutcome.Unsupported<OverlayNode>(
+                        new UnsupportedCapability(
+                            "references in wildcard template values",
+                            $"{contribution.Origin.Identity} line {template.Line} carries one, and "
+                            + "step 15 resolves it against the output instance's closure.",
+                            "\u00A713.1"));
+                }
             }
         }
 
-        return StepOutcome.Produced(MasksOf(contributions).Apply(exposed));
+        var mask = MasksOf(contributions);
+        var evaluator = new WildcardEvaluator(
+            WildcardEvaluator.Validate(RulesOf(contributions), diagnostics),
+            mask,
+            new OverlayMerger(DeclaredMerges(configuration), diagnostics),
+            budget,
+            diagnostics);
+
+        var evaluated = evaluator.Evaluate(mask.Apply(exposed));
+
+        return diagnostics.HasBlockingError
+            ? StepOutcome.Failed<OverlayNode>()
+            : StepOutcome.Produced(evaluated);
+    }
+
+    /// <summary>The run's Section 12 wildcard rules, in the Section 12.4 worklist order.</summary>
+    /// <param name="contributions">Step 5's product.</param>
+    /// <returns>Every generative template and every wildcard-bearing mask, in source order.</returns>
+    /// <remarks>
+    /// Section 12.4 puts "all templates from all sources" in "one deterministic worklist ordered by
+    /// source order", and counts permanent wildcard ignore masks among the categories that consume
+    /// the shared candidate-check limit, so both kinds enter the same list. A mask whose pattern
+    /// contains no wildcard is not a wildcard rule and is left out: it is an ordinary literal-path
+    /// predicate that has already done its work at step 8.
+    /// </remarks>
+    private static ImmutableArray<WildcardRule> RulesOf(
+        ImmutableArray<InputContribution> contributions)
+    {
+        var rules = ImmutableArray.CreateBuilder<WildcardRule>();
+
+        foreach (var contribution in contributions)
+        {
+            foreach (var template in contribution.Contribution.Templates)
+            {
+                rules.Add(new WildcardRule(
+                    template.Name,
+                    template.Value,
+                    template.Order,
+                    template.Comments,
+                    contribution.Origin.File,
+                    contribution.Origin.Identity,
+                    template.Line));
+            }
+
+            foreach (var declared in contribution.Contribution.Masks)
+            {
+                if (QualifiedNameLexer.ContainsWildcard(declared.Pattern))
+                {
+                    rules.Add(new WildcardRule(
+                        declared.Pattern,
+                        null,
+                        declared.Order,
+                        [],
+                        contribution.Origin.File,
+                        contribution.Origin.Identity,
+                        declared.Line));
+                }
+            }
+        }
+
+        rules.Sort((left, right) => left.Order.CompareTo(right.Order));
+
+        return rules.ToImmutable();
     }
 
     /// <summary>Section 15.1 step 11: project inferable mappings as explicit indexed sequences.</summary>

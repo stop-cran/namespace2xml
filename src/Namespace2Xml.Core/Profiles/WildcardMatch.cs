@@ -127,7 +127,7 @@ public static class WildcardMatch
 
         for (var i = pattern.Parts.Length - 1; i >= 0; i--)
         {
-            if (PartHasWildcard(pattern.Parts[i]))
+            if (HasWildcard(pattern.Parts[i]))
             {
                 return i;
             }
@@ -136,11 +136,19 @@ public static class WildcardMatch
         return -1;
     }
 
-    private static bool PartHasWildcard(NamePart part) => part switch
+    /// <summary>Whether one component contains a wildcard token.</summary>
+    /// <param name="part">The component.</param>
+    /// <returns><see langword="true"/> when the component is a pattern rather than literal text.</returns>
+    /// <remarks>
+    /// Section 12.4 charges a candidate check only when "every literal name part before that point
+    /// equals the corresponding item part", so a caller deciding eligibility has to be able to ask
+    /// which parts are literal.
+    /// </remarks>
+    public static bool HasWildcard(NamePart part) => part switch
     {
         OrdinaryPart ordinary => HasWildcard(ordinary.Tokens),
         QualifiedElementPart qualified => HasWildcard(qualified.Local),
-        AttributePart attribute => PartHasWildcard(attribute.Name),
+        AttributePart attribute => HasWildcard(attribute.Name),
         _ => false,
     };
 

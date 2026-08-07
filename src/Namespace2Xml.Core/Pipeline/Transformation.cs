@@ -170,8 +170,9 @@ public static class Transformation
 
         var evaluated = run.Run(
             PipelineStep.EvaluateTemplates,
-            PipelineRun.Both(exposed, extracted),
-            (both, _) => InputPhase.EvaluateTemplates(both.First, both.Second));
+            PipelineRun.Both(PipelineRun.Both(exposed, extracted), configuration),
+            (both, diagnostics) => InputPhase.EvaluateTemplates(
+                both.First.First, both.First.Second, both.Second, budget, diagnostics));
 
         var projected = run.Run(
             PipelineStep.InferSequences,
