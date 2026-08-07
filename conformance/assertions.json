@@ -220,16 +220,29 @@
       "text": "JSON, YAML, and XML input structural merge.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "A native container and a namespace-profile mapping at one path are two contributions to one node, so a YAML sequence and a profile-written mapping child meet under Section 4.4 rather than in one reader.",
+        "When both a mapping and a sequence projection survive at one path, a flat output keeps the later contribution under Section 17.1 and reports the omitted shape as TYPE002 rather than merging or silently discarding it.",
+        "Precedence is decided by source order alone, so reversing which format contributes last reverses which shape survives."
+      ],
+      "fixtures": [
+        "namespace-shape-conflict-precedence"
+      ]
     },
     {
       "item": 25,
       "text": "Array concatenation, explicit-index patching, and input `merge=replace`.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "Under the default deep strategy an all-canonical-numeric mapping patches at the supplied ordering value, so a later contribution at an existing value replaces that item and leaves its siblings alone.",
+        "Under append the same two contributions concatenate instead: the later contribution is rebased onto fresh implicit ordering values above the high-water mark rather than patching.",
+        "Under replace the later complete value replaces the earlier one, so a child written only by the earlier contribution is gone even though the later contribution never mentioned it.",
+        "A merge directive governs only the node it matches, so sibling roots carrying different strategies over identical two-source input each behave as their own directive says."
+      ],
+      "fixtures": [
+        "namespace-input-merge-strategies"
+      ]
     },
     {
       "item": 26,
@@ -306,11 +319,13 @@
         "The exclusion reaches the matched path's descendants, and comments bound to a suppressed path are suppressed with it.",
         "A masked contribution is discarded before literal-path merge validation, so a masked path under merge=error does not report a second contribution.",
         "Masks remain active after contributions are merged, so a mask naming an ordering value that merge=append assigned during rebasing suppresses the item at that value.",
-        "A mask suppresses a name a wildcard template generated exactly as it suppresses a written one, so the generated sibling of a masked path still appears."
+        "A mask suppresses a name a wildcard template generated exactly as it suppresses a written one, so the generated sibling of a masked path still appears.",
+        "A mask removes a candidate before wildcard matching enumerates it, so a masked sequence item produces no generated contribution and no capture."
       ],
       "fixtures": [
         "mask-after-sequence-rebasing",
         "namespace-permanent-ignore-masks",
+        "wildcard-ordering-values-survive",
         "wildcard-template-generation"
       ]
     },
@@ -413,13 +428,17 @@
       "item": 45,
       "text": "Empty output-plan warnings and inferred-sequence compatibility warnings.",
       "milestone": "m3",
-      "status": "pending",
+      "status": "required",
       "assertions": [
         "When multiple sources contribute native implicit sequences at one path and no explicit merge directive applies, exactly one WARN004 compatibility warning is emitted for that path.",
         "An explicit merge directive at the path silences the warning, including a bare directive governing the overlay root, because the directive says which reading was meant.",
-        "Explicit ordering values meeting native implicit items do not warn, because they patch rather than concatenate."
+        "Explicit ordering values meeting native implicit items do not warn, because they patch rather than concatenate.",
+        "A validated output plan containing no destinations reports exactly one WARN008 per invocation, so a scheme that declares no output is distinguishable from one that was applied.",
+        "WARN008 is a warning and not an error: the run still exits successfully, and a well-formed scheme whose only directives are non-output directives is still honoured.",
+        "WARN008 declares no optional Section 6.4.3 members, so the occurrence carries exactly the five required ones."
       ],
       "fixtures": [
+        "empty-output-plan-warning",
         "namespace-numeric-map-inference"
       ]
     },
@@ -444,8 +463,14 @@
       "text": "Stable ordering values across deletion, wildcard matching, references, and final dense rendering.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "A mask that deletes one item does not renumber its neighbours, so the ordering values that survive are the ones the input supplied.",
+        "A wildcard matching a sequence item captures the item's stable ordering value, not its rendered display index, so substituting the capture writes the ordering value into the generated value.",
+        "Flat output renders fresh dense indices over those same items, so a run whose ordering values and display indices disagree spells both without confusing them."
+      ],
+      "fixtures": [
+        "wildcard-ordering-values-survive"
+      ]
     },
     {
       "item": 49,
@@ -485,17 +510,21 @@
       "item": 53,
       "text": "Final fixed-point numeric-map inference, including empty mappings and generated or ignored nonnumeric children.",
       "milestone": "m3",
-      "status": "pending",
+      "status": "required",
       "assertions": [
         "A nonempty mapping whose surviving child names are all canonical non-negative decimal ordering values projects as an explicitly indexed sequence at step 11.",
         "Explicit indexed contributions patch the sequence at their supplied ordering values, so a later contribution at an existing value replaces that item rather than appending one.",
         "Native implicit items concatenate in CLI source order above the allocation high-water mark, including when they follow explicit indexed contributions at the same path.",
         "Gaps and non-zero bases are allowed and create no null placeholders, and namespace output renders the surviving items at fresh dense display indices.",
         "A leading-zero spelling or a canonical decimal above the supported maximum is an ordinary mapping key and prevents sequence interpretation for the whole mapping.",
-        "A surviving empty mapping remains a mapping, so it still competes with a sequence contribution at the same path rather than being absorbed into it."
+        "A surviving empty mapping remains a mapping, so it still competes with a sequence contribution at the same path rather than being absorbed into it.",
+        "Inference reads the surviving key names, so masking the one nonnumeric child of a mapping makes the rest of it sequence-eligible.",
+        "A wildcard-generated nonnumeric child counts for inference exactly as a parsed one does, so generating a named child under an all-numeric mapping keeps that mapping a mapping."
       ],
       "fixtures": [
-        "namespace-numeric-map-inference"
+        "namespace-numeric-map-inference",
+        "namespace-shape-conflict-precedence",
+        "wildcard-ordering-values-survive"
       ]
     },
     {

@@ -421,6 +421,44 @@ being a scalar contribution, so judging payload precedence by position makes a g
 `a=2` lose to an earlier `a=1` when an `a={}` landed between them. `NodeMarks.PayloadMark` exists
 for this and nothing else.
 
+### A diagnostic's `path` is in the output instance's frame, so a conflict at the root has none
+
+`FlatIdentity.PathText` returns the path *relative to the output root*, and Section 6.4.3 omits an
+absent member rather than writing an empty string. A condition that fires at the output root
+therefore emits a diagnostic with **no `path` member at all**, and Appendix C.4 compares members
+exactly, so a fixture written to pin the path fails with "expected member 'path' is missing" while
+looking entirely correct.
+
+Put the condition a level below the output root. `conformance/namespace-shape-conflict-precedence`
+declares `app.output=namespace` and conflicts at `app.seqwins` for exactly this reason; conflicting
+at `app` itself would have made the case silent about the one member it exists to pin.
+
+### A diagnostic code can be dead, and the generated factories hide it
+
+`tools/sync-diagnostic-codes.ps1` emits one factory per registry code, so `DiagnosticCodes.Warn008`
+existed, compiled, and was documented in `docs/diagnostics.md` while **nothing ever called it** —
+the empty-output-plan warning was simply never implemented. Grepping for the code name finds the
+generated factory and looks like coverage.
+
+Grep for *callers*, not for the code: a single hit in `DiagnosticCodes.g.cs` and nowhere else means
+the diagnostic does not exist. The same check reads as a one-line audit across the whole registry,
+and is worth running whenever a milestone claims a diagnostic is covered.
+
+```powershell
+$files = Get-ChildItem src -Recurse -Filter *.cs |
+    Where-Object { $_.Name -ne 'DiagnosticCodes.g.cs' -and $_.FullName -notmatch '\\(obj|bin)\\' }
+$text = ($files | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+(Get-Content spec/diagnostics.registry.json -Raw | ConvertFrom-Json).codes.code | Where-Object {
+    $text -notmatch ('DiagnosticCodes\.' + $_.Substring(0,1) + $_.Substring(1).ToLower() + '\b')
+}
+```
+
+As of the M3 exit, ten codes are uncalled: `SCHEME002`, `REFERENCE002`–`REFERENCE005`, `XML002`,
+`COLLISION001`, `WARN005`, `WARN007` and `WARN010`. Every one belongs to an area `KNOWN-LIMITS.md`
+lists as not yet implemented, so that list is the expected baseline rather than a defect list. Check
+new entries against it, and check `COLLISION001` and `WARN005` at M4 — `filemerge` collision folding
+is claimed as implemented, so those two are the pair most likely to be genuinely missing next.
+
 ### A shape-mark test only bites when the new key is later than the mark it must tie with
 
 `NodeMarks.ContainerIsMapping` resolves an equal mapping/sequence shape-mark to the mapping, so the

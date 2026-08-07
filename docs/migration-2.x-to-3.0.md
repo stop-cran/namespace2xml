@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (29)
+## Deliberate differences (33)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -207,6 +207,22 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   `zzz`, `app`, `app.x`, while the canonical paths sort `app.ini`, `app.x.ini`, `zzz.ini`; the two
   disagree, so the expected stream distinguishes the fold key from the path.
 
+### `empty-output-plan-warning`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 22 `WARN008`; Section 21 validation gate.
+- Legacy observation: a run whose scheme declared no output produced no files and said nothing, so
+  a scheme that had been edited into declaring nothing was indistinguishable from a scheme that had
+  been applied successfully. The exit status was the same in both cases.
+- Clean behavior: the validated output plan is checked for emptiness once per invocation and
+  reports `WARN008`. The scheme here is well formed and its `merge` directive is honoured; it
+  simply declares no destination, which is a warning rather than an error because writing nothing
+  is a legitimate result of a filtered or partially-applied scheme.
+- The input is deliberately non-empty: the warning is about the output plan, not about the absence
+  of data, and a case with no input would not distinguish the two.
+- `WARN008` declares no optional Section 6.4.3 members, so the occurrence is exactly the five
+  required ones. It is the only diagnostic in the corpus whose whole content is its identity.
+
 ### `ini-projection-and-section-order`
 
 - namespace2xml 2.4.0: **differs**.
@@ -339,6 +355,31 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: without it a profile could not round-trip through its own output
   format, which is the property every other guarantee in Section 19 rests on.
 
+### `namespace-input-merge-strategies`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 16.10; Section 15.1 steps 8 and 11; Section 5.4.
+- Legacy observation: input merging had one behavior. Later contributions merged into earlier ones
+  recursively and there was no way to say "this path is replaced wholesale", "these items
+  concatenate rather than patch", or "a second contribution here is a mistake". A profile that
+  wanted any of those three had to be restructured until deep merge happened to produce them.
+- Clean behavior: `merge` selects among four strategies at the node it matches, and descendants use
+  their own effective strategy. This case puts all four at sibling roots over identical two-source
+  input, so each strategy is read against the others rather than in isolation:
+  - `deep` folds recursively, so `deep.y` is overridden and `deep.z` is added;
+  - `replace` substitutes the later complete value, so `repl.x` is gone even though the later
+    source never mentioned it;
+  - `deep` over an all-canonical-numeric mapping patches at the supplied ordering value, so `pat.0`
+    becomes `gamma` and `pat.1` survives;
+  - `append` rebases the later contribution above the high-water mark instead of patching, so the
+    same input that patched under `pat` concatenates under `app`;
+  - `error` counts source contributions, not entries, so two entries written at `solo` in one file
+    fold without complaint. The rejecting half of `error` is the separate
+    `namespace-merge-error-second-source` case, because it publishes nothing.
+- The difference is intentional: Section 3 makes the merge strategy an explicit part of the
+  contract, and the `pat`/`app` contrast is the reason. The same two sources produce a patched
+  two-item sequence or a concatenated three-item one purely by declaration.
+
 ### `namespace-numeric-map-inference`
 
 - namespace2xml 2.4.0: **differs**.
@@ -372,6 +413,52 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: Section 8.6 names this "an explicit exception to universal
   later-source precedence". A mask exists to guarantee that a value cannot leave the tool, and a
   guarantee an ordinary later entry can revoke is not one.
+
+### `namespace-shape-conflict-precedence`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 4.4 and 17.1; Section 22 `TYPE002`; Section 24 ordering.
+- Legacy observation: a path that received both a mapping and a sequence had no stated rule. Which
+  container survived depended on which reader ran, and nothing was reported either way, so a silent
+  pick was indistinguishable from a merge.
+- Clean behavior: both container projections coexist in the overlay, and a flat output, which can
+  spell exactly one container shape at a path, keeps the later contribution under Section 17.1
+  precedence and warns that the other is omitted. Both directions appear here, decided only by
+  source order: `app.seqwins` is a mapping first and a sequence second, `app.mapwins` the reverse,
+  and the surviving shape follows the second contribution in each case. The omitted shape is not
+  merged into the survivor, so the mapping child of `seqwins` and the sequence item of `mapwins`
+  are simply absent from the output.
+- `TYPE002` is a warning, not an error, so the run still publishes.
+- The conflicting nodes are deliberately **below** the output root. A diagnostic's `path` is
+  expressed in the output instance's own frame, so a conflict at the root itself has an empty path
+  and Section 6.4.3 then omits the member entirely -- which would make this case silent about the
+  one thing it exists to pin.
+- Section 24 puts both occurrences in group 2, ordered by the Section 21.3 destination order. They
+  share one destination and one code, so the remaining tie is broken by the qualified path compared
+  as unsigned UTF-8 bytes, which reports `mapwins` before `seqwins` even though the scheme and the
+  output file both present `seqwins` first.
+
+### `wildcard-ordering-values-survive`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 5.4, 8.6, 8.7 and 12; Section 15.1 steps 10 and 11.
+- Legacy observation: numeric path parts were ordinary mapping keys, wildcards were resolved in
+  enumeration order, and there was no stable identity for a sequence item. Nothing here had an
+  answer, because none of the three concepts existed separately.
+- Clean behavior: matching uses the **stable ordering value** and flat rendering uses a **fresh
+  dense index**, and this case makes the two disagree so that only one of them can be right. A
+  wildcard matching `hosts.*` captures `2` and `7`, the supplied ordering values, with the masked
+  `5` absent and never renumbering its neighbours, while the rendered indices are `0` and `1`.
+  Substituting the capture into the generated value writes the ordering value into the output,
+  where a dense index would read `idx-0` and `idx-1`.
+- The same case fixes both directions of Section 8.7's "surviving key names" test. Masking
+  `hosts.name` removes the nonnumeric child, so the remaining keys are all canonical ordering
+  values and `hosts` is inferred as a sequence. Generating `b.blocked.label` adds one, so
+  `b.blocked` keeps its supplied numeric keys as ordinary mapping keys and is rendered as a
+  mapping: a generated contribution counts for inference exactly as a parsed one does.
+- The difference is intentional: Section 3 lists controlled cross-file sequence patching as a
+  structural normalization exception, and an ordering value that survived deletion but not wildcard
+  matching would make the addressed item depend on which step last touched it.
 
 ### `wildcard-template-generation`
 

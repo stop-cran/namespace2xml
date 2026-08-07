@@ -1,0 +1,2 @@
+hosts.output=namespace
+b.output=namespace

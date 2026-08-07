@@ -1,0 +1,6 @@
+deep.y=20
+deep.z=3
+repl.y=20
+repl.z=3
+pat.0=gamma
+app.0=gamma

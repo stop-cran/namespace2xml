@@ -1,0 +1,10 @@
+deep.x=1
+deep.y=2
+repl.x=1
+repl.y=2
+pat.0=alpha
+pat.1=beta
+app.0=alpha
+app.1=beta
+solo.only=kept
+solo.also=folded

@@ -64,11 +64,14 @@ three cases are declined or unfinished within it.
 - **`substitute=Key` and `substitute=None` are parsed and not applied.** This is not specific to
   JSON — no format applies them yet, because the machinery §13.4 describes does not exist. A scheme
   that sets `substitute` is accepted and has no effect on any input.
-- **§4.4 exclusive-shape resolution has no end-to-end coverage.** An empty container is recorded as
-  a shape contribution and its precedence is proved by unit test, but neither implemented output
-  format requires one exclusive shape — §19.1 and §19.6 both emit a scalar and its descendants
-  together — so no conformance fixture can yet observe the contest, or the shape-conflict warning it
-  produces. This closes when JSON or YAML rendering lands.
+- **§4.4's *scalar-versus-container* contest has no end-to-end coverage.** An empty container is
+  recorded as a shape contribution and its precedence is proved by unit test, but neither
+  implemented output format has to choose between a scalar and a container — §19.1 and §19.6 both
+  emit a scalar and its descendants together — so no conformance fixture can yet observe *that*
+  contest. This closes when JSON or YAML rendering lands. The neighbouring *mapping-versus-sequence*
+  contest is covered: a flat output does spell exactly one container shape, and
+  `conformance/namespace-shape-conflict-precedence` pins both directions of the §17.1 precedence
+  rule and the `TYPE002` warning that reports the omitted shape.
 
 A reference nested inside a native sequence is a fourth case, but it cannot be reached: any
 unresolved value declines the whole invocation under §13, so no path exists today by which the

@@ -29,6 +29,21 @@ public static class PublicationPhase
         ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
+        if (contributions.IsEmpty)
+        {
+            // Section 21.2 contemplates this plan rather than forbidding it -- "A zero-destination
+            // plan does not create it" is said of the output root -- so Section 22 lists it among
+            // the warnings, once per invocation. It carries no member at all: there is no source
+            // to blame and, by construction, no destination to name.
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Warn008(
+                    DiagnosticPhase.Planning,
+                    "\u00A721.2",
+                    "the validated output plan contains no destinations, so this run writes no "
+                    + "files. Every scheme directive was accepted; none of them declared an "
+                    + "output.")));
+        }
+
         var planned = ImmutableArray.CreateBuilder<PlannedOutput>(contributions.Length);
         var order = 0;
 
