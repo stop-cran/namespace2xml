@@ -630,6 +630,13 @@ silently.
 - The difference is intentional: help text is prose and is not part of byte-identical
   determinism, but the exit status and the stdout channel are contractual.
 
+## Unclassified
+
+These cases carry a `legacy.md` that states neither agreement nor difference. That is a
+defect in the fixture; see CONTRIBUTING.md.
+
+- `mask-clears-shape-marks`
+
 ## Something changed that is not listed here
 
 Then either a fixture is missing or the change was not intentional. Both are worth reporting:

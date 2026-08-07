@@ -1,0 +1,2 @@
+kept.output=namespace
+phantom.output=namespace

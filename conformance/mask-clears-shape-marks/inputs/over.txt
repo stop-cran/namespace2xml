@@ -1,0 +1,4 @@
+kept.name=x
+phantom.gone.deep=y
+!kept.name
+!phantom.gone

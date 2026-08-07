@@ -522,6 +522,7 @@
         "A wildcard-generated nonnumeric child counts for inference exactly as a parsed one does, so generating a named child under an all-numeric mapping keeps that mapping a mapping."
       ],
       "fixtures": [
+        "mask-clears-shape-marks",
         "namespace-numeric-map-inference",
         "namespace-shape-conflict-precedence",
         "wildcard-ordering-values-survive"

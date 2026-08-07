@@ -28,18 +28,30 @@ public readonly record struct NodeMarks
     /// <param name="payloadMark">The payload mark, or <see langword="null"/> when absent.</param>
     /// <param name="mappingShape">The mapping shape-mark, or <see langword="null"/> when absent.</param>
     /// <param name="sequenceShape">The sequence shape-mark, or <see langword="null"/> when absent.</param>
+    /// <param name="ownMappingShape">
+    /// The mapping shape-mark contributed at this node itself, or <see langword="null"/> when no
+    /// contribution addressed it with mapping shape.
+    /// </param>
+    /// <param name="ownSequenceShape">
+    /// The sequence shape-mark contributed at this node itself, or <see langword="null"/> when no
+    /// contribution addressed it with sequence shape.
+    /// </param>
     private NodeMarks(
         StableOrderingKey position,
         bool addressedDirectly,
         StableOrderingKey? payloadMark,
         StableOrderingKey? mappingShape,
-        StableOrderingKey? sequenceShape)
+        StableOrderingKey? sequenceShape,
+        StableOrderingKey? ownMappingShape,
+        StableOrderingKey? ownSequenceShape)
     {
         Position = position;
         AddressedDirectly = addressedDirectly;
         PayloadMark = payloadMark;
         MappingShape = mappingShape;
         SequenceShape = sequenceShape;
+        OwnMappingShape = ownMappingShape;
+        OwnSequenceShape = ownSequenceShape;
     }
 
     /// <summary>
@@ -82,6 +94,26 @@ public readonly record struct NodeMarks
     /// <see langword="null"/> when there is none.
     /// </summary>
     public StableOrderingKey? SequenceShape { get; }
+
+    /// <summary>
+    /// The mapping shape-mark contributed by something addressing this node itself, as opposed to a
+    /// descendant that merely requires the node to contain it.
+    /// </summary>
+    /// <remarks>
+    /// Section 4.4 defines the effective mapping shape-mark as the latest <em>surviving</em>
+    /// contribution, and Section 8.7 fixes that word: "<em>Surviving</em> means not suppressed by a
+    /// permanent mask." A descendant's evidence is therefore withdrawn when a mask removes it, and
+    /// <see cref="MappingShape"/> alone cannot say how much of itself came from descendants. This
+    /// mark is the part a mask can never take away, because suppressing the node itself removes the
+    /// node rather than changing its shape.
+    /// </remarks>
+    public StableOrderingKey? OwnMappingShape { get; }
+
+    /// <summary>
+    /// The sequence shape-mark contributed by something addressing this node itself, as opposed to
+    /// an item beneath it.
+    /// </summary>
+    public StableOrderingKey? OwnSequenceShape { get; }
 
     /// <summary>
     /// The Section 4.4 container shape-mark: the later of the mapping and sequence shape-marks.
@@ -156,19 +188,23 @@ public readonly record struct NodeMarks
     /// is how an intermediate node on the way to a deeper descendant first comes into existence.
     /// </summary>
     public static NodeMarks At(StableOrderingKey position) =>
-        new(position, addressedDirectly: false, payloadMark: null, mappingShape: null, sequenceShape: null);
+        new(position, addressedDirectly: false, payloadMark: null, mappingShape: null,
+            sequenceShape: null, ownMappingShape: null, ownSequenceShape: null);
 
     /// <summary>Marks for a node whose first contribution is a payload.</summary>
     public static NodeMarks ForPayload(StableOrderingKey position) =>
-        new(position, addressedDirectly: true, payloadMark: position, mappingShape: null, sequenceShape: null);
+        new(position, addressedDirectly: true, payloadMark: position, mappingShape: null,
+            sequenceShape: null, ownMappingShape: null, ownSequenceShape: null);
 
     /// <summary>Marks for a node whose first contribution requires mapping shape.</summary>
     public static NodeMarks ForMapping(StableOrderingKey position) =>
-        new(position, addressedDirectly: true, payloadMark: null, mappingShape: position, sequenceShape: null);
+        new(position, addressedDirectly: true, payloadMark: null, mappingShape: position,
+            sequenceShape: null, ownMappingShape: position, ownSequenceShape: null);
 
     /// <summary>Marks for a node whose first contribution requires sequence shape.</summary>
     public static NodeMarks ForSequence(StableOrderingKey position) =>
-        new(position, addressedDirectly: true, payloadMark: null, mappingShape: null, sequenceShape: position);
+        new(position, addressedDirectly: true, payloadMark: null, mappingShape: null,
+            sequenceShape: position, ownMappingShape: null, ownSequenceShape: position);
 
     /// <summary>
     /// Records a contribution that addresses this node itself, advancing the position mark.
@@ -179,7 +215,9 @@ public readonly record struct NodeMarks
             addressedDirectly: true,
             Later(PayloadMark, position),
             MappingShape,
-            SequenceShape);
+            SequenceShape,
+            OwnMappingShape,
+            OwnSequenceShape);
 
     /// <summary>
     /// Records a contribution that requires mapping shape at this node itself, advancing both the
@@ -191,7 +229,9 @@ public readonly record struct NodeMarks
             addressedDirectly: true,
             PayloadMark,
             Later(MappingShape, position),
-            SequenceShape);
+            SequenceShape,
+            Later(OwnMappingShape, position),
+            OwnSequenceShape);
 
     /// <summary>
     /// Records a contribution that requires sequence shape at this node itself, advancing both the
@@ -203,7 +243,9 @@ public readonly record struct NodeMarks
             addressedDirectly: true,
             PayloadMark,
             MappingShape,
-            Later(SequenceShape, position));
+            Later(SequenceShape, position),
+            OwnMappingShape,
+            Later(OwnSequenceShape, position));
 
     /// <summary>
     /// Records a strictly deeper descendant, which refreshes the mapping shape-mark and leaves the
@@ -213,7 +255,8 @@ public readonly record struct NodeMarks
     /// Section 5.2: "Adding a new child therefore never moves its parent."
     /// </remarks>
     public NodeMarks WithDescendant(StableOrderingKey position) =>
-        new(Position, AddressedDirectly, PayloadMark, Later(MappingShape, position), SequenceShape);
+        new(Position, AddressedDirectly, PayloadMark, Later(MappingShape, position), SequenceShape,
+            OwnMappingShape, OwnSequenceShape);
 
     /// <summary>
     /// Records a sequence item, which refreshes the sequence shape-mark and leaves the position
@@ -226,7 +269,8 @@ public readonly record struct NodeMarks
     /// parent.
     /// </remarks>
     public NodeMarks WithSequenceItem(StableOrderingKey position) =>
-        new(Position, AddressedDirectly, PayloadMark, MappingShape, Later(SequenceShape, position));
+        new(Position, AddressedDirectly, PayloadMark, MappingShape, Later(SequenceShape, position),
+            OwnMappingShape, OwnSequenceShape);
 
     /// <summary>
     /// The marks after Section 8.7 inference, which "replaces that contribution's mapping
@@ -247,7 +291,43 @@ public readonly record struct NodeMarks
     /// </para>
     /// </remarks>
     public NodeMarks AsInferredSequence() =>
-        new(Position, AddressedDirectly, PayloadMark, mappingShape: null, sequenceShape: ContainerShape);
+        new(Position, AddressedDirectly, PayloadMark, mappingShape: null, sequenceShape: ContainerShape,
+            ownMappingShape: null, ownSequenceShape: Later(OwnMappingShape, OwnSequenceShape));
+
+    /// <summary>
+    /// The marks after Section 8.6 permanent masking, recomputed from the contributions that
+    /// survived it.
+    /// </summary>
+    /// <param name="mappingFromDescendants">
+    /// The latest mark among surviving mapping children, or <see langword="null"/> when none
+    /// remain.
+    /// </param>
+    /// <param name="sequenceFromItems">
+    /// The latest mark among surviving sequence items, or <see langword="null"/> when none remain.
+    /// </param>
+    /// <remarks>
+    /// Section 4.4 makes each shape-mark "the latest <em>surviving</em>" contribution of its kind,
+    /// and Section 8.7 defines surviving as "not suppressed by a permanent mask". A mask that
+    /// removes the only descendant requiring mapping shape therefore removes the mapping shape-mark
+    /// with it, and the Section 4.4 exclusive-shape contest is settled without it. Carrying the mark
+    /// across the prune instead leaves a contribution that no longer exists winning the contest
+    /// against one that does, which loses the surviving data rather than merely mislabelling it.
+    /// <para>
+    /// The payload and position marks are not recomputed. Both record contributions that address
+    /// the node itself, and a mask reaching the node removes the node rather than editing its marks.
+    /// </para>
+    /// </remarks>
+    public NodeMarks AfterMasking(
+        StableOrderingKey? mappingFromDescendants,
+        StableOrderingKey? sequenceFromItems) =>
+        new(
+            Position,
+            AddressedDirectly,
+            PayloadMark,
+            Later(OwnMappingShape, mappingFromDescendants),
+            Later(OwnSequenceShape, sequenceFromItems),
+            OwnMappingShape,
+            OwnSequenceShape);
 
     /// <summary>
     /// The marks of a node that carries both of two nodes' contributions, taking the later of each
@@ -276,7 +356,9 @@ public readonly record struct NodeMarks
             AddressedDirectly || other.AddressedDirectly,
             Later(PayloadMark, other.PayloadMark),
             Later(MappingShape, other.MappingShape),
-            Later(SequenceShape, other.SequenceShape));
+            Later(SequenceShape, other.SequenceShape),
+            Later(OwnMappingShape, other.OwnMappingShape),
+            Later(OwnSequenceShape, other.OwnSequenceShape));
 
     private static StableOrderingKey CombinePosition(NodeMarks left, NodeMarks right) =>
         (left.AddressedDirectly, right.AddressedDirectly) switch

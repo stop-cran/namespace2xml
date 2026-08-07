@@ -88,6 +88,8 @@ public sealed class ExclusionMask
     {
         var children = node.Children;
         var sequence = node.Sequence;
+        StableOrderingKey? mappingFromDescendants = null;
+        StableOrderingKey? sequenceFromItems = null;
 
         foreach (var (name, child) in node.Children)
         {
@@ -105,6 +107,15 @@ public sealed class ExclusionMask
             {
                 children = children.SetItem(name, pruned);
             }
+
+            // Section 8.6 keeps a masked contribution's high-water reservation, so a node emptied by
+            // pruning stays in the tree. It is no longer a "descendant contribution that requires
+            // mapping shape", though: nothing survives in it to require anything, so it must not go
+            // on refreshing this node's Section 4.4 mapping shape-mark.
+            if (!pruned.IsEmpty)
+            {
+                mappingFromDescendants = Later(mappingFromDescendants, pruned.Marks.Latest);
+            }
         }
 
         foreach (var (value, item) in node.Sequence)
@@ -112,7 +123,8 @@ public sealed class ExclusionMask
             // Section 15.1 makes a sequence item and the mapping child spelled with its ordering
             // value "one structural overlay node", so a mask written against that spelling has to
             // reach the item as well as the child.
-            var itemPath = path.Add(OrderingValues.ToNamePart(value));
+            var name = OrderingValues.ToNamePart(value);
+            var itemPath = path.Add(name);
 
             if (Suppresses(itemPath))
             {
@@ -120,18 +132,31 @@ public sealed class ExclusionMask
                 continue;
             }
 
-            var pruned = Prune(item.Node, itemPath);
+            // The two facets share one node object once step 9 has merged them, so pruning the item
+            // separately would repeat the whole subtree traversal. Each such level doubles the work,
+            // which is exponential in depth rather than merely wasteful.
+            var pruned = node.Children.TryGetValue(name, out var twin) && ReferenceEquals(twin, item.Node)
+                ? children.TryGetValue(name, out var prunedTwin) ? prunedTwin : Prune(item.Node, itemPath)
+                : Prune(item.Node, itemPath);
 
             if (!ReferenceEquals(pruned, item.Node))
             {
                 sequence = sequence.SetItem(value, item with { Node = pruned });
             }
-        }
 
-        return ReferenceEquals(children, node.Children) && ReferenceEquals(sequence, node.Sequence)
+            if (!pruned.IsEmpty)
+            {
+                sequenceFromItems = Later(sequenceFromItems, pruned.Marks.Latest);
+            }
+        }
+        var marks = node.Marks.AfterMasking(mappingFromDescendants, sequenceFromItems);
+
+        return ReferenceEquals(children, node.Children)
+            && ReferenceEquals(sequence, node.Sequence)
+            && marks.Equals(node.Marks)
             ? node
             : OverlayNode.Compose(
-                node.Marks,
+                marks,
                 node.Payload,
                 node.HasExplicitMapping,
                 node.HasExplicitSequence,
@@ -140,4 +165,13 @@ public sealed class ExclusionMask
                 node.Comments,
                 node.SequenceHighWater);
     }
+
+    private static StableOrderingKey? Later(StableOrderingKey? left, StableOrderingKey? right) =>
+        (left, right) switch
+        {
+            (null, null) => null,
+            (null, { } only) => only,
+            ({ } only, null) => only,
+            ({ } a, { } b) => StableOrderingKey.Later(a, b),
+        };
 }
