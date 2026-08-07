@@ -609,9 +609,11 @@
       "assertions": [
         "type=mapping turns the Section 8.7 inferred sequence back into an ordered mapping whose keys are the ordering values as canonical decimal strings, which a following key directive then observes by copying those keys into a field.",
         "Without type=mapping the same key directive would be TYPE001 against a sequence-only target, so the directive is what makes the mapping projection exist at step 16.",
-        "type=array on a mapping whose keys are not ordering values discards every key and allocates fresh implicit ordering values above the node's high-water mark in current mapping order."
+        "type=array on a mapping whose keys are not ordering values discards every key and allocates fresh implicit ordering values above the node's high-water mark in current mapping order.",
+        "Section 15.1 step 16 applies type=array before multiline, which is observable because the reverse order would meet a mapping with no sequence projection and be TYPE001 rather than a differently ordered result."
       ],
       "fixtures": [
+        "array-runs-before-multiline",
         "type-mapping-keeps-numeric-keys-and-array-discards-names"
       ]
     },

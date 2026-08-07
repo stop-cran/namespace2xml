@@ -705,6 +705,7 @@ These cases carry a `legacy.md` that states neither agreement nor difference. Th
 defect in the fixture; see CONTRIBUTING.md.
 
 - `a-written-traversal-segment-is-rejected`
+- `array-runs-before-multiline`
 - `destinations-differing-only-by-case-collide`
 - `filename-captures-are-opaque-segment-data`
 - `key-directive-precedence-follows-source-order`

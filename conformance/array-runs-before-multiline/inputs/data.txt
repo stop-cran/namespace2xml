@@ -1,0 +1,2 @@
+cfg.lines.p=first
+cfg.lines.q=second
