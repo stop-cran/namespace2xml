@@ -1,4 +1,5 @@
 using System.Numerics;
+using Namespace2Xml.Profiles;
 using Namespace2Xml.Scalars;
 
 namespace Namespace2Xml.Overlay;
@@ -28,19 +29,25 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
     private readonly bool boolean;
     private readonly BigInteger integer;
     private readonly BigDecimal decimalValue;
+    private readonly InterpretedValue? unresolved;
+    private readonly ValueOrigin origin;
 
     private ScalarPayload(
         ScalarKind kind,
         string? text = null,
         bool boolean = false,
         BigInteger integer = default,
-        BigDecimal decimalValue = default)
+        BigDecimal decimalValue = default,
+        InterpretedValue? unresolved = null,
+        ValueOrigin origin = default)
     {
         Kind = kind;
         this.text = text;
         this.boolean = boolean;
         this.integer = integer;
         this.decimalValue = decimalValue;
+        this.unresolved = unresolved;
+        this.origin = origin;
     }
 
     /// <summary>The Section 4.3 kind of this payload.</summary>
@@ -57,6 +64,37 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
     /// payload that has not been classified is eligible.
     /// </summary>
     public bool IsUntyped => Kind == ScalarKind.UntypedString;
+
+    /// <summary>
+    /// Whether this payload still carries a Section 13 reference. Section 15.1 step 15 replaces
+    /// every such payload that any output instance can reach.
+    /// </summary>
+    public bool IsUnresolved => Kind == ScalarKind.Unresolved;
+
+    /// <summary>
+    /// A payload carrying an unresolved Section 13 reference.
+    /// </summary>
+    /// <param name="value">The interpreted value, which contains at least one reference token.</param>
+    /// <param name="origin">Where the value was written.</param>
+    /// <remarks>
+    /// This is a payload rather than an entry held aside, because Section 13.1 resolves references
+    /// "after wildcard generation and ordinary data merging". A reference-bearing entry is an
+    /// ordinary scalar contribution until then: it wins and loses Section 17.1 merges by its
+    /// position, it settles the Section 4.4 scalar/container contest at its node, a Section 8.6
+    /// mask can suppress it, and a wildcard template can match it. Keeping it outside the model
+    /// would make every one of those decisions come out differently.
+    /// </remarks>
+    public static ScalarPayload Unresolved(InterpretedValue value, ValueOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new ScalarPayload(ScalarKind.Unresolved, unresolved: value, origin: origin);
+    }
+
+    /// <summary>Where an unresolved payload was written.</summary>
+    /// <exception cref="InvalidOperationException">The payload is already resolved.</exception>
+    public ValueOrigin Origin => Kind == ScalarKind.Unresolved
+        ? origin
+        : throw new InvalidOperationException($"a {Kind} payload has no origin.");
 
     /// <summary>An untyped namespace-profile payload, the Section 4.3 initial kind.</summary>
     /// <param name="text">The payload text, already unescaped by Section 8.3.</param>
@@ -110,13 +148,22 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
         ? decimalValue
         : throw new InvalidOperationException($"a {Kind} payload has no decimal value.");
 
+    /// <summary>The interpreted value of an unresolved payload.</summary>
+    /// <exception cref="InvalidOperationException">The payload is already resolved.</exception>
+    public InterpretedValue UnresolvedValue => Kind == ScalarKind.Unresolved
+        ? unresolved!
+        : throw new InvalidOperationException($"a {Kind} payload has no unresolved value.");
+
     /// <summary>
     /// The Section 18 canonical text of this payload, which every output format and interpolation
     /// uses.
     /// </summary>
     /// <exception cref="InvalidOperationException">
     /// The payload is null, which has no canonical text of its own: Section 19 lets each format
-    /// spell null differently, so rendering it here would impose one format's spelling on all.
+    /// spell null differently, so rendering it here would impose one format's spelling on all. Or
+    /// the payload is unresolved, which no output may reach — Section 14.4 resolves the closure of
+    /// every selected entry strictly, so an unresolved payload arriving at a renderer is a defect
+    /// in step 15 rather than anything the input could cause.
     /// </exception>
     public string ToCanonicalText() => Kind switch
     {
@@ -124,6 +171,8 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
         ScalarKind.Boolean => boolean ? "true" : "false",
         ScalarKind.Integer => integer.ToString(System.Globalization.CultureInfo.InvariantCulture),
         ScalarKind.Decimal => decimalValue.ToCanonicalText(),
+        ScalarKind.Unresolved => throw new InvalidOperationException(
+            "an unresolved payload has no text until Section 15.1 step 15 resolves it."),
         _ => throw new InvalidOperationException("the null payload has no format-independent text."),
     };
 
@@ -138,6 +187,8 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
             ScalarKind.Boolean => boolean == other.boolean,
             ScalarKind.Integer => integer == other.integer,
             ScalarKind.Decimal => decimalValue == other.decimalValue,
+            ScalarKind.Unresolved =>
+                unresolved!.Equals(other.unresolved) && origin == other.origin,
             _ => true,
         };
 
@@ -152,9 +203,15 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
         ScalarKind.Boolean => HashCode.Combine(Kind, boolean),
         ScalarKind.Integer => HashCode.Combine(Kind, integer),
         ScalarKind.Decimal => HashCode.Combine(Kind, decimalValue),
+        ScalarKind.Unresolved => HashCode.Combine(Kind, unresolved, origin),
         _ => Kind.GetHashCode(),
     };
 
     /// <inheritdoc/>
-    public override string ToString() => IsNull ? "null" : $"{Kind}:{ToCanonicalText()}";
+    public override string ToString() => Kind switch
+    {
+        ScalarKind.Null => "null",
+        ScalarKind.Unresolved => $"{Kind}:{unresolved!.Tokens.Length} token(s)",
+        _ => $"{Kind}:{ToCanonicalText()}",
+    };
 }

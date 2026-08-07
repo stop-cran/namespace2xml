@@ -217,41 +217,53 @@ public static class PlanningPhase
 
     /// <summary>Section 15.1 step 15: resolve references within each instance's closure.</summary>
     /// <param name="views">Step 14's product.</param>
-    /// <param name="contributions">Step 5's product, which carries every unresolved value.</param>
-    /// <returns>The same views, once every value is known to be already resolved.</returns>
+    /// <param name="model">Step 12's product, which holds every unresolved payload.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <returns>The views, re-descended into the resolved model.</returns>
     /// <remarks>
-    /// Entries under a Section 8.6 mask are skipped. A suppressed path is never rendered and can
-    /// never be a reference target, so its value is never resolved and its presence must not stand
-    /// in the way of a run that is otherwise reference-free.
+    /// <para>
+    /// Section 14.4 makes the selected subtrees the reachability roots: "All entries reached
+    /// transitively through references from selected entries are retained for evaluation", and
+    /// defects "in entries unreachable from every concrete output instance do not fail the run".
+    /// A view whose declaration is <c>output=ignore</c> is not a root, and Section 14.4 says so
+    /// outright — but nothing is needed here for that, because step 13 already created no instance
+    /// for it, so it contributes no view and therefore no root.
+    /// </para>
+    /// <para>
+    /// The views are rebuilt rather than resolved one at a time. Two instances selecting overlapping
+    /// subtrees must see one resolution of the shared entries: resolving per view would let the same
+    /// reference be reported twice, which Section 22 forbids for a code counted once per reachable
+    /// owning value.
+    /// </para>
     /// </remarks>
     public static StepOutcome<ImmutableArray<OutputView>> ResolveReferences(
         ImmutableArray<OutputView> views,
-        ImmutableArray<InputContribution> contributions)
+        OverlayNode model,
+        DiagnosticBuffer diagnostics)
     {
-        var mask = InputPhase.MasksOf(contributions);
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(diagnostics);
 
-        foreach (var contribution in contributions)
+        var roots = views
+            .Select(view => view.Instance.Selector.Name?.Parts ?? [])
+            .ToImmutableArray();
+
+        var resolved = ReferenceResolver.Resolve(model, roots, diagnostics);
+
+        if (diagnostics.HasBlockingError)
         {
-            var unresolved = contribution.Contribution.UnresolvedValues
-                .Where(entry => !mask.Suppresses(entry.Name.Parts))
-                .ToImmutableArray();
-
-            if (unresolved.IsEmpty)
-            {
-                continue;
-            }
-
-            var entry = unresolved[0];
-
-            return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
-                new UnsupportedCapability(
-                    entry.Value.ContainsReference ? "references" : "value wildcards",
-                    $"{contribution.Origin.Identity} line {entry.Line} carries one, and step 15 "
-                    + "resolves it against the output instance's closure.",
-                    "\u00A713.1"));
+            return StepOutcome.Failed<ImmutableArray<OutputView>>();
         }
 
-        return StepOutcome.Produced(views);
+        ImmutableArray<OutputView> rebuilt =
+        [
+            .. views.Select(view => view with
+            {
+                View = Descend(resolved, view.Instance.Selector.Name),
+            }),
+        ];
+
+        return StepOutcome.Produced(rebuilt);
     }
 
     /// <summary>Section 15.1 step 16: apply path-scoped transformations to each view.</summary>

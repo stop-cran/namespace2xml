@@ -300,14 +300,65 @@ public sealed class TransformationTests
         sink.Written.ShouldBeEmpty();
     }
 
-    [TestCase("app.name=${other.name}\napp.other.name=x\n", "app.output=namespace\n",
-        TestName = "AReferenceDeclines")]
-    public void AnUnimplementedFeatureDeclines(string input, string scheme)
+    /// <summary>
+    /// Section 13.1: a reference "resolves only the scalar or null payload stored at that exact
+    /// canonical path", and Section 13.2 gives a value that is exactly one reference the referent's
+    /// own kind. The referring entry is still emitted at its own path.
+    /// </summary>
+    [Test]
+    public void AReferenceIsReplacedByTheReferentsValue()
     {
-        var (result, sink) = Transform(input, scheme);
+        var (result, sink) = Transform(
+            "app.name=${app.other.name}\napp.other.name=x\n", "app.output=namespace\n");
 
-        result.State.ShouldBe(PipelineRunState.Unsupported);
+        result.State.ShouldBe(PipelineRunState.Finished);
+        sink.Written["app.properties"].ShouldBe("name=x\nother.name=x\n");
+    }
+
+    /// <summary>
+    /// Section 13.1: "no match is a missing-reference error". A blocking error publishes nothing,
+    /// so a run that could not name every value writes no half-resolved file.
+    /// </summary>
+    [Test]
+    public void AMissingReferenceIsReference002AndPublishesNothing()
+    {
+        var (result, sink) = Transform("app.name=${nowhere}\n", "app.output=namespace\n");
+
+        Codes(result).ShouldContain("REFERENCE002");
         sink.Written.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 13.1: "References may be recursive" and "cycles are blocking errors with a complete
+    /// source chain."
+    /// </summary>
+    [Test]
+    public void AReferenceCycleIsReference003()
+    {
+        var (result, sink) = Transform(
+            "app.a=${app.b}\napp.b=${app.a}\n", "app.output=namespace\n");
+
+        Codes(result).ShouldContain("REFERENCE003");
+        sink.Written.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 14.4: defects "in entries unreachable from every concrete output instance do not
+    /// fail the run". A broken reference outside every selector is such an entry.
+    /// </summary>
+    /// <remarks>
+    /// This is the clause that forbids resolving the whole model and filtering the diagnostics
+    /// afterwards: the filtered run would produce identical output here and a different exit code.
+    /// </remarks>
+    [Test]
+    public void ABrokenReferenceOutsideEverySelectorDoesNotFailTheRun()
+    {
+        var (result, sink) = Transform(
+            "app.name=x\nunused.name=${nowhere}\n", "app.output=namespace\n");
+
+        result.State.ShouldBe(PipelineRunState.Finished);
+        Codes(result).ShouldNotContain("REFERENCE002");
+        sink.Written["app.properties"].ShouldBe("name=x\n");
     }
 
     [TestCase("scheme.json", TestName = "AJsonSchemeDeclines")]

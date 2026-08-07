@@ -48,8 +48,7 @@ public static class StructuredProfileReader
 
         unsupported = projection.Refusal;
 
-        return new ProfileContribution(
-            overlay, [], [], [], projection.Unresolved.ToImmutable());
+        return new ProfileContribution(overlay, [], [], []);
     }
 
     private sealed class Projection(
@@ -57,8 +56,6 @@ public static class StructuredProfileReader
     {
         private long ordinal;
 
-        public ImmutableArray<ProfileEntry>.Builder Unresolved { get; } =
-            ImmutableArray.CreateBuilder<ProfileEntry>();
 
         public UnsupportedCapability? Refusal { get; private set; }
 
@@ -118,20 +115,13 @@ public static class StructuredProfileReader
         /// <param name="path">The path naming the sequence itself.</param>
         /// <param name="key">The sequence's own position mark.</param>
         /// <remarks>
-        /// <para>
         /// Items are walked under the container's own path, because Section 5.4 makes the ordering
         /// value the key the item is stored under and
-        /// <see cref="OverlayNode.TryAppendSequenceItem"/> is what allocates it. The overlay is
-        /// therefore right — each item lands under its allocated value — but an unresolved value
-        /// recorded beneath an item names <c>tags.x</c> where the resolved model has <c>tags.0.x</c>.
-        /// </para>
-        /// <para>
-        /// Nothing reads that path today: <c>PlanningPhase</c> declines the invocation as soon as
-        /// any unresolved value exists, so a reference inside a native sequence exits 70 long before
-        /// its path is consulted. Whoever implements Section 15.1 step 15 must thread the allocated
-        /// ordering value in here first, because at that point a wrong path stops being unobservable
-        /// and starts resolving against the wrong node.
-        /// </para>
+        /// <see cref="OverlayNode.TryAppendSequenceItem"/> is what allocates it. The path a scalar
+        /// receives here is therefore short by the item's ordering value, which is why the only
+        /// thing it is used for is asking whether it is empty. An unresolved reference is carried
+        /// as the node's own payload rather than as an entry recorded against a path, so nothing
+        /// downstream has to reconstruct where it was.
         /// </remarks>
         private OverlayNode BuildSequence(
             StructuredSequence sequence, ImmutableArray<NamePart> path, StableOrderingKey key)
@@ -207,10 +197,18 @@ public static class StructuredProfileReader
                 return OverlayNode.Intermediate(key);
             }
 
-            Unresolved.Add(new ProfileEntry(
-                new QualifiedName(path), lexed.Value, key, scalar.Line, []));
-
-            return OverlayNode.Intermediate(key);
+            // Section 13.1 resolves this at step 15. It is a payload here, not a node held aside:
+            // an Intermediate node would tell Section 4.4 that this path has no scalar at all, so a
+            // reference to it would be a missing-reference error and a mapping written at the same
+            // path would win a contest it should lose.
+            return OverlayNode.OfPayload(
+                ScalarPayload.Unresolved(
+                    lexed.Value,
+                    new ValueOrigin(
+                        source.File,
+                        source.LineOf(scalar.Line),
+                        source.ColumnOf(scalar.Column))),
+                key);
         }
 
         private void EmitValueFault(

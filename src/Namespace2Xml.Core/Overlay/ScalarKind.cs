@@ -37,4 +37,12 @@ public enum ScalarKind
 
     /// <summary>The null payload, which Section 4.2 distinguishes from having no payload at all.</summary>
     Null,
+
+    /// <summary>
+    /// A payload whose text is not known until Section 13.1 resolution. Section 13.2 says "scalar
+    /// inference is not applied to an untyped payload containing an unescaped reference before
+    /// resolution", so a reference-bearing value cannot be an <see cref="UntypedString"/> waiting
+    /// to be inferred; it is a payload of its own kind until step 15 replaces it.
+    /// </summary>
+    Unresolved,
 }

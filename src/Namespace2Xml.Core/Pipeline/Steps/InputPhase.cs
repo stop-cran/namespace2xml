@@ -244,24 +244,6 @@ public static class InputPhase
         ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        foreach (var contribution in contributions)
-        {
-            foreach (var template in contribution.Contribution.Templates)
-            {
-                // Section 15.1 resolves references at step 15, five steps after this one, so a
-                // template value carrying one has no text to substitute a capture into yet.
-                if (template.Value.ContainsReference)
-                {
-                    return StepOutcome.Unsupported<OverlayNode>(
-                        new UnsupportedCapability(
-                            "references in wildcard template values",
-                            $"{contribution.Origin.Identity} line {template.Line} carries one, and "
-                            + "step 15 resolves it against the output instance's closure.",
-                            "\u00A713.1"));
-                }
-            }
-        }
-
         var mask = MasksOf(contributions);
         var evaluator = new WildcardEvaluator(
             WildcardEvaluator.Validate(RulesOf(contributions), diagnostics),

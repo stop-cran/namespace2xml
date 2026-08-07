@@ -143,17 +143,24 @@ public class StructuredProfileReaderTests
     /// contribute mapping-presence marks". A child whose own contribution came to nothing is such a
     /// carrier, so attaching it would give its parent a mapping mark nothing stands behind.
     /// </summary>
+    /// <remarks>
+    /// The declined wildcard key is what empties the inner mapping. It is the only construct that
+    /// still contributes nothing: a reference-bearing value is an ordinary Section 13.1 payload
+    /// held unresolved, and a genuinely empty mapping carries a presence mark of its own.
+    /// </remarks>
     [Test]
     public void AChildThatContributedNothingIsNotAttached()
     {
-        var root = Project("""{"a":{"ref":"${x}"}}""");
+        var root = Project("""{"a":{"*":1}}""", out var unsupported);
 
-        root.Children.ShouldBeEmpty();
+        unsupported.ShouldNotBeNull();
+        root.Overlay.Children.ShouldBeEmpty();
     }
 
     /// <summary>
-    /// Section 8.4 resolves a reference against the name that owns it. A reference is therefore
-    /// recorded as an unresolved entry under its owning path rather than becoming a literal.
+    /// Section 13.1 resolves references after "ordinary data merging", so a reference-bearing
+    /// native string is an ordinary scalar contribution at its owning path, carrying its text
+    /// unresolved rather than becoming a literal or vanishing from the overlay.
     /// </summary>
     [Test]
     public void AReferenceIsRecordedAgainstItsOwningPath()
@@ -163,9 +170,10 @@ public class StructuredProfileReaderTests
         unsupported.ShouldBeNull();
         diagnostics.Drain().ShouldBeEmpty();
 
-        var entry = contribution.UnresolvedValues.ShouldHaveSingleItem();
+        var payload = Child(Child(contribution.Overlay, "a"), "b").Payload.ShouldNotBeNull();
 
-        entry.Name.Parts.Select(part => ((OrdinaryPart)part).LiteralText).ShouldBe(["a", "b"]);
+        payload.IsUnresolved.ShouldBeTrue();
+        payload.UnresolvedValue.ContainsReference.ShouldBeTrue();
     }
 
     /// <summary>

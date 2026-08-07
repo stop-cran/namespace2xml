@@ -198,8 +198,9 @@ public static class Transformation
 
         var resolved = run.Run(
             PipelineStep.ResolveReferences,
-            PipelineRun.Both(views, extracted),
-            (both, _) => PlanningPhase.ResolveReferences(both.First, both.Second));
+            PipelineRun.Both(views, model),
+            (both, diagnostics) =>
+                PlanningPhase.ResolveReferences(both.First, both.Second, diagnostics));
 
         var transformed = run.Run(
             PipelineStep.ApplyTransformations,

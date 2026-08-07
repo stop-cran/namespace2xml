@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (33)
+## Deliberate differences (36)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -438,6 +438,75 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   as unsigned UTF-8 bytes, which reports `mapwins` before `seqwins` even though the scheme and the
   output file both present `seqwins` first.
 
+### `reference-alias-ambiguity-lists-candidates`
+
+- namespace2xml 2.4.0: **differs**. The format-agnostic alias did not exist, so neither did the
+  possibility of two XML components sharing one. There was nothing to be ambiguous about, and no
+  code to report if there had been.
+- Contract: Section 13.1 alias uniqueness and `REFERENCE004`; Section 26 item 9.
+- Legacy observation: legacy item 110 — simple format-agnostic XML aliases were added for
+  convenience *while rejecting ambiguous aliases*. The convenience and the rejection are one
+  feature; an alias index that resolved silently would be worse than none.
+- Clean behavior: `@x` and `Q{urn:example}x` both reduce to the simple alias `x` under Section
+  13.1, so `${app.t.x}` names two canonical paths and is a blocking error. The error is attributed
+  to the *referring* value, not to either candidate, because the candidates are individually legal.
+- Why this case exists: an alias index is a lookup that can succeed wrongly. The failure mode it
+  must not have is picking one.
+- How the case proves it: an implementation that resolved to the first, the last, or the
+  lexicographically least candidate would produce a successful run and an `app.properties`. This
+  fixture asserts exit code `1`, no output tree, and `REFERENCE004` located at line 3 column 7 —
+  the `$` of the reference, not the start of the record and not either definition.
+
+### `reference-cycle-report-source-order-first`
+
+- namespace2xml 2.4.0: **differs**. A reference cycle was detected, but the report named whichever
+  member the resolver happened to reach first, which depended on the order the inputs were given.
+- Contract: Section 13.1 cycle detection and `REFERENCE003`; Section 24 diagnostic ordering; Section
+  26 item 5.
+- Legacy observation: legacy items 101 and 1 — recursive scalar reference chains with explicit
+  cycle detection, and processing made independent of accidental ordering.
+- Clean behavior: a cycle is a set, not a path, so its report is rotated to its lexicographically
+  least member and located at that member's origin. `source`, `line`, `column` and `path` are then
+  a pure function of the cycle itself.
+- Why this case exists: it is the first half of a permutation pair. This case passes
+  `-i inputs/first.txt -i inputs/second.txt`; `reference-cycle-report-source-order-reversed`
+  passes the same two files in the opposite order. Their `expected-diagnostics.json` files are
+  byte-identical, and that identity *is* the assertion.
+- How the case proves it: `app.a` and `app.b` are defined in different files and refer to each
+  other, so the two runs enter the cycle from opposite ends. An implementation that reported the
+  member it reached first would name `app.a` here and `app.b` in the reversed case; both fixtures
+  require `app.a` at `inputs/first.txt` line 1 column 7, because the origin travels with the
+  payload rather than with the order the file was read.
+
+
+- Cycles longer than two members, and cycles whose least member is not the first-written one.
+  Rotation over longer chains is pinned by unit tests against the resolver.
+
+### `reference-cycle-report-source-order-reversed`
+
+- namespace2xml 2.4.0: **differs**. A reference cycle was detected, but the report named whichever
+  member the resolver happened to reach first, which depended on the order the inputs were given.
+- Contract: Section 13.1 cycle detection and `REFERENCE003`; Section 24 diagnostic ordering; Section
+  26 item 5.
+- Legacy observation: legacy items 101 and 1 — recursive scalar reference chains with explicit
+  cycle detection, and processing made independent of accidental ordering.
+- Clean behavior: a cycle is a set, not a path, so its report is rotated to its lexicographically
+  least member and located at that member's origin. `source`, `line`, `column` and `path` are then
+  a pure function of the cycle itself.
+- Why this case exists: it is the second half of a permutation pair. This case passes
+  `-i inputs/second.txt -i inputs/first.txt`; `reference-cycle-report-source-order-first` passes
+  the same two files in the opposite order. Their `expected-diagnostics.json` files are
+  byte-identical, and that identity *is* the assertion.
+- How the case proves it: reading `second.txt` first makes `app.b` the earlier contribution and the
+  first node the resolver reaches, so an implementation that reported the member it reached first
+  would name `app.b` and locate the defect in `inputs/second.txt`. The expected stream names
+  `app.a` at `inputs/first.txt` line 1 column 7 — identical to the sibling case, whose inputs
+  arrived the other way round.
+
+
+- Cycles longer than two members, and cycles whose least member is not the first-written one.
+  Rotation over longer chains is pinned by unit tests against the resolver.
+
 ### `wildcard-ordering-values-survive`
 
 - namespace2xml 2.4.0: **differs**.
@@ -639,6 +708,8 @@ defect in the fixture; see CONTRIBUTING.md.
 - `mask-clears-shape-marks`
 - `merge-error-rejects-a-second-source-contribution`
 - `merge-strategies-over-native-sequence-shapes`
+- `reference-scalar-only-and-free-wildcard-rejected`
+- `reference-typed-values-and-alias-addressing`
 - `wildcard-cascade-completes-within-the-iteration-bound`
 - `wildcard-cascade-crosses-the-iteration-bound`
 - `wildcard-filename-substitutes-the-selector-captures`

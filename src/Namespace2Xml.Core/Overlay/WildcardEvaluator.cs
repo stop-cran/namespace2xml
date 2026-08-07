@@ -379,7 +379,8 @@ public sealed class WildcardEvaluator
         // to every concrete contribution from a later source, as Section 12.4 requires: "Source
         // order controls precedence, not visibility."
         var order = rule.Order with { MatchOrdinal = ++matches[index] };
-        var payload = ScalarPayload.Untyped(WildcardSubstitution.Apply(rule.Value!, captures));
+        var payload = WildcardSubstitution.Substitute(
+            rule.Value!, captures, ValueOrigin.OfRule(rule.Source, rule.Line));
         var leaf = rule.Comments.Aggregate(
             OverlayNode.OfPayload(payload, order),
             (node, comment) => node.WithComment(comment));

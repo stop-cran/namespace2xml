@@ -43,8 +43,15 @@
       "text": "Namespace escaping and strict references.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "A reference cycle is a blocking error rather than a value, a truncation, or a nontermination.",
+        "The cycle report is rotated to the cycle's lexicographically least member and located at that member's origin, so source, line, column and path do not depend on which member the resolver reached first.",
+        "Namespace escaping remains outstanding under this item."
+      ],
+      "fixtures": [
+        "reference-cycle-report-source-order-first",
+        "reference-cycle-report-source-order-reversed"
+      ]
     },
     {
       "item": 6,
@@ -95,10 +102,19 @@
     {
       "item": 9,
       "text": "Typed scalar references, canonical and unique format-agnostic reference addressing, ambiguity errors, and string concatenation.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A value that is exactly one reference forwards the referent's settled scalar kind rather than the text of it.",
+        "A canonical reference names an XML attribute, qualified element, or content position directly, and bypasses the alias index.",
+        "A format-agnostic reference resolves through the simple alias of a canonical path, and is admissible only when that alias names exactly one canonical path at the node.",
+        "An alias naming more than one canonical path is REFERENCE004, attributed to the referring value rather than to either candidate.",
+        "A value mixing literals and references, or more than one reference, is a string, and its concatenation is not re-inferred."
+      ],
+      "fixtures": [
+        "reference-alias-ambiguity-lists-candidates",
+        "reference-typed-values-and-alias-addressing"
+      ]
     },
     {
       "item": 10,
@@ -464,10 +480,16 @@
     {
       "item": 46,
       "text": "Scalar-only references and rejection of subtree and free-wildcard references.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A reference naming a node that has descendants but no scalar or null payload is REFERENCE002 rather than a subtree copy or an empty string.",
+        "A reference whose name carries a capture that the referring name does not bind is REFERENCE001, because Section 13.3 admits only explicitly bound and mutually consistent captures.",
+        "Two reference defects written in one file are ordered by where they were written, not by their codes."
+      ],
+      "fixtures": [
+        "reference-scalar-only-and-free-wildcard-rejected"
+      ]
     },
     {
       "item": 47,

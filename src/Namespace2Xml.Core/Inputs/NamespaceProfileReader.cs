@@ -44,16 +44,17 @@ public sealed record ProfileEntry(
 /// <param name="TrailingComments">
 /// Section 8.5 document-trailing comments: those with no following entry.
 /// </param>
-/// <param name="UnresolvedValues">
-/// Entries whose values carry a reference or a value wildcard. They are concrete contributions, but
-/// their payloads are not known until Section 15.1 step 15.
-/// </param>
+/// <remarks>
+/// There is deliberately no separate list of reference-bearing entries. Section 13.1 resolves
+/// references after ordinary merging, so such an entry is an ordinary contribution in
+/// <paramref name="Overlay"/> carrying a <see cref="ScalarKind.Unresolved"/> payload, and the
+/// merged model is the only place step 15 has to look.
+/// </remarks>
 public sealed record ProfileContribution(
     OverlayNode Overlay,
     ImmutableArray<ProfileMask> Masks,
     ImmutableArray<ProfileEntry> Templates,
-    ImmutableArray<BoundComment> TrailingComments,
-    ImmutableArray<ProfileEntry> UnresolvedValues);
+    ImmutableArray<BoundComment> TrailingComments);
 
 /// <summary>
 /// Reads classified Section 8.1 records into a Section 4.2 overlay.
@@ -90,7 +91,6 @@ public static class NamespaceProfileReader
         var overlay = OverlayNode.Intermediate(StableOrderingKey.FromSource(sourceOrdinal, 0));
         var masks = ImmutableArray.CreateBuilder<ProfileMask>();
         var templates = ImmutableArray.CreateBuilder<ProfileEntry>();
-        var unresolved = ImmutableArray.CreateBuilder<ProfileEntry>();
         var pending = ImmutableArray.CreateBuilder<BoundComment>();
 
         foreach (var record in records)
@@ -126,7 +126,7 @@ public static class NamespaceProfileReader
 
                 case NamespaceRecordKind.Entry:
                     overlay = ReadEntry(
-                        record, key, source, diagnostics, overlay, templates, unresolved, pending);
+                        record, key, source, diagnostics, overlay, templates, pending);
                     break;
 
                 default:
@@ -140,8 +140,7 @@ public static class NamespaceProfileReader
             overlay,
             masks.ToImmutable(),
             templates.ToImmutable(),
-            pending.ToImmutable(),
-            unresolved.ToImmutable());
+            pending.ToImmutable());
     }
 
     private static void ReadMask(
@@ -182,7 +181,6 @@ public static class NamespaceProfileReader
         DiagnosticBuffer diagnostics,
         OverlayNode overlay,
         ImmutableArray<ProfileEntry>.Builder templates,
-        ImmutableArray<ProfileEntry>.Builder unresolved,
         ImmutableArray<BoundComment>.Builder pending)
     {
         var lexedName = QualifiedNameLexer.Lex(record.Name!);
@@ -238,11 +236,35 @@ public static class NamespaceProfileReader
 
         if (lexedValue.Value.ContainsReference || lexedValue.Value.ContainsWildcard)
         {
-            unresolved.Add(entry);
-            return overlay;
+            // Section 13.1 resolves references "after wildcard generation and ordinary data
+            // merging", so the entry is grafted as an ordinary scalar contribution carrying an
+            // unresolved payload. Holding it aside instead would exclude it from the Section 17.1
+            // merge it must win or lose, from the Section 4.4 shape contest at its node, and from
+            // the Section 8.6 masks and Section 12 templates that see every other contribution.
+            //
+            // Section 22 counts a reference diagnostic once per reachable owning value, so the
+            // origin names this value: the record it was written on, at the column it starts.
+            var origin = new ValueOrigin(
+                source.File,
+                source.LineOf(record.Line),
+                source.ColumnOf(record.Column + ScalarColumn.Width(record.Name!) + 1));
+
+            return Graft(
+                overlay,
+                lexedName.Name.Parts,
+                0,
+                ScalarPayload.Unresolved(lexedValue.Value, origin),
+                key,
+                comments);
         }
 
-        return Graft(overlay, lexedName.Name.Parts, 0, lexedValue.Value.LiteralText!, key, comments);
+        return Graft(
+            overlay,
+            lexedName.Name.Parts,
+            0,
+            ScalarPayload.Untyped(lexedValue.Value.LiteralText!),
+            key,
+            comments);
     }
 
     /// <summary>
@@ -257,13 +279,13 @@ public static class NamespaceProfileReader
         OverlayNode node,
         ImmutableArray<NamePart> parts,
         int depth,
-        string payload,
+        ScalarPayload payload,
         StableOrderingKey key,
         ImmutableArray<BoundComment> comments)
     {
         if (depth == parts.Length)
         {
-            var leaf = node.WithPayload(ScalarPayload.Untyped(payload), key);
+            var leaf = node.WithPayload(payload, key);
 
             return comments.Aggregate(leaf, (current, comment) => current.WithComment(comment));
         }

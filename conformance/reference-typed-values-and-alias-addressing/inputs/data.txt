@@ -1,0 +1,5 @@
+app.database.port=8443
+app.database.@host=example.org
+app.port=${app.database.port}
+app.endpoint=https://${app.database.host}:${app.database.port}
+app.attribute=${app.database.@host}

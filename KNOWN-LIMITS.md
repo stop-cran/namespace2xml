@@ -1,6 +1,6 @@
 # Known limits
 
-**As of `3.0.0-preview.1`, contract bundle `r30+35e144372ca0`. Dated 2026-08.**
+**As of `3.0.0-preview.1`, contract bundle `r33+925af40f8fec`. Dated 2026-08.**
 
 This file exists because a project that claims completeness cannot receive feedback: every gap reads
 as user error, and the reporter concludes they are holding it wrong. During the preview this list is
@@ -214,14 +214,33 @@ URI, and `QualifiedElementPart` refuses to represent one, so the redundant form 
 
 What the marker still does is opt a path out of the §13.1 and §15.2 simple alias index, so that an
 attribute `@x` or a content token `#n` cannot compete with an element `x` for the same unmarked
-spelling. **That behaviour is unimplemented**, because both places a path is resolved through the
-alias index — value references (§13.1) and directives bound below a root selector (§15, §16) — are
-themselves unimplemented in this preview and refuse with `NOTIMPL` before any name is matched.
-**verified**
+spelling. **That behaviour is unimplemented**, and it is now reachable: §13.1 value references
+resolve in this build, and `${a.b}` against a model carrying both `a.@b` and `a.b` reports
+`REFERENCE004` naming two candidates. §11.4 offers `a.Q{}b` as the way to say "the element", and
+that spelling does not survive the lexer, so the ambiguity has no in-band escape. Address the
+attribute canonically as `${a.@b}` and rename the element, or vice versa. **verified**
 
-So `a.Q{}b` and `a.b` name the same node today and always will; what is missing is the case where
-they would *differ* from `a.@b`. It closes with §13.1. See issue #43 for the reasoning that
-settled the reading.
+`Q{}` cannot simply be admitted as a distinct component without contradicting the rest of §11.4,
+which says the two spellings *are* the same node. The narrowing has to live in the reference
+grammar rather than in the name, and where §15.2 directive binding needs the same distinction is
+not yet settled. See issue #43 for the reasoning that settled the reading.
+
+### 1.9 A canonical reference to an XML comment position reports `REFERENCE002`, not `REFERENCE005`
+
+§13.1 says "a canonical reference directly addressing an XML comment path fails as a non-scalar
+reference", which §22 codes as `REFERENCE005`. This build reports `REFERENCE002`, the missing
+reference, for that case. **verified**
+
+The cause is upstream of §13. `XmlInputReader` gives a comment an ordering value and nothing else —
+`BoundComment(Text, Placement, Order)` carries no content ordinal — so at resolution time the model
+cannot tell `${a.#0}` naming a comment from `${a.#0}` naming nothing at all. Both are a `#n` path
+with no payload, and the more conservative of the two codes is the one that is always true.
+
+Both are blocking errors at the same severity with the same exit code, so a correct run is
+unaffected and an incorrect one still fails. What is lost is the message quality: a user who wrote
+`${a.#0}` meaning the comment is told the path does not exist rather than that comments are not
+values. Closing it means giving a comment a content ordinal in the overlay, which is the same
+provenance change §1.7 and §1.8 need.
 
 ### 1.7 `WARN010` is not emitted
 

@@ -1,0 +1,3 @@
+app.subtree.leaf=1
+app.k=${app.subtree}
+app.w=${app.*[n]}

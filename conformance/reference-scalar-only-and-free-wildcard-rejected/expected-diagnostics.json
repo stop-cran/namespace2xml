@@ -1,0 +1,4 @@
+[
+{"code":"REFERENCE002","severity":"error","phase":"planning","source":"inputs/data.txt","line":2,"column":7,"path":"app.k","spec":"§13.1"},
+{"code":"REFERENCE001","severity":"error","phase":"planning","source":"inputs/data.txt","line":3,"column":7,"path":"app.w","spec":"§13.3"}
+]

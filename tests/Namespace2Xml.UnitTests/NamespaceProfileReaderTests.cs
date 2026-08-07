@@ -261,26 +261,32 @@ public class NamespaceProfileReaderTests
     }
 
     /// <summary>
-    /// Section 15.1 substitutes references at step 15, so a reference-bearing value has no payload
-    /// at step 5 and cannot be contributed here.
+    /// Section 13.1 resolves references at step 15, after "ordinary data merging", so a
+    /// reference-bearing value is an ordinary scalar contribution here — it must win and lose
+    /// Section 17.1 merges by position like any other. Section 13.2 keeps it untyped until then.
     /// </summary>
     [Test]
-    public void AValueWithAReferenceIsDeferredRatherThanContributed()
+    public void AValueWithAReferenceIsContributedUnresolved()
     {
         var contribution = Read("a=${b}");
 
-        contribution.UnresolvedValues.ShouldHaveSingleItem().Name.Parts.Length.ShouldBe(1);
-        contribution.Overlay.Children.ShouldBeEmpty();
+        var payload = Descend(contribution.Overlay, "a").Payload.ShouldNotBeNull();
+
+        payload.IsUnresolved.ShouldBeTrue();
+        payload.UnresolvedValue.ContainsReference.ShouldBeTrue();
+        payload.Origin.Line.ShouldBe(1);
     }
 
-    /// <summary>Section 8.3: an escaped `${` is literal text, so nothing is deferred.</summary>
+    /// <summary>Section 8.3: an escaped `${` is literal text, so nothing is left unresolved.</summary>
     [Test]
     public void AnEscapedReferenceIsAnOrdinaryValue()
     {
         var contribution = Read(@"a=\${b}");
 
-        contribution.UnresolvedValues.ShouldBeEmpty();
-        Descend(contribution.Overlay, "a").Payload!.ToCanonicalText().ShouldBe("${b}");
+        var payload = Descend(contribution.Overlay, "a").Payload.ShouldNotBeNull();
+
+        payload.IsUnresolved.ShouldBeFalse();
+        payload.ToCanonicalText().ShouldBe("${b}");
     }
 
     /// <summary>

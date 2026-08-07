@@ -54,7 +54,8 @@ public static class WildcardSubstitution
     /// <param name="captures">The captures the match bound.</param>
     /// <returns>The generated payload text.</returns>
     /// <exception cref="InvalidOperationException">
-    /// The value carries a reference, which Section 15.1 does not resolve until step 15.
+    /// The value carries a reference, which has no text until Section 15.1 step 15 resolves it.
+    /// Call <see cref="Substitute"/> for a value that may.
     /// </exception>
     /// <remarks>
     /// <para>
@@ -106,11 +107,143 @@ public static class WildcardSubstitution
 
                 default:
                     throw new InvalidOperationException(
-                        "Section 15.1 resolves references at step 15, so a template value carrying "
-                        + "one is refused before evaluation reaches substitution.");
+                        "a reference has no text until Section 15.1 step 15 resolves it; call "
+                        + $"{nameof(Substitute)} for a value that carries one.");
             }
         }
 
         return text.ToString();
+    }
+
+    /// <summary>
+    /// Substitutes a match's captures into a rule's value, keeping any references it carries.
+    /// </summary>
+    /// <param name="value">The rule's interpreted value.</param>
+    /// <param name="captures">The captures the match bound.</param>
+    /// <param name="origin">Where the rule was written.</param>
+    /// <returns>The generated payload.</returns>
+    /// <remarks>
+    /// Section 13.3: "A reference inside a wildcard template may contain only explicit captures
+    /// already bound by that same template. After capture substitution, the resulting reference
+    /// must contain no wildcard and resolves as one canonical or format-agnostic scalar reference."
+    /// Substitution therefore has to reach inside a reference's own name, not only the literal text
+    /// around it, and what it produces is still unresolved.
+    /// </remarks>
+    public static ScalarPayload Substitute(
+        InterpretedValue value, WildcardCaptures captures, ValueOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(captures);
+
+        if (!value.ContainsReference)
+        {
+            return ScalarPayload.Untyped(Apply(value, captures));
+        }
+
+        var tokens = ImmutableArray.CreateBuilder<ValueToken>(value.Tokens.Length);
+        var positional = 0;
+
+        foreach (var token in value.Tokens)
+        {
+            switch (token)
+            {
+                case ReferenceToken reference:
+                    tokens.Add(new ReferenceToken(
+                        SubstituteName(reference.Name, captures, ref positional)));
+                    break;
+
+                case ValueWildcardToken:
+                    tokens.Add(new LiteralValueToken(
+                        Apply(new InterpretedValue([token]), captures)));
+                    break;
+
+                default:
+                    tokens.Add(token);
+                    break;
+            }
+        }
+
+        return ScalarPayload.Unresolved(new InterpretedValue(tokens.ToImmutable()), origin);
+    }
+
+    private static QualifiedName SubstituteName(
+        QualifiedName name, WildcardCaptures captures, ref int positional)
+    {
+        var parts = ImmutableArray.CreateBuilder<NamePart>(name.Parts.Length);
+        var next = positional;
+
+        foreach (var part in name.Parts)
+        {
+            parts.Add(SubstitutePart(part, captures, ref next));
+        }
+
+        positional = next;
+
+        return new QualifiedName(parts.ToImmutable());
+    }
+
+    private static NamePart SubstitutePart(
+        NamePart part, WildcardCaptures captures, ref int positional)
+    {
+        switch (part)
+        {
+            case OrdinaryPart ordinary:
+                return new OrdinaryPart(
+                    SubstituteTokens(ordinary.Tokens, captures, ref positional));
+
+            case QualifiedElementPart qualified:
+                return new QualifiedElementPart(
+                    qualified.Uri, SubstituteTokens(qualified.Local, captures, ref positional));
+
+            case AttributePart attribute:
+                return new AttributePart(
+                    (XmlNameComponent)SubstitutePart(attribute.Name, captures, ref positional));
+
+            default:
+                return part;
+        }
+    }
+
+    private static ImmutableArray<NameToken> SubstituteTokens(
+        ImmutableArray<NameToken> tokens, WildcardCaptures captures, ref int positional)
+    {
+        var result = ImmutableArray.CreateBuilder<NameToken>(tokens.Length);
+
+        foreach (var token in tokens)
+        {
+            if (token is not WildcardToken wildcard)
+            {
+                result.Add(token);
+                continue;
+            }
+
+            // Section 13.1: "marker text inserted from a wildcard capture" is an ordinary literal
+            // name component, so the capture's text is never rescanned for the Q{}, @ or #n markers
+            // that would otherwise make it a typed XML component.
+            result.Add(new LiteralToken(Capture(wildcard.CaptureId, captures, ref positional)));
+        }
+
+        return result.ToImmutable();
+    }
+
+    private static string Capture(
+        string? captureId, WildcardCaptures captures, ref int positional)
+    {
+        if (captureId is { } id)
+        {
+            return captures.Named[id];
+        }
+
+        if (captures.Positional.IsEmpty)
+        {
+            return string.Empty;
+        }
+
+        var text = captures.Positional[
+            Math.Min(positional, captures.Positional.Length - 1)];
+
+        positional++;
+
+        return text;
     }
 }
