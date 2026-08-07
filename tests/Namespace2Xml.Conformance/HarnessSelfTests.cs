@@ -371,6 +371,92 @@ public class HarnessSelfTests
         return $"[\n{{\"code\":\"CLI001\",\"severity\":\"error\",\"phase\":\"cli\",{anchor}{tail}}}\n]\n";
     }
 
+    // ---- Section 6.4.3 escape spellings ----
+    //
+    // A JSON reader decodes "\u0041", "\/" and a literal "A" or "/" to the same string, so every
+    // assertion made on decoded values is blind to the spelling. These cases are each wrong in
+    // exactly one escape dimension while decoding to text the rest of the comparer accepts, so a
+    // comparer that stops reading raw bytes fails here instead of blessing a writer whose output
+    // is not byte-identical.
+
+    /// <summary>
+    /// Each case decodes to the same diagnostic as the expected stream and differs only in how a
+    /// scalar is spelled, so nothing but the raw-byte check can tell them apart. <c>message</c> is
+    /// used because the comparer never compares its value, which leaves the spelling as the only
+    /// thing under test.
+    /// </summary>
+    /// <param name="canonical">The <c>message</c> member as Section 6.4.3 requires it.</param>
+    /// <param name="emitted">The same text spelled a way Section 6.4.3 does not admit.</param>
+    /// <param name="reason">The clause the spelling violates.</param>
+    [TestCase("\"A\"", "\"\\u0041\"", "literally as UTF-8", TestName = "AnAsciiLetterEscapedAsU0041")]
+    [TestCase("\"é\"", "\"\\u00e9\"", "literally as UTF-8", TestName = "ANonAsciiScalarEscapedRatherThanEmitted")]
+    [TestCase("\"a/b\"", "\"a\\/b\"", "permits only", TestName = "ASolidusEscaped")]
+    [TestCase("\"a\\nb\"", "\"a\\u000ab\"", "named escape", TestName = "ALineFeedSpelledAsAUnicodeEscape")]
+    [TestCase("\"a\\tb\"", "\"a\\u0009b\"", "named escape", TestName = "ATabSpelledAsAUnicodeEscape")]
+    [TestCase("\"a\\u001fb\"", "\"a\\u001Fb\"", "uppercase", TestName = "AControlEscapedWithUppercaseHexadecimal")]
+    public void ANonNormativeEscapeSpellingIsRejected(string canonical, string emitted, string reason)
+    {
+        var expected = Utf8(One($"\"message\":{canonical}", "§6.4.1"));
+        var actual = Utf8(One($"\"message\":{emitted}", "§6.4.1"));
+
+        DiagnosticComparer.Compare(expected, actual)
+            .ShouldContain(failure => failure.Contains(reason, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A fixture whose own expected stream carries a non-normative escape is a fixture defect, and
+    /// must throw rather than be reported against the tool: it asserts a spelling no conforming
+    /// implementation may produce, so the resulting failure would name the wrong party.
+    /// </summary>
+    [Test]
+    public void ANonNormativeEscapeInTheExpectedStreamIsAFixtureDefect() =>
+        Should.Throw<ConformanceFormatException>(
+                () => DiagnosticComparer.Compare(
+                    Utf8(One("\"message\":\"\\u0041\"", "§6.4.1")),
+                    Utf8(One("\"message\":\"A\"", "§6.4.1"))))
+            .Message.ShouldContain("expected-diagnostics.json is not canonical");
+
+
+    /// <summary>
+    /// The spellings Section 6.4.3 does fix must pass, or the check would be rejecting correct
+    /// output — which is the failure mode that makes a corpus unusable rather than merely weak.
+    /// </summary>
+    /// <param name="message">A <c>message</c> member written the way Section 6.4.3 requires.</param>
+    [TestCase("\"a\\\"b\"", TestName = "AQuoteTakesABackslash")]
+    [TestCase("\"a\\\\b\"", TestName = "ABackslashTakesABackslash")]
+    [TestCase("\"a\\nb\"", TestName = "ALineFeedTakesItsNamedEscape")]
+    [TestCase("\"a\\tb\"", TestName = "ATabTakesItsNamedEscape")]
+    [TestCase("\"a\\u0001b\"", TestName = "AnUnnamedControlTakesLowercaseHexadecimal")]
+    [TestCase("\"héllo — Ω 𝔘\"", TestName = "EveryOtherScalarIsEmittedLiterally")]
+    [TestCase("\"a/b\"", TestName = "ASolidusIsLiteral")]
+    [TestCase("\"a\u007fb\"", TestName = "DeleteIsNotAC0ControlAndIsLiteral")]
+    public void ANormativeEscapeSpellingIsAccepted(string message)
+    {
+        var actual = Utf8(One($"\"message\":{message}", "§6.4.1"));
+
+        DiagnosticComparer.Compare(actual, actual).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// A raw C0 control inside a string is not whitespace the layout check looks for, because that
+    /// check skips string contents entirely.
+    /// </summary>
+    /// <summary>
+    /// A raw C0 control inside a string is rejected, though not by the escape check: RFC 8259
+    /// forbids it outright, so the reader refuses the stream before any layout rule is consulted.
+    /// The escape check therefore does not duplicate that arm, and this test records which
+    /// mechanism actually closes the hole so a later reader does not add unreachable code back.
+    /// </summary>
+    [Test]
+    public void ARawControlInsideAStringIsRejected()
+    {
+        var expected = Utf8(One("\"message\":\"a\\tb\"", "§6.4.1"));
+        var actual = Utf8(One("\"message\":\"a\tb\"", "§6.4.1"));
+
+        DiagnosticComparer.Compare(expected, actual)
+            .ShouldContain(failure => failure.Contains("is invalid within a JSON string", StringComparison.Ordinal));
+    }
+
     // ---- Appendix C.5 standard output ----
     //
     // Every case below must fail the comparer. The rule this suite defends is that the corpus

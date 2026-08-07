@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -226,6 +227,119 @@ public static class DiagnosticComparer
             {
                 yield return failure;
             }
+
+            foreach (var failure in ValidateStringEscapes(i, element))
+            {
+                yield return failure;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enforces the Section 6.4.3 escape spellings: <c>"</c> and <c>\</c> take a backslash, the
+    /// five named controls take <c>\b</c>, <c>\f</c>, <c>\n</c>, <c>\r</c> and <c>\t</c>, every
+    /// other C0 control takes a lowercase <c>\u00xx</c>, and every other Unicode scalar is emitted
+    /// literally as UTF-8. An unescaped C0 control needs no arm here: RFC 8259 forbids one, so the
+    /// reader rejects the stream before any layout rule is consulted.
+    /// </summary>
+    /// <remarks>
+    /// This has to read the raw bytes. A JSON reader decodes <c>\u0041</c>, <c>\/</c> and a literal
+    /// <c>A</c> or <c>/</c> to the same string, so every comparison performed on decoded values is
+    /// blind to the one thing Section 24 byte-identity depends on. Without this, a writer that
+    /// escaped every non-ASCII scalar would satisfy the whole corpus while emitting different bytes
+    /// on every platform, which is precisely what byte-identity forbids.
+    /// </remarks>
+    private static IEnumerable<string> ValidateStringEscapes(int index, string element)
+    {
+        const string named = "\"\\bfnrt";
+        var inString = false;
+
+        for (var i = 0; i < element.Length; i++)
+        {
+            var character = element[i];
+
+            if (!inString)
+            {
+                inString = character == '"';
+                continue;
+            }
+
+            if (character == '"')
+            {
+                inString = false;
+                continue;
+            }
+
+            if (character != '\\')
+            {
+                continue;
+            }
+
+            if (i + 1 >= element.Length)
+            {
+                yield return $"element {index} ends in an incomplete escape.";
+                yield break;
+            }
+
+            var next = element[++i];
+
+            if (named.Contains(next, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (next != 'u')
+            {
+                yield return $"element {index} spells an escape as '\\{next}'; Section 6.4.3 permits " +
+                             "only \\\", \\\\, \\b, \\f, \\n, \\r, \\t and \\u00xx.";
+                continue;
+            }
+
+            if (i + 4 >= element.Length)
+            {
+                yield return $"element {index} ends in an incomplete '\\u' escape.";
+                yield break;
+            }
+
+            var digits = element.Substring(i + 1, 4);
+            i += 4;
+
+            foreach (var failure in ValidateUnicodeEscape(index, digits))
+            {
+                yield return failure;
+            }
+        }
+    }
+
+    /// <summary>Checks one <c>\uXXXX</c> against the only spelling Section 6.4.3 admits.</summary>
+    private static IEnumerable<string> ValidateUnicodeEscape(int index, string digits)
+    {
+        // Uppercase is rejected before the value is read, so "\u000A" is reported as the wrong
+        // spelling of a control rather than passing as the right one.
+        if (digits.Any(d => d is >= 'A' and <= 'F'))
+        {
+            yield return $"element {index} spells '\\u{digits}' with uppercase hexadecimal; " +
+                         "Section 6.4.3 fixes lowercase.";
+            yield break;
+        }
+
+        if (!int.TryParse(digits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var scalar))
+        {
+            yield return $"element {index} carries a malformed escape '\\u{digits}'.";
+            yield break;
+        }
+
+        if (scalar is 0x08 or 0x09 or 0x0A or 0x0C or 0x0D)
+        {
+            yield return $"element {index} escapes U+{scalar:X4} as '\\u{digits}'; Section 6.4.3 " +
+                         "fixes a named escape for that control.";
+            yield break;
+        }
+
+        if (scalar > 0x1F)
+        {
+            yield return $"element {index} escapes U+{scalar:X4} as '\\u{digits}'; Section 6.4.3 " +
+                         "emits every scalar above the C0 controls literally as UTF-8.";
         }
     }
 
