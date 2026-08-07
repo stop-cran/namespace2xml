@@ -1,0 +1,1 @@
+<doc xmlns:p="urn:p"><meta name="demo" p:rev="3"/><host>localhost</host><tag>first</tag><tag>second</tag><note>text<p:b x="1"/><b>two</b></note><gapped>a<!--dropped-->b</gapped><empty/><cdata><![CDATA[a]]><![CDATA[b]]></cdata><spaced xml:space="preserve"> pad</spaced></doc>

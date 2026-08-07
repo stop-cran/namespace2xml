@@ -82,9 +82,13 @@ public static class StructuredProfileReader
             // Section 4.4: an empty mapping is an explicit mapping-presence contribution and
             // "participates in precedence even though it has no children". A mapping that has
             // children records its shape through them, so marking it again would say nothing new.
-            var result = mapping.Properties.IsEmpty
-                ? OverlayNode.Intermediate(key).WithExplicitMapping(key)
-                : OverlayNode.Intermediate(key);
+            // A Section 11.4 element scalar is itself a shape contribution, so a node carrying one
+            // needs no mapping mark either.
+            var result = mapping.Scalar is { } own
+                ? BuildScalar(own, path, key)
+                : mapping.Properties.IsEmpty
+                    ? OverlayNode.Intermediate(key).WithExplicitMapping(key)
+                    : OverlayNode.Intermediate(key);
 
             foreach (var property in mapping.Properties)
             {

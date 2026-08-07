@@ -17,7 +17,7 @@ The 3.0 rewrite lands in milestones that follow the specification's own pipeline
 has not landed is **not implemented**, and the tool exits with a non-normative status rather than
 pretending to succeed.
 
-The tool currently transforms the **flat family end to end**: namespace-profile, JSON and YAML
+The tool currently transforms the **flat family end to end**: namespace-profile, JSON, YAML and XML
 input, overlaying, output planning, and publication of namespace, quoted-namespace and INI
 destinations. Everything below that line is refused, not approximated.
 
@@ -28,13 +28,13 @@ destinations. Everything below that line is refused, not approximated.
 | Namespace-profile input parsing, encoding detection, budgets | Implemented | §7–§9 |
 | JSON **input** | Implemented, with the reductions in §1.1 | §7.1, §9, §15.1 |
 | YAML **input** | Implemented, with the reductions in §1.2 | §7.1, §10, §15.1 |
+| XML **input** | Implemented, with the reductions in §1.3 | §7.1, §11, §15.1 |
 | Scheme parsing, `output`, `filename`, `root`, `delimiter` | Implemented | §16 |
 | Overlaying, precedence, mapping order after override | Implemented | §5, §10 |
 | Scalar inference and canonical numeric text | Implemented | §18 |
 | Output planning, destination paths, collision folding | Implemented | §17 |
 | Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
 | Publication and the validation gate | Implemented | §21 |
-| XML **input** | Not yet | §7.1, §11 |
 | References and value wildcards | Not yet | §13 |
 | Templates and masks | Not yet | §8.6, §12 |
 | Wildcard output selectors and `substitute` | Not yet | §14, §16 |
@@ -95,6 +95,53 @@ treated as a string without scalar tag resolution" — can be read either way. *
 refused**, on the ground that a merge key silently becoming data is the same hidden override §9.3
 rejects for duplicate keys; a quoted `"<<"` is accepted as an ordinary key. If you are relying on
 either reading, say so, because the clause should be amended rather than left to an implementation.
+
+### 1.3 Reductions inside XML input
+
+XML input implements every §11.1 prohibition and bound, the §11.2 subset, the §11.3 mixed-content
+projection, the §11.4 canonical addresses, and the §11.6 coalescing rule, and shares the §15.1
+projection with JSON and YAML. These cases are declined or unfinished within it.
+
+- **`NormalizeFormattingWhitespace` is declined**, with exit `70` and no output. Only §11.7's
+  default `PreserveWhitespace` is implemented, and it "retains every text node". **The consequence
+  is worth stating plainly, because it will surprise you:** an indented document is therefore mixed
+  content. `<a>\n  <b>1</b>\n</a>` addresses as `a.#0`, `a.#1.b` and `a.#2` — not as `a.b`. Element
+  name addressing today requires XML written with no formatting whitespace between element
+  children, so there is at present **no way to read a pretty-printed document by element name**.
+  Nothing is misreported and the fixture `xml-canonical-addresses` pins both spellings, but if you
+  are pointing this tool at XML a human wrote, say so: the opt-out §11.7 defines is exactly what
+  you need and it is the next thing to land here.
+- **Mixedness and repeated-child classification are per document.** §11.4 makes them "properties of
+  the merged common-model element", "evaluated at concrete merge time across all input
+  contributions to that element". This preview classifies each element from the one document that
+  contains it. A single document is therefore always right; what is not yet right is two documents
+  contributing to the same element — two sources that each supply one `<b/>` produce an override
+  rather than the two-item sequence §11.4 requires, and the §11.4 singleton-to-sequence promotion
+  and its `WARN009` cannot occur. Overlaying XML onto XML at the same path is the case to avoid.
+- **Comments are not retained.** §11.5 retains them "as ordered comment nodes" and §11.4 allows
+  selecting one "for ignore and conversion through `#n`". This preview parses a comment and
+  discards it — the same common-model gap as §1.2's YAML entry, since structured input has no
+  comment facet. Its §11.4 ordering value **is** spent, so siblings keep their positions:
+  `<a>t<!--c-->u</a>` addresses its two text runs as `#0` and `#2`, never renumbered to `#0` and
+  `#1`. Comment output is unimplemented for every format, so nothing observable is lost today.
+- **CDATA is not retained as a distinct node kind.** §11.6 keeps it distinct so that XML output can
+  re-emit it as CDATA. The coalescing rule itself is implemented exactly as written — adjacent
+  CDATA and adjacent ordinary text coalesce separately and never with each other — but the run's
+  CDATA-ness does not survive projection into the common model, so from that point it is text.
+  XML rendering is unimplemented, so nothing observable is lost today; this closes with §19.5.
+- **Element-only children carry no separately addressable content token.** §11.4 says every parent
+  assigns ordering values "including element-only parents", and that element-only children retain
+  element-name addressing "while also carrying their content-token ordering value". This preview
+  materializes the element-name address only. Document order is preserved — it is what the §5.2
+  position marks record — but `a.#1` does not select an element-only child, and a comment among
+  element-only children has no address at all.
+- **The content-token alias for a sole text node is not materialized.** §11.4 calls the element path
+  and its sole text or CDATA content-token path "two canonical addresses for one scalar identity".
+  This preview exposes the element path only, so `<b>two</b>` is addressable as `b` and not as
+  `b.#0`.
+- **Processing instructions are discarded**, with one `WARN006` per document that carried any.
+  §11.8 places them outside the preservation contract.
+- **`substitute` is parsed and not applied**, as for every other format.
 
 ## 2. Acceptance coverage
 

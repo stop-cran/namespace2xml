@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (19)
+## Deliberate differences (21)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -263,6 +263,52 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   component and a record-leading `!` take their Section 8.2 forms `\#` and `\!`.
 - The difference is intentional: without it a profile could not round-trip through its own output
   format, which is the property every other guarantee in Section 19 rests on.
+
+### `xml-canonical-addresses`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 5.2, 5.4, and 19.1.
+- Legacy observation: XML input carried no address for an attribute, no address for a namespace URI,
+  and no address for a text run in mixed content. An element and its attributes collapsed into one
+  name, so `<b x="1">two</b>` could not express both `two` and `x`; two children with the same name
+  overwrote one another rather than becoming an ordered pair; and a prefix was kept as written, so
+  the same element read under two prefix spellings produced two different names for one identity.
+- Clean behavior: Section 11.4 gives every XML component one canonical address. An attribute is
+  `@name`; a name in a namespace is `Q{uri}local`, resolved from the URI rather than the prefix, so
+  `p:rev` addresses as `@Q{urn:p}rev` and the reserved `xml` prefix addresses through its fixed
+  `http://www.w3.org/XML/1998/namespace` URI. Repeated same-name children become a Section 5.4
+  sequence with generated zero-based parts, while a single child keeps its name. An element that
+  owns both text and attributes exposes the text at the element path and the attributes beneath it,
+  which Section 19.1 emits in pre-order — own scalar first, then children. In mixed content every
+  content position takes a `#n` content token, and Section 11.5 orders comments among that content,
+  so a discarded comment still consumes its position and `gapped` addresses as `#0` and `#2` rather
+  than renumbering to `#0` and `#1`. Section 11.6 coalesces adjacent CDATA into one run, so two
+  segments read as `ab`. Section 11.7 makes `PreserveWhitespace` the default, which retains every
+  text node: an indented document is therefore mixed content, and `pretty` addresses its two
+  formatting runs as `#0` and `#2` with the element between them at `#1`.
+- The difference is intentional: Section 11.4 exists so that one XML component has exactly one
+  address regardless of how the document spells its prefixes, and every legacy behavior above either
+  loses a component the document contained or lets the document's spelling decide its identity.
+
+### `xml-prohibited-dtd-and-external-resources`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 11.1, 22, and 24.
+- Legacy observation: XML was read with the host library's defaults, which resolve a document type
+  definition. An internal subset therefore defined entities that were expanded into values, a
+  `SYSTEM` identifier could cause the process to retrieve a resource named by the input document,
+  and a nested-entity document consumed memory proportional to the expansion rather than to the
+  file. A configuration file could thus decide what the tool read and how much of it.
+- Clean behavior: Section 11.1 prohibits a document type definition outright — "rejected, not
+  partially processed" — so the internal subset is never read and its entities are never defined,
+  and external entity resolution and network retrieval are refused with it. Each failing document is
+  `XML001` at the Section 22 one-based line and column of the `<!DOCTYPE` token, so a declaration
+  that follows an XML declaration and a comment reports at line 3 rather than line 1, and every
+  failing source reports in the Section 7.3 command-line order. Nothing is published: a blocking
+  input diagnostic decides the run before any output exists.
+- The difference is intentional: an input file that can name a resource, or expand to an
+  unbounded size, makes the tool's behavior a function of the data it is given rather than of the
+  invocation, and Section 11.1 removes that entirely rather than bounding it.
 
 ### `yaml-restricted-schema-and-scalar-kinds`
 

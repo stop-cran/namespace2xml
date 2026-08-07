@@ -190,6 +190,8 @@ public sealed class SourceLoader
                     decoded.Text!, limits, budget, origin, phase, diagnostics, key),
                 "YAML" => YamlInputReader.Read(
                     decoded.Text!, limits, budget, origin, phase, diagnostics, key),
+                "XML" => XmlInputReader.Read(
+                    decoded.Text!, decoded.Encoding!.Value, budget, origin, phase, diagnostics, key),
                 _ => throw new InvalidOperationException(
                     $"Section 7.1 names no structured format '{format}'."),
             };

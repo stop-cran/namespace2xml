@@ -1,0 +1,16 @@
+doc.meta.@name=demo
+doc.meta.@Q{urn:p}rev=3
+doc.host=localhost
+doc.tag.0=first
+doc.tag.1=second
+doc.note.#0=text
+doc.note.#1.Q{urn:p}b.@x=1
+doc.note.#2.b=two
+doc.gapped.#0=a
+doc.gapped.#2=b
+doc.cdata=ab
+doc.spaced= pad
+doc.spaced.@Q{http://www.w3.org/XML/1998/namespace}space=preserve
+pretty.#0=\n
+pretty.#1.b=1
+pretty.#2=\n

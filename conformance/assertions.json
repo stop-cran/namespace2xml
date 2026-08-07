@@ -127,10 +127,15 @@
     {
       "item": 15,
       "text": "XML DTD rejection and external-resource prohibition.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "A document type definition is rejected outright rather than partially processed, so an internal subset's entities are never defined, no external or network resource is retrieved, and a nested-entity document costs nothing to refuse.",
+        "Each failing document is XML001 at the Section 22 one-based line and column of the DOCTYPE token, every failing source reports in Section 7.3 command-line order, and nothing is published."
+      ],
+      "fixtures": [
+        "xml-prohibited-dtd-and-external-resources"
+      ]
     },
     {
       "item": 16,
@@ -317,10 +322,15 @@
     {
       "item": 38,
       "text": "XML canonical addresses for namespaces, attributes, repeated children, and mixed content.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "Section 11.4 addresses an attribute as @name and a namespace-qualified name as Q{uri}local resolved from the URI rather than the prefix, and an element owning both text and attributes exposes the text at its own element path with the attributes beneath it.",
+        "Repeated same-name children become a Section 5.4 sequence with generated zero-based parts while a single child keeps its name, and mixed content addresses every position as a #n content token whose numbering a discarded Section 11.5 comment still consumes."
+      ],
+      "fixtures": [
+        "xml-canonical-addresses"
+      ]
     },
     {
       "item": 39,

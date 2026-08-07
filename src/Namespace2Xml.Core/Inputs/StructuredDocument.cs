@@ -100,7 +100,20 @@ public sealed record StructuredProperty(
 public sealed record StructuredMapping(
     ImmutableArray<StructuredProperty> Properties,
     int Line,
-    int Column) : StructuredNode(Line, Column);
+    int Column) : StructuredNode(Line, Column)
+{
+    /// <summary>
+    /// The scalar this node owns at its own path, or <see langword="null"/> when it owns none.
+    /// </summary>
+    /// <remarks>
+    /// JSON and YAML never set this: a mapping is a mapping and a scalar is a scalar. Section 11.4
+    /// gives XML a third case — "an element with no child elements and exactly one non-comment text
+    /// or CDATA node also exposes that scalar at the element path" — so <c>&lt;b x="1"&gt;two&lt;/b&gt;</c>
+    /// owns the string <c>two</c> at <c>b</c> while <c>b.@x</c> remains its child. Section 4.4 already
+    /// lets one overlay node carry a payload and children at once; this is how a reader says so.
+    /// </remarks>
+    public StructuredScalar? Scalar { get; init; }
+}
 
 /// <summary>A native sequence.</summary>
 /// <param name="Items">The items, in source order.</param>

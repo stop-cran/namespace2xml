@@ -48,7 +48,8 @@ public static class InputPhase
         {
             if (SourceLoader.StructuredFormat(input) is { } format
                 and not "JSON"
-                and not "YAML")
+                and not "YAML"
+                and not "XML")
             {
                 return StepOutcome.Unsupported<ImmutableArray<InputContribution>>(
                     new UnsupportedCapability(
