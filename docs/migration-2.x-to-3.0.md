@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (25)
+## Deliberate differences (27)
 
 ### `cli-diagnostics-format-inline-invalid`
 
@@ -310,6 +310,22 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: Section 23 requires the tool to "fail explicitly rather than
   degrade without bound".
 
+### `mask-after-sequence-rebasing`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 8.6, 15.1 step 10, 16.10 `append`, and 5.4.
+- Legacy observation: sequence concatenation did not have a stated ordering-value model, so there
+  was no defined answer to what an ignore pattern written against an index of a concatenated
+  sequence removed, or whether it removed anything at all.
+- Clean behavior: `merge=append` rebases the later contribution's items "onto fresh implicit
+  ordering values above the current high-water mark", so the second document's only item lands at
+  ordering value 1. The mask names that value and suppresses the item there. This is why Section
+  15.1 applies masks at step 10 and not only when contributions are merged: before the merge the
+  item is at ordering value 0 in its own document, and no mask written against its final position
+  could match it.
+- The difference is intentional: a mask addresses the model the run actually builds, and after
+  Section 16.10 rebasing that model is the only place the item's ordering value exists.
+
 ### `namespace-escaping-round-trip`
 
 - namespace2xml 2.4.0: **differs**.
@@ -322,6 +338,22 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   component and a record-leading `!` take their Section 8.2 forms `\#` and `\!`.
 - The difference is intentional: without it a profile could not round-trip through its own output
   format, which is the property every other guarantee in Section 19 rests on.
+
+### `namespace-permanent-ignore-masks`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 8.6; Section 8.5 for the comment run.
+- Legacy observation: `!` removal was applied in source order like any other entry, so an entry
+  written after the ignore reinstated the path, and an ignore in a later file did not reach a value
+  contributed by an earlier one. Whether a comment bound to a removed entry survived was not
+  stated.
+- Clean behavior: a mask is a permanent run-wide subtree exclusion. It suppresses a matching
+  contribution "regardless of whether it appears before or after the ignore entry", a later
+  contribution "cannot recreate the path", the exclusion reaches descendants, and comments bound to
+  suppressed paths are suppressed with them.
+- The difference is intentional: Section 8.6 names this "an explicit exception to universal
+  later-source precedence". A mask exists to guarantee that a value cannot leave the tool, and a
+  guarantee an ordinary later entry can revoke is not one.
 
 ### `xml-canonical-addresses`
 

@@ -286,10 +286,19 @@
     {
       "item": 34,
       "text": "Permanent ignore masks across concrete input, wildcard generation, references, selectors, and comments.",
-      "milestone": "unassigned",
+      "milestone": "m3",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "A mask suppresses a matching contribution whether it was written before or after the ignore entry, and a later contribution cannot recreate the path.",
+        "A mask declared in one source suppresses a path contributed by another, because the exclusion is run-wide rather than source-ordered.",
+        "The exclusion reaches the matched path's descendants, and comments bound to a suppressed path are suppressed with it.",
+        "A masked contribution is discarded before literal-path merge validation, so a masked path under merge=error does not report a second contribution.",
+        "Masks remain active after contributions are merged, so a mask naming an ordering value that merge=append assigned during rebasing suppresses the item at that value."
+      ],
+      "fixtures": [
+        "mask-after-sequence-rebasing",
+        "namespace-permanent-ignore-masks"
+      ]
     },
     {
       "item": 35,

@@ -1,0 +1,8 @@
+# this note names the secret and must not outlive it
+app.secret=classified
+# this note names a key that survives
+app.name=demo
+app.legacy.host=old
+app.legacy.port=1
+app.keep=kept
+app.strict=first

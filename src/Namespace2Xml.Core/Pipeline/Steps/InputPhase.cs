@@ -148,12 +148,27 @@ public static class InputPhase
             .Last();
 
         var merger = new OverlayMerger(MergeStrategyMap.Create(paths, root), diagnostics);
-        var merged = merger.MergeAll(contributions.Select(c => c.Contribution.Overlay));
+        var mask = MasksOf(contributions);
+
+        var merged = merger.MergeAll(
+            contributions.Select(c => mask.Apply(c.Contribution.Overlay)));
 
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<OverlayNode>()
             : StepOutcome.Produced(merged);
     }
+
+    /// <summary>The union of every Section 8.6 mask the run declares.</summary>
+    /// <param name="contributions">Step 5's product.</param>
+    /// <returns>The run-wide mask.</returns>
+    /// <remarks>
+    /// Assembled across all sources before any is pruned. Section 8.6 suppresses a matching
+    /// contribution "regardless of whether it appears before or after the ignore entry", so a mask
+    /// in the last input has to reach a path contributed by the first.
+    /// </remarks>
+    public static ExclusionMask MasksOf(ImmutableArray<InputContribution> contributions) =>
+        ExclusionMask.Of(
+            contributions.SelectMany(c => c.Contribution.Masks).Select(m => m.Pattern));
 
     /// <summary>Section 15.1 step 9: expose ordering values and numeric mapping keys as path parts.</summary>
     /// <param name="merged">Step 8's product.</param>
@@ -179,7 +194,13 @@ public static class InputPhase
     /// <summary>Section 15.1 step 10: evaluate templates under the permanent exclusion masks.</summary>
     /// <param name="exposed">Step 9's product.</param>
     /// <param name="contributions">Step 5's product, which carries the templates and masks.</param>
-    /// <returns>The overlay, once every template and mask is known to be absent.</returns>
+    /// <returns>The overlay, once every template is known to be absent.</returns>
+    /// <remarks>
+    /// The masks are applied again here rather than only at step 8. Step 9 turns ordering values
+    /// and numeric mapping keys into path parts, so a path spelled with an ordering value first
+    /// becomes reachable by a mask at this step; and Section 8.6 keeps masks "active throughout
+    /// wildcard fixed-point evaluation", applying them "to every candidate when it appears".
+    /// </remarks>
     public static StepOutcome<OverlayNode> EvaluateTemplates(
         OverlayNode exposed,
         ImmutableArray<InputContribution> contributions)
@@ -197,19 +218,9 @@ public static class InputPhase
                         + $"{contribution.Contribution.Templates[0].Line}.",
                         "\u00A712"));
             }
-
-            if (!contribution.Contribution.Masks.IsEmpty)
-            {
-                return StepOutcome.Unsupported<OverlayNode>(
-                    new UnsupportedCapability(
-                        "permanent exclusion masks",
-                        $"{contribution.Origin.Identity} declares a '!' mask on line "
-                        + $"{contribution.Contribution.Masks[0].Line}.",
-                        "\u00A78.6"));
-            }
         }
 
-        return StepOutcome.Produced(exposed);
+        return StepOutcome.Produced(MasksOf(contributions).Apply(exposed));
     }
 
     /// <summary>Section 15.1 step 11: project inferable mappings as explicit indexed sequences.</summary>

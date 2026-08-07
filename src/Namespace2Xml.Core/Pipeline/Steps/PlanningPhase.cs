@@ -112,18 +112,29 @@ public static class PlanningPhase
     /// <param name="views">Step 14's product.</param>
     /// <param name="contributions">Step 5's product, which carries every unresolved value.</param>
     /// <returns>The same views, once every value is known to be already resolved.</returns>
+    /// <remarks>
+    /// Entries under a Section 8.6 mask are skipped. A suppressed path is never rendered and can
+    /// never be a reference target, so its value is never resolved and its presence must not stand
+    /// in the way of a run that is otherwise reference-free.
+    /// </remarks>
     public static StepOutcome<ImmutableArray<OutputView>> ResolveReferences(
         ImmutableArray<OutputView> views,
         ImmutableArray<InputContribution> contributions)
     {
+        var mask = InputPhase.MasksOf(contributions);
+
         foreach (var contribution in contributions)
         {
-            if (contribution.Contribution.UnresolvedValues.IsEmpty)
+            var unresolved = contribution.Contribution.UnresolvedValues
+                .Where(entry => !mask.Suppresses(entry.Name.Parts))
+                .ToImmutableArray();
+
+            if (unresolved.IsEmpty)
             {
                 continue;
             }
 
-            var entry = contribution.Contribution.UnresolvedValues[0];
+            var entry = unresolved[0];
 
             return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
                 new UnsupportedCapability(

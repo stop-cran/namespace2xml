@@ -1,0 +1,6 @@
+-i
+inputs/profile.txt
+-i
+inputs/masks.txt
+-s
+schemes/scheme.txt

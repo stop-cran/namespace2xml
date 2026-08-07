@@ -1,0 +1,6 @@
+!app.secret
+!app.legacy
+!app.strict
+app.late=added
+app.secret=recreated
+app.strict=second
