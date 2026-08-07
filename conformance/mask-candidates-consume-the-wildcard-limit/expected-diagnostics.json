@@ -1,3 +1,3 @@
 [
-{"code":"WILDCARD002","severity":"error","phase":"input","rule":"inputs/first.txt:4 a.*","spec":"§12.4"}
+{"code":"WILDCARD002","severity":"error","phase":"input","rule":["a.*"],"spec":"§12.4"}
 ]

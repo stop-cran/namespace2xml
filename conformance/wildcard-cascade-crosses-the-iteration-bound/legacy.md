@@ -56,8 +56,11 @@ one that consumed anything. Blaming it would point the reader at the rule that i
 delete and hide the two that actually built the ladder; blaming every declared rule would make the
 field carry no information at all in a file that declares many.
 
-The report therefore names the two rules that have generated, in source order, each identified by
-source and line as every rule-bearing diagnostic is.
+Section 22 fixes what the report carries: `rule` is "an array of Appendix A canonical wildcard-rule
+names, holding one element per rule the condition holds responsible, in the Section 12.4 source
+order of those rules". So the two names appear as two elements, `a.*.b` before `a.*.*.c`, and the
+diagnostic carries neither a source nor a line for them — a `WILDCARD002` is reported once per
+invocation and has no single position.
 
 ## Exit and output
 

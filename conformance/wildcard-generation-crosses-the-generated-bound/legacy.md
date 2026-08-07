@@ -31,7 +31,8 @@ and a fixture pinned there would pass against an implementation that counted not
 
 ## Which rule is responsible
 
-Only one rule generates, so "report the rules responsible for the limit" names `a.*.tag` alone. The
+Only one rule generates, so "report the rules responsible for the limit" names `a.*.tag` alone, and
+Section 22's `rule` member carries it as a one-element array of its Appendix A canonical name. The
 two matches belong to the same rule, so the report does not depend on which of `a.x` and `a.y` the
 wave reached first — which matters, because a report that named the match rather than the rule would
 make the diagnostic depend on candidate enumeration order, and Section 12.4 forbids depending on it

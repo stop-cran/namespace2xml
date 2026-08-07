@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r30+35e144372ca0`.** 34 codes.
+**Contract bundle `r31+296879e75b78`.** 34 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -28,7 +28,7 @@ by preference.
 | `PARSE002` | error | once per failing source | Invalid or unsupported character encoding | `source`, `line`, `column` |
 | `SCHEME001` | error | once per declaration | Unknown directive, value, or illegal option/type combination | `source`, `line`, `column`, `path`, `declaration` |
 | `SCHEME002` | error | once per expanded declaration | Ambiguous canonical/simple scheme path | `source`, `line`, `column`, `path`, `declaration` |
-| `WILDCARD001` | error | once per rule | Invalid, undefined, mixed, or inconsistent capture | `source`, `line`, `column`, `path`, `rule` |
+| `WILDCARD001` | error | once per rule | Invalid, undefined, mixed, or inconsistent capture | `source`, `line`, `column`, `path` |
 | `WILDCARD002` | error | once per invocation | Nonterminating expansion or wildcard limit | `rule` |
 | `REFERENCE001` | error | once per reachable owning value | Malformed or free-wildcard reference | `source`, `line`, `column`, `path` |
 | `REFERENCE002` | error | once per reachable owning value | Missing reference | `source`, `line`, `column`, `path` |

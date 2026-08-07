@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Namespace2Xml.Diagnostics;
 
 /// <summary>
@@ -49,7 +51,7 @@ public static partial class DiagnosticCodes
         int? column = null,
         string? path = null,
         string? declaration = null,
-        string? rule = null,
+        ImmutableArray<string> rule = default,
         string? destination = null)
     {
         ArgumentNullException.ThrowIfNull(cardinalityKey);

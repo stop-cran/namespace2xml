@@ -40,7 +40,7 @@ public static partial class DiagnosticCodes
         new DiagnosticCodeInfo("WILDCARD001", DiagnosticSeverity.Error,
             "once per rule",
             "Invalid, undefined, mixed, or inconsistent capture",
-            ["source", "line", "column", "path", "rule"]),
+            ["source", "line", "column", "path"]),
         new DiagnosticCodeInfo("WILDCARD002", DiagnosticSeverity.Error,
             "once per invocation",
             "Nonterminating expansion or wildcard limit",
@@ -264,7 +264,6 @@ public static partial class DiagnosticCodes
     /// <param name="line">Section 6.4.3 <c>line</c> member.</param>
     /// <param name="column">Section 6.4.3 <c>column</c> member.</param>
     /// <param name="path">Section 6.4.3 <c>path</c> member.</param>
-    /// <param name="rule">Section 6.4.3 <c>rule</c> member.</param>
     /// <remarks>Cardinality: once per rule.</remarks>
     public static DiagnosticOccurrence Wildcard001(
         DiagnosticPhase phase,
@@ -274,10 +273,9 @@ public static partial class DiagnosticCodes
         string? source = null,
         int? line = null,
         int? column = null,
-        string? path = null,
-        string? rule = null) =>
+        string? path = null) =>
         Create("WILDCARD001", DiagnosticSeverity.Error, phase, spec, message,
-            cardinalityKey, source: source, line: line, column: column, path: path, rule: rule);
+            cardinalityKey, source: source, line: line, column: column, path: path);
 
     /// <summary><c>WILDCARD002</c> (error) — Nonterminating expansion or wildcard limit.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
@@ -289,7 +287,7 @@ public static partial class DiagnosticCodes
         DiagnosticPhase phase,
         string spec,
         string message,
-        string? rule = null) =>
+        ImmutableArray<string> rule = default) =>
         Create("WILDCARD002", DiagnosticSeverity.Error, phase, spec, message,
             Invocation, rule: rule);
 

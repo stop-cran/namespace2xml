@@ -365,6 +365,67 @@ public class HarnessSelfTests
             .ShouldContain(failure => failure.Contains("'column' requires 'line'"));
     }
 
+    /// <summary>
+    /// Section 22 makes <c>rule</c> an array of canonical names. A writer that emits the joined
+    /// string an earlier revision used decodes to a perfectly ordinary JSON value, so only a
+    /// type check rejects it.
+    /// </summary>
+    [Test]
+    public void AJoinedRuleStringIsRejected()
+    {
+        var actual = Utf8(
+            "[\n{\"code\":\"WILDCARD002\",\"severity\":\"error\",\"phase\":\"input\"," +
+            "\"rule\":\"a.*.b, a.*.*.c\",\"spec\":\"§12.4\",\"message\":\"m\"}\n]\n");
+
+        DiagnosticComparer.Compare(actual, actual)
+            .ShouldContain(failure => failure.Contains("must be an array"));
+    }
+
+    /// <summary>
+    /// The schema's <c>minItems</c> makes an empty array a wrong spelling of absent, which is the
+    /// shape a writer produces when it emits the member unconditionally.
+    /// </summary>
+    [Test]
+    public void AnEmptyRuleArrayIsRejected()
+    {
+        var actual = Utf8(
+            "[\n{\"code\":\"WILDCARD002\",\"severity\":\"error\",\"phase\":\"input\"," +
+            "\"rule\":[],\"spec\":\"§12.4\",\"message\":\"m\"}\n]\n");
+
+        DiagnosticComparer.Compare(actual, actual)
+            .ShouldContain(failure => failure.Contains("below the required minimum"));
+    }
+
+    /// <summary>A rule array holding anything but names is not the Section 22 member.</summary>
+    [Test]
+    public void ANonStringRuleElementIsRejected()
+    {
+        var actual = Utf8(
+            "[\n{\"code\":\"WILDCARD002\",\"severity\":\"error\",\"phase\":\"input\"," +
+            "\"rule\":[1],\"spec\":\"§12.4\",\"message\":\"m\"}\n]\n");
+
+        DiagnosticComparer.Compare(actual, actual)
+            .ShouldContain(failure => failure.Contains("every"));
+    }
+
+    /// <summary>
+    /// Element order within <c>rule</c> is Section 12.4 source order, so two streams naming the
+    /// same rules in different orders are different streams.
+    /// </summary>
+    [Test]
+    public void RuleElementOrderIsCompared()
+    {
+        var expected = Utf8(
+            "[\n{\"code\":\"WILDCARD002\",\"severity\":\"error\",\"phase\":\"input\"," +
+            "\"rule\":[\"a.*.b\",\"a.*.*.c\"],\"spec\":\"§12.4\",\"message\":\"m\"}\n]\n");
+        var actual = Utf8(
+            "[\n{\"code\":\"WILDCARD002\",\"severity\":\"error\",\"phase\":\"input\"," +
+            "\"rule\":[\"a.*.*.c\",\"a.*.b\"],\"spec\":\"§12.4\",\"message\":\"m\"}\n]\n");
+
+        DiagnosticComparer.Compare(expected, actual)
+            .ShouldContain(failure => failure.Contains("'rule'"));
+    }
+
     private static string One(string tail, string? spec = null)
     {
         var anchor = spec is null ? string.Empty : $"\"spec\":\"{spec}\",";

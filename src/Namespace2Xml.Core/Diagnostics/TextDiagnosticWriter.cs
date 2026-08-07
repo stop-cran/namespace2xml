@@ -42,7 +42,7 @@ public static class TextDiagnosticWriter
 
         Append(builder, "path", diagnostic.Path);
         Append(builder, "declaration", diagnostic.Declaration);
-        Append(builder, "rule", diagnostic.Rule);
+        Append(builder, "rule", diagnostic.Rule.IsDefaultOrEmpty ? null : string.Join(", ", diagnostic.Rule));
         Append(builder, "destination", diagnostic.Destination);
 
         return builder.ToString();

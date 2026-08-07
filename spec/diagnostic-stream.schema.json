@@ -14,7 +14,7 @@
       "column": { "type": "integer", "minimum": 1 },
       "path": { "type": "string" },
       "declaration": { "type": "string" },
-      "rule": { "type": "string" },
+      "rule": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
       "destination": { "type": "string" },
       "spec": { "type": "string", "pattern": "^§[0-9A-Z]+(\\.[0-9]+)*$" },
       "message": { "type": "string" }

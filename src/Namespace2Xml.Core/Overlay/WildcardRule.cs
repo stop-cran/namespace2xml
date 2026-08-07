@@ -36,8 +36,12 @@ public sealed record WildcardRule(
     /// <summary>The Section 22 key this rule's diagnostics are emitted once per.</summary>
     public string RuleKey => $"{Identity}:{Line}";
 
-    /// <summary>How the <c>rule</c> member of a diagnostic names this rule.</summary>
-    public string Spelling => $"{Identity}:{Line} {CanonicalPath.Of(Name)}";
+    /// <summary>
+    /// The Appendix A canonical name Section 22's <c>rule</c> member carries for this rule. It is
+    /// the name alone: a diagnostic that also carries <c>source</c>, <c>line</c> and <c>path</c>
+    /// locates the rule through those members and omits <c>rule</c> rather than restating them.
+    /// </summary>
+    public string CanonicalName => CanonicalPath.Of(Name) ?? string.Empty;
 }
 
 /// <summary>

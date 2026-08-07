@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
 
@@ -56,7 +57,7 @@ public static class JsonDiagnosticWriter
         AppendOptionalInt(builder, "column", diagnostic.Column);
         AppendOptionalString(builder, "path", diagnostic.Path);
         AppendOptionalString(builder, "declaration", diagnostic.Declaration);
-        AppendOptionalString(builder, "rule", diagnostic.Rule);
+        AppendOptionalStrings(builder, "rule", diagnostic.Rule);
         AppendOptionalString(builder, "destination", diagnostic.Destination);
         AppendString(builder, "spec", diagnostic.Spec, first: false);
         AppendString(builder, "message", diagnostic.Message, first: false);
@@ -87,6 +88,31 @@ public static class JsonDiagnosticWriter
         {
             AppendString(builder, name, value, first: false);
         }
+    }
+
+    private static void AppendOptionalStrings(
+        StringBuilder builder,
+        string name,
+        ImmutableArray<string> values)
+    {
+        if (values.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        builder.Append(',').Append('"').Append(name).Append("\":[");
+
+        for (var i = 0; i < values.Length; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(',');
+            }
+
+            AppendEscaped(builder, values[i]);
+        }
+
+        builder.Append(']');
     }
 
     private static void AppendOptionalInt(StringBuilder builder, string name, int? value)

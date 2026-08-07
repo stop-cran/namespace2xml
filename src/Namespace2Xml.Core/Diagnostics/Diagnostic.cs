@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Namespace2Xml.Diagnostics;
 
 /// <summary>
@@ -24,7 +26,7 @@ public sealed record Diagnostic
     /// <param name="column">One-based column. Requires <paramref name="line"/>.</param>
     /// <param name="path">Canonical qualified path under Appendix A.</param>
     /// <param name="declaration">The scheme declaration that produced the condition.</param>
-    /// <param name="rule">The wildcard rule that produced the condition.</param>
+    /// <param name="rule">Appendix A canonical names of the wildcard rules held responsible.</param>
     /// <param name="destination">Destination path, relative with <c>/</c> separators when inside the output root.</param>
     public Diagnostic(
         string code,
@@ -37,7 +39,7 @@ public sealed record Diagnostic
         int? column = null,
         string? path = null,
         string? declaration = null,
-        string? rule = null,
+        ImmutableArray<string> rule = default,
         string? destination = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
@@ -86,7 +88,7 @@ public sealed record Diagnostic
         Column = column;
         Path = path;
         Declaration = declaration;
-        Rule = rule;
+        Rule = rule.IsDefaultOrEmpty ? [] : rule;
         Destination = destination;
     }
 
@@ -120,8 +122,12 @@ public sealed record Diagnostic
     /// <summary>The scheme declaration that produced the condition.</summary>
     public string? Declaration { get; }
 
-    /// <summary>The wildcard rule that produced the condition.</summary>
-    public string? Rule { get; }
+    /// <summary>
+    /// Appendix A canonical names of the wildcard rules held responsible, in Section 12.4 source
+    /// order. Empty when the condition locates its rule through <see cref="Source"/>,
+    /// <see cref="Line"/> and <see cref="Path"/> instead, in which case the member is omitted.
+    /// </summary>
+    public ImmutableArray<string> Rule { get; }
 
     /// <summary>Destination path, relative with <c>/</c> separators when inside the output root.</summary>
     public string? Destination { get; }

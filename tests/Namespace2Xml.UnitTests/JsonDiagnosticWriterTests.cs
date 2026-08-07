@@ -62,7 +62,7 @@ public class JsonDiagnosticWriterTests
             column: 1,
             path: "a.b",
             declaration: "a.b.type=multiline",
-            rule: "a.*",
+            rule: ["a.*"],
             destination: "output.json"));
         var expectedOrder = new[]
         {

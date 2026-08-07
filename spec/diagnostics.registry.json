@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "0916a464708937f85dbc53659d64714616590b62e9cf3da036c0465ee1c5e2bb"
+    "sha256": "27fc363465060f955171b9def9490303292c9b8bf8c5c6dde8eeadd211dc12cf"
   },
   "authoritativeFor": [
     "code",
@@ -96,8 +96,7 @@
         "source",
         "line",
         "column",
-        "path",
-        "rule"
+        "path"
       ],
       "mappings": [
         "Invalid, undefined, mixed, or inconsistent wildcard capture outside a reference"

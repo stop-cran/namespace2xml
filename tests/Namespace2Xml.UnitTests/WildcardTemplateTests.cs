@@ -374,7 +374,7 @@ public sealed class WildcardTemplateTests
 
         result.ExitCode.ShouldBe(1);
         Codes(result).ShouldBe(["WILDCARD002"]);
-        result.Diagnostics.Single().Rule.ShouldNotBeNull().ShouldContain("a.*.z");
+        result.Diagnostics.Single().Rule.ShouldBe(["a.*.z"]);
         sink.Written.ShouldBeEmpty();
     }
 
@@ -499,7 +499,7 @@ public sealed class WildcardTemplateTests
 
         tight.Result.ExitCode.ShouldBe(1);
         Codes(tight.Result).ShouldBe(["WILDCARD002"]);
-        tight.Result.Diagnostics.Single().Rule.ShouldNotBeNull().ShouldContain("a.*");
+        tight.Result.Diagnostics.Single().Rule.ShouldBe(["a.*"]);
     }
 
     /// <summary>
@@ -515,7 +515,7 @@ public sealed class WildcardTemplateTests
             ("scheme.txt", "a.output=namespace\n"));
 
         result.ExitCode.ShouldBe(1);
-        var rule = result.Diagnostics.Single().Rule.ShouldNotBeNull();
+        var rule = result.Diagnostics.Single().Rule;
         rule.ShouldContain("a.*.z");
         rule.ShouldContain("a.*.y");
     }
@@ -556,7 +556,7 @@ public sealed class WildcardTemplateTests
 
         result.ExitCode.ShouldBe(1);
         Codes(result).ShouldBe(["WILDCARD002"]);
-        var rule = result.Diagnostics.Single().Rule.ShouldNotBeNull();
+        var rule = result.Diagnostics.Single().Rule;
         rule.ShouldContain("a.*.b");
         rule.ShouldContain("a.*.*.c");
     }

@@ -506,6 +506,30 @@ public static class DiagnosticComparer
 
                 break;
 
+            case "array":
+                if (value.ValueKind != JsonValueKind.Array)
+                {
+                    yield return $"member '{name}' must be an array but is {value.ValueKind}.";
+                    yield break;
+                }
+
+                if (constraint.MinItems is int minItems && value.GetArrayLength() < minItems)
+                {
+                    yield return $"member '{name}' has {value.GetArrayLength()} elements, " +
+                                 $"below the required minimum of {minItems}.";
+                }
+
+                foreach (var element in value.EnumerateArray())
+                {
+                    if (element.ValueKind != JsonValueKind.String)
+                    {
+                        yield return $"member '{name}' holds {element.ValueKind}, but every " +
+                                     "element must be a string.";
+                    }
+                }
+
+                break;
+
             default:
                 break;
         }
@@ -518,6 +542,7 @@ public static class DiagnosticComparer
         string[]? Enum,
         string? Pattern,
         int? MinLength,
+        int? MinItems,
         long? Minimum);
 
     private static readonly Lazy<IReadOnlyDictionary<string, MemberConstraint>> SchemaProperties =
@@ -544,6 +569,7 @@ public static class DiagnosticComparer
                     : null,
                 Pattern: body.TryGetProperty("pattern", out var pattern) ? pattern.GetString() : null,
                 MinLength: body.TryGetProperty("minLength", out var minLength) ? minLength.GetInt32() : null,
+                MinItems: body.TryGetProperty("minItems", out var minItems) ? minItems.GetInt32() : null,
                 Minimum: body.TryGetProperty("minimum", out var minimum) ? minimum.GetInt64() : null);
         }
 

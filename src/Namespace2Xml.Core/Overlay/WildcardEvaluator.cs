@@ -665,9 +665,7 @@ public sealed class WildcardEvaluator
                 DiagnosticPhase.Input,
                 "\u00A712.4",
                 $"wildcard evaluation crosses {fault.Spelling}, whose limit is {fault.Limit}.",
-                rule: blamed.Count == 0
-                    ? null
-                    : string.Join(", ", blamed.Select(rule => rule.Spelling))),
+                rule: [.. blamed.Select(rule => rule.CanonicalName)]),
             blamed.Count == 0 ? StableOrderingKey.First : blamed[0].Order));
     }
 
@@ -680,7 +678,6 @@ public sealed class WildcardEvaluator
                 cardinalityKey: rule.RuleKey,
                 source: rule.Source,
                 line: rule.Source is null ? null : rule.Line,
-                path: CanonicalPath.Of(rule.Name),
-                rule: rule.Spelling),
+                path: CanonicalPath.Of(rule.Name)),
             rule.Order));
 }

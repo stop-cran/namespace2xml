@@ -44,8 +44,14 @@ $memberType = @{
     column      = 'int?'
     path        = 'string?'
     declaration = 'string?'
-    rule        = 'string?'
+    rule        = 'ImmutableArray<string>'
     destination = 'string?'
+}
+
+# A member whose absent form is not `null`. Section 22 makes `rule` an array, and an absent array is
+# the default one: a nullable ImmutableArray would give the member two spellings for absent.
+$memberDefault = @{
+    rule = 'default'
 }
 
 function ConvertTo-MethodName {
@@ -155,7 +161,8 @@ foreach ($entry in $registry.codes) {
         $parameters.Add('string cardinalityKey')
     }
     foreach ($field in $ordered) {
-        $parameters.Add($memberType[$field] + ' ' + $field + ' = null')
+        $default = if ($memberDefault.ContainsKey($field)) { $memberDefault[$field] } else { 'null' }
+        $parameters.Add($memberType[$field] + ' ' + $field + ' = ' + $default)
     }
 
     for ($i = 0; $i -lt $parameters.Count; $i++) {

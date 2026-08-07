@@ -500,7 +500,7 @@ The array is described by the following closed schema, which is normative. `addi
       "column": { "type": "integer", "minimum": 1 },
       "path": { "type": "string" },
       "declaration": { "type": "string" },
-      "rule": { "type": "string" },
+      "rule": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
       "destination": { "type": "string" },
       "spec": { "type": "string", "pattern": "^§[0-9A-Z]+(\\.[0-9]+)*$" },
       "message": { "type": "string" }
@@ -2518,6 +2518,8 @@ Every diagnostic must include, where applicable:
 - concise explanation.
 
 Line and column, where present, are measured over the decoded character stream defined by Section 7.4, after any byte-order mark has been removed. Line 1 is the first line. A line is terminated by LF, CRLF, or a lone CR, and by nothing else; consistently with Section 8.1, U+0085, U+2028, and U+2029 do not terminate a line. Column 1 is the first Unicode scalar value of a line, and each subsequent scalar advances the column by one, so a character outside the Basic Multilingual Plane occupies one column and a tab occupies one column. A condition with no position in a source omits line and column rather than reporting a default.
+
+The `rule` member is an array of Appendix A canonical wildcard-rule names, holding one element per rule the condition holds responsible, in the Section 12.4 source order of those rules. It carries names and nothing else: a condition that already locates its rule through `source`, `line`, and `path` omits `rule` rather than restating them, and a condition that reports one rule carries a one-element array. The member is an array rather than a joined string because an Appendix A component may contain any ordinary scalar, including a comma and a space, so no textual separator would be unambiguous.
 
 Blocking errors include:
 
