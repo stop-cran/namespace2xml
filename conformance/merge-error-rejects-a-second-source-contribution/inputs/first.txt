@@ -1,0 +1,2 @@
+strict.a=1
+strict.b=2

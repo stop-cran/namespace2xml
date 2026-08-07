@@ -2525,6 +2525,22 @@ Line and column, where present, are measured over the decoded character stream d
 
 The `rule` member is an array of Appendix A canonical wildcard-rule names, holding one element per rule the condition holds responsible, in the Section 12.4 source order of those rules. It carries names and nothing else: a condition that already locates its rule through `source`, `line`, and `path` omits `rule` rather than restating them, and a condition that reports one rule carries a one-element array. The member is an array rather than a joined string because an Appendix A component may contain any ordinary scalar, including a comma and a space, so no textual separator would be unambiguous.
 
+**Which members a condition supplies.** The field list below is the set of members a *code* may carry. A code covers several conditions, and they do not all carry the same members, so the list alone does not determine any one diagnostic. Each member is supplied when the condition itself has the fact that member names, and omitted otherwise:
+
+- `source` — the condition arises at one identifiable input, scheme, or command-line origin, and names that origin;
+- `line` — the condition further names one physical record within that origin;
+- `column` — the condition further names one position within that record. A condition about a whole record, such as one raised over a compiled declaration or a wildcard rule rather than over the text that produced it, supplies `line` without `column` rather than inventing a precision it does not have;
+- `path` — the condition concerns one overlay node or one projected output key, and names its Appendix A canonical spelling;
+- `declaration` — the condition concerns one scheme declaration, and names its canonical spelling;
+- `destination` — the condition concerns one planned or published output file;
+- `rule` — as defined above.
+
+Note that the cardinality column does not answer this question. Cardinality states how many occurrences of a code one run may report, not what identifies one: `PARSE001` is counted once per failing source and still names the record that failed, while `LIMIT001` and `WILDCARD002` are counted once per invocation and still name what crossed the bound.
+
+The tie-breaker, where a condition could be attributed to more than one place, is that these members name **where the condition is, not where its subject came from**. A condition raised over the merged model, an output plan, or the invocation as a whole therefore supplies no `source`, even where a contributing entry could be traced back to one and even where doing so would be helpful. A `merge=error` conflict at a path is a property of that path after folding, so it supplies `path` and no `source`; the same holds for the Section 8.7 concatenation warning. Attributing such a condition to one of its contributions would make the diagnostic depend on which contribution the implementation happened to hold, which Section 24 forbids.
+
+A member this rule does not reach is omitted rather than defaulted, and `column` additionally requires `line`.
+
 Blocking errors include:
 
 - malformed namespace syntax;

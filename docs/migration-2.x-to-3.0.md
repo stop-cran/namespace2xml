@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r32+ca108cd6d7af`.**
+**Contract bundle `r33+925af40f8fec`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -637,6 +637,7 @@ defect in the fixture; see CONTRIBUTING.md.
 
 - `mask-candidates-consume-the-wildcard-limit`
 - `mask-clears-shape-marks`
+- `merge-error-rejects-a-second-source-contribution`
 - `merge-strategies-over-native-sequence-shapes`
 - `wildcard-cascade-completes-within-the-iteration-bound`
 - `wildcard-cascade-crosses-the-iteration-bound`
