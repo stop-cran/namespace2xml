@@ -99,11 +99,9 @@ public static class YamlInputReader
             }
             catch (YamlException error)
             {
-                Fail(
-                    Explain(error),
-                    (int)error.Start.Line,
-                    lines.ColumnOf((int)error.Start.Line, (int)error.Start.Column),
-                    "\u00A710.1");
+                var (line, column) = At(error.Start);
+
+                Fail(Explain(error), line, column, "\u00A710.1");
                 return null;
             }
 
@@ -575,14 +573,26 @@ public static class YamlInputReader
         }
 
         /// <summary>The Section 22 position of a YamlDotNet mark.</summary>
-        /// <param name="at">The mark.</param>
+        /// <param name="at">The mark to convert.</param>
         /// <remarks>
-        /// <c>Mark.Column</c> is a UTF-16 code-unit column, so a supplementary scalar earlier on
-        /// the line has already advanced it by two where Section 22 advances by one. Every host
-        /// position enters through here, so the two units cannot be confused at a call site.
+        /// <para>
+        /// Neither of <c>Mark</c>'s two coordinates may be used as reported. <c>Mark.Column</c> is
+        /// a UTF-16 code-unit column, so a supplementary scalar earlier on the line has already
+        /// advanced it by two where Section 22 advances by one. <c>Mark.Line</c> is counted by a
+        /// YAML 1.1 scanner, in which U+0085, U+2028 and U+2029 are line breaks; Section 22 says a
+        /// line ends "by LF, CRLF, or a lone CR, and by nothing else", so one of those characters
+        /// anywhere in a document makes every later <c>Mark.Line</c> too large -- and makes a
+        /// column converted against that line the column of some other line entirely.
+        /// </para>
+        /// <para>
+        /// <c>Mark.Index</c> is neither: it is a raw UTF-16 offset into the decoded text, verified
+        /// to survive CRLF, a lone CR and supplementary scalars without normalization. Rebuilding
+        /// both coordinates from it makes the reported position independent of how the host counts
+        /// lines. Every host position enters through here, so the units cannot be confused at a
+        /// call site.
+        /// </para>
         /// </remarks>
-        private (int Line, int Column) At(Mark at) =>
-            ((int)at.Line, lines.ColumnOf((int)at.Line, (int)at.Column));
+        private (int Line, int Column) At(Mark at) => lines.PositionOf((int)at.Index);
 
         private bool Reject(string message, Mark at, string spec)
         {

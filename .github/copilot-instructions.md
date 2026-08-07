@@ -271,6 +271,28 @@ $t = [IO.File]::ReadAllText($p)
   prohibited", plus advice to set `XmlReaderSettings.DtdProcessing`. Host advice naming an API the
   user cannot reach is stripped in `Explain`; check for a new one whenever a host version changes.
 
+### A host's *line* number can be wrong, not just its column
+
+Converting a host column into Section 22 scalar columns is only half the problem, and fixing only
+that half hides the other. **YamlDotNet's scanner is YAML 1.1, in which U+0085, U+2028 and U+2029
+are line breaks.** Section 22 says a line ends "by LF, CRLF, or a lone CR, and by nothing else", so
+one of those characters anywhere in a document makes every later `Mark.Line` too large — and a
+column converted against that wrong line is a column of some other line entirely, so the fix that
+addressed only columns made the failure *worse* on exactly these documents.
+
+`Mark.Index` is the way out: it is a raw UTF-16 offset into the decoded text, verified to survive
+CRLF, a lone CR and supplementary scalars without normalization, so `SourceLines.PositionOf` can
+rebuild both coordinates and the host's line numbering stops mattering. Prefer an offset to a
+(line, column) pair from any host that offers one.
+
+`XmlReader` was measured and is **not** affected — XML 1.0 normalizes only CR, LF and CRLF, so its
+line numbers already match Section 22. Measure rather than assume: the two hosts differ, and the
+`SourceLines` doc comment previously asserted they agreed.
+
+A test for this needs a **control document** that spends a real LF where the other spends the
+excluded character. Without one, the host reports the same line for both — right for the control,
+wrong for the other — and a single-document test passes on the coincidence.
+
 ### The mutation harness leaves the binaries mutated
 
 `mutate2.ps1` restores the *source* in its `finally`, but the last `dotnet test` it ran compiled the

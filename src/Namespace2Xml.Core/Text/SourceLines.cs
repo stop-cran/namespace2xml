@@ -16,8 +16,13 @@ namespace Namespace2Xml.Text;
 /// </para>
 /// <para>
 /// Section 22 also fixes what ends a line: "LF, CRLF, or a lone CR, and by nothing else", and
-/// U+0085, U+2028 and U+2029 explicitly do not. That is the rule this table is built to, and it
-/// is also the rule XML and YAML line counting follows, so a host line number indexes it directly.
+/// U+0085, U+2028 and U+2029 explicitly do not. That is the rule this table is built to.
+/// <see cref="System.Xml.XmlReader"/> counts lines by the same rule -- XML 1.0 normalizes only
+/// CR, LF and CRLF -- so an XML line number indexes this table directly and only its column needs
+/// converting. <b>YamlDotNet does not</b>: its scanner is YAML 1.1, where NEL, LS and PS are line
+/// breaks, so a document containing one of them makes every subsequent YamlDotNet line number too
+/// large. A YAML position must therefore be rebuilt from its offset with
+/// <see cref="PositionOf(int)"/> rather than converted with <see cref="ColumnOf(int, int)"/>.
 /// </para>
 /// </remarks>
 public sealed class SourceLines
@@ -79,5 +84,31 @@ public sealed class SourceLines
             : ScalarColumn.Advance(text.AsSpan(start, codeUnits), codeUnits)
                 + 1
                 + (column - 1 - codeUnits);
+    }
+
+    /// <summary>
+    /// The Section 22 line and column of a UTF-16 code-unit offset into this source.
+    /// </summary>
+    /// <param name="index">A zero-based UTF-16 code-unit offset into the decoded text.</param>
+    /// <returns>The one-based Section 22 line and column of that offset.</returns>
+    /// <remarks>
+    /// This derives both coordinates from the offset alone, so it is the conversion to use for a
+    /// host whose <em>line</em> numbering disagrees with Section 22 and not only its column. An
+    /// offset past the end of the source names the position just after the last scalar, which is
+    /// where a host reports an unexpected end of input.
+    /// </remarks>
+    public (int Line, int Column) PositionOf(int index)
+    {
+        var at = Math.Clamp(index, 0, text.Length);
+        var line = Array.BinarySearch(starts, at);
+
+        if (line < 0)
+        {
+            line = ~line - 1;
+        }
+
+        var start = starts[line];
+
+        return (line + 1, ScalarColumn.Advance(text.AsSpan(start, at - start), at - start) + 1);
     }
 }

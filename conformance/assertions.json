@@ -313,11 +313,13 @@
       "status": "required",
       "assertions": [
         "A RestrictedYaml1 document parses, and Section 10.1 decides a plain scalar's kind independently of the host library's own schema.",
-        "Anchors, explicit tags, document markers, duplicate keys, merge keys, and complex keys are each PARSE001 against the source that carries them."
+        "Anchors, explicit tags, document markers, duplicate keys, merge keys, and complex keys are each PARSE001 against the source that carries them.",
+        "A refusal's reported line counts LF, CRLF and a lone CR and nothing else, so U+0085, U+2028 and U+2029 are data on the line that carries them and do not advance it."
       ],
       "fixtures": [
         "yaml-restricted-schema-and-scalar-kinds",
-        "yaml-restricted-schema-refusals"
+        "yaml-restricted-schema-refusals",
+        "yaml-section-22-line-terminators"
       ]
     },
     {

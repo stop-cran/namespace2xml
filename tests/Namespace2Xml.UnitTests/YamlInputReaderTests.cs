@@ -544,4 +544,36 @@ public class YamlInputReaderTests
         supplementary.Column.ShouldBe(ascii.Column);
         ascii.Column.ShouldNotBeNull();
     }
+
+    /// <summary>
+    /// Section 22: a line is terminated by "LF, CRLF, or a lone CR, and by nothing else", and
+    /// "U+0085, U+2028, and U+2029 do not terminate a line". Moving a line break of the host's own
+    /// invention into a document must therefore not move the reported line.
+    /// </summary>
+    /// <param name="other">The character Section 22 excludes.</param>
+    /// <remarks>
+    /// <para>
+    /// YamlDotNet's scanner is YAML 1.1, in which all three characters <em>are</em> breaks, so its
+    /// <c>Mark.Line</c> is one too large after each of them. The control document spends a real LF
+    /// where the carried one spends the excluded character, which makes the host report line 3 for
+    /// both while Section 22 reports 3 and 2 -- so the assertion that discriminates is the carried
+    /// line, and the control is there to show the fault has not otherwise moved.
+    /// </para>
+    /// <para>
+    /// A line number converted from the wrong line also takes its column with it, which is why the
+    /// column is compared as well.
+    /// </para>
+    /// </remarks>
+    [TestCase("\u0085")]
+    [TestCase("\u2028")]
+    [TestCase("\u2029")]
+    public void ACharacterSection22ExcludesDoesNotStartALine(string other)
+    {
+        var control = Diagnose("a: 1\nb: 2\nc: !!str v\n").ShouldHaveSingleItem();
+        var carried = Diagnose("a: 1" + other + "b: 2\nc: !!str v\n").ShouldHaveSingleItem();
+
+        control.Line.ShouldBe(3);
+        carried.Line.ShouldBe(2);
+        carried.Column.ShouldBe(control.Column);
+    }
 }
