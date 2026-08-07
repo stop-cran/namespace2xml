@@ -18,6 +18,27 @@ public static class LimitValue
     private const long Mebibyte = 1024 * 1024;
     private const long Gibibyte = 1024 * 1024 * 1024;
 
+    /// <summary>
+    /// The documented hard safety ceiling on <c>--max-depth</c>, which Section 6.2 permits an
+    /// implementation to impose and makes <c>CLI001</c> to exceed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Several pipeline phases walk the overlay tree by recursion, so document nesting costs stack.
+    /// Without a ceiling the tool accepts a depth it cannot honour and the process dies with a
+    /// stack overflow — an outcome Section 6.3 does not define, that no diagnostic can describe
+    /// because the runtime does not let one be written, and that a caller sees only as an exit
+    /// status. A refusal the caller can read is strictly better than a crash it cannot.
+    /// </para>
+    /// <para>
+    /// The value is eight times the Section 6.2 default of 512 and matches the
+    /// <c>--max-reference-depth</c> default, so raising the bound for a genuinely deep document
+    /// remains possible. <see cref="Namespace2Xml.Pipeline.Transformation"/> runs the pipeline on a
+    /// stack sized to honour it.
+    /// </para>
+    /// </remarks>
+    public const long MaxDepthCeiling = 4096;
+
     /// <summary>Parses a count or depth value: <c>[1-9][0-9]*</c>, with no suffix permitted.</summary>
     /// <param name="text">The raw option value, exactly as it appeared on the command line.</param>
     /// <param name="value">The parsed value when this method returns <see langword="true"/>.</param>

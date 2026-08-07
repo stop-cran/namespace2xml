@@ -341,9 +341,19 @@ public static class CommandLineParser
                         : ByteFault(option, value);
 
                 case "--max-depth":
-                    return LimitValue.TryParseCount(value, out var maxDepth)
-                        ? Set(current => current with { MaxDepth = maxDepth })
-                        : CountFault(option, value);
+                    if (!LimitValue.TryParseCount(value, out var maxDepth))
+                    {
+                        return CountFault(option, value);
+                    }
+
+                    // Section 6.2: "a value exceeding an implementation's documented hard safety
+                    // ceiling is CLI001". Accepting a depth the pipeline cannot walk would trade
+                    // this readable refusal for a stack overflow, which Section 6.3 does not
+                    // define and which cannot carry a diagnostic.
+                    return maxDepth > LimitValue.MaxDepthCeiling
+                        ? $"'{option}' accepts at most {LimitValue.MaxDepthCeiling}, this build's "
+                            + $"documented hard safety ceiling, but got '{value}'."
+                        : Set(current => current with { MaxDepth = maxDepth });
 
                 case "--max-nodes":
                     return LimitValue.TryParseCount(value, out var maxNodes)

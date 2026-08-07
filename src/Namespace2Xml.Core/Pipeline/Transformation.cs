@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.ExceptionServices;
 using Namespace2Xml.Budgets;
 using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
@@ -55,6 +56,14 @@ public static class Transformation
     /// <param name="reader">Where source bytes come from, or <c>null</c> for the file system.</param>
     /// <param name="sink">Where output bytes go, or <c>null</c> for the file system.</param>
     /// <returns>What the run produced.</returns>
+    /// <remarks>
+    /// The work happens on a thread with an explicitly sized stack. Several phases walk the overlay
+    /// tree by recursion, so the depth a run can survive is a property of the stack it is given —
+    /// and the ambient stack is whatever the host chose, which differs between platforms and
+    /// between a thread-pool thread and a main thread. Sizing it here is what lets
+    /// <see cref="LimitValue.MaxDepthCeiling"/> be a promise rather than a hope, and is also what
+    /// keeps the promise identical on every supported platform.
+    /// </remarks>
     public static TransformationResult Run(
         CommandLine command,
         ISourceReader? reader = null,
@@ -62,6 +71,48 @@ public static class Transformation
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        TransformationResult? result = null;
+        ExceptionDispatchInfo? failure = null;
+
+        var worker = new Thread(
+            () =>
+            {
+                try
+                {
+                    result = RunCore(command, reader, sink);
+                }
+                catch (Exception error)
+                {
+                    failure = ExceptionDispatchInfo.Capture(error);
+                }
+            },
+            PipelineStackBytes);
+
+        worker.Start();
+        worker.Join();
+
+        failure?.Throw();
+
+        return result!;
+    }
+
+    /// <summary>
+    /// The stack the pipeline runs on, sized so that a document at
+    /// <see cref="LimitValue.MaxDepthCeiling"/> completes every recursive phase.
+    /// </summary>
+    /// <remarks>
+    /// A document of depth 1,000 completes in the 1 MiB the host gives a main thread by default,
+    /// which puts the deepest phase near 1 KiB of stack per level. Sixteen mebibytes is therefore
+    /// roughly a fourfold margin over the 4,096 ceiling, and costs nothing until it is touched:
+    /// the value reserves address space, and pages are committed on demand.
+    /// </remarks>
+    private const int PipelineStackBytes = 16 * 1024 * 1024;
+
+    private static TransformationResult RunCore(
+        CommandLine command,
+        ISourceReader? reader,
+        IPublicationSink? sink)
+    {
         var run = new PipelineRun();
         var budget = new GlobalBudget(command.Limits);
         var loader = new SourceLoader(reader ?? new FileSystemSourceReader(), command.Limits);

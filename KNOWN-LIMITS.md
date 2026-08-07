@@ -177,6 +177,27 @@ The extension decides, not the content — a scheme written in namespace-profile
 `scheme.json` is still declined, and one saved as `scheme.ini`, `scheme.sh` or with no extension at
 all is still read, exactly as §7.1 treats input files.
 
+### 1.5 `--max-depth` has a hard safety ceiling of 4096
+
+§6.2 permits a build to document a hard safety ceiling on a limit option and makes a larger value
+`CLI001`. This build imposes one on `--max-depth`, at **4096** — eight times the §6.2 default of
+512, and equal to the `--max-reference-depth` default. Every other `--max-*` option is unrestricted
+beyond the §6.2 grammar.
+
+The reason is that several pipeline phases walk the document tree by recursion, so document nesting
+costs stack. Before the ceiling existed, `--max-depth 100000` with a 2,000-deep document did not
+report anything: the process died with a stack overflow (`0xC00000FD`), which §6.3 does not define
+as an outcome, which no diagnostic can describe because the runtime does not permit one to be
+written, and which a caller sees only as an exit status. **verified**
+
+The pipeline runs on a thread with a 16 MiB stack so the ceiling is honoured rather than merely
+declared: a 4,095-deep XML document completes and exits `0`, and equivalent JSON and YAML documents
+do the same. **verified**
+
+If you have a real document deeper than 4096, that is a finding worth reporting — the honest fix is
+to convert the recursive phases to explicit traversal, and a real document is the evidence that
+justifies it.
+
 ## 2. Acceptance coverage
 
 `conformance/assertions.json` records all 86 acceptance requirements from specification §26, each

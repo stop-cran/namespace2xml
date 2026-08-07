@@ -57,6 +57,11 @@ internal static class HelpText
 
         LIMITS
           Every resource bound is a --max-* option. See the specification, section 6.2.
+          Section 6.2 lets a build document a hard safety ceiling and reject a larger value
+          as CLI001. This build imposes one: --max-depth accepts at most 4096, because
+          several phases walk the document tree by recursion. Refusing a depth this build
+          cannot walk is what keeps a too-deep request a readable error rather than a
+          process crash carrying no diagnostic at all.
 
         EXIT CODES
           0  Success, including success with warnings.

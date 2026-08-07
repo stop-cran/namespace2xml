@@ -1,3 +1,4 @@
+using System.Globalization;
 using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
 using NUnit.Framework;
@@ -297,6 +298,42 @@ public sealed class CommandLineParserTests
     [TestCase("--max-input-bytes", "9000000000GiB")]
     public void AMalformedLimitValueIsRejected(string option, string value) =>
         ParseFail([.. Minimal, option, value]).Code.ShouldBe("CLI001");
+
+    /// <summary>
+    /// Section 6.2: "a value exceeding an implementation's documented hard safety ceiling is
+    /// <c>CLI001</c>". Several phases walk the overlay tree by recursion, so a depth the pipeline
+    /// cannot survive has to be refused where a refusal can still be reported — accepting it trades
+    /// this diagnostic for a stack overflow, which Section 6.3 does not define and which cannot
+    /// carry a diagnostic at all.
+    /// </summary>
+    /// <param name="value">A depth at or beyond the ceiling.</param>
+    /// <param name="accepted">Whether Section 6.2 admits it.</param>
+    [TestCase("4096", true)]
+    [TestCase("4097", false)]
+    [TestCase("100000", false)]
+    [TestCase("9223372036854775807", false)]
+    public void ADepthBeyondTheDocumentedCeilingIsRejected(string value, bool accepted)
+    {
+        if (accepted)
+        {
+            ParseOk([.. Minimal, "--max-depth", value]).Limits.MaxDepth
+                .ShouldBe(LimitValue.MaxDepthCeiling);
+            return;
+        }
+
+        var fault = ParseFail([.. Minimal, "--max-depth", value]);
+
+        fault.Code.ShouldBe("CLI001");
+        fault.Message.ShouldContain(LimitValue.MaxDepthCeiling.ToString(CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// The ceiling must leave the Section 6.2 default usable, and leave room above it: a ceiling
+    /// equal to the default would make the option settable only downwards.
+    /// </summary>
+    [Test]
+    public void TheCeilingIsAboveTheDefaultDepth() =>
+        LimitValue.MaxDepthCeiling.ShouldBeGreaterThan(ResourceLimits.Defaults.MaxDepth);
 
     /// <summary>
     /// The reported fault is the first in token order, not the first the accumulator happens to

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
@@ -632,5 +633,59 @@ public sealed class TransformationTests
         var occurrence = result.Diagnostics.Single(d => d.Code == "PARSE002");
         occurrence.Phase.ShouldBe(DiagnosticPhase.Scheme);
         occurrence.Source.ShouldBe("scheme.txt");
+    }
+
+    // ---- Depth --------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A document at the documented <c>--max-depth</c> ceiling completes. Several phases walk the
+    /// overlay tree by recursion, so the depth a run survives is a property of the stack it is
+    /// given, and <see cref="Transformation.Run"/> sizes that stack rather than inheriting whatever
+    /// the host chose. Without this the ceiling is a claim no test stands behind: nothing else in
+    /// the suite nests a document deeply enough to touch it.
+    /// </summary>
+    /// <remarks>
+    /// The assertion is that the run reaches a Section 6.3 outcome at all. A stack overflow is not
+    /// a failing assertion — it terminates the test host — so this test failing and this test
+    /// vanishing look different, which is the point.
+    /// </remarks>
+    [Test]
+    public void ADocumentAtTheDepthCeilingCompletes()
+    {
+        const int depth = (int)LimitValue.MaxDepthCeiling - 1;
+
+        var document = new StringBuilder(depth * 8);
+
+        for (var i = 0; i < depth; i++)
+        {
+            document.Append("<a>");
+        }
+
+        document.Append('v');
+
+        for (var i = 0; i < depth; i++)
+        {
+            document.Append("</a>");
+        }
+
+        var sink = new Sink();
+        var sources = new Sources(
+            ("in.xml", document.ToString()),
+            ("scheme.txt", "a.output=namespace\na.filename=out\n"));
+
+        var result = Run(
+            sink,
+            sources,
+            "-i",
+            "in.xml",
+            "-s",
+            "scheme.txt",
+            "--max-depth",
+            LimitValue.MaxDepthCeiling.ToString(CultureInfo.InvariantCulture),
+            "--max-nodes",
+            "10000000");
+
+        result.Diagnostics.ShouldNotContain(d => d.Code == "LIMIT001");
+        result.ExitCode.ShouldBe(0);
     }
 }
