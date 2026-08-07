@@ -23,6 +23,8 @@ Concretely, this means:
 - Do not read the source to find out what the correct behaviour is. Read `docs/specification.md`.
 - Do not change observable behaviour without a conformance fixture that fails before and passes
   after, authored from the specification.
+- Do not trust a test you have not watched fail. Mutate what it guards, see it go red, restore.
+  This is `CONTRIBUTING.md` C7, and `.github/copilot-instructions.md` carries the harness shape.
 - **Never** create a fixture's expected output by capturing what the tool currently prints. A test
   that records the implementation's own opinion validates nothing. This is the single easiest rule
   to violate quietly and the most damaging.

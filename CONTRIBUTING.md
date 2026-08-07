@@ -13,7 +13,7 @@ Read it before changing anything, and before reporting anything.
 | Binding | Reference |
 |---|---|
 | §2 The ownership chain | §1 Why the project is shaped this way |
-| §3 The change protocol, rules C1–C6 | §7 Usage methodology |
+| §3 The change protocol, rules C1–C7 | §7 Usage methodology |
 | §4 The report forms and routing | §6 Worked examples |
 | §5 Channel selection and flood control | §9 Release log rationale |
 
@@ -91,7 +91,7 @@ commit accidentally, rather than merely discouraged.
 
 ## 3. The change protocol (binding)
 
-Six rules. A rule with no enforcer is decoration, so each one names its enforcer — and, where the
+Seven rules. A rule with no enforcer is decoration, so each one names its enforcer — and, where the
 enforcer does not exist yet, says so in the same breath. [KNOWN-LIMITS.md §4](KNOWN-LIMITS.md#4-documented-but-not-yet-enforced)
 is the single list of which gates are live; this section must never contradict it.
 
@@ -175,6 +175,36 @@ successful run:
 All three are security- or data-integrity-relevant, and a refactor that breaks any of them will look
 completely healthy. That is the prediction of §1 made concrete, and it is why C6 is a rule rather
 than advice.
+
+### C7 — Evidence must be able to fail
+
+A test, a gate or an assertion earns trust only by being shown to reject something. Two limbs:
+
+- **A new test or gate is run against a deliberate defect and observed to go red**, then restored.
+  A green suite proves nothing about a rule nobody has watched fail. `HarnessSelfTests` is this
+  rule applied to the conformance comparer, and it is why the comparer is trustworthy.
+- **An assertion in `conformance/assertions.json` names only what its fixtures can observe.** If no
+  fixture output would differ were the claim false, the claim is not covered — regardless of how
+  many fixtures cite the item.
+
+*Enforced by:* **nothing machine-checkable, and it probably cannot be.** Both limbs are reviewer
+obligations, and the second is the harder one to see. Tracked in KNOWN-LIMITS §4.
+
+**Why the second limb needed writing down.** Acceptance item 15 claimed for months that "no external
+or network resource is retrieved". Every fixture input declared a DTD, which is refused before any
+identifier is looked at — so the corpus proved only that a DTD is refused, and an implementation
+that retrieved a resource and *then* refused would have passed unchanged. The item was cited, the
+fixtures were green, the traceability gate was satisfied, and the claim was untested. Nothing in
+C1–C6 catches that, because every one of them is about whether evidence *exists*, not about whether
+the evidence could have come out differently.
+
+The check is a single question, and it is worth asking out loud for each assertion you write:
+**if this claim were false, which byte of which fixture would change?** If the answer is "none", you
+have written documentation, not an assertion.
+
+Corollary for oracles: an arm of a comparer that no input can reach is not defence in depth, it is
+unexercised code in the one component that must not be wrong. Delete it and record which mechanism
+actually closes the hole.
 
 ---
 
@@ -278,19 +308,28 @@ in a tool whose contract is byte-identical output, the analyser warnings that ma
 sensitive comparison, unchecked arithmetic in limit accounting — are correctness bugs wearing a
 warning's clothes.
 
-After editing `docs/specification.md`, regenerate the derived artifacts:
+After editing `docs/specification.md`, regenerate the derived artifacts. Run all five, in this order
+— the codes come from the registry, the bundle hashes the registry, and the docs read the bundle:
 
 ```
 pwsh -NoProfile -File tools/sync-diagnostics-registry.ps1
+pwsh -NoProfile -File tools/sync-diagnostic-codes.ps1
 pwsh -NoProfile -File tools/sync-contract-bundle.ps1
 pwsh -NoProfile -File tools/sync-assertion-manifest.ps1
+pwsh -NoProfile -File tools/sync-docs.ps1
 ```
+
+Adding or changing a conformance fixture needs `sync-assertion-manifest.ps1` and `sync-docs.ps1`,
+because coverage and the migration notes are both derived from the corpus.
 
 These are generators, not formatters. `spec/diagnostics.registry.json` is derived from the §22 table,
 `spec/diagnostic-stream.schema.json` is extracted verbatim from the §6.4.3 code block, and
 `conformance/assertions.json` derives its item text from §26 while preserving the authored
 `milestone`, `status` and `assertions` fields. Hand-editing the derived parts will be reverted by
 the next run and rejected by CI in between.
+
+Generators are idempotent, and idempotent is not correct. Read the output of one you have changed
+rather than re-running it and observing that nothing moved.
 
 ### Adding a conformance fixture
 
@@ -312,6 +351,11 @@ accidentally pass by reading an artifact left behind by a previous run.
 `legacy.md` is required for a reason. Every intentional divergence from 2.4.0 must be written down at
 the moment it is introduced, by the person who knows why. Reconstructing that list at release time
 produces a worse migration guide and takes longer.
+
+Before you finish, apply C7 to the case: for each assertion the acceptance items claim, name the
+byte that would change if the claim were false. An input that is refused for reason A cannot be
+evidence about reason B, however plainly it names B — that is how "no external resource is
+retrieved" stayed unexercised behind a DTD refusal that fired first.
 
 ### Commits and pull requests
 

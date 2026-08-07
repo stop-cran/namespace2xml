@@ -34,6 +34,42 @@ CI additionally runs `actionlint` over `.github/workflows/`, and a gate assertin
 `conformance`, `spec`, `tools` or `spikes` is gitignored and that no conformance fixture carries a
 CR byte.
 
+## Proving a test can fail (CONTRIBUTING C7)
+
+The loop above only shows that everything is green. Green is not evidence: a test nobody has watched
+fail is a claim, not a check. Before a new test or gate is trusted, mutate the source it guards and
+watch it go red.
+
+The harness shape that works here — write it to a `TEMP-mutate-<topic>.ps1`, delete it before
+committing:
+
+```powershell
+$orig = [IO.File]::ReadAllText($file)          # absolute path; see the CWD trap below
+try {
+    [IO.File]::WriteAllText($file, $orig.Replace($from, $to), (New-Object Text.UTF8Encoding($false)))
+    dotnet build <project> -c Release --nologo -v q     # a build failure is NOT a kill
+    dotnet test  <project> --no-build -c Release --nologo
+}
+finally {
+    [IO.File]::WriteAllText($file, $orig, (New-Object Text.UTF8Encoding($false)))
+    (Get-Item $file).LastWriteTime = Get-Date   # or MSBuild will not recompile it
+}
+```
+
+Four things decide whether a run means anything, and each has its own trap section below:
+
+1. **The mutation must compile.** `if (false)` is CS0162, which is an error here, and a harness that
+   treats a failed build as a kill will report a confident green for a mutation nobody ran. Flip a
+   value the guard *reads*, not the guard itself.
+2. **The tests must actually run.** Check the reported test count against the count you expect; a
+   `--filter` that matches fewer types than you assumed produces silent mass survival.
+3. **A survivor is a hypothesis, not a verdict.** Read the mutant. Inert mutants, unreachable arms
+   and a second defence standing in front of the one you mutated all survive legitimately.
+4. **Rebuild afterwards.** The `finally` restores the source, not the binaries.
+
+Aim mutations at the *decision* the test claims to pin. A mutation that produces a wrong result is
+worth more than one that changes control flow, which tends to hang rather than report.
+
 ## Generated files — never hand-edit
 
 | File | Generator |
@@ -406,6 +442,21 @@ must-fail cases proving the comparer rejects what it claims to reject. Add to it
 of every invocation that three separate mechanisms should each have caught, and all three failed
 silently: no fixture reached that path, the comparer did not check layout, and the determinism script
 discarded the stream being corrupted. The components were individually sound. The seam was not.
+
+**An assertion must name something a fixture can see.** Before writing a line into
+`conformance/assertions.json`, ask: *if this claim were false, which byte of which fixture would
+change?* "No external resource is retrieved" survived in the manifest for months against a case
+whose every input declared a DTD — refused before any identifier is looked at, so a retrieving
+implementation would have passed it unchanged. Traceability was satisfied the whole time, because
+C1–C6 ask whether evidence exists, never whether it could have come out differently. This is
+CONTRIBUTING C7; it is the rule most easily satisfied on paper.
+
+**When the specification is ambiguous and nothing observable depends on it yet, stop.** Document the
+clause, both readings, and the cost of each in `KNOWN-LIMITS.md`, and file the ambiguity report.
+Do not pick a reading and encode it in a fixture: the corpus is what the project uses to tell
+correct from customary, and a guess pinned there is indistinguishable from a decision afterwards.
+`Q{}local-name` (§11.4, KNOWN-LIMITS §1.6) is the worked example — a real defect, deliberately left
+unfixed because both places it would be observable refuse with `NOTIMPL` in this preview.
 
 ---
 

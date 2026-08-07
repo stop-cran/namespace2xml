@@ -283,6 +283,7 @@ Some rules in `CONTRIBUTING.md` are stated as binding and have a CI gate; a few 
 | C4 bidirectional traceability | Active |
 | C5 determinism | Active — `tools/hash-corpus-outputs.ps1` measures exit status, standard output, standard error and the produced file tree, for every argument vector each case declares, repeats each measurement under the three environments Appendix C.7 requires (differing in parser worker count, locale decimal convention and time zone) into a fresh output root each time and requires them to agree, and `cross-os-hash` requires all three platforms to agree |
 | C6 side-effect invariants first | Not yet — publication is implemented, but no §21 fixture exercises the symlink, escape or partial-write invariants, and no workflow contains a job by that name |
+| C7 evidence must be able to fail | Not machine-checkable, and probably cannot be. `HarnessSelfTests` proves the comparer's own rules reject what they claim to; everything else — mutation proof for a new test, and the observability of an assertion — is a reviewer obligation |
 
 Stating a rule before its enforcer exists is a deliberate choice, but it is a debt. It is recorded
 here rather than left implicit. `CONTRIBUTING.md` §3 repeats these qualifications inline; if the two
