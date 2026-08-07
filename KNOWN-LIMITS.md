@@ -198,6 +198,35 @@ If you have a real document deeper than 4096, that is a finding worth reporting 
 to convert the recursive phases to explicit traversal, and a real document is the evidence that
 justifies it.
 
+### 1.6 `Q{}local-name` does not yet address an unqualified XML element
+
+§11.4 says an unqualified element "normally uses its local name" and that ``Q{}local-name`` "is the
+explicit canonical spelling when a reference must distinguish it from a format-agnostic alias".
+
+This build reads an unqualified element into an ordinary name component and lexes ``Q{}b`` into a
+qualified component with an empty URI. Those are **different components**, ranked separately by
+`NamePartOrder`, so the explicit spelling cannot match the element the clause says it names.
+**verified**
+
+Nothing observable depends on it yet: the two places a component's identity is compared — value
+references (§13.1) and directives bound below a root selector (§15, §16) — are both unimplemented in
+this preview, and each refuses with `NOTIMPL` before any name is matched. **verified**
+
+The fix is deferred rather than guessed because the clause admits two readings, and they disagree
+about what the corpus should assert:
+
+- ``Q{}b`` and bare `b` name **one** component. The explicit spelling is then a synonym, and "must
+  distinguish it from a format-agnostic alias" describes nothing a user could ever need.
+- ``Q{}b`` names the XML element specifically and bare `b` is the format-agnostic alias that matches
+  an XML element and a JSON or YAML mapping key alike. Component equality is then asymmetric —
+  an alias matches a qualified component, but not the reverse — which touches overlay merging,
+  ordering, and reference closure.
+
+The second reading gives the clause work to do; the first is what the first bullet of §11.4 ("an
+ordinary mapping-name component whose text resembles XML syntax is not identical to an XML element,
+attribute, or content-token component") appears to assume. A specification amendment decides it, and
+a fixture authored before that decision would pin a guess.
+
 ## 2. Acceptance coverage
 
 `conformance/assertions.json` records all 86 acceptance requirements from specification §26, each
