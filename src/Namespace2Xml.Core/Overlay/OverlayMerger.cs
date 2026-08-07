@@ -105,6 +105,17 @@ public sealed class OverlayMerger
         return MergeNode(earlier, later, path);
     }
 
+    /// <summary>The effective Section 16.10 strategy at one path.</summary>
+    /// <param name="path">The path, from the overlay root.</param>
+    /// <remarks>
+    /// Section 12.4 merges a generated contribution "using the effective input-path strategy of its
+    /// target", and Section 16.10 puts a contribution "at path <c>P</c>" when it contributes "any
+    /// descendant under <c>P</c>". A generated entry is therefore a contribution at every path it
+    /// passes through, and the caller placing it has to know where a strategy other than deep
+    /// merge takes over from ordinary descent.
+    /// </remarks>
+    internal MergeStrategy StrategyAt(ImmutableArray<NamePart> path) => strategies.For(path);
+
     private OverlayNode MergeNode(
         OverlayNode earlier, OverlayNode later, ImmutableArray<NamePart> path)
     {

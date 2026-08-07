@@ -1,0 +1,2 @@
+precedence.x=concrete
+whole.*.z=two

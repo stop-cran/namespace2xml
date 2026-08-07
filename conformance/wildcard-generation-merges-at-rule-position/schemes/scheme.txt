@@ -1,0 +1,4 @@
+precedence.output=namespace
+precedence.x.merge=replace
+whole.output=namespace
+whole.x.merge=replace

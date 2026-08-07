@@ -329,6 +329,21 @@ public sealed class WildcardEvaluator
     /// them equal marks, and an equal mark resolves to the mapping, so adding a descendant to an
     /// item would silently turn the sequence into a mapping.
     /// </para>
+    /// <para>
+    /// The descent is what deep merge means, so it continues only while deep merge is the effective
+    /// strategy. Section 16.10 places a contribution "at path <c>P</c>" when it contributes "any
+    /// descendant under <c>P</c>", which a generated entry does at every path it passes through, and
+    /// the other three strategies act on the complete value at such a path rather than on the parts
+    /// of it the entry happens to name. Where one of them is in force, the whole generated value
+    /// from that depth down is handed to <see cref="OverlayMerger.MergeAt"/> and the descent stops.
+    /// </para>
+    /// <para>
+    /// Which of the two is the later contribution is decided by Section 12.4 -- "the rule mark still
+    /// controls conflict precedence" -- and not by the fact that generation runs after every
+    /// concrete source has been read. A template from an earlier source that generates into a path
+    /// a later source also wrote is the earlier contribution there, and passing it as the later one
+    /// makes a later source lose.
+    /// </para>
     /// </remarks>
     private OverlayNode Graft(
         OverlayNode node,
@@ -339,7 +354,12 @@ public sealed class WildcardEvaluator
     {
         if (depth == path.Length)
         {
-            return merger.MergeAt(node, leaf, path);
+            return Fold(node, leaf, path, order);
+        }
+
+        if (merger.StrategyAt(Prefix(path, depth)) != MergeStrategy.Deep)
+        {
+            return Fold(node, Spine(path, depth, leaf, order), Prefix(path, depth), order);
         }
 
         var part = path[depth];
@@ -393,6 +413,10 @@ public sealed class WildcardEvaluator
     }
 
     /// <summary>The carrier chain a generated descendant needs below an address that does not exist.</summary>
+    /// <param name="path">The generated path, from the overlay root.</param>
+    /// <param name="depth">The depth the chain starts at.</param>
+    /// <param name="leaf">The generated contribution itself.</param>
+    /// <param name="order">The rule and match position the contribution merges at.</param>
     private static OverlayNode Spine(
         ImmutableArray<NamePart> path, int depth, OverlayNode leaf, StableOrderingKey order)
     {
@@ -405,6 +429,35 @@ public sealed class WildcardEvaluator
 
         return node;
     }
+
+    /// <summary>
+    /// Merges a generated value into what is already at a path, in Section 12.4 rule-mark order.
+    /// </summary>
+    /// <param name="existing">What the overlay already holds at the path.</param>
+    /// <param name="generated">The generated value at the same path.</param>
+    /// <param name="path">The shared path, from the overlay root.</param>
+    /// <param name="order">The rule and match position the generated value merges at.</param>
+    /// <remarks>
+    /// Section 12.4 merges every generated result "at its deterministic rule/match position", and
+    /// the position is the rule's, not the moment generation ran: "Every template must be matched
+    /// against every eligible concrete or generated entry present in the current fixed-point
+    /// evaluation, regardless of whether the matched entry originated before or after the template.
+    /// Source order controls precedence, not visibility."
+    /// </remarks>
+    private OverlayNode Fold(
+        OverlayNode existing,
+        OverlayNode generated,
+        ImmutableArray<NamePart> path,
+        StableOrderingKey order) =>
+        order.CompareTo(existing.Marks.Latest) < 0
+            ? merger.MergeAt(generated, existing, path)
+            : merger.MergeAt(existing, generated, path);
+
+    /// <summary>The leading <paramref name="depth"/> components of a path.</summary>
+    /// <param name="path">The path to take a prefix of.</param>
+    /// <param name="depth">How many leading components the prefix has.</param>
+    private static ImmutableArray<NamePart> Prefix(ImmutableArray<NamePart> path, int depth) =>
+        depth == path.Length ? path : ImmutableArray.Create(path, 0, depth);
 
     /// <summary>How many nodes a generated contribution at a path would newly materialize.</summary>
     private static long Materialized(OverlayNode root, ImmutableArray<NamePart> path)

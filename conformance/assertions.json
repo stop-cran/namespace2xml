@@ -242,7 +242,8 @@
         "A merge directive governs only the node it matches, so sibling roots carrying different strategies over identical two-source input each behave as their own directive says."
       ],
       "fixtures": [
-        "namespace-input-merge-strategies"
+        "namespace-input-merge-strategies",
+        "wildcard-generation-merges-at-rule-position"
       ]
     },
     {
