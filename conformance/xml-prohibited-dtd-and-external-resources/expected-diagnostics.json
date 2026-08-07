@@ -1,6 +1,8 @@
 [
 {"code":"XML001","severity":"error","phase":"input","source":"inputs/internal-subset.xml","line":1,"column":1,"spec":"§11.1"},
 {"code":"XML001","severity":"error","phase":"input","source":"inputs/external-system.xml","line":1,"column":1,"spec":"§11.1"},
+{"code":"XML001","severity":"error","phase":"input","source":"inputs/retrieval-relative-to-document.xml","line":1,"column":1,"spec":"§11.1"},
+{"code":"XML001","severity":"error","phase":"input","source":"inputs/retrieval-relative-to-invocation.xml","line":1,"column":1,"spec":"§11.1"},
 {"code":"XML001","severity":"error","phase":"input","source":"inputs/entity-expansion.xml","line":1,"column":1,"spec":"§11.1"},
 {"code":"XML001","severity":"error","phase":"input","source":"inputs/after-prolog.xml","line":3,"column":1,"spec":"§11.1"}
 ]

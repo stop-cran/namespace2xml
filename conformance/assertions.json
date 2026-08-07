@@ -131,7 +131,8 @@
       "milestone": "m2",
       "status": "required",
       "assertions": [
-        "A document type definition is rejected outright rather than partially processed, so an internal subset's entities are never defined, no external or network resource is retrieved, and a nested-entity document costs nothing to refuse.",
+        "A document type definition is rejected outright rather than partially processed, so an internal subset's entities are never defined and a nested-entity document costs nothing to refuse.",
+        "A reachable external subset is never retrieved: one existing definition is named both relative to the document and relative to the invocation, so no resolution base can miss it, and the entity it defines would appear in the output were it read.",
         "Each failing document is XML001 at the Section 22 one-based line and column of the DOCTYPE token, every failing source reports in Section 7.3 command-line order, and nothing is published."
       ],
       "fixtures": [

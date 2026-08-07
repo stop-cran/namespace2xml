@@ -238,6 +238,13 @@ harness output — a green run against mutated source:
   from the end of the *line* to the end of the *text* survived every position test, because the
   fixtures' later lines were plain ASCII and converting across them changed nothing. Put the
   distinguishing data **past** the boundary the mutation moves.
+- **A second defence is standing.** `XmlInputReader` refuses a DTD twice: `Prolog.FindDoctype`
+  rejects the text before the parser is constructed, and `XmlReaderSettings.DtdProcessing` refuses
+  it again. Weakening the settings alone — to `Parse` with an `XmlUrlResolver` — **survives every
+  fixture**, because the pre-scan means the parser never sees a DTD document. That is the design
+  working, not a gap. Removing the pre-scan alone is killed, and removing both retrieves a real
+  external subset. When a security posture survives, mutate the layer that actually runs first, and
+  check whether the surviving setting is reachable by any input at all before writing a test for it.
 
 ### A mutation that does not compile has proved nothing
 

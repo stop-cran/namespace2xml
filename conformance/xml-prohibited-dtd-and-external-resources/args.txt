@@ -3,6 +3,10 @@ inputs/internal-subset.xml
 -i
 inputs/external-system.xml
 -i
+inputs/retrieval-relative-to-document.xml
+-i
+inputs/retrieval-relative-to-invocation.xml
+-i
 inputs/entity-expansion.xml
 -i
 inputs/after-prolog.xml

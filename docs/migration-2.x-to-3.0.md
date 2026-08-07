@@ -387,11 +387,14 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   file. A configuration file could thus decide what the tool read and how much of it.
 - Clean behavior: Section 11.1 prohibits a document type definition outright — "rejected, not
   partially processed" — so the internal subset is never read and its entities are never defined,
-  and external entity resolution and network retrieval are refused with it. Each failing document is
-  `XML001` at the Section 22 one-based line and column of the `<!DOCTYPE` token, so a declaration
-  that follows an XML declaration and a comment reports at line 3 rather than line 1, and every
-  failing source reports in the Section 7.3 command-line order. Nothing is published: a blocking
-  input diagnostic decides the run before any output exists.
+  and external entity resolution and network retrieval are refused with it. Non-retrieval is
+  observed rather than asserted: `local.dtd` exists and defines an entity the documents reference,
+  and it is named both relative to the document and relative to the invocation, so neither
+  resolution base can miss it. A tool that read it would emit the entity's replacement text instead
+  of a diagnostic. Each failing document is `XML001` at the Section 22 one-based line and column of
+  the `<!DOCTYPE` token, so a declaration that follows an XML declaration and a comment reports at
+  line 3 rather than line 1, and every failing source reports in the Section 7.3 command-line order.
+  Nothing is published: a blocking input diagnostic decides the run before any output exists.
 - The difference is intentional: an input file that can name a resource, or expand to an
   unbounded size, makes the tool's behavior a function of the data it is given rather than of the
   invocation, and Section 11.1 removes that entirely rather than bounding it.
