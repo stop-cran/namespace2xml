@@ -641,8 +641,11 @@ defect in the fixture; see CONTRIBUTING.md.
 - `merge-strategies-over-native-sequence-shapes`
 - `wildcard-cascade-completes-within-the-iteration-bound`
 - `wildcard-cascade-crosses-the-iteration-bound`
+- `wildcard-filename-substitutes-the-selector-captures`
 - `wildcard-generation-crosses-the-generated-bound`
 - `wildcard-generation-merges-at-rule-position`
+- `wildcard-output-selector-matching-nothing-warns`
+- `wildcard-output-selectors-expand-per-capture-tuple`
 - `wildcard-repeated-capture-backtracking`
 
 ## Something changed that is not listed here

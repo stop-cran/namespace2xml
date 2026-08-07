@@ -32,6 +32,14 @@ public readonly record struct SelectorKey(QualifiedName? Name)
 }
 
 /// <summary>
+/// Where a scheme declaration was written, for the Section 22 diagnostic members that name it.
+/// </summary>
+/// <param name="Text">The written directive text.</param>
+/// <param name="Source">The source name diagnostics report.</param>
+/// <param name="Line">The one-based line it was written on.</param>
+public readonly record struct DeclarationSite(string Text, string Source, int Line);
+
+/// <summary>
 /// One Section 15.2 concrete output instance and the configuration bound to it.
 /// </summary>
 /// <param name="Selector">The selector that produced the instance.</param>
@@ -40,20 +48,55 @@ public readonly record struct SelectorKey(QualifiedName? Name)
 /// the instance without removing data from any other.
 /// </param>
 /// <param name="DeclarationOrder">Source order of the winning <c>output</c> declaration.</param>
-/// <param name="Filename">The Section 16.2 relative path, or null for the default file names.</param>
+/// <param name="FilenameTemplate">
+/// The Section 16.2 relative path as written, or null for the default file names. It is a template
+/// rather than text because Section 16.2 allows wildcard captures inside path segments, and the
+/// captures are not known until Section 14.1 has expanded the selector.
+/// </param>
 /// <param name="Root">The Section 16.3 wrapping path, or null when content is not wrapped.</param>
 /// <param name="Delimiter">The Section 16.4 delimiter, or null for each format's own default.</param>
 /// <param name="IniOptions">The Section 16.9 INI options, defaulted when undeclared.</param>
 /// <param name="FileMerge">The Section 16.11 destination-collision strategy.</param>
+/// <param name="Captures">
+/// The Section 14.1 captures the selector expansion bound, empty for a selector that contained no
+/// wildcard. Section 16.2 substitutes them into <see cref="FilenameTemplate"/>.
+/// </param>
+/// <param name="WildcardMatchOrder">
+/// The instance's position among the concrete instances one wildcard declaration expanded into,
+/// which is the third component of the Section 17.5 fold key. Zero for a literal declaration.
+/// </param>
+/// <param name="Declaration">
+/// The written text of the winning <c>output</c> declaration, its source, and the line it was
+/// written on. Section 22 supplies a diagnostic's <c>source</c>, <c>line</c>, and
+/// <c>declaration</c> members when the condition has those facts, and a condition about a
+/// declaration has all three; carrying them keeps that decision out of the hands of what this
+/// record happens to hold.
+/// </param>
 public sealed record OutputInstance(
     SelectorKey Selector,
     ImmutableArray<OutputFormat> Formats,
     long DeclarationOrder,
-    string? Filename,
+    InterpretedValue? FilenameTemplate,
     QualifiedName? Root,
     string? Delimiter,
     IniOutputOptions IniOptions,
-    MergeStrategy FileMerge);
+    MergeStrategy FileMerge,
+    WildcardCaptures Captures,
+    int WildcardMatchOrder,
+    DeclarationSite Declaration)
+{
+    /// <summary>
+    /// The Section 16.2 relative path with this instance's captures substituted, or null for the
+    /// default file names.
+    /// </summary>
+    /// <remarks>
+    /// Section 16.2 makes substituted text "opaque segment data", so this is the string the
+    /// portable segment algorithm consumes and not a path that has already been split.
+    /// </remarks>
+    public string? Filename => FilenameTemplate is null
+        ? null
+        : WildcardSubstitution.Apply(FilenameTemplate, Captures);
+}
 
 /// <summary>
 /// One Section 16.10 literal-path input merge directive, as compiled at pipeline step 4.
@@ -125,11 +168,18 @@ public static class SchemeCompiler
         {
             var entry = ordered[index];
 
-            if (entry.Value.ContainsReference || entry.Value.ContainsWildcard)
+            if (entry.Value.ContainsReference
+                || (entry.Value.ContainsWildcard && entry.Directive != SchemeDirective.Filename))
             {
                 // Section 15.1 step 1 resolves scheme-internal references before anything reads a
                 // directive value. Compiling the text as written would silently treat "${x}" as a
                 // literal file name.
+                //
+                // A wildcard is deferred for the same reason everywhere except 'filename', whose
+                // Section 16.2 substitution is not a step 1 concern at all: "Wildcard captures may
+                // be substituted into path segments", and the captures come from the Section 14.1
+                // selector expansion at step 13. Deferring it there would refuse the one directive
+                // the specification writes wildcards into.
                 deferred.Add(entry);
                 continue;
             }
@@ -195,13 +245,17 @@ public static class SchemeCompiler
                 selector,
                 formats,
                 winner.Order,
-                Compile(winners, selector, SchemeDirective.Filename, diagnostics, CompileFilename),
-                Compile(winners, selector, SchemeDirective.Root, diagnostics, CompileRoot),
+                CompileRef(winners, selector, SchemeDirective.Filename, diagnostics, CompileFilename),
+                CompileRef(winners, selector, SchemeDirective.Root, diagnostics, CompileRoot),
                 CompileDelimiter(winners, selector, formats, diagnostics),
                 Compile(winners, selector, SchemeDirective.IniOutputOptions, diagnostics, CompileIniOptions)
                     ?? IniOutput.Default,
                 Compile(winners, selector, SchemeDirective.FileMerge, diagnostics, CompileStrategy)
-                    ?? MergeStrategy.Deep));
+                    ?? MergeStrategy.Deep,
+                WildcardCaptures.Empty,
+                WildcardMatchOrder: 0,
+                new DeclarationSite(
+                    winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)));
         }
 
         WarnUnbound(winners, instances, diagnostics);
@@ -253,12 +307,13 @@ public static class SchemeCompiler
             ? compile(winner.Entry, diagnostics)
             : null;
 
-    private static string? Compile(
+    private static T? CompileRef<T>(
         Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
         SelectorKey selector,
         SchemeDirective directive,
         DiagnosticBuffer diagnostics,
-        Func<SchemeEntry, DiagnosticBuffer, string?> compile) =>
+        Func<SchemeEntry, DiagnosticBuffer, T?> compile)
+        where T : class =>
         winners.TryGetValue((selector, directive), out var winner)
             ? compile(winner.Entry, diagnostics)
             : null;
@@ -340,14 +395,19 @@ public static class SchemeCompiler
     }
 
     /// <summary>Section 16.2.</summary>
-    private static string? CompileFilename(SchemeEntry entry, DiagnosticBuffer diagnostics)
+    private static InterpretedValue? CompileFilename(SchemeEntry entry, DiagnosticBuffer diagnostics)
     {
         _ = diagnostics;
 
         // Section 21.1 validates the path itself at pipeline step 14, after filename expansion,
         // because only then is every substituted capture present. Rejecting a written path here
         // would check a different string from the one that reaches the filesystem.
-        return entry.Value.LiteralText;
+        //
+        // The value is kept whole rather than reduced to its text: Section 16.2 substitutes the
+        // selector's wildcard captures into it, and LiteralText is null for exactly the values that
+        // need it. Taking the text here would silently turn a wildcard filename into no filename
+        // at all, and the instance would land on its default name with no diagnostic.
+        return entry.Value;
     }
 
     /// <summary>Section 16.3.</summary>

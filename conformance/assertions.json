@@ -495,9 +495,17 @@
       "item": 49,
       "text": "One concrete output instance per last-wildcard capture tuple, never per descendant.",
       "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "status": "required",
+      "assertions": [
+        "Expansion enumerates the concrete paths at the depth of the selector's last wildcard-containing part, so a subtree with several descendants yields one instance and not one per descendant.",
+        "A subtree the selector does not name contributes to no instance, and the concrete selector prefix is removed from every selected view.",
+        "A wildcard filename is filled from the tuple the selector expansion already bound rather than matched again, so each concrete instance chooses its own destination.",
+        "A wildcard filename is a filename: it is neither discarded for having no literal text nor given the format's default extension."
+      ],
+      "fixtures": [
+        "wildcard-filename-substitutes-the-selector-captures",
+        "wildcard-output-selectors-expand-per-capture-tuple"
+      ]
     },
     {
       "item": 50,
@@ -735,9 +743,15 @@
       "item": 75,
       "text": "Empty concrete output views and wildcard declarations producing no concrete instance.",
       "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "status": "required",
+      "assertions": [
+        "A wildcard declaration matching no concrete path emits WARN009 and creates no file, which is the one case the empty-view rule does not reach because there is no concrete selector to plan with.",
+        "That WARN009 carries the source, line, path, and declaration of the written directive and no column, because the condition is about a whole record rather than a position inside one.",
+        "Creating no file is not a blocking error, so the run still publishes the instances that did match and exits 0."
+      ],
+      "fixtures": [
+        "wildcard-output-selector-matching-nothing-warns"
+      ]
     },
     {
       "item": 76,

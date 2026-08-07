@@ -178,7 +178,7 @@ public sealed class WildcardEvaluator
                     continue;
                 }
 
-                foreach (var path in Candidates(contribution, depths[index]))
+                foreach (var path in OverlayAddressing.Candidates(contribution, depths[index]))
                 {
                     if (!Eligible(rules[index], depths[index], path))
                     {
@@ -250,7 +250,7 @@ public sealed class WildcardEvaluator
             var rule = rules[index];
             var depth = depths[index];
 
-            foreach (var path in Candidates(snapshot, depth))
+            foreach (var path in OverlayAddressing.Candidates(snapshot, depth))
             {
                 if (!Eligible(rule, depth, path))
                 {
@@ -556,68 +556,6 @@ public sealed class WildcardEvaluator
         }
 
         return path.Length - depth;
-    }
-
-    /// <summary>
-    /// The distinct logical path nodes at one depth, in a deterministic order.
-    /// </summary>
-    /// <remarks>
-    /// Section 12.4: "For candidate accounting, an item is a distinct logical path node. If the
-    /// rule's last wildcard-containing part is at depth <c>k</c>, eligible items are the distinct
-    /// depth-<c>k</c> prefixes of existing paths, not every deeper descendant."
-    /// </remarks>
-    private static IEnumerable<ImmutableArray<NamePart>> Candidates(OverlayNode node, int depth) =>
-        Candidates(node, [], depth);
-
-    private static IEnumerable<ImmutableArray<NamePart>> Candidates(
-        OverlayNode node, ImmutableArray<NamePart> path, int remaining)
-    {
-        if (remaining == 0)
-        {
-            yield return path;
-            yield break;
-        }
-
-        foreach (var (name, child) in Addresses(node))
-        {
-            foreach (var found in Candidates(child, path.Add(name), remaining - 1))
-            {
-                yield return found;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Every address one node answers, each exactly once.
-    /// </summary>
-    /// <remarks>
-    /// A sequence item is addressable by its Section 5.4 ordering value, and Section 15.1 makes the
-    /// item and the mapping child of that name one node, so an address that both facets answer is
-    /// yielded once. Yielding it twice would charge one logical item two candidate checks and let
-    /// one <c>(rule, path)</c> pair generate twice.
-    /// <para>
-    /// Removing the check is not observable today, because the <c>considered</c> set rejects the
-    /// repeated pair before it is charged. It is kept because it states the Section 12.4 rule at
-    /// the point the rule is about: what an item is. Do not write a test for the duplicate — it
-    /// would pin the deduplication, which is asserted elsewhere, rather than this.
-    /// </para>
-    /// </remarks>
-    private static IEnumerable<KeyValuePair<NamePart, OverlayNode>> Addresses(OverlayNode node)
-    {
-        foreach (var child in node.OrderedChildren)
-        {
-            yield return child;
-        }
-
-        foreach (var (value, item) in node.OrderedSequence)
-        {
-            var name = OrderingValues.ToNamePart(value);
-
-            if (!node.Children.ContainsKey(name))
-            {
-                yield return KeyValuePair.Create(name, item.Node);
-            }
-        }
     }
 
     /// <summary>

@@ -37,26 +37,133 @@ public static class PlanningPhase
 {
     /// <summary>Section 15.1 step 13: expand wildcard scheme selectors and output declarations.</summary>
     /// <param name="configuration">Step 4's product.</param>
+    /// <param name="model">Step 12's product, which supplies the concrete paths to expand against.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>The concrete output instances, once no selector needs expanding.</returns>
+    /// <remarks>
+    /// <para>
+    /// Section 14.1 fixes both the depth and the breadth of the expansion. The depth is "the last
+    /// wildcard-containing selector part": for data under <c>a.x.y</c> the declaration <c>a.*</c>
+    /// creates one <c>a.x</c> instance and "never creates <c>a.x.y</c>". The breadth is "exactly one
+    /// instance per unique capture tuple and literalized selector, regardless of how many
+    /// descendants matched beneath it", which is why matches are deduplicated by the literalized
+    /// selector rather than counted.
+    /// </para>
+    /// <para>
+    /// Literal parts after the last wildcard are appended to the matched prefix rather than looked
+    /// up, mirroring Section 12.3's treatment of a generative template's literal suffix. A concrete
+    /// instance whose subtree does not exist is still planned, because Section 14.1 plans an
+    /// instance "even when no data path currently matches its literal prefix" — the wildcard part
+    /// must match something, the literal suffix need not.
+    /// </para>
+    /// <para>
+    /// The enumeration order is the one Section 12.4 gives wildcard candidates, through the walk
+    /// both share. It is what <see cref="OutputInstance.WildcardMatchOrder"/> records, and Section
+    /// 17.5 folds destinations by that order, so the two must be the same order.
+    /// </para>
+    /// </remarks>
     public static StepOutcome<ImmutableArray<OutputInstance>> ExpandWildcards(
-        SchemeConfiguration configuration)
+        SchemeConfiguration configuration,
+        OverlayNode model,
+        DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        var expanded = ImmutableArray.CreateBuilder<OutputInstance>();
 
         foreach (var instance in configuration.Outputs)
         {
-            if (instance.Selector.Name is { } name && name.Parts.Any(ContainsWildcard))
+            if (instance.Selector.Name is not { } pattern
+                || WildcardMatch.LastWildcardPart(pattern) < 0)
             {
-                return StepOutcome.Unsupported<ImmutableArray<OutputInstance>>(
-                    new UnsupportedCapability(
-                        "wildcard output selectors",
-                        $"the selector '{instance.Selector}' contains a wildcard, and step 13 "
-                        + "expands it into one instance per concrete match.",
-                        "\u00A714.1"));
+                expanded.Add(instance);
+                continue;
             }
+
+            Expand(instance, pattern, model, expanded, diagnostics);
         }
 
-        return StepOutcome.Produced(configuration.Outputs);
+        return diagnostics.HasBlockingError
+            ? StepOutcome.Failed<ImmutableArray<OutputInstance>>()
+            : StepOutcome.Produced(expanded.ToImmutable());
+    }
+
+    private static void Expand(
+        OutputInstance instance,
+        QualifiedName pattern,
+        OverlayNode model,
+        ImmutableArray<OutputInstance>.Builder expanded,
+        DiagnosticBuffer diagnostics)
+    {
+        var depth = WildcardMatch.LastWildcardPart(pattern) + 1;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var order = 0;
+
+        foreach (var path in OverlayAddressing.Candidates(model, depth))
+        {
+            if (!WildcardMatch.TryMatchPrefix(pattern.Parts, depth, path, out var captures))
+            {
+                continue;
+            }
+
+            var literalized = path;
+
+            for (var i = depth; i < pattern.Parts.Length; i++)
+            {
+                literalized = literalized.Add(pattern.Parts[i]);
+            }
+
+            var selector = new SelectorKey(new QualifiedName(literalized));
+
+            // Section 14.1: "There is exactly one instance per unique capture tuple and literalized
+            // selector, regardless of how many descendants matched beneath it." The depth bound
+            // above is what enforces the "regardless of descendants" half; this enforces the other.
+            //
+            // Removing it is not observable, and deliberately so: the walk yields one path per
+            // distinct node at the depth, and the Section 19.1 spelling of a path is injective, so
+            // two candidates cannot literalize to one selector. It is kept because it states the
+            // Section 14.1 rule at the point the rule is about. Do not write a test for it; the
+            // whole corpus is green with it deleted.
+            if (!seen.Add(selector.ToString()))
+            {
+                continue;
+            }
+
+            expanded.Add(instance with
+            {
+                Selector = selector,
+                Captures = captures,
+                WildcardMatchOrder = order++,
+            });
+        }
+
+        if (order > 0)
+        {
+            return;
+        }
+
+        // Section 14.1: "A wildcard output declaration that produces no concrete selector instance
+        // emits WARN009 and creates no file." The instance is dropped rather than planned empty,
+        // which is the one case Section 14.1's empty-view rule does not cover: an empty view means
+        // the instance exists and selects nothing, and here there is no instance to select with.
+        //
+        // Section 22 supplies source, line, and declaration because the condition is a property of
+        // the written declaration, and path because it names the selector that matched nothing.
+        // There is no column: the condition is about the whole record, not a position inside it.
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Warn009(
+                DiagnosticPhase.Planning,
+                "\u00A714.1",
+                $"the wildcard selector '{instance.Selector}' matches no concrete path, so it "
+                + "creates no output instance and no file.",
+                cardinalityKey: instance.Selector.ToString(),
+                source: instance.Declaration.Source,
+                line: instance.Declaration.Line,
+                path: instance.Selector.ToString(),
+                declaration: instance.Declaration.Text),
+            StableOrderingKey.FromSource(instance.DeclarationOrder, 0)));
     }
 
     /// <summary>Section 15.1 step 14: build output instances and apply strict prefix filtering.</summary>
@@ -267,13 +374,6 @@ public static class PlanningPhase
         return StepOutcome.Produced(contributions);
     }
 
-    private static bool ContainsWildcard(NamePart part) => part switch
-    {
-        OrdinaryPart ordinary => ordinary.Tokens.OfType<WildcardToken>().Any(),
-        QualifiedElementPart qualified => qualified.Local.OfType<WildcardToken>().Any(),
-        AttributePart attribute => ContainsWildcard(attribute.Name),
-        _ => false,
-    };
 
     /// <summary>
     /// Section 14.2 strict prefix filtering, plus Section 14.1's unconditional removal of the

@@ -1,0 +1,4 @@
+a.x.y=1
+a.x.z=2
+a.y.q=3
+b.kept=4
