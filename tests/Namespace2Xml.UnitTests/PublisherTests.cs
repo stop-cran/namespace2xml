@@ -5,6 +5,7 @@ using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Output;
 using Namespace2Xml.Pipeline;
+using Namespace2Xml.Profiles;
 using NUnit.Framework;
 using Shouldly;
 
@@ -46,7 +47,11 @@ public class PublisherTests
         long wildcardOrder = 0,
         string selector = "")
     {
-        DestinationPathComposer.TryCompose(path, out var composed, out _).ShouldBeTrue();
+        DestinationPathComposer.TryCompose(
+            new InterpretedValue([new LiteralValueToken(path)]),
+            WildcardCaptures.Empty,
+            out var composed,
+            out _).ShouldBeTrue();
 
         return new PlannedOutput(
             composed!,

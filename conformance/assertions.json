@@ -556,10 +556,18 @@
     {
       "item": 51,
       "text": "Substituted relative subfolders, encoded captures, and rejection of every `..` segment.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A separator written literally in the scheme splits the path and creates a subdirectory, so a relative subfolder can be substituted into the destination.",
+        "A separator arriving inside a capture is encoded as %2F rather than obeyed, because Section 16.2 step 1 splits the scheme-written path before step 2 substitutes captures into a segment.",
+        "A capture is encoded by step 5 whatever it holds, so a reserved device name, a space, and a traversal sequence all compose to one ordinary file name inside the output root.",
+        "A dot segment the scheme wrote itself is rejected with PATH001 in phase planning, before any directory is created, rather than being renamed."
+      ],
+      "fixtures": [
+        "filename-captures-are-opaque-segment-data",
+        "a-written-traversal-segment-is-rejected"
+      ]
     },
     {
       "item": 52,
@@ -691,8 +699,15 @@
       "text": "Portable filename device-name handling, ASCII-case-insensitive destination collision detection, and cross-format high-water reset identically on every platform.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "A capture whose portion before the first dot is a reserved device name is prefixed with %5F by steps 4 and 7, identically on every operating system rather than only where the name is reserved.",
+        "Two destinations differing only by ASCII case share a portability key and are a blocking PATH001 collision rather than a merge, detected in the tool and therefore on every filesystem.",
+        "NOT COVERED: the cross-format high-water reset."
+      ],
+      "fixtures": [
+        "filename-captures-are-opaque-segment-data",
+        "destinations-differing-only-by-case-collide"
+      ]
     },
     {
       "item": 65,

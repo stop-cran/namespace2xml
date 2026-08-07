@@ -704,6 +704,9 @@ silently.
 These cases carry a `legacy.md` that states neither agreement nor difference. That is a
 defect in the fixture; see CONTRIBUTING.md.
 
+- `a-written-traversal-segment-is-rejected`
+- `destinations-differing-only-by-case-collide`
+- `filename-captures-are-opaque-segment-data`
 - `key-directive-precedence-follows-source-order`
 - `key-projects-an-ordered-mapping-as-records`
 - `mask-candidates-consume-the-wildcard-limit`

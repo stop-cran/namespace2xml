@@ -1,4 +1,5 @@
 using Namespace2Xml.Output;
+using Namespace2Xml.Profiles;
 using NUnit.Framework;
 using Shouldly;
 
@@ -22,17 +23,37 @@ public class DestinationPathTests
         return segment!;
     }
 
-    private static DestinationPath Compose(string written)
+    private static InterpretedValue Template(string written)
     {
-        DestinationPathComposer.TryCompose(written, out var path, out var violation).ShouldBeTrue();
+        var lexed = ValueLexer.Lex(written, ValueSyntax.Profile(WildcardSyntax.Unnamed));
+
+        lexed.Value.ShouldNotBeNull();
+
+        return lexed.Value;
+    }
+
+    private static WildcardCaptures Captures(string[] positional) =>
+        new([.. positional], System.Collections.Immutable.ImmutableDictionary<string, string>.Empty);
+
+    private static DestinationPath Compose(string written, params string[] captures)
+    {
+        DestinationPathComposer.TryCompose(
+            Template(written),
+            Captures(captures),
+            out var path,
+            out var violation).ShouldBeTrue();
         violation.ShouldBeNull();
 
         return path!;
     }
 
-    private static string Rejects(string written)
+    private static string Rejects(string written, params string[] captures)
     {
-        DestinationPathComposer.TryCompose(written, out var path, out var violation).ShouldBeFalse();
+        DestinationPathComposer.TryCompose(
+            Template(written),
+            Captures(captures),
+            out var path,
+            out var violation).ShouldBeFalse();
         path.ShouldBeNull();
 
         return violation.ShouldNotBeNull();
@@ -242,4 +263,102 @@ public class DestinationPathTests
     [Test]
     public void PathsDifferingInMoreThanCaseKeepDistinctKeys() =>
         Compose("a/b.json").PortabilityKey.ShouldNotBe(Compose("a/c.json").PortabilityKey);
+
+    // ---- Section 16.2 steps 1 and 2: captured text is data, not path syntax ----------------------
+
+    /// <summary>
+    /// Section 16.2: "only separators written literally in the scheme create directory hierarchy;
+    /// separators originating inside captured data are encoded", and "captured data cannot create
+    /// traversal because it is encoded".
+    /// </summary>
+    /// <remarks>
+    /// This is step ordering, not a separate rule. Step 1 splits "the scheme-written path", step 2
+    /// substitutes "inside the segment". Composing the substituted text instead applies them in the
+    /// other order, and the capture's separator then becomes hierarchy.
+    /// </remarks>
+    [TestCase("/")]
+    [TestCase("\\")]
+    public void ASeparatorInsideACaptureIsEncodedRatherThanSplit(string separator) =>
+        Compose($"out/*.conf", $"p{separator}q").Canonical.ShouldBe(
+            separator == "/" ? "out/p%2Fq.conf" : "out/p%5Cq.conf");
+
+    /// <summary>
+    /// A capture holding a traversal sequence composes to one ordinary file name, so the whole
+    /// sequence lands inside the output root rather than above it.
+    /// </summary>
+    /// <remarks>
+    /// The dots survive step 5, which retains <c>.</c>, and that is not a weakness: what makes a
+    /// <c>..</c> traversal is a <i>segment</i> equal to <c>..</c>, and the encoded separators mean
+    /// this text can never be split into one.
+    /// </remarks>
+    [Test]
+    public void ACaptureHoldingATraversalSequenceCannotEscape() =>
+        Compose("out/*", "../../etc/passwd").Canonical
+            .ShouldBe("out/..%2F..%2Fetc%2Fpasswd");
+
+    /// <summary>
+    /// Section 16.2 step 4 records a dot-segment condition and step 7 renames it with <c>%5F</c>.
+    /// Only a <i>statically written</i> dot segment is "prohibited", so a captured one is renamed
+    /// deterministically, exactly as a captured device name is.
+    /// </summary>
+    [TestCase(".", "out/%5F%2E")]
+    [TestCase("..", "out/%5F%2E%2E")]
+    public void ACapturedDotSegmentIsRenamedRatherThanRejected(string capture, string expected) =>
+        Compose("out/*", capture).Canonical.ShouldBe(expected);
+
+    /// <summary>
+    /// The distinction is between written and captured text, not between the strings themselves: the
+    /// same <c>..</c> is rejected when the scheme wrote it and renamed when a capture supplied it.
+    /// </summary>
+    [Test]
+    public void TheSameDotSegmentIsRejectedWrittenAndRenamedCaptured()
+    {
+        Rejects("out/../x").ShouldContain("statically written");
+        Compose("out/*/x", "..").Canonical.ShouldBe("out/%5F%2E%2E/x");
+    }
+
+    /// <summary>
+    /// Section 21.1's rejected forms are properties of the scheme-written path. A capture is opaque
+    /// data, so text that would name a drive when written composes to an ordinary segment when
+    /// captured -- and cannot silently become a path outside the output root either way.
+    /// </summary>
+    [Test]
+    public void ADriveFormInsideACaptureIsEncodedRatherThanRejected()
+    {
+        Rejects("C:/x").ShouldContain("drive-absolute");
+        Compose("*/x", "C:").Canonical.ShouldBe("C%3A/x");
+    }
+
+    /// <summary>
+    /// A rooted capture is data for the same reason, so it does not make the whole path rooted and
+    /// does not produce an empty leading segment.
+    /// </summary>
+    [Test]
+    public void ARootedCaptureDoesNotMakeThePathRooted() =>
+        Compose("out/*", "/etc").Canonical.ShouldBe("out/%2Fetc");
+
+    /// <summary>
+    /// Section 12.1's legacy clamp is a property of the whole value: "if a legacy value contains
+    /// more wildcard substitutions than the name produced, the last capture is repeated". Counting
+    /// per segment would restart the clamp at every separator and bind the wrong capture.
+    /// </summary>
+    [Test]
+    public void PositionalCapturesAreNumberedAcrossSeparators() =>
+        Compose("*/*/*.conf", "one", "two").Canonical.ShouldBe("one/two/two.conf");
+
+    /// <summary>
+    /// A capture is substituted "as decoded opaque text inside the segment", so the literal text
+    /// around it joins it into one segment rather than forming segments of its own.
+    /// </summary>
+    [Test]
+    public void ACaptureJoinsTheLiteralTextAroundItIntoOneSegment() =>
+        Compose("out/pre-*-post.conf", "x/y").Canonical.ShouldBe("out/pre-x%2Fy-post.conf");
+
+    /// <summary>
+    /// Section 16.2's device check reads the assembled segment, so a capture that is not itself a
+    /// device name still triggers the rename when the extension around it completes one.
+    /// </summary>
+    [Test]
+    public void TheDeviceCheckReadsTheAssembledSegmentNotTheCapture() =>
+        Compose("out/*.conf", "NUL").Canonical.ShouldBe("out/%5FNUL.conf");
 }

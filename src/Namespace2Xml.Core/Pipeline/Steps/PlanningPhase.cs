@@ -579,9 +579,10 @@ public static class PlanningPhase
     {
         string? violation;
 
-        if (view.Instance.Filename is { } written)
+        if (view.Instance.FilenameTemplate is { } template)
         {
-            if (DestinationPathComposer.TryCompose(written, out var composed, out violation))
+            if (DestinationPathComposer.TryCompose(
+                template, view.Instance.Captures, out var composed, out violation))
             {
                 path = composed;
                 return true;
@@ -593,13 +594,22 @@ public static class PlanningPhase
             return true;
         }
 
+        // Section 22: 'declaration' names "one scheme declaration ... its canonical spelling". The
+        // condition here is that this 'filename' composes to an illegal path, so it names the
+        // 'filename' declaration rather than the directive's value. An instance taking a Section
+        // 16.2 default name has no such declaration, and the member is omitted rather than being
+        // filled from the 'output' declaration, which is not at fault.
+        //
+        // Appendix B gives PATH001 the members 'declaration' and 'destination' only, so the
+        // declaration's source and line are not carried even though Section 22 would supply them
+        // for a condition about a declaration.
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Path001(
                 DiagnosticPhase.Planning,
                 "\u00A716.2",
                 $"the destination for selector '{view.Instance.Selector}' is rejected: {violation}",
                 cardinalityKey: view.Instance.Selector.ToString() + '\u001F' + view.Format,
-                declaration: view.Instance.Filename),
+                declaration: view.Instance.FilenameDeclaration?.Text),
             DestinationOrder: order));
 
         path = new DestinationPath(string.Empty);

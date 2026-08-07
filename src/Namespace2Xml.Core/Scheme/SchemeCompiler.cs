@@ -65,6 +65,12 @@ public readonly record struct DeclarationSite(string Text, string Source, int Li
 /// The instance's position among the concrete instances one wildcard declaration expanded into,
 /// which is the third component of the Section 17.5 fold key. Zero for a literal declaration.
 /// </param>
+/// <param name="FilenameDeclaration">
+/// The site of the winning <c>filename</c> declaration, or null when the instance takes a Section
+/// 16.2 default name. A Section 16.2 or 21.1 rejection is a condition about <i>that</i>
+/// declaration, not about the <c>output</c> declaration that created the instance, and Section 22
+/// requires the member to name "one scheme declaration ... its canonical spelling".
+/// </param>
 /// <param name="Declaration">
 /// The written text of the winning <c>output</c> declaration, its source, and the line it was
 /// written on. Section 22 supplies a diagnostic's <c>source</c>, <c>line</c>, and
@@ -83,6 +89,7 @@ public sealed record OutputInstance(
     MergeStrategy FileMerge,
     WildcardCaptures Captures,
     int WildcardMatchOrder,
+    DeclarationSite? FilenameDeclaration,
     DeclarationSite Declaration)
 {
     /// <summary>
@@ -349,6 +356,7 @@ public static class SchemeCompiler
                     ?? MergeStrategy.Deep,
                 WildcardCaptures.Empty,
                 WildcardMatchOrder: 0,
+                Site(winners, selector, SchemeDirective.Filename),
                 new DeclarationSite(
                     winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)));
         }
@@ -413,9 +421,23 @@ public static class SchemeCompiler
             ? compile(winner.Entry, diagnostics)
             : null;
 
-    private static QualifiedName? Compile(
+    /// <summary>
+    /// The site of the winning declaration of <paramref name="directive"/>, or null when the
+    /// selector declared it nowhere.
+    /// </summary>
+    /// <param name="winners">The compiled winners, keyed by selector and directive.</param>
+    /// <param name="selector">The selector whose declaration is wanted.</param>
+    /// <param name="directive">The directive whose declaration is wanted.</param>
+    private static DeclarationSite? Site(
         Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
         SelectorKey selector,
+        SchemeDirective directive) =>
+        winners.TryGetValue((selector, directive), out var winner)
+            ? new DeclarationSite(winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)
+            : null;
+
+    private static QualifiedName? Compile(
+        Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners, SelectorKey selector,
         SchemeDirective directive,
         DiagnosticBuffer diagnostics,
         Func<SchemeEntry, DiagnosticBuffer, QualifiedName?> compile) =>
