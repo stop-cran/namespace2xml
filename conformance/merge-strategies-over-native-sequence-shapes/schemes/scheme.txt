@@ -1,0 +1,6 @@
+swap.output=namespace
+back.output=namespace
+empty.output=namespace
+swap.k.merge=replace
+back.k.merge=replace
+empty.list.merge=append

@@ -198,15 +198,17 @@ public sealed class OverlayMerger
     /// and this path does; comments on descendants the replacement removes go with them.
     /// </para>
     /// <para>
-    /// The marks combine rather than being taken from the later contribution alone. Section 5.2
-    /// governs where a key sits in mapping order and is not a merge strategy: <c>replace</c>
-    /// decides what the node contains, and an intermediate node that exists only because something
-    /// deeper needed it still keeps the earliest position that required it.
+    /// The position mark survives the replacement even though nothing else about the earlier value
+    /// does. Section 5.2 governs where a key sits in mapping order and is not a merge strategy:
+    /// <c>replace</c> decides what the node contains, and an intermediate node that exists only
+    /// because something deeper needed it still keeps the earliest position that required it. Every
+    /// other mark describes part of the value Section 16.10 has just removed, so
+    /// <see cref="NodeMarks.AfterReplacement"/> takes those from the replacement.
     /// </para>
     /// </remarks>
     private static OverlayNode ReplaceMerge(OverlayNode earlier, OverlayNode later) =>
         OverlayNode.Compose(
-            earlier.Marks.Combine(later.Marks),
+            earlier.Marks.AfterReplacement(later.Marks),
             later.Payload,
             later.HasExplicitMapping,
             later.HasExplicitSequence,
@@ -308,11 +310,18 @@ public sealed class OverlayMerger
     /// eligible here and says <c>append</c> "consumes and rebases the later mapping as a sequence
     /// contribution and leaves no mapping projection for later inference", which is why the merged
     /// node keeps only the earlier node's children.
+    /// <para>
+    /// The mapping route requires a nonempty mapping, but an explicit sequence does not have to
+    /// carry an item. Section 16.10 rebases "every item in the later sequence contribution" and
+    /// makes an error of "other non-sequence use"; an empty native sequence is a sequence
+    /// contribution with nothing to rebase, so it appends nothing and is not an error. Judging it
+    /// by its items alone rejects the one shape the strategy is named after.
+    /// </para>
     /// </remarks>
     private static bool TryReadSequenceContribution(
         OverlayNode node, out ImmutableDictionary<long, SequenceItem> items)
     {
-        if (!node.Sequence.IsEmpty)
+        if (node.HasExplicitSequence || !node.Sequence.IsEmpty)
         {
             items = node.Sequence;
             return true;

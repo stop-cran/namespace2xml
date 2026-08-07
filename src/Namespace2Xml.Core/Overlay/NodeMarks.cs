@@ -330,6 +330,35 @@ public readonly record struct NodeMarks
             OwnSequenceShape);
 
     /// <summary>
+    /// The marks of a node whose complete value one later contribution has replaced.
+    /// </summary>
+    /// <param name="replacement">The marks of the value that replaced this one.</param>
+    /// <remarks>
+    /// Section 16.10 <c>replace</c> says "the later complete value replaces the earlier value", and
+    /// names what "value" covers: "payload, container presence, children, and sequence projection".
+    /// Every mark that describes one of those describes something that is no longer there, so the
+    /// replacement supplies all of them. Keeping the earlier shape marks leaves the Section 4.4
+    /// contest to be settled between a projection that exists and one that was replaced, and the
+    /// path is then reported as supplying both shapes when it supplies one.
+    /// <para>
+    /// The position mark is not replaced, for the reason <see cref="Combine"/> gives: Section 5.2
+    /// governs where a key sits in mapping order and is not a merge strategy, so an intermediate
+    /// node keeps the earliest contribution that required it. <see cref="AddressedDirectly"/>
+    /// travels with it, because it exists only to say which of the two Section 5.2 rules the
+    /// position mark follows and is not part of the value either.
+    /// </para>
+    /// </remarks>
+    public NodeMarks AfterReplacement(NodeMarks replacement) =>
+        new(
+            CombinePosition(this, replacement),
+            AddressedDirectly || replacement.AddressedDirectly,
+            replacement.PayloadMark,
+            replacement.MappingShape,
+            replacement.SequenceShape,
+            replacement.OwnMappingShape,
+            replacement.OwnSequenceShape);
+
+    /// <summary>
     /// The marks of a node that carries both of two nodes' contributions, taking the later of each
     /// shape mark independently.
     /// </summary>
