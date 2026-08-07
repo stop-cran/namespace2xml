@@ -227,7 +227,49 @@ harness output — a green run against mutated source:
   before believing a survivor.
 - **The fixture is invariant under the mutation.** `new string('z', N)` is unchanged by reversing
   segment order, so a payload-comparison assertion that is entirely real proves nothing about
-  ordering. Use position-varying data.
+  ordering. Use position-varying data. A boundary is the special case: a mutation moving a clamp
+  from the end of the *line* to the end of the *text* survived every position test, because the
+  fixtures' later lines were plain ASCII and converting across them changed nothing. Put the
+  distinguishing data **past** the boundary the mutation moves.
+
+### A mutation that does not compile has proved nothing
+
+Under `TreatWarningsAsErrors`, deleting the only use of a parameter or field makes the build fail,
+and a harness that treats a failed build as a kill will report a confident green for a mutation that
+never ran. Two "KILLED (compile)" lines here were a reader ceasing to call a converter — exactly the
+defect under test, invisible.
+
+The escape is to mutate the **shared helper to the identity** instead of unhooking each caller.
+Turning `SourceLines.ColumnOf` into a pass-through kept every reference alive, compiled cleanly, and
+killed eleven tests across three fixtures at once — which is also stronger evidence, because it
+proves every caller genuinely routes through the helper rather than proving one call site at a time.
+
+### `create` writes CRLF on Windows, and a mutation harness will not tell you
+
+A new `.cs` file authored through a tool lands with CRLF. `* text=auto eol=lf` normalizes it on
+commit, so it is invisible in review and in CI — but a mutation harness matching LF-joined text
+against the working tree reports `matched 0 times` and prints `SKIP`, which reads like a stale
+pattern rather than a line-ending mismatch. Normalize new files as they are created:
+
+```powershell
+$t = [IO.File]::ReadAllText($p)
+[IO.File]::WriteAllText($p, ($t -replace "`r`n","`n"), (New-Object Text.UTF8Encoding($false)))
+```
+
+### Host parsers throw types their own documentation does not lead you to
+
+- `Utf8JsonReader.GetString()` raises **`InvalidOperationException`**, not `JsonException`, for an
+  unpaired `\uXXXX` surrogate. A `catch (JsonException)` around the whole read misses it and the
+  process dies with exit `-532462766`. Wrap every `GetString()` call site, not the reader loop.
+- `Utf8JsonReader` counts lines by **LF alone**; Section 22 counts LF, CRLF and a lone CR. Two line
+  tables are needed — one to index the host's line number, one to report ours.
+- **YamlDotNet's `new Parser(TextReader)` sets `skipComments: true`.** A `case Comment:` in the
+  event switch is therefore unreachable dead code that looks entirely correct. Build the scanner
+  explicitly: `new Parser(new Scanner(reader, skipComments: false))`.
+- `XmlReader` with `DtdProcessing.Prohibit` answers **any** `<!…>` markup declaration — including
+  `<!doctype a>` and `<!FOO a>`, neither of which is a DTD — with "For security reasons DTD is
+  prohibited", plus advice to set `XmlReaderSettings.DtdProcessing`. Host advice naming an API the
+  user cannot reach is stripped in `Explain`; check for a new one whenever a host version changes.
 
 ### The mutation harness leaves the binaries mutated
 

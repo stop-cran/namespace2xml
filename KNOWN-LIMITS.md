@@ -29,7 +29,7 @@ destinations. Everything below that line is refused, not approximated.
 | JSON **input** | Implemented, with the reductions in §1.1 | §7.1, §9, §15.1 |
 | YAML **input** | Implemented, with the reductions in §1.2 | §7.1, §10, §15.1 |
 | XML **input** | Implemented, with the reductions in §1.3 | §7.1, §11, §15.1 |
-| Scheme parsing, `output`, `filename`, `root`, `delimiter` | Implemented | §16 |
+| Scheme parsing, `output`, `filename`, `root`, `delimiter` | Implemented, namespace-profile scheme files only | §16 |
 | Overlaying, precedence, mapping order after override | Implemented | §5, §10 |
 | Scalar inference and canonical numeric text | Implemented | §18 |
 | Output planning, destination paths, collision folding | Implemented | §17 |
@@ -40,6 +40,7 @@ destinations. Everything below that line is refused, not approximated.
 | Wildcard output selectors and `substitute` | Not yet | §14, §16 |
 | Ordered sequences from numeric paths | Not yet | §8.7, §5.4 |
 | Rendering: JSON, YAML, XML | Not yet | §19.3–§19.5 |
+| **Scheme files** written as JSON, YAML or XML | Not yet | §15 |
 
 A preview binary returns exit status `70` when an invocation needs something in the second half of
 that table. That status is deliberately outside the contract: `0` and `1` are normative, and a
@@ -142,6 +143,23 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
 - **Processing instructions are discarded**, with one `WARN006` per document that carried any.
   §11.8 places them outside the preservation contract.
 - **`substitute` is parsed and not applied**, as for every other format.
+
+### 1.4 Scheme files must be namespace profiles
+
+§15 says "Scheme files may use the same case-insensitive format extensions as input files for
+compatibility", and that JSON, YAML and XML scheme files "use secure default parsing". This preview
+reads only the namespace-profile form, which the same section calls "the canonical and recommended
+representation".
+
+A `-s` file whose name ends in `.json`, `.yaml`, `.yml` or `.xml` is therefore **declined**, with
+exit `70` and no output, naming §15. It is refused before it is read rather than handed to the
+namespace parser: parsing a JSON scheme as a namespace profile reports `PARSE001` against §8.1,
+which names a contract the file was never written to and asks its author to repair syntax that is
+already correct for the contract §15 pointed them at. A wrong diagnostic costs more than a refusal.
+
+The extension decides, not the content — a scheme written in namespace-profile syntax but saved as
+`scheme.json` is still declined, and one saved as `scheme.ini`, `scheme.sh` or with no extension at
+all is still read, exactly as §7.1 treats input files.
 
 ## 2. Acceptance coverage
 

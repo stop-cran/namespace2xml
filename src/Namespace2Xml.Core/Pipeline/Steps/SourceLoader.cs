@@ -117,8 +117,10 @@ public sealed class SourceLoader
     /// <param name="phase">The phase its diagnostics report.</param>
     /// <param name="diagnostics">The buffer its diagnostics accumulate in.</param>
     /// <param name="structured">
-    /// Whether Section 7.1's extension table applies. It governs "input file extensions", so a
-    /// scheme file is a namespace profile whatever it is called.
+    /// Whether Section 7.1's extension table applies. Section 15 lets a scheme file carry a
+    /// structured extension too, but this build reads only the namespace-profile form and
+    /// <c>SchemePhase</c> declines a structured scheme before reaching here, so no caller passes
+    /// <see langword="true"/> for a scheme.
     /// </param>
     /// <returns>The loaded source, or <c>null</c> when it contributed nothing at all.</returns>
     public LoadedSource? LoadFile(
@@ -179,7 +181,7 @@ public sealed class SourceLoader
         if (!decoded.Succeeded)
         {
             diagnostics.Add(new BufferedDiagnostic(decoded.Diagnostic!, key));
-            return null;
+            return Attempted(origin, ordinal, budget);
         }
 
         if (structured && StructuredFormat(path) is { } format)
@@ -203,7 +205,7 @@ public sealed class SourceLoader
                     EmitLimit(fault, origin, phase, diagnostics, key);
                 }
 
-                return null;
+                return Attempted(origin, ordinal, budget);
             }
 
             return new LoadedSource(origin, ordinal, [], budget.Tally, Admitted: true)
@@ -216,6 +218,27 @@ public sealed class SourceLoader
 
         return Charge(records, origin, ordinal, budget, phase, diagnostics, key);
     }
+
+    /// <summary>
+    /// A source whose bytes were read and whose parse attempt produced no model, carrying only what
+    /// it consumed.
+    /// </summary>
+    /// <param name="origin">How diagnostics name it.</param>
+    /// <param name="ordinal">Its Section 4.7 CLI source ordinal.</param>
+    /// <param name="budget">The per-source budget it was charged against.</param>
+    /// <remarks>
+    /// Section 7.3 evaluates the global budgets "after all independently readable sources finish
+    /// their parse attempt", over a stream of "all scheme files in <c>-s</c> order, then all input
+    /// files in <c>-i</c> order, then command-line variables". A file that was read and then failed
+    /// to decode or to parse is an independently readable source that finished its parse attempt,
+    /// so its bytes belong in that stream. Dropping it would not merely lose a <c>LIMIT001</c>: it
+    /// would shorten the stream, so the bound would be judged to be crossed by a later file than
+    /// the one that actually crossed it, and "the first source whose cumulative contribution would
+    /// cross a global bound" would name the wrong source.
+    /// </remarks>
+    private static LoadedSource Attempted(
+        ProfileSource origin, long ordinal, SourceBudget budget) =>
+        new(origin, ordinal, [], budget.Tally, Admitted: true);
 
     /// <summary>Reads one <c>--variables</c> argument as a source.</summary>
     /// <param name="text">The argument, which Section 8.1 makes exactly one namespace record.</param>

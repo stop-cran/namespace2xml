@@ -42,6 +42,26 @@ public static class SchemePhase
         ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
+        // Section 15: "Scheme files may use the same case-insensitive format extensions as input
+        // files for compatibility. Their parsed content must project to qualified directive paths
+        // and scalar directive values." This build reads only the namespace-profile form, so a
+        // structured scheme file is declined here, before it is read. Handing it to the namespace
+        // parser instead would report Section 8.1 against a file Section 15 says may be JSON --
+        // naming the wrong contract, and telling the author to fix syntax that is already correct.
+        foreach (var path in command.Schemes)
+        {
+            if (SourceLoader.StructuredFormat(path) is { } format)
+            {
+                return StepOutcome.Unsupported<ImmutableArray<SchemeEntry>>(
+                    new UnsupportedCapability(
+                        "structured scheme files",
+                        $"'{path}' names the {format} format, and this build reads only "
+                        + "namespace-profile scheme files, which Section 15 calls the canonical "
+                        + "and recommended representation.",
+                        "\u00A715"));
+            }
+        }
+
         var loaded = ImmutableArray.CreateBuilder<LoadedSource>();
 
         for (var i = 0; i < command.Schemes.Length; i++)

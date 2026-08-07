@@ -90,6 +90,24 @@ public readonly struct BigDecimal : IEquatable<BigDecimal>
         return Normalize(isNegative ? -magnitude : magnitude, exponent, isNegative);
     }
 
+    /// <summary>
+    /// Removes trailing zeros from a coefficient, raising the exponent to compensate.
+    /// </summary>
+    /// <param name="coefficient">The signed coefficient.</param>
+    /// <param name="exponent">Its exponent.</param>
+    /// <param name="negativeZero">Whether a zero result is negative zero.</param>
+    /// <remarks>
+    /// Dividing by ten once per trailing zero is quadratic in the coefficient's digit count,
+    /// because every division touches the whole remaining value. Section 23 budgets ordinary
+    /// parsing at <c>O((N + P + E) log N + C)</c> and requires that "the implementation must avoid
+    /// an unconditional <c>O(n²)</c> scan", and the input that provokes it is a single ordinary
+    /// JSON number: <c>1.</c> followed by 128K zeros is a well-formed 128 KiB document.
+    /// <para>
+    /// This instead finds the number of trailing zeros by doubling — testing 10^1, 10^2, 10^4 and
+    /// so on until one does not divide evenly, then binary-searching the last power that does —
+    /// and performs a single division. That is <c>O(log n)</c> divisions rather than <c>n</c>.
+    /// </para>
+    /// </remarks>
     private static BigDecimal Normalize(BigInteger coefficient, BigInteger exponent, bool negativeZero)
     {
         if (coefficient.IsZero)
@@ -97,23 +115,64 @@ public readonly struct BigDecimal : IEquatable<BigDecimal>
             return negativeZero ? NegativeZero : Zero;
         }
 
-        BigInteger ten = 10;
+        var zeros = TrailingZeros(coefficient);
 
-        while (true)
+        if (zeros > 0)
         {
-            BigInteger quotient = BigInteger.DivRem(coefficient, ten, out BigInteger remainder);
-
-            if (!remainder.IsZero)
-            {
-                break;
-            }
-
-            coefficient = quotient;
-            exponent += BigInteger.One;
+            coefficient /= BigInteger.Pow(Ten, zeros);
+            exponent += zeros;
         }
 
         return new BigDecimal(coefficient, exponent, negativeZero: false);
     }
+
+    /// <summary>The number of decimal trailing zeros of a non-zero coefficient.</summary>
+    /// <param name="coefficient">The signed coefficient, which must not be zero.</param>
+    private static int TrailingZeros(BigInteger coefficient)
+    {
+        if (!(coefficient % Ten).IsZero)
+        {
+            return 0;
+        }
+
+        // Double until a power of ten no longer divides evenly, so the search range is found in
+        // O(log n) divisions rather than by stepping one digit at a time.
+        var low = 1;
+        var high = 2;
+        var power = BigInteger.Pow(Ten, high);
+
+        while ((coefficient % power).IsZero)
+        {
+            low = high;
+
+            if (high > int.MaxValue / 2)
+            {
+                return low;
+            }
+
+            high *= 2;
+            power = BigInteger.Pow(Ten, high);
+        }
+
+        // The answer is in [low, high); halve the range the same way.
+        while (low + 1 < high)
+        {
+            var middle = low + ((high - low) / 2);
+
+            if ((coefficient % BigInteger.Pow(Ten, middle)).IsZero)
+            {
+                low = middle;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        return low;
+    }
+
+    private static readonly BigInteger Ten = 10;
 
     /// <summary>
     /// Parses the JSON-compatible decimal or exponent form named by Section 18 grammar rule 4.
@@ -221,12 +280,64 @@ public readonly struct BigDecimal : IEquatable<BigDecimal>
             return false;
         }
 
+        // Section 23 budgets ordinary parsing at O((N + P + E) log N + C). Trailing zeros are
+        // removed here, on the text, so the coefficient is built only from the digits that survive:
+        // "1." followed by 128K zeros is a well-formed 128 KiB JSON number, and constructing its
+        // full 128K-digit coefficient only to divide the zeros back out is superlinear work any
+        // input can ask for. Normalize still guards the two public factories, which are handed a
+        // coefficient that already exists.
+        int totalDigits = integerDigits.Length + fractionDigits.Length;
+        int strippable = TrailingZeroDigits(integerDigits, fractionDigits);
+
+        // One digit always remains, so an all-zero coefficient still parses as the digit '0'.
+        int zeros = Math.Min(strippable, totalDigits - 1);
+        int fractionLength = fractionDigits.Length;
+
+        if (zeros <= fractionDigits.Length)
+        {
+            fractionDigits = fractionDigits[..(fractionDigits.Length - zeros)];
+        }
+        else
+        {
+            integerDigits = integerDigits[..(totalDigits - zeros)];
+            fractionDigits = default;
+        }
+
         BigInteger magnitude = fractionDigits.IsEmpty
             ? ParseDigits(integerDigits)
             : ParseDigits(string.Concat(integerDigits, fractionDigits));
 
-        value = FromSignedMagnitude(isNegative, magnitude, explicitExponent - fractionDigits.Length);
+        value = FromSignedMagnitude(
+            isNegative, magnitude, explicitExponent - fractionLength + zeros);
         return true;
+    }
+
+    /// <summary>
+    /// The number of trailing zero digits of the coefficient the two digit spans spell together.
+    /// </summary>
+    /// <param name="integerDigits">The digits before the decimal point.</param>
+    /// <param name="fractionDigits">The digits after it, which may be empty.</param>
+    private static int TrailingZeroDigits(
+        ReadOnlySpan<char> integerDigits, ReadOnlySpan<char> fractionDigits)
+    {
+        var zeros = 0;
+
+        for (var i = fractionDigits.Length - 1; i >= 0 && fractionDigits[i] == '0'; i--)
+        {
+            zeros++;
+        }
+
+        if (zeros < fractionDigits.Length)
+        {
+            return zeros;
+        }
+
+        for (var i = integerDigits.Length - 1; i >= 0 && integerDigits[i] == '0'; i--)
+        {
+            zeros++;
+        }
+
+        return zeros;
     }
 
     /// <summary>

@@ -311,6 +311,147 @@ public sealed class TransformationTests
         sink.Written.ShouldBeEmpty();
     }
 
+    [TestCase("scheme.json", TestName = "AJsonSchemeDeclines")]
+    [TestCase("scheme.yaml", TestName = "AYamlSchemeDeclines")]
+    [TestCase("scheme.yml", TestName = "AYmlSchemeDeclines")]
+    [TestCase("scheme.XML", TestName = "AnUppercaseXmlSchemeDeclines")]
+    public void AStructuredSchemeFileDeclinesRatherThanBeingReadAsANamespaceProfile(string path)
+    {
+        // Section 15: "Scheme files may use the same case-insensitive format extensions as input
+        // files for compatibility." This build reads only the namespace-profile form, so the
+        // question is which way it says so. Handing the file to the namespace parser reports
+        // PARSE001 against Section 8.1 -- naming a contract the file was never written to, and
+        // telling the author to add an '=' to syntax that is already correct for the contract
+        // Section 15 points them at. A refusal names the capability instead.
+        var sink = new Sink();
+        var sources = new Sources(
+            ("in.txt", "app.name=example\n"),
+            (path, "{\"app\":{\"output\":\"namespace\"}}\n"));
+
+        var result = Run(sink, sources, "-i", "in.txt", "-s", path);
+
+        result.State.ShouldBe(PipelineRunState.Unsupported);
+        result.ExitCode.ShouldBeNull();
+        result.Unsupported.ShouldNotBeNull().Spec.ShouldBe("\u00A715");
+        Codes(result).ShouldNotContain("PARSE001");
+        sink.Written.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// A scheme file whose extension is not one Section 7.1 names is a namespace profile, however
+    /// unusual the extension looks. Only the four structured extensions decline.
+    /// </summary>
+    [TestCase("scheme.ini")]
+    [TestCase("scheme.sh")]
+    [TestCase("scheme")]
+    public void AnUnstructuredExtensionIsStillANamespaceProfileScheme(string path)
+    {
+        var sink = new Sink();
+        var sources = new Sources(
+            ("in.txt", "app.name=example\n"),
+            (path, "app.output=namespace\n"));
+
+        Run(sink, sources, "-i", "in.txt", "-s", path).ExitCode.ShouldBe(0);
+        sink.Written.ShouldNotBeEmpty();
+    }
+
+    // ---- Section 7.3: the global input stream ------------------------------------------------
+
+    /// <summary>
+    /// Section 7.3 evaluates the global budgets "after all independently readable sources finish
+    /// their parse attempt", over one stream of "all scheme files in <c>-s</c> order, then all
+    /// input files in <c>-i</c> order". A file that was read and then failed to parse finished its
+    /// parse attempt, so its bytes are in that stream and shift where the bound is crossed.
+    /// </summary>
+    /// <remarks>
+    /// The arithmetic is stated rather than assumed. The scheme is 21 bytes, the malformed JSON is
+    /// 5, and the trailing profile is 8, so the running totals over the Section 7.3 stream are 21,
+    /// 26 and 34. A limit of 30 is crossed by the third source and by no earlier one. Drop the
+    /// malformed source from the stream and the totals become 21 and 29, which crosses nothing at
+    /// all -- so this asserts the bound is reported, and reported against the source that actually
+    /// crossed it.
+    /// </remarks>
+    [Test]
+    public void ASourceThatFailedToParseStillOccupiesTheGlobalInputStream()
+    {
+        const string Scheme = "app.output=namespace\n";
+        const string Malformed = "{\"a\":";
+        const string Trailing = "app.b=1\n";
+
+        Encoding.UTF8.GetByteCount(Scheme).ShouldBe(21);
+        Encoding.UTF8.GetByteCount(Malformed).ShouldBe(5);
+        Encoding.UTF8.GetByteCount(Trailing).ShouldBe(8);
+
+        var sink = new Sink();
+        var sources = new Sources(
+            ("scheme.txt", Scheme), ("bad.json", Malformed), ("b.txt", Trailing));
+
+        var result = Run(
+            sink,
+            sources,
+            "-s", "scheme.txt",
+            "-i", "bad.json",
+            "-i", "b.txt",
+            "--max-total-input-bytes", "30");
+
+        Codes(result).ShouldContain("LIMIT001");
+        result.Diagnostics.Single(d => d.Code == "LIMIT001").Source.ShouldBe("b.txt");
+    }
+
+    /// <summary>
+    /// The same rule for a source that never decoded. Section 7.3 says "independently readable",
+    /// and a file whose bytes were read is readable whatever those bytes turned out to mean.
+    /// </summary>
+    /// <remarks>
+    /// The malformed source is five bytes of which the last is a bare UTF-8 continuation byte, so
+    /// it fails Section 7.4 decoding rather than parsing. The arithmetic is otherwise the fixture
+    /// above: 21, then 26, then 34, against a limit of 30.
+    /// </remarks>
+    [Test]
+    public void ASourceThatFailedToDecodeStillOccupiesTheGlobalInputStream()
+    {
+        var sink = new Sink();
+        var sources = new Sources(
+            ("scheme.txt", new UTF8Encoding(false).GetBytes("app.output=namespace\n")),
+            ("bad.txt", [(byte)'a', (byte)'=', (byte)'1', (byte)'\n', 0x80]),
+            ("b.txt", new UTF8Encoding(false).GetBytes("app.b=1\n")));
+
+        var result = Run(
+            sink,
+            sources,
+            "-s", "scheme.txt",
+            "-i", "bad.txt",
+            "-i", "b.txt",
+            "--max-total-input-bytes", "30");
+
+        Codes(result).ShouldContain("LIMIT001");
+        result.Diagnostics.Single(d => d.Code == "LIMIT001").Source.ShouldBe("b.txt");
+    }
+
+    /// <summary>
+    /// The same three sources under a limit that admits all of them cross nothing, so the fixture
+    /// above is reporting a bound rather than a source count.
+    /// </summary>
+    [Test]
+    public void TheSameSourcesUnderASufficientLimitCrossNothing()
+    {
+        var sink = new Sink();
+        var sources = new Sources(
+            ("scheme.txt", "app.output=namespace\n"),
+            ("bad.json", "{\"a\":"),
+            ("b.txt", "app.b=1\n"));
+
+        var result = Run(
+            sink,
+            sources,
+            "-s", "scheme.txt",
+            "-i", "bad.json",
+            "-i", "b.txt",
+            "--max-total-input-bytes", "34");
+
+        Codes(result).ShouldNotContain("LIMIT001");
+    }
+
     [Test]
     public void AGapAndANonzeroBaseStillMakeASequence()
     {
