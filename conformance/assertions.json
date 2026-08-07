@@ -398,10 +398,16 @@
     {
       "item": 45,
       "text": "Empty output-plan warnings and inferred-sequence compatibility warnings.",
-      "milestone": "unassigned",
+      "milestone": "m3",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "When multiple sources contribute native implicit sequences at one path and no explicit merge directive applies, exactly one WARN004 compatibility warning is emitted for that path.",
+        "An explicit merge directive at the path silences the warning, including a bare directive governing the overlay root, because the directive says which reading was meant.",
+        "Explicit ordering values meeting native implicit items do not warn, because they patch rather than concatenate."
+      ],
+      "fixtures": [
+        "namespace-numeric-map-inference"
+      ]
     },
     {
       "item": 46,
@@ -464,10 +470,19 @@
     {
       "item": 53,
       "text": "Final fixed-point numeric-map inference, including empty mappings and generated or ignored nonnumeric children.",
-      "milestone": "unassigned",
+      "milestone": "m3",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "A nonempty mapping whose surviving child names are all canonical non-negative decimal ordering values projects as an explicitly indexed sequence at step 11.",
+        "Explicit indexed contributions patch the sequence at their supplied ordering values, so a later contribution at an existing value replaces that item rather than appending one.",
+        "Native implicit items concatenate in CLI source order above the allocation high-water mark, including when they follow explicit indexed contributions at the same path.",
+        "Gaps and non-zero bases are allowed and create no null placeholders, and namespace output renders the surviving items at fresh dense display indices.",
+        "A leading-zero spelling or a canonical decimal above the supported maximum is an ordinary mapping key and prevents sequence interpretation for the whole mapping.",
+        "A surviving empty mapping remains a mapping, so it still competes with a sequence contribution at the same path rather than being absorbed into it."
+      ],
+      "fixtures": [
+        "namespace-numeric-map-inference"
+      ]
     },
     {
       "item": 54,

@@ -26,17 +26,35 @@ public sealed class OverlayMerger
 {
     private readonly MergeStrategyMap strategies;
     private readonly DiagnosticBuffer diagnostics;
+    private readonly MergeStrategyMap? sourceCompatibility;
 
     /// <summary>Creates a merger.</summary>
     /// <param name="strategies">The effective Section 16.10 strategy at each path.</param>
     /// <param name="diagnostics">The buffer merge diagnostics accumulate in.</param>
-    public OverlayMerger(MergeStrategyMap strategies, DiagnosticBuffer diagnostics)
+    /// <param name="sourceCompatibility">
+    /// The declared <c>merge</c> directives, when this merger should report the Section 8.7
+    /// compatibility warning, or <see langword="null"/> when it should not.
+    /// </param>
+    /// <remarks>
+    /// The directives are supplied separately from <paramref name="strategies"/> because step 9
+    /// reuses the merger with no strategies at all -- it folds a numeric mapping child into the
+    /// sequence item Section 15.1 makes the same structural node, which is not a Section 16.10
+    /// literal-path merge -- and yet that fold is exactly where two sources' native arrays can
+    /// first meet at one path, one through each address. It still has to answer Section 8.7's
+    /// question about whether a directive was declared, and the answer lives in the map it does
+    /// not otherwise use.
+    /// </remarks>
+    public OverlayMerger(
+        MergeStrategyMap strategies,
+        DiagnosticBuffer diagnostics,
+        MergeStrategyMap? sourceCompatibility = null)
     {
         ArgumentNullException.ThrowIfNull(strategies);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
         this.strategies = strategies;
         this.diagnostics = diagnostics;
+        this.sourceCompatibility = sourceCompatibility;
     }
 
     /// <summary>Merges contributions in CLI source order.</summary>
@@ -330,6 +348,19 @@ public sealed class OverlayMerger
         var allocator = SequenceOrderingAllocator.From(highWater);
         var sequence = earlier;
 
+        // Section 8.7: "When multiple sources contribute native implicit sequences at one path and
+        // no explicit merge directive applies, emit one compatibility warning explaining that
+        // implicit items concatenate while explicit ordering values patch." Only the earlier side
+        // is tested for implicit items: every item a reader produces is implicit, so a later
+        // contribution reaching here at all is a native sequence, and an explicit index is a
+        // numeric mapping child that becomes an item only at step 9.
+        if (sourceCompatibility is { } declared
+            && !declared.Declares(path)
+            && earlier.Values.Any(item => item.Provenance == OrderingProvenance.Implicit))
+        {
+            ReportImplicitConcatenation(path, later.Marks.Latest);
+        }
+
         foreach (var (value, item) in later.Sequence.OrderBy(entry => entry.Key))
         {
             if (item.Provenance == OrderingProvenance.Explicit)
@@ -400,8 +431,24 @@ public sealed class OverlayMerger
             key));
     }
 
-    private void ReportOverflow(ImmutableArray<NamePart> path, StableOrderingKey key) =>
+    private void ReportImplicitConcatenation(
+        ImmutableArray<NamePart> path, StableOrderingKey key)
+    {
+        var text = PathText(path);
+
         diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Warn004(
+                DiagnosticPhase.Input,
+                "\u00A78.7",
+                "more than one source contributes a native implicit sequence here, and implicit "
+                + "items concatenate while explicit ordering values patch: declare a merge "
+                + "strategy at this path to say which was meant.",
+                cardinalityKey: text ?? string.Empty,
+                path: text),
+            key));
+    }
+
+    private void ReportOverflow(ImmutableArray<NamePart> path, StableOrderingKey key) => diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Limit001(
                 DiagnosticPhase.Input,
                 "\u00A75.4",

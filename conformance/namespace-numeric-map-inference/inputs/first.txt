@@ -1,0 +1,10 @@
+patch.0.x=one
+patch.1.x=two
+mixed.0=x
+mixed.1=y
+gaps.2=alpha
+gaps.7=beta
+ordinary.0=zero
+ordinary.01=leading
+huge.0=small
+huge.9223372036854775808=beyond

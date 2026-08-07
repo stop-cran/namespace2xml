@@ -24,7 +24,7 @@ namespace Namespace2Xml.UnitTests;
 public sealed class TransformationTests
 {
     /// <summary>An in-memory corpus of sources, keyed by the path as written on the command line.</summary>
-    private sealed class Sources : ISourceReader
+    internal sealed class Sources : ISourceReader
     {
         private readonly Dictionary<string, byte[]> files;
 
@@ -47,7 +47,7 @@ public sealed class TransformationTests
     }
 
     /// <summary>Records what would have been written, so a test never touches a filesystem.</summary>
-    private sealed class Sink : IPublicationSink
+    internal sealed class Sink : IPublicationSink
     {
         public Dictionary<string, string> Written { get; } = new(StringComparer.Ordinal);
 
@@ -59,7 +59,7 @@ public sealed class TransformationTests
             Written[relative] = new UTF8Encoding(false).GetString(buffer.ToArray());
     }
 
-    private static TransformationResult Run(Sink sink, Sources sources, params string[] arguments)
+    internal static TransformationResult Run(Sink sink, Sources sources, params string[] arguments)
     {
         var parsed = CommandLineParser.Parse(arguments);
         parsed.Diagnostic.ShouldBeNull();
@@ -302,8 +302,6 @@ public sealed class TransformationTests
 
     [TestCase("app.name=${other.name}\napp.other.name=x\n", "app.output=namespace\n",
         TestName = "AReferenceDeclines")]
-    [TestCase("app.0=x\napp.1=y\n", "app.output=namespace\n",
-        TestName = "ASequenceDeclines")]
     public void AnUnimplementedFeatureDeclines(string input, string scheme)
     {
         var (result, sink) = Transform(input, scheme);
@@ -458,12 +456,24 @@ public sealed class TransformationTests
     {
         // Section 8.7 classifies a mapping as sequence-inferable when *all* surviving child names
         // are canonical ordering values, and allows "gaps and nonzero bases". `app.5` alone is
-        // therefore a sequence, and Section 19.1 would emit it under a generated zero-based part —
-        // a visibly different file from `5=y`. Guessing is exactly what the gate prevents.
+        // therefore a sequence with one item at ordering value 5, and Section 5.4 makes namespace
+        // output "display fresh dense indices", so the file reads `0=y` and not `5=y`.
         var (result, sink) = Transform("app.5=y\n", "app.output=namespace\n");
 
-        result.State.ShouldBe(PipelineRunState.Unsupported);
-        sink.Written.ShouldBeEmpty();
+        result.ExitCode.ShouldBe(0);
+        sink.Written["app.properties"].ShouldBe("0=y\n");
+    }
+
+    [Test]
+    public void ADenseIndexIsARenderingArtifactAndNotAnAddress()
+    {
+        // Section 25.12: "Dense output positions are serialization artifacts and never become new
+        // scheme, wildcard, or reference addresses." The mask therefore names the stable ordering
+        // value 5, and the item it removes is the one displayed at position 0.
+        var (result, sink) = Transform("app.5=y\napp.9=z\n!app.5\n", "app.output=namespace\n");
+
+        result.ExitCode.ShouldBe(0);
+        sink.Written["app.properties"].ShouldBe("0=z\n");
     }
 
     [Test]

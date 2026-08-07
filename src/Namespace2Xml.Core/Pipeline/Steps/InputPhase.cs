@@ -137,17 +137,10 @@ public static class InputPhase
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        var paths = configuration.InputMerges
-            .Where(merge => merge.Path is not null)
-            .Select(merge => KeyValuePair.Create(merge.Path!, merge.Strategy));
-
-        var root = configuration.InputMerges
-            .Where(merge => merge.Path is null)
-            .Select(merge => merge.Strategy)
-            .DefaultIfEmpty(MergeStrategy.Deep)
-            .Last();
-
-        var merger = new OverlayMerger(MergeStrategyMap.Create(paths, root), diagnostics);
+        var merger = new OverlayMerger(
+            DeclaredMerges(configuration),
+            diagnostics,
+            sourceCompatibility: DeclaredMerges(configuration));
         var mask = MasksOf(contributions);
 
         var merged = merger.MergeAll(
@@ -156,6 +149,28 @@ public static class InputPhase
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<OverlayNode>()
             : StepOutcome.Produced(merged);
+    }
+
+    /// <summary>The Section 16.10 strategy map the scheme's input <c>merge</c> directives declare.</summary>
+    /// <param name="configuration">Step 4's product.</param>
+    /// <returns>The map, which also answers which paths carry a directive at all.</returns>
+    public static MergeStrategyMap DeclaredMerges(SchemeConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var paths = configuration.InputMerges
+            .Where(merge => merge.Path is not null)
+            .Select(merge => KeyValuePair.Create(merge.Path!, merge.Strategy));
+
+        var rootMerges = configuration.InputMerges
+            .Where(merge => merge.Path is null)
+            .Select(merge => merge.Strategy)
+            .ToList();
+
+        return MergeStrategyMap.Create(
+            paths,
+            rootMerges.Count == 0 ? MergeStrategy.Deep : rootMerges[^1],
+            rootDeclared: rootMerges.Count > 0);
     }
 
     /// <summary>The union of every Section 8.6 mask the run declares.</summary>
@@ -172,17 +187,30 @@ public static class InputPhase
 
     /// <summary>Section 15.1 step 9: expose ordering values and numeric mapping keys as path parts.</summary>
     /// <param name="merged">Step 8's product.</param>
+    /// <param name="configuration">Step 4's product, whose merge directives govern Section 8.7's warning.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>The overlay with ordering values exposed.</returns>
+    /// <remarks>
+    /// The merger folding a numeric mapping child into its twin sequence item carries no Section
+    /// 16.10 strategies: this is not a literal-path merge but the step that makes the two addresses
+    /// one node. It does report Section 8.7's compatibility warning, because this fold is where two
+    /// sources' native arrays first meet when one wrote the containing item and the other wrote the
+    /// numeric key.
+    /// </remarks>
     public static StepOutcome<OverlayNode> ExposeOrderingValues(
         OverlayNode merged,
+        SchemeConfiguration configuration,
         DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(merged);
+        ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
         var exposer = new OrderingValueExposer(
-            new OverlayMerger(MergeStrategyMap.Create([]), diagnostics));
+            new OverlayMerger(
+                MergeStrategyMap.Create([]),
+                diagnostics,
+                sourceCompatibility: DeclaredMerges(configuration)));
 
         var exposed = exposer.Expose(merged);
 
@@ -225,24 +253,95 @@ public static class InputPhase
 
     /// <summary>Section 15.1 step 11: project inferable mappings as explicit indexed sequences.</summary>
     /// <param name="evaluated">Step 10's product.</param>
-    /// <returns>The overlay, once no mapping is sequence-inferable.</returns>
+    /// <returns>The overlay with every inferable mapping projected.</returns>
     /// <remarks>
-    /// The check is a whole-tree walk rather than a per-source one, because Section 8.7 infers over
+    /// <para>
+    /// The walk is a whole-tree one rather than a per-source one, because Section 8.7 infers over
     /// the merged model: <c>a.0=x</c> in one file and <c>a.1=y</c> in another form one inferable
     /// mapping that neither source can see alone.
+    /// </para>
+    /// <para>
+    /// Projection is bottom-up, but inferability is not: a mapping qualifies on its children's
+    /// names, which projecting those children cannot change. The order therefore only fixes which
+    /// node object the two facets share.
+    /// </para>
+    /// <para>
+    /// Section 15.1 makes a numeric mapping child and the sequence item at its value "one
+    /// structural overlay node", and the walk reuses the projected child for its twin item rather
+    /// than projecting the same subtree twice. No step downstream of this one can currently tell
+    /// the two apart -- projection is pure, so a second projection of the same node is equal to the
+    /// first, and a mutation that re-projects survives every test in the suite. It is kept for
+    /// cost rather than for observable behaviour: after step 9 every numeric child shares a node
+    /// with an item, so re-projecting doubles the work at each such level.
+    /// </para>
     /// </remarks>
     public static StepOutcome<OverlayNode> InferSequences(OverlayNode evaluated)
     {
         ArgumentNullException.ThrowIfNull(evaluated);
 
-        return FindInferable(evaluated, []) is { } path
-            ? StepOutcome.Unsupported<OverlayNode>(
-                new UnsupportedCapability(
-                    "sequence inference",
-                    $"the mapping at '{path}' has only canonical non-negative decimal keys, which "
-                    + "Section 8.7 projects as an indexed sequence rather than as a mapping.",
-                    "\u00A78.7"))
-            : StepOutcome.Produced(evaluated);
+        return StepOutcome.Produced(Project(evaluated));
+    }
+
+    private static OverlayNode Project(OverlayNode node)
+    {
+        var children = node.Children;
+
+        foreach (var (name, child) in node.OrderedChildren)
+        {
+            children = children.SetItem(name, Project(child));
+        }
+
+        var sequence = node.Sequence;
+
+        foreach (var (value, item) in node.OrderedSequence)
+        {
+            sequence = sequence.SetItem(
+                value,
+                item with
+                {
+                    Node = node.Children.TryGetValue(OrderingValues.ToNamePart(value), out var twin)
+                        && ReferenceEquals(twin, item.Node)
+                            ? children[OrderingValues.ToNamePart(value)]
+                            : Project(item.Node),
+                });
+        }
+
+        var inferred = IsInferable(node);
+
+        if (inferred)
+        {
+            foreach (var (name, child) in children)
+            {
+                // Section 8.7: "explicit indexed contributions patch the sequence at their supplied
+                // ordering values", so an item already at the value has its node replaced rather
+                // than being displaced. Section 15.1 has the combined item keep "the ordering
+                // provenance the sequence item already had"; only step 8's merge reads provenance,
+                // and it has already run, so preserving it here is specified rather than observed.
+                // Section 5.4 gives gaps and nonzero bases no special treatment, and a value
+                // nothing supplied stays absent rather than becoming a null placeholder.
+                OrderingValues.TryRead(name, out var value);
+
+                sequence = sequence.SetItem(
+                    value,
+                    sequence.TryGetValue(value, out var existing)
+                        ? existing with { Node = child }
+                        : SequenceItem.Numbered(child));
+            }
+
+            children = ImmutableDictionary<NamePart, OverlayNode>.Empty;
+        }
+
+        return OverlayNode.Compose(
+            inferred ? node.Marks.AsInferredSequence() : node.Marks,
+            node.Payload,
+            // Section 15.1: "inference replaces that contribution's mapping projection". The node
+            // is a sequence afterwards, so the mapping facet it replaced must not still claim one.
+            node.HasExplicitMapping && !inferred,
+            node.HasExplicitSequence || inferred,
+            children,
+            sequence,
+            node.Comments,
+            node.SequenceHighWater);
     }
 
     /// <summary>Section 15.1 step 12: infer scalar kinds for remaining untyped payloads.</summary>
@@ -289,38 +388,14 @@ public static class InputPhase
     }
 
     /// <summary>
-    /// The path of the first mapping Section 8.7 would project as a sequence, in the order Section
-    /// 5.2 fixes, or <c>null</c> when there is none.
+    /// Section 8.7: a mapping is sequence-inferable when it is nonempty and every surviving child
+    /// name is a canonical ordering value.
     /// </summary>
-    private static string? FindInferable(OverlayNode node, ImmutableArray<string> prefix)
-    {
-        if (IsInferable(node))
-        {
-            return prefix.IsEmpty ? "(root)" : string.Join('.', prefix);
-        }
-
-        foreach (var (name, child) in node.OrderedChildren)
-        {
-            if (FindInferable(child, prefix.Add(Spell(name))) is { } found)
-            {
-                return found;
-            }
-        }
-
-        foreach (var (ordering, item) in node.OrderedSequence)
-        {
-            if (FindInferable(
-                item.Node,
-                prefix.Add(ordering.ToString(System.Globalization.CultureInfo.InvariantCulture)))
-                is { } found)
-            {
-                return found;
-            }
-        }
-
-        return null;
-    }
-
+    /// <remarks>
+    /// "A surviving empty mapping remains a mapping", so emptiness is checked rather than left to
+    /// the vacuous truth of the universal quantifier. Masks have already run, at steps 8 and 10, so
+    /// the children seen here are the surviving ones the clause asks about.
+    /// </remarks>
     private static bool IsInferable(OverlayNode node) =>
         !node.Children.IsEmpty && node.Children.Keys.All(IsCanonicalIndex);
 

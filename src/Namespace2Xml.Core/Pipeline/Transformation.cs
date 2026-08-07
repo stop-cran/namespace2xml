@@ -164,8 +164,9 @@ public static class Transformation
 
         var exposed = run.Run(
             PipelineStep.ExposeOrderingValues,
-            merged,
-            InputPhase.ExposeOrderingValues);
+            PipelineRun.Both(merged, configuration),
+            (both, diagnostics) =>
+                InputPhase.ExposeOrderingValues(both.First, both.Second, diagnostics));
 
         var evaluated = run.Run(
             PipelineStep.EvaluateTemplates,

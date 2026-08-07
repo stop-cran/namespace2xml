@@ -229,6 +229,27 @@ public readonly record struct NodeMarks
         new(Position, AddressedDirectly, PayloadMark, MappingShape, Later(SequenceShape, position));
 
     /// <summary>
+    /// The marks after Section 8.7 inference, which "replaces that contribution's mapping
+    /// projection" with a sequence one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The mapping shape-mark moves rather than being dropped, because the contributions that set
+    /// it are the very ones the inferred sequence now carries. Dropping it would let a payload win
+    /// the Section 4.4 exclusive-shape contest against a container that still exists, and clearing
+    /// nothing would leave the node claiming both shapes, so a flat destination would warn about a
+    /// conflict between a mapping facet and the sequence that replaced it.
+    /// </para>
+    /// <para>
+    /// <see cref="ContainerShape"/> is therefore unchanged by this transformation, which is the
+    /// point: inference decides <em>which</em> container a node projects, never whether the
+    /// container beats the payload.
+    /// </para>
+    /// </remarks>
+    public NodeMarks AsInferredSequence() =>
+        new(Position, AddressedDirectly, PayloadMark, mappingShape: null, sequenceShape: ContainerShape);
+
+    /// <summary>
     /// The marks of a node that carries both of two nodes' contributions, taking the later of each
     /// shape mark independently.
     /// </summary>

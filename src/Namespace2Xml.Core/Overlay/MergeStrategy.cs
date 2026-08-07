@@ -44,17 +44,21 @@ public sealed class MergeStrategyMap
 {
     private readonly ImmutableDictionary<QualifiedName, MergeStrategy> strategies;
     private readonly MergeStrategy root;
+    private readonly bool rootDeclared;
 
     private MergeStrategyMap(
-        ImmutableDictionary<QualifiedName, MergeStrategy> strategies, MergeStrategy root)
+        ImmutableDictionary<QualifiedName, MergeStrategy> strategies,
+        MergeStrategy root,
+        bool rootDeclared)
     {
         this.strategies = strategies;
         this.root = root;
+        this.rootDeclared = rootDeclared;
     }
 
     /// <summary>The map in which every path uses the Section 16.10 default.</summary>
     public static MergeStrategyMap Default { get; } =
-        new(ImmutableDictionary<QualifiedName, MergeStrategy>.Empty, MergeStrategy.Deep);
+        new(ImmutableDictionary<QualifiedName, MergeStrategy>.Empty, MergeStrategy.Deep, false);
 
     /// <summary>Builds a map from compiled literal-path <c>merge</c> directives.</summary>
     /// <param name="strategies">The strategy declared at each literal path.</param>
@@ -62,6 +66,11 @@ public sealed class MergeStrategyMap
     /// The strategy declared by a directive with no path at all. Section 16.10 spells the directive
     /// <c>[path.]merge=…</c>, so the path is optional and a bare <c>merge=replace</c> governs the
     /// overlay root.
+    /// </param>
+    /// <param name="rootDeclared">
+    /// Whether <paramref name="root"/> came from a directive. Section 8.7 asks whether "no explicit
+    /// <c>merge</c> directive applies", which the strategy alone cannot answer: a declared
+    /// <c>merge=deep</c> and no directive at all produce the same effective strategy.
     /// </param>
     /// <remarks>
     /// The root is a separate parameter because Appendix A.2 spells a qname as "one or more
@@ -71,7 +80,8 @@ public sealed class MergeStrategyMap
     /// </remarks>
     public static MergeStrategyMap Create(
         IEnumerable<KeyValuePair<QualifiedName, MergeStrategy>> strategies,
-        MergeStrategy root = MergeStrategy.Deep)
+        MergeStrategy root = MergeStrategy.Deep,
+        bool rootDeclared = false)
     {
         ArgumentNullException.ThrowIfNull(strategies);
 
@@ -86,7 +96,7 @@ public sealed class MergeStrategyMap
             builder[path] = strategy;
         }
 
-        return new MergeStrategyMap(builder.ToImmutable(), root);
+        return new MergeStrategyMap(builder.ToImmutable(), root, rootDeclared);
     }
 
     /// <summary>The effective strategy at one path.</summary>
@@ -97,4 +107,14 @@ public sealed class MergeStrategyMap
             : strategies.TryGetValue(new QualifiedName(path), out var strategy)
                 ? strategy
                 : MergeStrategy.Deep;
+
+    /// <summary>Whether a <c>merge</c> directive was declared at exactly this path.</summary>
+    /// <param name="path">The literal path, from the overlay root.</param>
+    /// <remarks>
+    /// Section 8.7 warns only when "no explicit <c>merge</c> directive applies", so the question is
+    /// about the directive and not about the resulting strategy. A directive at an ancestor does
+    /// not answer it either: Section 16.10 looks a strategy up at the exact path.
+    /// </remarks>
+    public bool Declares(ImmutableArray<NamePart> path) =>
+        path.IsDefaultOrEmpty ? rootDeclared : strategies.ContainsKey(new QualifiedName(path));
 }

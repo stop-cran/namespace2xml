@@ -1,0 +1,10 @@
+-i
+inputs/first.txt
+-i
+inputs/second.txt
+-i
+inputs/native.yaml
+-i
+inputs/third.yaml
+-s
+schemes/scheme.txt
