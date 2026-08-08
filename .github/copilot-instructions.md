@@ -352,6 +352,42 @@ $t = [IO.File]::ReadAllText($p)
 [IO.File]::WriteAllText($p, ($t -replace "`r`n","`n"), (New-Object Text.UTF8Encoding($false)))
 ```
 
+This bites the harness *script itself*, not only the source it mutates. A `.ps1` written with
+`create` is CRLF, so patching it afterwards with `$t.Replace("...`n        Test = ...", ...)` matches
+nothing and **silently changes nothing** — the harness then re-runs unmodified and reports the same
+result, which reads as the fix having had no effect. Normalize the harness on creation too, or
+rewrite it rather than patching it.
+
+### A lone surrogate cannot survive a `[TestCase]` attribute
+
+Attribute arguments are stored in metadata as UTF-8, so a lone surrogate in a `[TestCase]` string is
+replaced before the test ever runs — and because the encoder emits one replacement per malformed
+byte, `"lone\uD83Dsurrogate"` arrives as `lone` + **three** U+FFFD + `surrogate`. That string is
+perfectly printable, so a test asserting that unwritable text is refused fails against correct code,
+and the obvious conclusion — that the guard is missing — is wrong.
+
+Method-body string literals live in the `#US` heap, which is UTF-16, so a lone surrogate there
+survives intact. Build the value in code and assert it is what you think before using it:
+
+```csharp
+string text = "lone" + (char)0xD83D + "surrogate";
+text.ShouldContain("\uD83D", Case.Sensitive);
+```
+
+Read the attribute back through reflection when a test case behaves as if its input were different:
+`method.GetCustomAttributesData()[i].ConstructorArguments[0].Value`.
+
+### `char.IsControl` does not report U+2028 and U+2029
+
+They are Unicode categories Zl and Zp, not Cc, so `char.IsControl('\u2028')` is **false** — yet YAML
+normalizes both as line breaks exactly as it normalizes LF. A guard written as "reject control
+characters" therefore lets through the two characters most able to destroy a text format, and the
+damage is not altered data but an unparseable file. U+0085 (NEL) *is* a C1 control and is covered.
+
+Any predicate here that means "cannot be written as itself" needs three tests, not one: controls,
+the two separators, and lone surrogates (which are not control characters either, and which UTF-8
+cannot encode at all).
+
 ### Host parsers throw types their own documentation does not lead you to
 
 - `Utf8JsonReader.GetString()` raises **`InvalidOperationException`**, not `JsonException`, for an
@@ -601,6 +637,22 @@ implementation. If you find yourself sharing a helper between `src/` and the com
 **A new gate needs a proof that it fails.** Before trusting one, reintroduce the defect it targets
 and watch it go red, then restore. `HarnessSelfTests` exists entirely for this: it is a suite of
 must-fail cases proving the comparer rejects what it claims to reject. Add to it when you add a rule.
+
+**Test a writer by reading its output back, not by looking at it.** M5 shipped 197 unit tests and
+six conformance fixtures over the JSON and YAML writers. They caught **none** of the eight defects
+two independent reviews then found, and five of those silently destroyed data at exit `0`. The
+reason is structural, not effort: every one of those tests asserted *what the writer chose to emit*
+for an ordinary value, which is a question the writer cannot get wrong, because the test was written
+by reading the writer.
+
+The defects lived in the values nobody writes a test for — a leading blank line, `...`, `<<`, a
+BOM, an emoji, a value ending in a blank line, U+2028. The assertion that finds them is not "does
+the output look right" but *"does a parser give the value back"*, and the parser must not be ours:
+the tool's own reader shares the tool's own assumptions. PyYAML found all of them in one pass.
+
+For any format the tool both reads and writes, a round-trip fixture through an independent parser is
+worth more than a dozen shape assertions, and the values it carries should be chosen to be hostile
+rather than representative.
 
 **Ask what would notice if this were wrong.** A dual-model review found a defect on the default path
 of every invocation that three separate mechanisms should each have caught, and all three failed
