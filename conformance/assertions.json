@@ -390,10 +390,12 @@
     {
       "item": 30,
       "text": "Global semantic/serialization validation gate and deterministic direct publication.",
-      "milestone": "unassigned",
-      "status": "pending",
+      "milestone": "m7",
+      "status": "required",
       "assertions": [
-        "The gate runs across every planned output before any file is written, so a failure detected while projecting the second output instance leaves no file from the first, which had already serialized successfully."
+        "The gate runs across every planned output before any file is written, so a failure detected while projecting the second output instance leaves no file from the first, which had already serialized successfully.",
+        "Destinations are written in the Section 21.3 order, by minimum fold key and then by canonical relative path compared as unsigned UTF-8 bytes, with each destination flushed and closed before the next begins.",
+        "A storage failure mid-publication attempts no rollback, so the destinations already written remain and every later destination is untouched, making the surviving set a function of the destination order rather than of the failure."
       ],
       "fixtures": [
         "validation-gate-leaves-the-output-root-untouched"
