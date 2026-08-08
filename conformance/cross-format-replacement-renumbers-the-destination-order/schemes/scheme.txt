@@ -1,0 +1,13 @@
+p.output=namespace
+p.filename=shared.txt
+r.output=namespace
+r.filename=r.txt
+r.filemerge=deep
+s.output=namespace
+s.filename=r.txt
+s.filemerge=deep
+q.output=ini
+q.filename=shared.txt
+t.output=ini
+t.filename=shared.txt
+t.filemerge=error

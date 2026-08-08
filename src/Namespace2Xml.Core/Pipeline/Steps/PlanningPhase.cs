@@ -29,7 +29,25 @@ public sealed record OutputView(
 /// <param name="View">The view.</param>
 /// <param name="Path">Its Section 17.5 canonical destination path.</param>
 /// <param name="Key">Its Section 17.5 fold key.</param>
-public sealed record DestinationContribution(OutputView View, DestinationPath Path, FoldKey Key);
+public sealed record DestinationContribution(OutputView View, DestinationPath Path, FoldKey Key)
+{
+    /// <summary>Orders destinations as Section 21.3 publishes them.</summary>
+    /// <param name="contributions">The folded plan, one contribution per destination.</param>
+    /// <returns>The contributions in Section 21.3 destination order.</returns>
+    /// <remarks>
+    /// Section 21.3 orders "by the minimum Section 17.5 fold key among contributions whose data or
+    /// retained destination high-water state survives into the final folded plan, then by canonical
+    /// relative path compared as unsigned UTF-8 bytes". The surviving key is what the fold leaves
+    /// on the contribution, so the first component reads straight off it. The tie-break is not
+    /// decoration: one declaration can write two destinations, so the key alone is not a total
+    /// order, and Section 24 orders a whole diagnostic group by the resulting index.
+    /// </remarks>
+    public static IEnumerable<DestinationContribution> InPublicationOrder(
+        IEnumerable<DestinationContribution> contributions) =>
+        contributions
+            .OrderBy(contribution => contribution.Key)
+            .ThenBy(contribution => contribution.Path, DestinationPath.Utf8Bytes);
+}
 
 /// <summary>
 /// Specification Section 15.1 steps 13 to 18: the transformation and output-planning phase.
@@ -606,6 +624,7 @@ public static class PlanningPhase
 
         var folded = new Dictionary<string, DestinationContribution>(StringComparer.Ordinal);
         var order = new List<string>();
+        var pending = new List<(string Canonical, DiagnosticOccurrence Occurrence)>();
 
         foreach (var contribution in contributions.OrderBy(c => c.Key))
         {
@@ -634,13 +653,65 @@ public static class PlanningPhase
                 continue;
             }
 
-            folded[canonical] = Fold(accumulated, rooted, order.IndexOf(canonical), diagnostics);
+            folded[canonical] = Fold(accumulated, rooted, pending, diagnostics);
         }
+
+        Number(pending, order.Select(canonical => folded[canonical]), diagnostics);
 
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<ImmutableArray<DestinationContribution>>()
             : StepOutcome.Produced(
                 ImmutableArray.CreateRange(order.Select(canonical => folded[canonical])));
+    }
+
+    /// <summary>
+    /// Buffers step 18's destination diagnostics against the Section 21.3 index of the destination
+    /// each concerns.
+    /// </summary>
+    /// <param name="pending">What the fold decided, in the order it decided it.</param>
+    /// <param name="final">The folded plan, one contribution per destination.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <remarks>
+    /// <para>
+    /// Section 24's second group is ordered "in the Section 21.3 destination order", and Section
+    /// 21.3 orders "by the minimum Section 17.5 fold key among contributions whose data or retained
+    /// destination high-water state survives into the final folded plan, then by canonical relative
+    /// path compared as unsigned UTF-8 bytes". Neither component is known while the fold is running.
+    /// The surviving key is not, because a cross-format replacement discards the accumulated plan
+    /// and resets the key to the replacing contribution, which may be any later contribution; and
+    /// the path tie-break is not, because it only decides between destinations that have all been
+    /// seen. Numbering a destination when it is first reached therefore records the order in which
+    /// the fold happened to meet destinations, which is a different order whenever a cross-format
+    /// replacement moves a key past another destination's, or two destinations share a key.
+    /// </para>
+    /// <para>
+    /// The order is taken from <see cref="DestinationContribution.InPublicationOrder"/>, which step
+    /// 19 also uses to number its own diagnostics and to publish. One expression, so the two steps
+    /// cannot drift into disagreeing about the order of the same run's stream.
+    /// </para>
+    /// </remarks>
+    private static void Number(
+        List<(string Canonical, DiagnosticOccurrence Occurrence)> pending,
+        IEnumerable<DestinationContribution> final,
+        DiagnosticBuffer diagnostics)
+    {
+        if (pending.Count == 0)
+        {
+            return;
+        }
+
+        var index = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var contribution in DestinationContribution.InPublicationOrder(final))
+        {
+            index[contribution.Path.Canonical] = index.Count;
+        }
+
+        foreach (var (canonical, occurrence) in pending)
+        {
+            diagnostics.Add(new BufferedDiagnostic(
+                occurrence, DestinationOrder: index[canonical]));
+        }
     }
 
     /// <summary>
@@ -705,7 +776,7 @@ public static class PlanningPhase
     private static DestinationContribution Fold(
         DestinationContribution accumulated,
         DestinationContribution later,
-        int order,
+        List<(string Canonical, DiagnosticOccurrence Occurrence)> pending,
         DiagnosticBuffer diagnostics)
     {
         var canonical = later.Path.Canonical;
@@ -717,17 +788,15 @@ public static class PlanningPhase
             // Appendix B maps "'filemerge=error' rejects a second destination contribution" to
             // COLLISION001, which is a different condition from the WARN005 fold the other three
             // strategies perform. No warning accompanies it: nothing was folded.
-            diagnostics.Add(new BufferedDiagnostic(
-                DiagnosticCodes.Collision001(
-                    DiagnosticPhase.Planning,
-                    "\u00A716.11",
-                    $"'{later.View.Instance.Selector}' is a second contribution to "
-                    + $"'{canonical}', which '{accumulated.View.Instance.Selector}' already writes, "
-                    + "and the effective 'filemerge' is 'error'.",
-                    cardinalityKey: PairKey(canonical, accumulated, later),
-                    declaration: later.View.Instance.FileMergeDeclaration?.Text,
-                    destination: canonical),
-                DestinationOrder: order));
+            pending.Add((canonical, DiagnosticCodes.Collision001(
+                DiagnosticPhase.Planning,
+                "\u00A716.11",
+                $"'{later.View.Instance.Selector}' is a second contribution to "
+                + $"'{canonical}', which '{accumulated.View.Instance.Selector}' already writes, "
+                + "and the effective 'filemerge' is 'error'.",
+                cardinalityKey: PairKey(canonical, accumulated, later),
+                declaration: later.View.Instance.FileMergeDeclaration?.Text,
+                destination: canonical)));
 
             return accumulated;
         }
@@ -735,21 +804,19 @@ public static class PlanningPhase
         // Section 17.5: "For every destination collision, emit a warning identifying: destination
         // path; earlier declaration; later declaration; merge or replacement decision." WARN005
         // carries only 'destination' in Appendix B, so the other three facts are in the message.
-        diagnostics.Add(new BufferedDiagnostic(
-            DiagnosticCodes.Warn005(
-                DiagnosticPhase.Planning,
-                "\u00A717.5",
-                $"'{canonical}' is written by '{accumulated.View.Instance.Declaration.Text}' and "
-                + $"'{later.View.Instance.Declaration.Text}'; "
-                + (crossFormat
-                    ? $"the formats differ, so the later {later.View.Format} contribution replaces "
-                        + $"the complete {accumulated.View.Format} plan"
-                    : $"the formats agree, so they are folded under 'filemerge="
-                        + $"{strategy.ToString().ToLowerInvariant()}'")
-                + ".",
-                cardinalityKey: PairKey(canonical, accumulated, later),
-                destination: canonical),
-            DestinationOrder: order));
+        pending.Add((canonical, DiagnosticCodes.Warn005(
+            DiagnosticPhase.Planning,
+            "\u00A717.5",
+            $"'{canonical}' is written by '{accumulated.View.Instance.Declaration.Text}' and "
+            + $"'{later.View.Instance.Declaration.Text}'; "
+            + (crossFormat
+                ? $"the formats differ, so the later {later.View.Format} contribution replaces "
+                    + $"the complete {accumulated.View.Format} plan"
+                : $"the formats agree, so they are folded under 'filemerge="
+                    + $"{strategy.ToString().ToLowerInvariant()}'")
+            + ".",
+            cardinalityKey: PairKey(canonical, accumulated, later),
+            destination: canonical)));
 
         if (crossFormat)
         {

@@ -1,0 +1,5 @@
+[
+{"code":"WARN005","severity":"warning","phase":"planning","destination":"r.txt","spec":"§17.5"},
+{"code":"COLLISION001","severity":"error","phase":"planning","declaration":"t.filemerge","destination":"shared.txt","spec":"§16.11"},
+{"code":"WARN005","severity":"warning","phase":"planning","destination":"shared.txt","spec":"§17.5"}
+]

@@ -51,10 +51,9 @@ public static class PublicationPhase
         // compared as unsigned UTF-8 bytes". The key alone is not a total order — one declaration
         // can write two destinations — and the index assigned here is what Section 24 orders this
         // step's diagnostics by, so a tie left to enumeration order would be a diagnostic order
-        // that depends on a dictionary.
-        foreach (var contribution in contributions
-            .OrderBy(c => c.Key)
-            .ThenBy(c => c.Path, DestinationPath.Utf8Bytes))
+        // that depends on a dictionary. Step 18 numbers its own destination diagnostics from the
+        // same expression, so the two steps cannot disagree about one run's stream.
+        foreach (var contribution in DestinationContribution.InPublicationOrder(contributions))
         {
             if (TrySerialize(contribution, budget, diagnostics, order, out var buffer))
             {
