@@ -138,28 +138,32 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   CDATA. What does *not* follow it is any other format: JSON, YAML and the flat formats have no
   such spelling, so `PreserveCData` is meaningful only on an XML destination, and a value that
   reaches XML by way of another format arrives as ordinary text.
-- **Element-only children carry no separately addressable content token, and interleaved repeats
-  lose their document order.** §11.4 says every parent assigns ordering values "including
-  element-only parents", and that element-only children retain element-name addressing "while also
-  carrying their content-token ordering value for deterministic placement". This preview
-  materializes the element-name address only, so `a.#1` does not select an element-only child and a
-  comment among element-only children has no address at all.
+- **Element-only children carry a content token for placement but no separately addressable one.**
+  §11.4 says every parent assigns ordering values "including element-only parents", and that
+  element-only children retain element-name addressing "while also carrying their content-token
+  ordering value for deterministic placement". The placement half now works:
+  `<a><b>1</b><c>2</c><b>3</b></a>` round-trips unchanged, its `<c>` still between the two `<b>`
+  elements, and a namespace-profile override at `a.b.1` changes the third element's text without
+  moving it. What is still missing is the *address*: `a.#1` does not select an element-only child,
+  so a comment among element-only children has no address at all, and neither does an element-only
+  child selected positionally rather than by name.
 
-  The consequence is a real loss, not only a missing address. §11.4 also says repeated same-name
-  children "form a sequence at `parent.child`", so a repeat is recorded as one property at its
-  first appearance; without the content-token value there is nothing left that says where its later
-  occurrences stood among differently-named siblings. `<a><b>1</b><c>2</c><b>3</b></a>` and
-  `<a><b>1</b><b>3</b><c>2</c></a>` therefore produce the same model, and the same output —
-  **verified**, not merely expected. §11.4 makes content-token values "determine placement in the
-  parent's serialized stream", and §19.5 rendering now exists, so this **is** observable: the first
-  document round-trips to the second, with its `<c>` moved out from between the two `<b>` elements.
-  That is a silent reordering of a document the tool was asked to preserve, and it is the most
-  consequential item in this section.
+  A second reduction is in how a token survives merging. §11.4 assigns values "while concrete XML
+  contributions merge", and says a payload converted from a non-XML source "receives a fresh
+  implicit content-token ordering value at its source position". This preview keeps the token of
+  whichever contribution owns the §5.2 position mark and gives an untokened contribution no token
+  at all, which places it after every tokened sibling rather than at its source position. That is
+  right for the ordinary case — an XML input with namespace-profile overrides layered on, where the
+  overrides land on nodes that already exist — and wrong when a later document adds a *new* child
+  to an element an XML document already wrote: the new child is appended rather than placed. Two
+  XML documents contributing different children to one element likewise interleave by neither
+  document's order, since their allocators are independent.
 
   An earlier revision of this file claimed here that "document order is preserved — it is what the
   §5.2 position marks record". That was wrong for exactly the interleaved case above, and it is
   recorded rather than quietly deleted because a reassurance is worth less than nothing when it is
-  the thing that stops you checking.
+  the thing that stops you checking. It was corrected only after a fixture was authored that
+  demonstrated the reordering.
 - **The content-token alias for a sole text node is not materialized.** §11.4 calls the element path
   and its sole text or CDATA content-token path "two canonical addresses for one scalar identity".
   This preview exposes the element path only, so `<b>two</b>` is addressable as `b` and not as

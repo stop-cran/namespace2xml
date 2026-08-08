@@ -205,6 +205,7 @@
       "fixtures": [
         "xml-a-reference-does-not-import-a-spelling",
         "xml-cdata-survives-a-round-trip",
+        "xml-element-only-children-keep-their-place",
         "xml-node-types-select-the-spelling"
       ]
     },

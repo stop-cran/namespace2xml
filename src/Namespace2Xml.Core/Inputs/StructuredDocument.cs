@@ -57,6 +57,17 @@ public abstract record StructuredNode(int Line, int Column)
     /// uninitialized one — the difference matters because the two compare unequal.
     /// </remarks>
     public ImmutableArray<StructuredComment> Comments { get; init; } = [];
+
+    /// <summary>
+    /// The Section 11.4 content-token ordering value this node's XML parent assigned it, or
+    /// <see langword="null"/> when its parent was not an XML element.
+    /// </summary>
+    /// <remarks>
+    /// Only the XML reader sets this. JSON and YAML mappings have no such notion: their key order
+    /// is their document order, and nothing in them can make one child's place differ from where
+    /// its key sits.
+    /// </remarks>
+    public long? ContentToken { get; init; }
 }
 
 /// <summary>A native scalar.</summary>

@@ -670,15 +670,13 @@ public static class XmlInputReader
             /// <c>a.b.1</c> while a lone <c>&lt;b&gt;</c> stays <c>a.b</c>.
             /// </para>
             /// <para>
-            /// A repeat is therefore recorded once, at its first appearance, and the resulting
-            /// property order is first-appearance order rather than document order. Section 11.4
-            /// covers the difference with a content-token ordering value on every element-only
-            /// child, which this preview does not materialize, so where a later occurrence stood
-            /// among differently-named siblings is not recorded anywhere:
-            /// <c>&lt;a&gt;&lt;b/&gt;&lt;c/&gt;&lt;b/&gt;&lt;/a&gt;</c> and
-            /// <c>&lt;a&gt;&lt;b/&gt;&lt;b/&gt;&lt;c/&gt;&lt;/a&gt;</c> build the same node. That
-            /// is declined rather than wrong until Section 19.5 serialization needs the placement
-            /// those values determine; it is recorded in <c>KNOWN-LIMITS.md</c> and closes there.
+            /// A repeat is therefore recorded once, at its first appearance, and the property order
+            /// alone is first-appearance order rather than document order. Section 11.4 covers the
+            /// difference by having every element-only child carry a content-token ordering value
+            /// as well as its name, which is what tells a serializer that the second <c>b</c> of
+            /// <c>&lt;a&gt;&lt;b/&gt;&lt;c/&gt;&lt;b/&gt;&lt;/a&gt;</c> follows <c>c</c>. Each
+            /// occurrence carries its own, because the sequence has one position among its siblings
+            /// and its items do not.
             /// </para>
             /// </remarks>
             private static void ElementOnly(
@@ -706,13 +704,18 @@ public static class XmlInputReader
                     var first = group[0];
 
                     StructuredNode value = group.Count == 1
-                        ? first.Node
+                        ? Placed(first)
                         : new StructuredSequence(
-                            [.. group.Select(token => token.Node)], first.Line, first.Column);
+                            [.. group.Select(Placed)], first.Line, first.Column);
 
                     properties.Add(Property(name, value, first.Line, first.Column));
                 }
             }
+
+            /// <summary>One element-only child, carrying its Section 11.4 content token.</summary>
+            /// <param name="token">The child.</param>
+            private static StructuredNode Placed(ElementToken token) =>
+                token.Node with { ContentToken = token.Ordinal };
 
             /// <summary>Wraps every content node in its Section 11.3 <c>#n</c> address.</summary>
             /// <param name="properties">The property list being built.</param>

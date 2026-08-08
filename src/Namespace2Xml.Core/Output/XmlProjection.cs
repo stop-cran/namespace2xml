@@ -236,9 +236,13 @@ public sealed class XmlProjection
             return true;
         }
 
-        foreach (var (name, child) in node.OrderedChildren)
+        foreach (var unit in Placed(node, path))
         {
-            if (!TryAddChild(element, name, child, path.Add(name)))
+            var placed = unit.IsItem
+                ? TryAddItem(element, unit.Name, unit.Node, unit.Path)
+                : TryAddChild(element, unit.Name, unit.Node, unit.Path);
+
+            if (!placed)
             {
                 return false;
             }
@@ -246,6 +250,80 @@ public sealed class XmlProjection
 
         return true;
     }
+
+    /// <summary>
+    /// One element's children in the Section 11.4 order their content tokens fix, with a
+    /// sequence expanded into the repeated siblings it renders as.
+    /// </summary>
+    /// <param name="node">The element's node.</param>
+    /// <param name="path">The path naming the element.</param>
+    /// <remarks>
+    /// <para>
+    /// Section 11.4: content-token values "determine placement in the parent's serialized stream".
+    /// Mapping order alone cannot: repeated same-name children "form a sequence at
+    /// <c>parent.child</c>", and a sequence occupies one place among its siblings while its items
+    /// occupy several, so
+    /// <c>&lt;a&gt;&lt;b&gt;1&lt;/b&gt;&lt;c&gt;2&lt;/c&gt;&lt;b&gt;3&lt;/b&gt;&lt;/a&gt;</c> would
+    /// otherwise emit both <c>b</c> children before <c>c</c>. The sequence is therefore expanded
+    /// here, so that each item is placed by the token it carries rather than by the token its
+    /// sequence would have.
+    /// </para>
+    /// <para>
+    /// A sequence carrying a Section 16.6 <c>type</c> directive is left whole, because that
+    /// directive is written at the sequence's own path and decides what the sequence renders as
+    /// before its items are placed anywhere. Only a sequence the XML reader built out of repeated
+    /// children has tokens on its items at all, so nothing from another format is expanded.
+    /// </para>
+    /// <para>
+    /// A child with no token keeps its Section 5.2 place after every child that has one. Only the
+    /// XML reader assigns tokens, so this is the order in which a contribution from another format
+    /// reaches an XML destination, and the sort is stable to leave those relative positions exactly
+    /// as mapping order had them. Attributes are never tokened and are unaffected: an
+    /// <see cref="XAttribute"/> joins a different chain of the element than an
+    /// <see cref="XElement"/> does, so their order among themselves is all that is observable.
+    /// </para>
+    /// </remarks>
+    private IEnumerable<Unit> Placed(OverlayNode node, ImmutableArray<NamePart> path)
+    {
+        var units = new List<(long Key, Unit Unit)>();
+
+        foreach (var (name, child) in node.OrderedChildren)
+        {
+            var childPath = path.Add(name);
+
+            if (child.Marks.RendersAsSequence
+                && Kind(childPath) is null
+                && child.OrderedSequence.Any(item => item.Value.Node.Marks.ContentToken is not null))
+            {
+                foreach (var (value, item) in child.OrderedSequence)
+                {
+                    units.Add((
+                        item.Node.Marks.ContentToken ?? long.MaxValue,
+                        new Unit(
+                            name,
+                            item.Node,
+                            childPath.Add(OrderingValues.ToNamePart(value)),
+                            IsItem: true)));
+                }
+
+                continue;
+            }
+
+            units.Add((
+                child.Marks.ContentToken ?? long.MaxValue,
+                new Unit(name, child, childPath, IsItem: false)));
+        }
+
+        return units.OrderBy(unit => unit.Key).Select(unit => unit.Unit);
+    }
+
+    /// <summary>One node to place in an element's content, and how to place it.</summary>
+    /// <param name="Name">The name it is emitted under.</param>
+    /// <param name="Node">Its overlay node.</param>
+    /// <param name="Path">The path naming it.</param>
+    /// <param name="IsItem">Whether it is one item of a sequence rendered as repeated siblings.</param>
+    private readonly record struct Unit(
+        NamePart Name, OverlayNode Node, ImmutableArray<NamePart> Path, bool IsItem);
 
     private bool TryAddChild(
         XElement parent,
@@ -448,22 +526,34 @@ public sealed class XmlProjection
         // elements whose expanded name is the sequence path's final element component."
         foreach (var (value, item) in sequence.OrderedSequence)
         {
-            var element = NewElement(name);
-
-            if (element is null)
-            {
-                return false;
-            }
-
-            parent.Add(element);
-
-            if (!TryFill(element, item.Node, path.Add(OrderingValues.ToNamePart(value))))
+            if (!TryAddItem(
+                parent, name, item.Node, path.Add(OrderingValues.ToNamePart(value))))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    /// <summary>Emits one item of a sequence as a sibling element.</summary>
+    /// <param name="parent">The element the sibling joins.</param>
+    /// <param name="name">The sequence path's final element component.</param>
+    /// <param name="item">The item's node.</param>
+    /// <param name="path">The path naming the item, ordering value included.</param>
+    private bool TryAddItem(
+        XElement parent, NamePart name, OverlayNode item, ImmutableArray<NamePart> path)
+    {
+        var element = NewElement(name);
+
+        if (element is null)
+        {
+            return false;
+        }
+
+        parent.Add(element);
+
+        return TryFill(element, item, path);
     }
 
     private XElement? NewElement(NamePart part)

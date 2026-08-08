@@ -72,7 +72,13 @@ public static class StructuredProfileReader
                     $"'{node.GetType().Name}' is not a {nameof(StructuredNode)} shape."),
             };
 
-            return AttachComments(built, node.Comments);
+            var attached = AttachComments(built, node.Comments);
+
+            // Section 11.4 records the value the node's XML parent gave it "for deterministic
+            // placement", so it belongs to the node rather than to how the node was built.
+            return node.ContentToken is { } token
+                ? attached.WithContentToken(token)
+                : attached;
         }
 
         /// <summary>Turns a native comment channel into Section 4.5 <see cref="BoundComment"/>s.</summary>

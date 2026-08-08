@@ -36,6 +36,10 @@ public readonly record struct NodeMarks
     /// The sequence shape-mark contributed at this node itself, or <see langword="null"/> when no
     /// contribution addressed it with sequence shape.
     /// </param>
+    /// <param name="contentToken">
+    /// The Section 11.4 content-token ordering value, or <see langword="null"/> when the node did
+    /// not come from an XML parent.
+    /// </param>
     private NodeMarks(
         StableOrderingKey position,
         bool addressedDirectly,
@@ -43,7 +47,8 @@ public readonly record struct NodeMarks
         StableOrderingKey? mappingShape,
         StableOrderingKey? sequenceShape,
         StableOrderingKey? ownMappingShape,
-        StableOrderingKey? ownSequenceShape)
+        StableOrderingKey? ownSequenceShape,
+        long? contentToken)
     {
         Position = position;
         AddressedDirectly = addressedDirectly;
@@ -52,7 +57,29 @@ public readonly record struct NodeMarks
         SequenceShape = sequenceShape;
         OwnMappingShape = ownMappingShape;
         OwnSequenceShape = ownSequenceShape;
+        ContentToken = contentToken;
     }
+
+    /// <summary>
+    /// The Section 11.4 content-token ordering value this node's XML parent assigned it, or
+    /// <see langword="null"/> when no XML parent did.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Section 11.4 assigns these "across all child elements, text, CDATA, and comments, including
+    /// element-only parents", and says element-only children "retain ordinary element-name
+    /// addressing while also carrying their content-token ordering value for deterministic
+    /// placement". It is therefore not an address: <c>a.b</c> stays <c>a.b</c>, and this value only
+    /// "determine[s] placement in the parent's serialized stream".
+    /// </para>
+    /// <para>
+    /// Without it, <c>&lt;a&gt;&lt;b&gt;1&lt;/b&gt;&lt;c&gt;2&lt;/c&gt;&lt;b&gt;3&lt;/b&gt;&lt;/a&gt;</c>
+    /// is indistinguishable from the same document with both <c>b</c> children written first, since
+    /// the repeated pair becomes one sequence at <c>a.b</c> and a sequence has one position among
+    /// its siblings. The reordering that follows is silent and changes what the document says.
+    /// </para>
+    /// </remarks>
+    public long? ContentToken { get; }
 
     /// <summary>
     /// The Section 4.4 position mark: the latest contribution that addresses this node itself. It
@@ -189,22 +216,22 @@ public readonly record struct NodeMarks
     /// </summary>
     public static NodeMarks At(StableOrderingKey position) =>
         new(position, addressedDirectly: false, payloadMark: null, mappingShape: null,
-            sequenceShape: null, ownMappingShape: null, ownSequenceShape: null);
+            sequenceShape: null, ownMappingShape: null, ownSequenceShape: null, contentToken: null);
 
     /// <summary>Marks for a node whose first contribution is a payload.</summary>
     public static NodeMarks ForPayload(StableOrderingKey position) =>
         new(position, addressedDirectly: true, payloadMark: position, mappingShape: null,
-            sequenceShape: null, ownMappingShape: null, ownSequenceShape: null);
+            sequenceShape: null, ownMappingShape: null, ownSequenceShape: null, contentToken: null);
 
     /// <summary>Marks for a node whose first contribution requires mapping shape.</summary>
     public static NodeMarks ForMapping(StableOrderingKey position) =>
         new(position, addressedDirectly: true, payloadMark: null, mappingShape: position,
-            sequenceShape: null, ownMappingShape: position, ownSequenceShape: null);
+            sequenceShape: null, ownMappingShape: position, ownSequenceShape: null, contentToken: null);
 
     /// <summary>Marks for a node whose first contribution requires sequence shape.</summary>
     public static NodeMarks ForSequence(StableOrderingKey position) =>
         new(position, addressedDirectly: true, payloadMark: null, mappingShape: null,
-            sequenceShape: position, ownMappingShape: null, ownSequenceShape: position);
+            sequenceShape: position, ownMappingShape: null, ownSequenceShape: position, contentToken: null);
 
     /// <summary>
     /// Records a contribution that addresses this node itself, advancing the position mark.
@@ -217,7 +244,8 @@ public readonly record struct NodeMarks
             MappingShape,
             SequenceShape,
             OwnMappingShape,
-            OwnSequenceShape);
+            OwnSequenceShape,
+            ContentToken);
 
     /// <summary>
     /// Records a contribution that requires mapping shape at this node itself, advancing both the
@@ -231,7 +259,8 @@ public readonly record struct NodeMarks
             Later(MappingShape, position),
             SequenceShape,
             Later(OwnMappingShape, position),
-            OwnSequenceShape);
+            OwnSequenceShape,
+            ContentToken);
 
     /// <summary>
     /// Records a contribution that requires sequence shape at this node itself, advancing both the
@@ -245,7 +274,8 @@ public readonly record struct NodeMarks
             MappingShape,
             Later(SequenceShape, position),
             OwnMappingShape,
-            Later(OwnSequenceShape, position));
+            Later(OwnSequenceShape, position),
+            ContentToken);
 
     /// <summary>
     /// Records a strictly deeper descendant, which refreshes the mapping shape-mark and leaves the
@@ -256,7 +286,7 @@ public readonly record struct NodeMarks
     /// </remarks>
     public NodeMarks WithDescendant(StableOrderingKey position) =>
         new(Position, AddressedDirectly, PayloadMark, Later(MappingShape, position), SequenceShape,
-            OwnMappingShape, OwnSequenceShape);
+            OwnMappingShape, OwnSequenceShape, ContentToken);
 
     /// <summary>
     /// Records a sequence item, which refreshes the sequence shape-mark and leaves the position
@@ -270,7 +300,7 @@ public readonly record struct NodeMarks
     /// </remarks>
     public NodeMarks WithSequenceItem(StableOrderingKey position) =>
         new(Position, AddressedDirectly, PayloadMark, MappingShape, Later(SequenceShape, position),
-            OwnMappingShape, OwnSequenceShape);
+            OwnMappingShape, OwnSequenceShape, ContentToken);
 
     /// <summary>
     /// The marks after Section 8.7 inference, which "replaces that contribution's mapping
@@ -292,7 +322,8 @@ public readonly record struct NodeMarks
     /// </remarks>
     public NodeMarks AsInferredSequence() =>
         new(Position, AddressedDirectly, PayloadMark, mappingShape: null, sequenceShape: ContainerShape,
-            ownMappingShape: null, ownSequenceShape: Later(OwnMappingShape, OwnSequenceShape));
+            ownMappingShape: null, ownSequenceShape: Later(OwnMappingShape, OwnSequenceShape),
+            contentToken: ContentToken);
 
     /// <summary>
     /// The marks after Section 16.6 <c>type=mapping</c> converts a winning sequence projection, the
@@ -306,7 +337,8 @@ public readonly record struct NodeMarks
     /// </remarks>
     public NodeMarks AsForcedMapping() =>
         new(Position, AddressedDirectly, PayloadMark, mappingShape: ContainerShape, sequenceShape: null,
-            ownMappingShape: Later(OwnMappingShape, OwnSequenceShape), ownSequenceShape: null);
+            ownMappingShape: Later(OwnMappingShape, OwnSequenceShape), ownSequenceShape: null,
+            contentToken: ContentToken);
 
     /// <summary>
     /// The marks of a node's independent payload and sequence facets, with its mapping projection
@@ -319,7 +351,7 @@ public readonly record struct NodeMarks
     /// </remarks>
     public NodeMarks WithoutMapping() =>
         new(Position, AddressedDirectly, PayloadMark, mappingShape: null, SequenceShape,
-            ownMappingShape: null, OwnSequenceShape);
+            ownMappingShape: null, OwnSequenceShape, ContentToken);
 
     /// <summary>
     /// The marks after Section 8.6 permanent masking, recomputed from the contributions that
@@ -354,7 +386,8 @@ public readonly record struct NodeMarks
             Later(OwnMappingShape, mappingFromDescendants),
             Later(OwnSequenceShape, sequenceFromItems),
             OwnMappingShape,
-            OwnSequenceShape);
+            OwnSequenceShape,
+            ContentToken);
 
     /// <summary>
     /// The marks of a node whose complete value one later contribution has replaced.
@@ -383,7 +416,8 @@ public readonly record struct NodeMarks
             replacement.MappingShape,
             replacement.SequenceShape,
             replacement.OwnMappingShape,
-            replacement.OwnSequenceShape);
+            replacement.OwnSequenceShape,
+            replacement.ContentToken ?? ContentToken);
 
     /// <summary>
     /// The marks of a node that carries both of two nodes' contributions, taking the later of each
@@ -414,7 +448,21 @@ public readonly record struct NodeMarks
             Later(MappingShape, other.MappingShape),
             Later(SequenceShape, other.SequenceShape),
             Later(OwnMappingShape, other.OwnMappingShape),
-            Later(OwnSequenceShape, other.OwnSequenceShape));
+            Later(OwnSequenceShape, other.OwnSequenceShape),
+            CombineToken(this, other));
+
+    /// <summary>These marks with a Section 11.4 content-token ordering value recorded.</summary>
+    /// <param name="contentToken">The value the node's XML parent assigned it.</param>
+    public NodeMarks WithContentToken(long contentToken) =>
+        new(
+            Position,
+            AddressedDirectly,
+            PayloadMark,
+            MappingShape,
+            SequenceShape,
+            OwnMappingShape,
+            OwnSequenceShape,
+            contentToken);
 
     private static StableOrderingKey CombinePosition(NodeMarks left, NodeMarks right) =>
         (left.AddressedDirectly, right.AddressedDirectly) switch
@@ -426,12 +474,34 @@ public readonly record struct NodeMarks
                 left.Position < right.Position ? left.Position : right.Position,
         };
 
-    private static StableOrderingKey? Later(StableOrderingKey? left, StableOrderingKey? right) =>
-        (left, right) switch
+    /// <summary>
+    /// The content-token ordering value of a node carrying two contributions.
+    /// </summary>
+    /// <param name="left">One node's marks.</param>
+    /// <param name="right">The other node's marks.</param>
+    /// <remarks>
+    /// Section 11.4 makes the value the parent's statement about where this child sits in that
+    /// parent's serialized stream, so it follows the same rule as the position mark: the
+    /// contribution that owns the position owns the placement. Taking the later value instead would
+    /// let a second document that merely adds a grandchild move an element past a sibling the first
+    /// document wrote before it. Where the owning side has none, the other side's is kept rather
+    /// than discarded, because a value the merged element has is worth more than none.
+    /// </remarks>
+    private static long? CombineToken(NodeMarks left, NodeMarks right) =>
+        (left.AddressedDirectly, right.AddressedDirectly) switch
         {
-            (null, null) => null,
-            (null, { } only) => only,
-            ({ } only, null) => only,
-            ({ } a, { } b) => StableOrderingKey.Later(a, b),
+            (true, false) => left.ContentToken ?? right.ContentToken,
+            (false, true) => right.ContentToken ?? left.ContentToken,
+            _ => left.Position <= right.Position
+                ? left.ContentToken ?? right.ContentToken
+                : right.ContentToken ?? left.ContentToken,
         };
+
+    private static StableOrderingKey? Later(StableOrderingKey? left, StableOrderingKey? right) => (left, right) switch
+    {
+        (null, null) => null,
+        (null, { } only) => only,
+        ({ } only, null) => only,
+        ({ } a, { } b) => StableOrderingKey.Later(a, b),
+    };
 }

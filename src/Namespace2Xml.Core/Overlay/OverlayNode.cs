@@ -136,6 +136,19 @@ public sealed class OverlayNode
             marks, payload, hasExplicitMapping, hasExplicitSequence, children, sequence, comments,
             sequenceHighWater);
 
+    /// <summary>This node with a Section 11.4 content-token ordering value recorded.</summary>
+    /// <param name="contentToken">The value this node's XML parent assigned it.</param>
+    public OverlayNode WithContentToken(long contentToken) =>
+        Compose(
+            Marks.WithContentToken(contentToken),
+            Payload,
+            HasExplicitMapping,
+            HasExplicitSequence,
+            Children,
+            Sequence,
+            Comments,
+            SequenceHighWater);
+
     /// <summary>
     /// An intermediate node materialised only because something deeper needed a container.
     /// </summary>
