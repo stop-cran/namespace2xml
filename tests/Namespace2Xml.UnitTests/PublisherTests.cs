@@ -209,6 +209,30 @@ public class PublisherTests
     // ---- Section 21.3 failure ---------------------------------------------------------------------
 
     /// <summary>
+    /// Section 21.1 requires failing with <c>PATH001</c> "before creating directories or opening
+    /// destinations if the host platform or filesystem cannot provide the primitives needed to
+    /// establish secure containment".
+    /// </summary>
+    /// <remarks>
+    /// The specification sanctions declaring the limit rather than publishing anyway, and "before
+    /// creating directories" is the load-bearing half: a host that discovers the absence when it
+    /// opens the first destination has already created the output root, which is the side effect
+    /// the ordering exists to prevent. The assertion is therefore that nothing was called at all,
+    /// not merely that the run failed.
+    /// </remarks>
+    [Test]
+    public void AHostThatCannotGuaranteeContainmentPublishesNothing()
+    {
+        sink.SupportsSecureContainment = false;
+
+        Publish(Planned("a.json")).ShouldBeFalse();
+
+        sink.Calls.ShouldBeEmpty();
+        sink.Writes.ShouldBeEmpty();
+        diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("PATH001");
+    }
+
+    /// <summary>
     /// Section 21.3: "no rollback is attempted. Files already completed remain updated; the failing
     /// destination may be partial; later destinations remain untouched." Publication therefore stops
     /// at the first failure, which is what keeps the untouched tail untouched.
@@ -351,16 +375,12 @@ public class PublisherTests
     }
 
     /// <summary>
-    /// The containment check is exercised on its own, because the Publisher's ancestor walk refuses
-    /// a link before containment is ever consulted.
+    /// The sink refuses an intermediate reparse point before it can become a traversal.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is the honest statement of what Section 21.1's two mechanisms each do. The link refusal
-    /// is what stops every deterministic escape; the containment comparison exists for the case the
-    /// link refusal cannot see, which is a path swapped between the check and the open. Driving the
-    /// sink directly is the only way to reach it without a race, and reaching it is the point: a
-    /// containment check no test can enter is a claim, not a guard.
+    /// The handle-relative publication sink stays in the handle domain for every component, so this
+    /// assertion names the structural refusal rather than a resolved outside-root path string.
     /// </para>
     /// <para>
     /// Section 21.1's <c>PATH001</c> is asserted through the exception type rather than the
@@ -368,7 +388,7 @@ public class PublisherTests
     /// </para>
     /// </remarks>
     [Test]
-    public void TheSinkRefusesADestinationResolvingOutsideTheRoot()
+    public void TheSinkRefusesAnIntermediateReparsePoint()
     {
         var work = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
         var root = Path.Combine(work, "out");
@@ -389,7 +409,7 @@ public class PublisherTests
 
             Should.Throw<UncontainableDestinationException>(
                     () => sink.Write(root, "link/x.json", OutputBuffer.Empty))
-                .Message.ShouldContain("outside the output root");
+                .Message.ShouldContain("reparse point", Case.Sensitive);
 
             File.Exists(Path.Combine(outside, "x.json")).ShouldBeFalse();
         }
@@ -439,7 +459,7 @@ public class PublisherTests
             var diagnostic = diagnostics.Drain().ShouldHaveSingleItem();
 
             diagnostic.Code.ShouldBe("PATH001");
-            diagnostic.Message.ShouldContain("is a link to");
+            diagnostic.Message.ShouldContain("reparse point", Case.Sensitive);
         }
         finally
         {
@@ -492,6 +512,9 @@ public class PublisherTests
         private readonly Dictionary<string, string> contents = [];
 
         public string? FailOn { get; set; }
+
+        /// <summary>Whether this double claims Section 21.1 containment can be guaranteed.</summary>
+        public bool SupportsSecureContainment { get; set; } = true;
 
         /// <summary>
         /// The largest number of writes that were ever in progress at once. Section 21.3 closes

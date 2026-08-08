@@ -53,6 +53,9 @@ public sealed class TransformationTests
 
         public List<string> Directories { get; } = [];
 
+        /// <summary>An in-memory sink has no filesystem to be escaped from.</summary>
+        public bool SupportsSecureContainment => true;
+
         public void CreateDirectory(string root, string relative) => Directories.Add(relative);
 
         public void Write(string root, string relative, OutputBuffer buffer) =>

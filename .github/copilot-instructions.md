@@ -127,9 +127,17 @@ runs in the `lint` job. Run it locally when editing workflows:
 
 ```powershell
 curl.exe -sSLo actionlint.zip https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_windows_amd64.zip
-Expand-Archive actionlint.zip -DestinationPath . -Force
-.\actionlint.exe -no-color -oneline
+Expand-Archive actionlint.zip -DestinationPath .actionlint -Force
+.actionlint\actionlint.exe -no-color -oneline
 ```
+
+Extract to a subdirectory, not to `.`. The archive carries `README.md`, `LICENSE.txt`, `docs/` and
+`man/` alongside the binary, so `-DestinationPath .` **overwrites this repository's own `README.md`
+and `license.txt`** and scatters seven files into `docs/`. `git status` then shows a working tree
+that looks like someone rewrote the project's front page, and on a case-insensitive filesystem
+`license.txt` and `LICENSE.txt` are the same file, so the damage is not obvious from the name.
+Recover with `git checkout -- README.md license.txt` and delete the rest by hand. `.actionlint` is
+gitignored.
 
 `actionlint` also runs **shellcheck** over every `run:` block, and shellcheck `info` findings fail
 the job. Unquoted variable expansion is the one you will hit: a shared path list must be a bash

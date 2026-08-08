@@ -376,10 +376,16 @@
     {
       "item": 29,
       "text": "Output-root path confinement, including symlink or reparse-point escape attempts.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m7",
+      "status": "required",
+      "assertions": [
+        "An output root that already exists as a regular file is the PATH001 of Section 21.1 rather than the PATH002 that the underlying directory-creation failure would otherwise report, and the file is left byte-identical because the refusal precedes any creation.",
+        "A host that cannot provide no-follow, handle-relative filesystem operations reports PATH001 and creates nothing at all, so the refusal precedes the output root rather than following it.",
+        "A destination reached through a symbolic link, junction, or other reparse point at any path component is refused rather than followed, and the file outside the root is never created."
+      ],
+      "fixtures": [
+        "an-existing-non-directory-output-root-is-rejected"
+      ]
     },
     {
       "item": 30,

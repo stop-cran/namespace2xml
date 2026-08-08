@@ -32,6 +32,36 @@ jobs:
           python3 -m pip install --quiet --disable-pip-version-check pyyaml
           python3 tools/check-publication-triggers.py
 
+  # Section 21 governs paths a successful run never takes: an escape refused, a root that cannot
+  # hold destinations, a gate that must fire before anything is opened. An implementation that has
+  # silently lost one of these still passes every other job here, so this one runs on its own,
+  # depends on nothing, and is the first thing to go red. Running it last, mixed into the main
+  # suite, is how these invariants get lost.
+  publication-invariants:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build namespace2xml.slnx -c Release
+
+      # Both operating systems are named explicitly because the no-follow primitive differs
+      # between them -- NtCreateFile with a root directory handle on Windows, openat with
+      # O_NOFOLLOW elsewhere -- so a green Linux run says nothing about the Windows path.
+      - name: Confinement, no-follow publication and the validation gate
+        run: >
+          dotnet test namespace2xml.slnx --no-build -c Release
+          --filter "FullyQualifiedName~SecureDirectory|FullyQualifiedName~Publisher|FullyQualifiedName~DestinationPath|FullyQualifiedName~CanonicalPath"
+
+      - name: The conformance cases that assert refusal
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/run-publication-conformance.ps1
+
   build-test:
     strategy:
       fail-fast: false

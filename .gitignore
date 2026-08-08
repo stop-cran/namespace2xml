@@ -284,3 +284,6 @@ spikes/**/.dotnet/
 spikes/**/.dotnet/
 spikes/**/bin/
 spikes/**/obj/
+
+# Downloaded workflow linter, extracted to a subdirectory so it cannot overwrite README.md.
+.actionlint/

@@ -1002,6 +1002,7 @@ defect in the fixture; see CONTRIBUTING.md.
 - `a-transform-that-makes-a-bare-scalar-still-has-a-key`
 - `a-written-traversal-segment-is-rejected`
 - `an-empty-qualifier-escapes-the-alias-ambiguity`
+- `an-existing-non-directory-output-root-is-rejected`
 - `append-onto-a-non-sequence-accumulator-is-an-error`
 - `array-runs-before-multiline`
 - `cycle-rotation-uses-utf8-byte-order`

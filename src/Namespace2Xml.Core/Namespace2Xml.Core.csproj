@@ -4,6 +4,7 @@
     <RootNamespace>Namespace2Xml</RootNamespace>
     <AssemblyName>Namespace2Xml.Core</AssemblyName>
     <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,0 +1,6 @@
+-i
+inputs/profile.txt
+-s
+schemes/scheme.txt
+-o
+out

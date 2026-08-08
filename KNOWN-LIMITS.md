@@ -491,20 +491,38 @@ and `WILDCARD002` across the four wildcard-bound cases. Nothing under this headi
 ## 3. Platform and environment
 
 - **Supported:** Linux, Windows and macOS on x64 and arm64, via the .NET 10 runtime.
-- **Not yet validated:** nothing. The Windows publication path is proven by the
-  `spikes/windows-publication` prototype, which walks destinations component-by-component with
-  `NtCreateFile` relative to retained parent handles, and is therefore TOCTOU-safe by construction
-  rather than by a check. Two cases could not be exercised where the spike ran because creating a
-  symbolic link needed privileges that were unavailable; they are recorded as untested rather than
-  as passing.
-- **The shipped publication sink is not the spike.** `FileSystemPublicationSink` resolves a path,
-  checks it, and then opens it, because .NET exposes no no-follow open. The retained-handle walk
-  the spike demonstrates has not been adopted, so the shipped sink closes every escape that is
-  present when it looks, and none introduced between the check and the open. Concretely: a link
-  standing at a destination or at any ancestor is refused with `PATH001` before anything is
-  created, and a resolved path outside the output root is refused likewise — but an attacker able
-  to replace a component during publication is not defeated by this sink. Adopting the spike's walk
-  is tracked for M4. Do not read Section 21.1 conformance here as a race-free guarantee.
+- **Not yet validated:** nothing. The Windows publication path walks retained directory handles and
+  is therefore TOCTOU-safe by construction rather than by a check; `spikes/windows-publication`
+  carries the prototype and the reasoning. Two of that spike's cases could not be exercised where it
+  ran, because creating a symbolic link needed privileges that were unavailable; they are recorded
+  as untested rather than as passing, and the refusal they would have exercised is reached anyway by
+  the privilege-free junction cases, because the check tests for a reparse point rather than for a
+  particular tag.
+- **The shipped publication sink walks retained handles.** `FileSystemPublicationSink` opens the
+  output root once as a trust anchor and then opens every path component relative to the handle of
+  its parent, refusing any component that carries a reparse point, so no full path string is ever
+  re-parsed and the check-then-open race is closed by construction rather than by a check. The
+  primitive is `NtCreateFile` with `OBJECT_ATTRIBUTES.RootDirectory` on Windows and `openat` with
+  `O_NOFOLLOW` elsewhere. A host that is neither reports `PATH001` and creates nothing, which is
+  what §21.1 means by failing "before creating directories or opening destinations". The output
+  root itself is opened by path, so a link *in the root you configured* is followed — that root is
+  the anchor you chose, not something an attacker introduced beneath it.
+- **The `openat` sink has not been executed on a POSIX host during development.** It was written
+  against the same design as the Windows implementation and is exercised by the Linux and macOS
+  legs of CI, which is where its evidence comes from; no local run stands behind it. If it is
+  wrong, the whole Linux conformance corpus fails loudly rather than silently degrading, which is
+  why this is recorded as a provenance note rather than as a risk.
+- **The portable conformance corpus cannot plant a symbolic link or junction.** Appendix C gives a
+  fixture `inputs/`, `schemes/` and `expected/`, all of which are ordinary files that git stores and
+  the harness copies; there is no reserved name that means "create this link before the run". A
+  corpus that needed one would also stop being portable, because creating a symbolic link on
+  Windows requires a privilege that ordinary accounts do not hold, so the fixture would be
+  unrunnable rather than merely unsupported for a third-party implementer. Escape refusal is
+  therefore asserted in the test suite — `PublisherTests` and `SecureDirectoryTests`, which create
+  real links and junctions and skip explicitly when the host forbids it — and the corpus asserts
+  only what it can express portably, which is the non-directory output root. The CI job
+  `publication-invariants` runs both on Linux and Windows so that neither platform's primitive is
+  evidenced solely by the other's green run.
 - **Hard-link escape is out of scope.** A destination reached through a hard link to a file outside
   the output root cannot be detected by any no-follow walk, on any platform, because a hard link is
   not distinguishable from the original name. An optional refusal based on link count is

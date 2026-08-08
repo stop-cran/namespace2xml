@@ -54,6 +54,21 @@ public sealed class Publisher
 
         var created = new HashSet<string>(StringComparer.Ordinal);
 
+        // Section 21.1: "fail with PATH001 before creating directories or opening destinations if
+        // the host platform or filesystem cannot provide the primitives needed to establish secure
+        // containment". The specification sanctions declaring the limit; what it does not sanction
+        // is publishing anyway and hoping, so this precedes the creation of the root itself.
+        if (!sink.SupportsSecureContainment)
+        {
+            ReportUncontainable(
+                string.Empty,
+                null,
+                "this host does not provide the no-follow, handle-relative filesystem operations "
+                + "Section 21.1 requires to keep every destination inside the output root.");
+
+            return false;
+        }
+
         if (!TryCreateDirectory(string.Empty, created, null, null))
         {
             return false;
@@ -191,114 +206,120 @@ public interface IPublicationSink
     /// <param name="relative">The canonical relative destination path.</param>
     /// <param name="buffer">The complete buffer.</param>
     void Write(string root, string relative, OutputBuffer buffer);
+
+    /// <summary>
+    /// Gets whether this host can guarantee Section 21.1 containment.
+    /// </summary>
+    /// <remarks>
+    /// Section 21.1 requires failing "before creating directories or opening destinations if the
+    /// host platform or filesystem cannot provide the primitives needed to establish secure
+    /// containment". Discovering the absence when the first destination is opened is too late: the
+    /// output root, and possibly some of its subdirectories, already exist by then. So the question
+    /// is asked once, before anything is created.
+    /// </remarks>
+    bool SupportsSecureContainment { get; }
 }
 
 /// <summary>The real filesystem.</summary>
 internal sealed class FileSystemPublicationSink : IPublicationSink
 {
+    private readonly SecureRootFactory factory = new();
+
+    public bool SupportsSecureContainment => factory.SupportsSecureContainment;
+
     public void CreateDirectory(string root, string relative)
     {
-        var path = Resolve(root, relative);
-
         // Validate before creating, not after. Section 21.1 requires failing "before creating
         // directories or opening destinations" when containment cannot be established, and a
         // directory materialised outside the root is exactly the side effect this check exists to
         // prevent: reporting it afterwards reports damage already done.
-        if (relative.Length > 0)
+        if (relative.Length == 0)
         {
-            RefuseLinkPath(path);
-            VerifyContainment(root, Path.GetDirectoryName(path)!);
+            var path = Path.GetFullPath(root);
+            RefuseNonDirectoryRoot(path);
+            Directory.CreateDirectory(path);
+            return;
         }
 
-        Directory.CreateDirectory(path);
-        VerifyContainment(root, path);
+        using var secureRoot = factory.OpenRoot(root);
+        var opened = OpenDirectories(secureRoot, relative.Split('/'));
+        DisposeReverse(opened);
     }
 
     public void Write(string root, string relative, OutputBuffer buffer)
     {
-        var path = Resolve(root, relative);
-
-        VerifyContainment(root, Path.GetDirectoryName(path)!);
-        RefuseLinkPath(path);
+        var segments = relative.Split('/');
+        using var secureRoot = factory.OpenRoot(root);
+        var opened = OpenDirectories(secureRoot, segments[..^1]);
 
         // Section 21.3: created or truncated "only after its complete byte buffer exists", then
         // flushed and closed "before beginning the next one". Disposing the stream here, rather
         // than at the end of publication, is what makes the next destination's write independent
         // of this one.
-        using var stream = new FileStream(
-            path,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None,
-            bufferSize: 0,
-            FileOptions.None);
-
-        buffer.WriteTo(stream);
-        stream.Flush(flushToDisk: false);
-    }
-
-    private static string Resolve(string root, string relative) =>
-        relative.Length == 0
-            ? Path.GetFullPath(root)
-            : Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
-
-    /// <summary>
-    /// Section 21.1: "verify symbolic-link, junction, and reparse-point containment when opening
-    /// each destination".
-    /// </summary>
-    /// <remarks>
-    /// Syntactic validation cannot see a link, so a directory that was inside the root when its
-    /// name was checked can still resolve outside it. The final target is resolved and compared
-    /// again here, immediately before the write that would otherwise escape.
-    /// </remarks>
-    private static void VerifyContainment(string root, string path)
-    {
-        var realRoot = RealPath(new DirectoryInfo(root));
-        var realPath = RealPath(new DirectoryInfo(path));
-
-        if (realPath.Equals(realRoot, StringComparison.Ordinal))
+        try
         {
-            return;
+            var parent = opened.Count == 0 ? secureRoot : opened[^1];
+
+            using var stream = parent.CreateOrTruncateChildFile(segments[^1]);
+
+            buffer.WriteTo(stream);
+            stream.Flush();
         }
-
-        var prefix = realRoot.EndsWith(Path.DirectorySeparatorChar)
-            ? realRoot
-            : realRoot + Path.DirectorySeparatorChar;
-
-        if (!realPath.StartsWith(prefix, StringComparison.Ordinal))
+        finally
         {
-            throw new UncontainableDestinationException(
-                $"'{path}' resolves to '{realPath}', which is outside the output root '{realRoot}'.");
+            DisposeReverse(opened);
         }
     }
 
     /// <summary>
-    /// Section 21.1: open destinations "through handle-relative or equivalent no-follow filesystem
-    /// operations".
+    /// Section 21.1: "An existing non-directory output root is <c>PATH001</c>."
     /// </summary>
     /// <remarks>
-    /// Verifying the parent directory is not enough, because the link can be the destination itself.
-    /// <see cref="FileMode.Create"/> follows a link and writes to its target, and a dangling link
-    /// creates that target, so the escape needs no existing file outside the root. .NET exposes no
-    /// no-follow open, so a destination that is a link is refused rather than followed: replacing it
-    /// would change filesystem state Section 21.3 does not authorize this run to change. The same
-    /// applies to a directory component, which is why this runs on each created directory too.
+    /// Left to <see cref="Directory.CreateDirectory(string)"/> this surfaces as an
+    /// <see cref="IOException"/> and would be reported as a <c>PATH002</c> publication failure,
+    /// which says the destination could not be written when the truth is that no destination can be
+    /// placed under this root at all. The condition is therefore recognized before creation is
+    /// attempted, where the specification puts it.
     /// </remarks>
-    private static void RefuseLinkPath(string path)
+    private static void RefuseNonDirectoryRoot(string path)
     {
-        if (new FileInfo(path).LinkTarget is { } target)
+        if (File.Exists(path))
         {
             throw new UncontainableDestinationException(
-                $"'{path}' is a link to '{target}', and Section 21.1 requires opening "
-                + "destinations without following links.");
+                $"the output root '{path}' exists and is not a directory.");
         }
     }
 
-    private static string RealPath(DirectoryInfo directory) =>
-        Path.TrimEndingDirectorySeparator(
-            Path.GetFullPath(
-                directory.ResolveLinkTarget(returnFinalTarget: true)?.FullName
-                ?? directory.FullName));
+    private static List<ISecureDirectory> OpenDirectories(ISecureDirectory root, string[] components)
+    {
+        var opened = new List<ISecureDirectory>();
+        var current = root;
+
+        try
+        {
+            foreach (var component in components)
+            {
+                var child = current.OpenOrCreateChildDirectory(component);
+                opened.Add(child);
+                current = child;
+            }
+
+            return opened;
+        }
+        catch
+        {
+            DisposeReverse(opened);
+            throw;
+        }
+    }
+
+    private static void DisposeReverse(List<ISecureDirectory> directories)
+    {
+        for (var i = directories.Count - 1; i >= 0; i--)
+        {
+            directories[i].Dispose();
+        }
+    }
 }
 
 /// <summary>
