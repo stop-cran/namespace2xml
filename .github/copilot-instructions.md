@@ -540,6 +540,24 @@ Spread the keys across the real range and insert them out of order, then re-run 
 removes the sort and confirm it goes red. A sort assertion you have not seen fail is not evidence
 that anything is sorted.
 
+### The most thorough fixture is often the one that cannot discriminate
+
+A comment fixture covering nine positions -- document-leading, leading, inline, trailing, nested
+boundary, sequence item, document-trailing -- passed, read convincingly, and **stayed green when the
+Section 20 document-leading branch was deleted entirely**. Its input had one top-level key, so that
+key's value was the output root, and a comment owned by the document and a comment bound to the
+first entry are emitted in exactly the same place. The fixture asserted rendered bytes, and the two
+rules do not differ in rendered bytes there.
+
+The discriminating case was three lines long: publish the *second* of two top-level keys. Then a
+comment bound to the first entry lands in a subtree no output selects and disappears, while an
+ownerless one still reaches the document.
+
+Coverage breadth is not discrimination. Before believing a fixture pins a rule, ask what the losing
+alternative would have emitted -- and if the answer is "the same bytes", the fixture is documenting
+the rule, not testing it. Delete the branch and watch the corpus, not the unit tests: here the unit
+tests went red and the corpus did not, and only the corpus is the oracle.
+
 ### A scalar cannot observe fold order
 
 Section 4.4 settles a payload contest at a node by "the latest scalar/null contribution", which is a
