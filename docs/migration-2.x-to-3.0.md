@@ -1037,6 +1037,8 @@ defect in the fixture; see CONTRIBUTING.md.
 - `wildcard-output-selector-matching-nothing-warns`
 - `wildcard-output-selectors-expand-per-capture-tuple`
 - `wildcard-repeated-capture-backtracking`
+- `xml-mixedness-spans-contributions`
+- `xml-singleton-promotion-spans-contributions`
 
 ## Something changed that is not listed here
 

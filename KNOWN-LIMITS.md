@@ -124,13 +124,19 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   That is not a defect — it is what retaining every text node means — but it is the reason
   `xmlinputoptions=NormalizeFormattingWhitespace` exists, and pointing this tool at XML a human
   wrote without it will surprise you. The fixture `xml-canonical-addresses` pins both spellings.
-- **Mixedness and repeated-child classification are per document.** §11.4 makes them "properties of
-  the merged common-model element", "evaluated at concrete merge time across all input
-  contributions to that element". This preview classifies each element from the one document that
-  contains it. A single document is therefore always right; what is not yet right is two documents
-  contributing to the same element — two sources that each supply one `<b/>` produce an override
-  rather than the two-item sequence §11.4 requires, and the §11.4 singleton-to-sequence promotion
-  and its `WARN009` cannot occur. Overlaying XML onto XML at the same path is the case to avoid.
+- **A promoted sequence item's place in the serialized XML stream is not pinned.** §11.4 evaluates
+  mixedness and repeated-child classification "across all input contributions to that element", and
+  this tool does: a mixed contribution re-addresses an element-only contribution's children as
+  content nodes, and a contribution that repeats a name makes another contribution's singleton an
+  item of that one sequence. The *addresses* are settled. What is not settled is where a
+  concatenated item is *drawn*: §11.4 gives that job to the content token — "content-token values
+  determine placement in the parent's serialized stream only" — but never says how a second
+  document's tokens relate to the first's, and an item promoted out of another document carries a
+  token from that document's counter. Converted mixed content is allocated above the merged
+  element's high-water mark, so it is ordered; a promoted sequence item keeps its own token and can
+  therefore be drawn among the items it follows in the address space. The fixtures pin the addresses
+  in both cases and the serialized stream only for the mixed case. Filing this as a specification
+  ambiguity is the fast-follow.
 - **Comments are retained**, and this entry records what that costs elsewhere rather than a gap.
   §11.5 keeps them "as ordered comment nodes", explicitly not "forced into a 'leading comment for
   the next value' representation because a comment may occur between mixed-content nodes or after

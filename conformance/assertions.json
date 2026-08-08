@@ -209,7 +209,8 @@
         "Only XML renders comment nodes; every other destination omits them and reports one summarized WARN003 for the output file rather than one per comment.",
         "PreserveWhitespace is the default and retains every text node, NormalizeFormattingWhitespace discards whitespace-only text between element children while preserving whitespace in mixed content, under xml:space=\"preserve\", and in CDATA, and reports one WARN007 per document that lost anything.",
         "The three Section 16.8 input options are root-level only, so a selector-qualified one is a blocking SCHEME001 and the later complete directive wins.",
-        "An element-only child carries a content-token ordering value as well as its name, so it is emitted at the position its parent assigned even when a same-name sibling makes it a sequence item."
+        "An element-only child carries a content-token ordering value as well as its name, so it is emitted at the position its parent assigned even when a same-name sibling makes it a sequence item.",
+        "Mixedness and repeated-child classification are properties of the merged element rather than of one document, so a mixed contribution makes an element-only contribution's child a content node with its own fresh content token, and a contribution that repeats a name makes another contribution's singleton an item of that one sequence rather than a scalar beside it."
       ],
       "fixtures": [
         "xml-a-reference-does-not-import-a-spelling",
@@ -218,8 +219,10 @@
         "xml-comments-are-ordered-content-nodes",
         "xml-element-only-children-keep-their-place",
         "xml-input-options-are-root-level-only",
+        "xml-mixedness-spans-contributions",
         "xml-node-types-select-the-spelling",
         "xml-normalize-formatting-whitespace",
+        "xml-singleton-promotion-spans-contributions",
         "xml-whitespace-is-preserved-by-default"
       ]
     },

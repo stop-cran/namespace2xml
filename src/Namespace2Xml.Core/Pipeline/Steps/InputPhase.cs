@@ -93,6 +93,7 @@ public static class InputPhase
 
         var admitted = SourceLoader.Admit(loaded, budget, _ => DiagnosticPhase.Input, diagnostics);
         var contributions = ImmutableArray.CreateBuilder<InputContribution>();
+        var reconciled = Reconciled(admitted);
 
         foreach (var source in admitted)
         {
@@ -104,7 +105,11 @@ public static class InputPhase
             if (source.Document is { } document)
             {
                 var native = StructuredProfileReader.Read(
-                    document, source.Ordinal, source.Origin, diagnostics, out var unsupported);
+                    reconciled.GetValueOrDefault(source.Ordinal, document),
+                    source.Ordinal,
+                    source.Origin,
+                    diagnostics,
+                    out var unsupported);
 
                 if (unsupported is not null)
                 {
@@ -125,6 +130,45 @@ public static class InputPhase
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<ImmutableArray<InputContribution>>()
             : StepOutcome.Produced(contributions.ToImmutable());
+    }
+
+    /// <summary>Section 11.4's classification of the XML documents this run admitted.</summary>
+    /// <param name="admitted">Every source, in source order.</param>
+    /// <returns>
+    /// The reconciled document of each XML source whose shape the merged classification changes.
+    /// A source absent from the map keeps the document its reader built.
+    /// </returns>
+    /// <remarks>
+    /// Section 11.4 evaluates mixedness and repeated-child classification "at concrete merge time
+    /// across all input contributions to that element", and requires the result before addresses
+    /// are exposed, since they are "never recomputed for an output view". The reconciliation
+    /// therefore sits between reading and Section 15.1 step 6's projection rather than in the
+    /// merge, which by then sees paths and not shapes.
+    /// </remarks>
+    private static Dictionary<long, StructuredNode> Reconciled(
+        ImmutableArray<LoadedSource> admitted)
+    {
+        var sources = admitted
+            .Where(source => source is
+            {
+                Admitted: true, Format: "XML", Document: not null,
+            })
+            .ToList();
+
+        if (sources.Count < 2)
+        {
+            return [];
+        }
+
+        var documents = XmlClassification.Reconcile([.. sources.Select(source => source.Document!)]);
+        var reconciled = new Dictionary<long, StructuredNode>();
+
+        for (var i = 0; i < sources.Count; i++)
+        {
+            reconciled[sources[i].Ordinal] = documents[i];
+        }
+
+        return reconciled;
     }
 
     /// <summary>Section 15.1 step 8: fold within each contribution, then merge in source order.</summary>

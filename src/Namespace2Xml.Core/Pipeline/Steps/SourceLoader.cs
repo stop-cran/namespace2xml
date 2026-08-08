@@ -36,6 +36,18 @@ public sealed record LoadedSource(
     /// known".
     /// </remarks>
     public StructuredNode? Document { get; init; }
+
+    /// <summary>
+    /// The Section 7.1 structured format this source was parsed as, or <see langword="null"/> for a
+    /// namespace profile.
+    /// </summary>
+    /// <remarks>
+    /// Section 11.4's cross-contribution classification is a rule about XML contributions to one
+    /// element, so <see cref="XmlClassification"/> has to know which documents are XML. The shapes
+    /// alone cannot say: a JSON mapping and an XML element-only element are the same shape by
+    /// construction, which is the point of <see cref="StructuredNode"/>.
+    /// </remarks>
+    public string? Format { get; init; }
 }
 
 /// <summary>
@@ -220,6 +232,7 @@ public sealed class SourceLoader
             return new LoadedSource(origin, ordinal, [], budget.Tally, Admitted: true)
             {
                 Document = document,
+                Format = format,
             };
         }
 
