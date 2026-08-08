@@ -1,0 +1,8 @@
+s1.output=namespace
+s1.filename=out.properties
+s2.output=namespace
+s2.filename=out.properties
+s2.filemerge=replace
+s3.output=namespace
+s3.filename=out.properties
+s3.filemerge=deep

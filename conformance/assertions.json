@@ -313,7 +313,8 @@
         "Four contributions reaching one destination from a two-format wildcard declaration fold by format ordinal before wildcard match order, not in the order the expansion produced them, so a cross-format replacement lands once rather than between every pair.",
         "A filemerge=append between two mapping views is refused at each destination's view root, where Appendix A.2 leaves path absent, and Section 22 counts TYPE001 once per path and applicable output instance, so two destinations report two refusals rather than one being retired as a repeat of the other.",
         "A step 18 fold diagnostic carries the Appendix B destination member, which is the only member separating two root refusals that share a code, a phase, an anchor, a message and an absent path.",
-        "WARN005 is counted once per folded contribution pair, so four contributions at one destination report three warnings even when two of the pairs name the same two selectors."
+        "WARN005 is counted once per folded contribution pair, so four contributions at one destination report three warnings even when two of the pairs name the same two selectors.",
+        "A destination filemerge=replace discards the accumulated items at a sequence path below the declaration without lowering that path's high-water mark, and the accumulator absorbs that mark before allocating, so the replacing contribution's own implicit item allocates above every discarded value and later explicit items at the values the discarded items had used land beside it rather than patching it."
       ],
       "fixtures": [
         "destination-fold-follows-wildcard-match-order",
@@ -321,7 +322,8 @@
         "folded-implicit-items-rebase-above-the-destination-mark",
         "filemerge-error-rejects-a-second-contribution",
         "one-destination-folds-by-format-before-match-order",
-        "a-refused-fold-is-reported-once-per-destination"
+        "a-refused-fold-is-reported-once-per-destination",
+        "a-replaced-destination-keeps-the-high-water-mark"
       ]
     },
     {

@@ -190,7 +190,7 @@ public sealed class OverlayMerger
         return strategy switch
         {
             MergeStrategy.Deep => DeepMerge(earlier, later, path),
-            MergeStrategy.Replace => ReplaceMerge(earlier, later),
+            MergeStrategy.Replace => ReplaceMerge(earlier, later, path),
             MergeStrategy.Append => AppendMerge(earlier, later, path),
             _ => throw new InvalidOperationException($"'{strategy}' is not a {nameof(MergeStrategy)}."),
         };
@@ -254,17 +254,94 @@ public sealed class OverlayMerger
     /// other mark describes part of the value Section 16.10 has just removed, so
     /// <see cref="NodeMarks.AfterReplacement"/> takes those from the replacement.
     /// </para>
+    /// <para>
+    /// Descendant high-water marks survive too, through <c>CarryMarks</c>. Section 5.4 gives
+    /// "each sequence path" a mark recording the greatest value ever supplied there "including
+    /// values later removed or replaced", and Section 17.5 requires an output contribution to carry
+    /// "its complete per-path high-water map, including marks raised by items hidden by output
+    /// projection". Keeping only this node's mark satisfies neither: it is the mark at the path
+    /// <c>replace</c> was declared on, and the sequences are usually beneath it.
+    /// </para>
+    /// <para>
+    /// Retaining the mark is only half of it. Section 17.5 has the accumulator "absorb the incoming
+    /// high-water mark for a path before allocating or patching incoming items at that path", and
+    /// rebases "an implicit item from a later output contribution onto the next fresh destination
+    /// ordering value" whatever the strategy — the strategy-specific bullet beside it says only that
+    /// <c>replace</c> discards the accumulated projection. So the replacement's own implicit items
+    /// allocate above the retained mark rather than restarting at zero, which is the only thing that
+    /// makes retaining the mark observable: a fresh dense index (Section 5.4) hides the values, and
+    /// only a third contribution addressing one of them can tell the two apart.
+    /// </para>
     /// </remarks>
-    private static OverlayNode ReplaceMerge(OverlayNode earlier, OverlayNode later) =>
-        OverlayNode.Compose(
+    private OverlayNode ReplaceMerge(
+        OverlayNode earlier, OverlayNode later, ImmutableArray<NamePart> path)
+    {
+        // The empty projection is what Section 17.2 removes; the mark it is allocated against is
+        // what Section 17.2 declines to lower.
+        var (sequence, highWater) = MergeSequence(
+            ImmutableDictionary<long, SequenceItem>.Empty,
+            Math.Max(earlier.SequenceHighWater, later.SequenceHighWater),
+            later,
+            path);
+
+        return OverlayNode.Compose(
             earlier.Marks.AfterReplacement(later.Marks),
             later.Payload,
             later.HasExplicitMapping,
             later.HasExplicitSequence,
-            later.Children,
-            later.Sequence,
+            CarryMarks(earlier.Children, later.Children, path),
+            sequence,
             earlier.Comments.AddRange(later.Comments),
-            Math.Max(earlier.SequenceHighWater, later.SequenceHighWater));
+            Math.Max(highWater, ReservedByChildren(later.Children)));
+    }
+
+    /// <summary>
+    /// Carries the replaced children's high-water marks onto the replacement's, without carrying
+    /// any of the value the replacement removed.
+    /// </summary>
+    /// <param name="earlier">The replaced children.</param>
+    /// <param name="later">The replacement's children.</param>
+    /// <param name="path">The path both sets of children hang from.</param>
+    /// <returns>The replacement's children, each raised to the mark the replaced path had reached.</returns>
+    /// <remarks>
+    /// <para>
+    /// A child the replacement also names is replaced by the same rules, recursively, which is what
+    /// carries the absorb-then-allocate order of Section 17.5 down to the sequence paths beneath the
+    /// declaration. <see cref="MergeNode"/> cannot do this: <c>replace</c> resolves at the path it is
+    /// declared on and never asks the strategy map about a descendant.
+    /// </para>
+    /// <para>
+    /// A child the replacement does not name keeps nothing, not even its mark. Section 17.5 asks for
+    /// the "complete per-path high-water map", which is a map and not part of the tree; the mark of a
+    /// path with no node has nowhere to live here, and materialising an empty node to hold it would
+    /// put a path Section 16.10 has just removed back into <see cref="OverlayNode.Children"/>, where
+    /// wildcards, references and selectors would all find it again. That trade is recorded in
+    /// KNOWN-LIMITS.md: it is observable only when a later contribution recreates the removed path
+    /// and a further one addresses an explicit ordering value on it.
+    /// </para>
+    /// </remarks>
+    private ImmutableDictionary<NamePart, OverlayNode> CarryMarks(
+        ImmutableDictionary<NamePart, OverlayNode> earlier,
+        ImmutableDictionary<NamePart, OverlayNode> later,
+        ImmutableArray<NamePart> path)
+    {
+        if (earlier.IsEmpty || later.IsEmpty)
+        {
+            return later;
+        }
+
+        var carried = later;
+
+        foreach (var (name, node) in earlier)
+        {
+            if (later.TryGetValue(name, out var replacement))
+            {
+                carried = carried.SetItem(name, ReplaceMerge(node, replacement, path.Add(name)));
+            }
+        }
+
+        return carried;
+    }
 
     /// <summary>
     /// Section 16.10 <c>append</c>: "every item in the later sequence contribution, including

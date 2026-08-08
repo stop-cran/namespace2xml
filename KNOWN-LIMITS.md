@@ -327,6 +327,26 @@ The case needs a node carrying both an ordered mapping and an explicit independe
 fixture reaches it. It is recorded because the specification names a merge strategy there, and a
 future format that renders both projections would make the difference visible.
 
+### 1.13 A destination high-water mark is lost when `replace` removes the path entirely
+
+§17.5 says "Every output contribution carries its complete per-path high-water map, including marks
+raised by items hidden by output projection." This build carries marks on the overlay tree rather
+than in a separate map, so a mark lives on the node whose sequence raised it. A destination
+`filemerge=replace` that discards a path and does not itself name that path leaves the mark with
+nowhere to live, and it is lost. **verified**
+
+Marks below a path the replacement *does* name survive, which is the reachable case and is pinned by
+`conformance/a-replaced-destination-keeps-the-high-water-mark`. The lost case needs four
+contributions to one destination — one to raise the mark, one to replace without naming the path, one
+to recreate it, and one to address an explicit ordering value the first had used — because §5.4
+renumbers survivors densely from zero and hides every smaller difference.
+
+Materialising an empty node to hold the orphaned mark was tried and rejected: it puts a path §16.10
+has just removed back into the overlay tree, where wildcards, references and selectors find it again,
+which trades a remote divergence for a common one. Closing this properly means carrying the map
+beside the tree and re-addressing it through selector-prefix removal, `root`, `key` and `type`, as
+§17.5 describes.
+
 ## 2. Acceptance coverage
 
 `conformance/assertions.json` records all 86 acceptance requirements from specification §26, each
