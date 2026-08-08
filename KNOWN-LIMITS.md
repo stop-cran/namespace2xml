@@ -361,8 +361,9 @@ There is no code to raise. §17.4 requires collision detection only of "every fl
 states that "`FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions" —
 the closed diagnostic list assigns nothing to the structured formats. Inventing a code here would
 put an unspecified blocking error on a default path, so the gap is recorded rather than filled. It
-is filed as a specification gap; the natural resolutions are to widen `FLAT001` to every format
-whose projection can collide, or to add a structured-format counterpart.
+is filed as a specification gap in
+[#51](https://github.com/stop-cran/namespace2xml/issues/51); the natural resolutions are to widen
+`FLAT001` to every format whose projection can collide, or to add a structured-format counterpart.
 
 Reaching it needs two input formats disagreeing about the same path, which is why no fixture in the
 corpus produced it.
@@ -386,8 +387,57 @@ The underlying issue is that §19.4's blanket "uses literal block scalars for mu
 never been the whole rule. A block scalar cannot carry a value containing CR, containing a control
 character, whose lines have trailing whitespace, or whose first non-empty line is indented, and the
 writer has always quoted those instead, because §3.3 requires the round trip to preserve the data.
-The blank-line case is the same shape of exception with §24 in place of §3.3. A specification report
-asks for the qualifier to be stated explicitly, covering all of them rather than this one.
+The blank-line case is the same shape of exception with §24 in place of §3.3.
+[#52](https://github.com/stop-cran/namespace2xml/issues/52) asks for the qualifier to be stated
+explicitly, covering all of them rather than this one.
+
+### 1.16 A top-of-file comment binds differently in namespace and YAML input
+
+§8.5 states of namespace input that "consecutive comments are associated with the next entry",
+without qualification, so a comment at the top of a namespace profile becomes a leading comment of
+the first entry. §20 classifies comments across every format and scopes its leading rule explicitly
+to "a comment between two payloads or items", which carves the first position out of it: "a comment
+before the first payload or item is document-leading". §10.1 lists the YAML comment positions that
+are supported but states no association rule of its own, so §20 governs YAML.
+
+The same top-of-file comment is therefore classified two ways depending on the format it was read
+from, and the implementation follows each clause as it is written. **verified**
+
+A plain round trip does not show it, because a document-leading comment and a leading comment of the
+first entry emit in the same place. It becomes observable once the owning entry stops being emitted:
+an ignore mask over the first entry takes that entry's leading comment with it, while a
+document-leading comment survives to the output.
+
+Both readings are the plain sense of their own clause, so there is nothing the implementation can
+settle by itself. The candidate resolutions are to give §10.1 an association rule matching §8.5, or
+to restate §20's trichotomy as format-independent and amend §8.5 to match. Choosing between them
+with no use to point at would be guessing, so this is recorded and left for the preview to settle.
+
+### 1.17 An unpaired surrogate cannot reach an output, and `-v` loses one silently
+
+§16.9 says that without `EscapeNonAscii` "non-ASCII text is emitted as literal UTF-8". UTF-8 has no
+encoding for an unpaired surrogate, so that sentence cannot be obeyed for one, and the JSON writer
+escapes such a code unit as `\uXXXX` whatever the flag says rather than emit a silent U+FFFD.
+
+That branch is unreachable. Every route into the model was tried. **verified**
+
+| Route | Result |
+|---|---|
+| Any file input | UTF-8 has no encoding for a surrogate, so the bytes cannot occur |
+| JSON `"x\uD800y"` | `PARSE001 §9.1` |
+| YAML `"x\uD800y"` | `PARSE001 §10.1` |
+| Namespace `\u{D800}` in a name | `PARSE001 §8.2` |
+| Namespace `\u{D800}` in a value | Not an escape there; the text stays literal |
+| `-v cfg.a=x<U+D800>y` | Arrives as U+FFFD, exit `0`, no diagnostic |
+
+Only the last row loses anything, and the substitution happens before the tool runs: the .NET
+apphost passes its arguments through UTF-8 on the way to managed code, so `Main` is handed a U+FFFD
+that nothing downstream can tell from one the user typed. Reproduced both through `dotnet run` and
+by starting the apphost directly with a UTF-16 argument list, which rules out the shell.
+
+It is recorded rather than acted on, because refusing U+FFFD in a variable would reject legitimate
+text and there is no other signal to test. A revisit is warranted only if someone reaches it in
+practice.
 
 ## 2. Acceptance coverage
 
