@@ -1,1 +1,2 @@
 app.output=xml
+app.root=app

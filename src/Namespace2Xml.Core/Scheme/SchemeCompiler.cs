@@ -58,6 +58,7 @@ public readonly record struct DeclarationSite(string Text, string Source, int Li
 /// <param name="IniOptions">The Section 16.9 INI options, defaulted when undeclared.</param>
 /// <param name="JsonOptions">The Section 16.9 JSON options, defaulted when undeclared.</param>
 /// <param name="YamlOptions">The Section 16.9 YAML options, defaulted when undeclared.</param>
+/// <param name="XmlOptions">The Section 16.9 XML options, defaulted when undeclared.</param>
 /// <param name="FileMerge">The Section 16.11 destination-collision strategy.</param>
 /// <param name="Captures">
 /// The Section 14.1 captures the selector expansion bound, empty for a selector that contained no
@@ -93,6 +94,10 @@ public readonly record struct DeclarationSite(string Text, string Source, int Li
 /// The site of the winning <c>yamloutputoptions</c> declaration, or null when the instance takes the
 /// Section 16.9 defaults, for the same reason as <paramref name="IniOptionsDeclaration"/>.
 /// </param>
+/// <param name="XmlOptionsDeclaration">
+/// The site of the winning <c>xmloutputoptions</c> declaration, or null when the instance takes the
+/// Section 16.9 defaults, for the same reason as <paramref name="IniOptionsDeclaration"/>.
+/// </param>
 /// <param name="Declaration">
 /// The written text of the winning <c>output</c> declaration, its source, and the line it was
 /// written on. Section 22 supplies a diagnostic's <c>source</c>, <c>line</c>, and
@@ -110,6 +115,7 @@ public sealed record OutputInstance(
     IniOutputOptions IniOptions,
     JsonOutputOptions JsonOptions,
     YamlOutputOptions YamlOptions,
+    XmlOutputOptions XmlOptions,
     MergeStrategy FileMerge,
     WildcardCaptures Captures,
     int WildcardMatchOrder,
@@ -118,6 +124,7 @@ public sealed record OutputInstance(
     DeclarationSite? IniOptionsDeclaration,
     DeclarationSite? JsonOptionsDeclaration,
     DeclarationSite? YamlOptionsDeclaration,
+    DeclarationSite? XmlOptionsDeclaration,
     DeclarationSite Declaration)
 {
     /// <summary>
@@ -268,6 +275,7 @@ public static class SchemeCompiler
                 case SchemeDirective.IniOutputOptions:
                 case SchemeDirective.JsonOutputOptions:
                 case SchemeDirective.YamlOutputOptions:
+                case SchemeDirective.XmlOutputOptions:
                 case SchemeDirective.FileMerge:
                     winners[(new SelectorKey(entry.Selector), entry.Directive)] = (entry, index);
                     break;
@@ -386,6 +394,8 @@ public static class SchemeCompiler
                     ?? JsonOutput.Default,
                 Compile(winners, selector, SchemeDirective.YamlOutputOptions, diagnostics, CompileYamlOptions)
                     ?? YamlOutput.Default,
+                Compile(winners, selector, SchemeDirective.XmlOutputOptions, diagnostics, CompileXmlOptions)
+                    ?? XmlOutput.Default,
                 Compile(winners, selector, SchemeDirective.FileMerge, diagnostics, CompileStrategy)
                     ?? MergeStrategy.Deep,
                 WildcardCaptures.Empty,
@@ -395,6 +405,7 @@ public static class SchemeCompiler
                 Site(winners, selector, SchemeDirective.IniOutputOptions),
                 Site(winners, selector, SchemeDirective.JsonOutputOptions),
                 Site(winners, selector, SchemeDirective.YamlOutputOptions),
+                Site(winners, selector, SchemeDirective.XmlOutputOptions),
                 new DeclarationSite(
                     winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)));
         }
@@ -699,6 +710,56 @@ public static class SchemeCompiler
         if (!options.HasFlag(JsonOutputOptions.Compact))
         {
             options |= JsonOutputOptions.Indent;
+        }
+
+        return options;
+    }
+
+    /// <summary>Section 16.9.</summary>
+    private static XmlOutputOptions? CompileXmlOptions(SchemeEntry entry, DiagnosticBuffer diagnostics)
+    {
+        var options = XmlOutputOptions.None;
+
+        foreach (var name in Split(entry.Value.LiteralText!))
+        {
+            if (!IsName(name)
+                || !Enum.TryParse<XmlOutputOptions>(name, ignoreCase: true, out var flag)
+                || !Enum.IsDefined(flag)
+                || flag == XmlOutputOptions.None)
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.9",
+                    $"'{name}' is not one of the Section 16.9 XML output options.");
+                return null;
+            }
+
+            options |= flag;
+        }
+
+        if (!options.TryValidate(out var contradiction))
+        {
+            Reject(entry, diagnostics, "\u00A716.9", contradiction!);
+            return null;
+        }
+
+        // Section 16.9: "When a replacement omits every flag from a mutually exclusive mode group,
+        // that group's documented default is reapplied." XML has three such groups, and
+        // 'NewLineOnAttributes' is independent and off unless named.
+        if (!options.HasFlag(XmlOutputOptions.NoIndent))
+        {
+            options |= XmlOutputOptions.Indent;
+        }
+
+        if (!options.HasFlag(XmlOutputOptions.CDataAsText))
+        {
+            options |= XmlOutputOptions.PreserveCData;
+        }
+
+        if (!options.HasFlag(XmlOutputOptions.NoDeclaration))
+        {
+            options |= XmlOutputOptions.Declaration;
         }
 
         return options;

@@ -84,6 +84,32 @@ public readonly record struct TypeSet
     /// <summary>Whether this set forces string rendering of a scalar.</summary>
     public bool IsString => Has(TypeValue.Quoted);
 
+    /// <summary>
+    /// The Section 16.6 XML node kind this set selects, or null when it selects none.
+    /// </summary>
+    /// <remarks>
+    /// Section 16.6 makes <c>attribute</c>, <c>element</c>, <c>text</c> and <c>cdata</c> "mutually
+    /// exclusive", so at most one can be present and a single value answers for the set.
+    /// </remarks>
+    public TypeValue? XmlKind
+    {
+        get
+        {
+            foreach (var value in Values)
+            {
+                if (value is TypeValue.Element
+                    or TypeValue.Attribute
+                    or TypeValue.Text
+                    or TypeValue.Cdata)
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+    }
+
     /// <summary>Whether the set contains one value.</summary>
     /// <param name="value">The value to look for.</param>
     public bool Has(TypeValue value) => values is not null && Array.IndexOf(values, value) >= 0;

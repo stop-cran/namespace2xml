@@ -23,7 +23,26 @@ public sealed record OutputView(
     OutputFormat Format,
     int FormatOrdinal,
     OverlayNode View,
-    ImmutableArray<NamePart> Root);
+    ImmutableArray<NamePart> Root)
+{
+    /// <summary>
+    /// The Section 15.2 bound transform table, keyed by canonical path relative to the selector
+    /// prefix. Section 16.6's XML node kinds are read from it at serialization.
+    /// </summary>
+    public IReadOnlyDictionary<string, EffectiveTransform> Types { get; init; } =
+        ImmutableDictionary<string, EffectiveTransform>.Empty;
+
+    /// <summary>
+    /// The Section 16.3 root parts already wrapped into <see cref="View"/> by the pre-fold pass.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Root"/> is cleared once the wrapping nodes are in the view, so a serializer that
+    /// addresses <see cref="Types"/> needs this to skip the wrapper: the table is keyed relative to
+    /// the selector prefix, and Section 16.3 wraps "the selector's remaining content" beneath names
+    /// that no scheme path can address.
+    /// </remarks>
+    public ImmutableArray<NamePart> AppliedRoot { get; init; } = [];
+}
 
 /// <summary>One output view bound to the destination it will be written to.</summary>
 /// <param name="View">The view.</param>
@@ -329,16 +348,6 @@ public static class PlanningPhase
             {
                 var format = instance.Formats[ordinal];
 
-                if (format == OutputFormat.Xml)
-                {
-                    return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
-                        new UnsupportedCapability(
-                            $"{format} output",
-                            $"the declaration for selector '{instance.Selector}' asks for "
-                            + $"{format}.",
-                            "\u00A719.5"));
-                }
-
                 // Section 14.1: an instance is planned "even when no data path currently matches
                 // its literal prefix", so a missing subtree is an empty view rather than no view.
                 var selected = Descend(model, instance.Selector.Name);
@@ -489,7 +498,8 @@ public static class PlanningPhase
                 view.Instance.Selector.Name?.Parts ?? [],
                 configuration.Transforms,
                 (occurrence, order) => diagnostics.Add(new BufferedDiagnostic(occurrence, order)),
-                bound);
+                bound,
+                out var effective);
 
             // Section 16.6 removes an ignored subtree "from the selected output instance only". An
             // ignore that reached the view root is already TYPE001, so a null here is unreachable
@@ -508,7 +518,7 @@ public static class PlanningPhase
                     continue;
                 }
 
-                transformed.Add(view with { View = result, Root = root });
+                transformed.Add(view with { View = result, Root = root, Types = effective });
             }
         }
 
@@ -785,7 +795,10 @@ public static class PlanningPhase
                 .WithChild(view.Root[i], wrapped);
         }
 
-        return contribution with { View = view with { View = wrapped, Root = [] } };
+        return contribution with
+        {
+            View = view with { View = wrapped, Root = [], AppliedRoot = view.Root },
+        };
     }
 
     /// <summary>The Section 22 cardinality key identifying one folded contribution pair.</summary>
@@ -945,19 +958,25 @@ public static class PlanningPhase
             return true;
         }
 
-        // Section 14.1: "JSON and YAML may emit a scalar document", and Section 16.3 says "the
-        // original selector name is not retained unless it is also present in the 'root' value".
-        // Only the flat formats are listed as retaining the final selector part, and only they need
-        // to: a JSON or YAML document may be a scalar, so nothing has to name it.
-        if (selected.Payload is null || !format.TryAsFlat(out _))
+        // Section 14.1: "JSON and YAML may emit a scalar document". Only those two are granted a
+        // scalar document, so only they need no name for it.
+        if (selected.Payload is null)
+        {
+            root = [];
+            return true;
+        }
+
+        if (format is OutputFormat.Json or OutputFormat.Yaml)
         {
             root = [];
             return true;
         }
 
         // Section 19.1 and 19.2: "When the selected output root is a bare scalar, namespace output
-        // retains the final concrete selector part as the emitted key."
-        if (instance.Selector.Name is { } name)
+        // retains the final concrete selector part as the emitted key." Section 19.5 grants XML no
+        // such fallback, and Section 16.3 says "the original selector name is not retained unless it
+        // is also present in the 'root' value", so an XML document element must come from `root`.
+        if (format.TryAsFlat(out _) && instance.Selector.Name is { } name)
         {
             root = [name.Parts[^1]];
             return true;
@@ -967,8 +986,9 @@ public static class PlanningPhase
             DiagnosticCodes.Type001(
                 DiagnosticPhase.Planning,
                 "\u00A714.1",
-                "the empty root selector selects a bare scalar, and namespace, quoted namespace, "
-                + "and INI require an explicit 'root' because no key identity exists otherwise.",
+                "the selected output root is a bare scalar, and XML, namespace, quoted namespace, "
+                + "and INI require an explicit 'root' because no element or key identity exists "
+                + "otherwise.",
                 cardinalityKey: instance.Selector.ToString(),
                 declaration: $"output={instance.Formats[0]}"),
             OrderingKey: StableOrderingKey.First));

@@ -280,7 +280,7 @@ public sealed class TransformationTests
     [Test]
     public void AFormatOutsideThisVersionDeclinesRatherThanGuessing()
     {
-        var (result, sink) = Transform("app.name=example\n", "app.output=xml\n");
+        var (result, sink) = Transform("app.name=example\n", "app.substitute=All\n");
 
         result.State.ShouldBe(PipelineRunState.Unsupported);
         result.ExitCode.ShouldBeNull();
@@ -292,9 +292,10 @@ public sealed class TransformationTests
     public void ARefusalPublishesNothingAtAllEvenForFormatsThatAreSupported()
     {
         // A partial run is the failure this gate exists to prevent: publishing `app.properties`
-        // and silently dropping `app.xml` would leave a plausible tree that asserts less than the
-        // scheme asked for.
-        var (result, sink) = Transform("app.name=example\n", "app.output=namespace,xml\n");
+        // and silently dropping the refused work would leave a plausible tree that asserts less
+        // than the scheme asked for.
+        var (result, sink) = Transform(
+            "app.name=example\n", "app.output=namespace\napp.substitute=All\n");
 
         result.State.ShouldBe(PipelineRunState.Unsupported);
         sink.Written.ShouldBeEmpty();

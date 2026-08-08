@@ -98,6 +98,27 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: an invalid command line must still be reportable in the
   encoding the caller asked for, or an automated caller cannot read its own failure.
 
+### `cli-diagnostics-stream-on-a-clean-run`
+
+- namespace2xml 2.4.0: **differs**. 2.4.0 has no structured diagnostic stream, so there is nothing
+  to compare the encoding against.
+- Contract: Sections 6.3, 6.4.3, 16.2, 16.3 and 19.5.
+- Legacy observation: an invocation with no arguments produced CommandLineParser's own usage text
+  on standard error and a nonzero status, with no machine-readable stream.
+- Clean behavior: the ordinary path resolves the diagnostic encoding, writes the Section 6.4.3
+  stream and nothing else to standard error, publishes the planned tree, and exits 0.
+- Why this case exists: it reaches the ordinary transformation path with a stream requested. A
+  dual-model review found that standard error was polluted with operational prose on exactly this
+  path, and no fixture reached it, so the corpus, the comparer and the determinism script all
+  reported success. This case closes the corpus half of that gap. An empty array is the assertion:
+  a clean run says nothing beyond the framing.
+- The command line is a valid minimal invocation because Section 6.2 makes `-i` and `-s` required.
+- History: while the transformation pipeline was unimplemented this case expected the reserved
+  preview status 70 and published nothing, and it was named `cli-preview-not-implemented`. The
+  XML renderer retired that status, so the case now asserts the stream framing over a completed
+  run. Section 14.1 denies XML the selector-name fallback for a document element, and the input
+  has two top-level members, so the scheme supplies `root` explicitly.
+
 ### `cli-end-of-options-values`
 
 - namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
@@ -174,27 +195,6 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   nonzero status, with no stable code and no machine-readable stream.
 - Clean behavior: an option token that reaches the end of the argument vector still requiring a
   value is `CLI001` with exit 1, reported in the requested encoding.
-
-### `cli-preview-not-implemented`
-
-- namespace2xml 2.4.0: **differs**. 2.4.0 has no notion of a preview build and no structured
-  diagnostic stream, so there is nothing to compare the encoding against.
-- Contract: Sections 6.3 and 6.4.3.
-- Legacy observation: an invocation with no arguments produced CommandLineParser's own usage text
-  on standard error and a nonzero status, with no machine-readable stream.
-- Clean behavior: the ordinary path resolves the diagnostic encoding, writes the Section 6.4.3
-  stream and nothing else, and exits with the reserved preview status 70.
-- Why this case exists: it is the only case that reaches the ordinary path rather than an
-  informational mode or a command-line error. A dual-model review found that standard error was
-  polluted with operational prose on exactly this path, and no fixture reached it, so the corpus,
-  the comparer and the determinism script all reported success. This case closes the corpus half
-  of that gap.
-- The command line is a valid minimal invocation because Section 6.2 makes `-i` and `-s` required
-  regardless of how much of the pipeline exists. Before the parser landed this case passed an
-  empty vector, which reached the ordinary path only because nothing yet checked the vector.
-- Preview scope: the expected exit code is 70 only while the transformation pipeline is
-  unimplemented. When the pipeline lands, this case becomes an ordinary transformation case and
-  its expected exit code, expected tree and stream must be updated with it.
 
 ### `cli-short-option-inline-rejected`
 

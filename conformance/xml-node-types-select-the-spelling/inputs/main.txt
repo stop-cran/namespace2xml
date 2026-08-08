@@ -1,0 +1,4 @@
+cfg.item.@id=7
+cfg.item.name=widget
+cfg.item.note=x < y
+cfg.item.tail=trailing

@@ -160,6 +160,17 @@ public static class PublicationPhase
                     .TrySerialize(keyed, writer);
         }
 
+        if (view.Format == OutputFormat.Xml)
+        {
+            var element = new XmlProjection(
+                    diagnostics, destination, view.Types, view.AppliedRoot.Length)
+                .Project(view.View, view.Root);
+
+            return element is not null
+                && new XmlSerializer(view.Instance.XmlOptions, diagnostics, destination)
+                    .TrySerialize(element, writer);
+        }
+
         if (view.Format is not (OutputFormat.Json or OutputFormat.Yaml))
         {
             throw new InvalidOperationException(

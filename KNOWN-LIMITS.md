@@ -129,14 +129,17 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   discards it — the same common-model gap as §1.2's YAML entry, since structured input has no
   comment facet. Its §11.4 ordering value **is** spent, so siblings keep their positions:
   `<a>t<!--c-->u</a>` addresses its two text runs as `#0` and `#2`, never renumbered to `#0` and
-  `#1`. **This is now observable through a non-XML output**: YAML output emits retained comments,
-  so an XML-to-YAML run loses every XML comment. XML output is unimplemented, so an XML-to-XML run
-  loses nothing that could have been emitted anyway.
+  `#1`. **This is observable through every output format**: YAML output emits retained comments, so
+  an XML-to-YAML run loses every XML comment, and §19.5 makes XML output "emit retained XML
+  comments", so an XML-to-XML round trip drops them too.
 - **CDATA is not retained as a distinct node kind.** §11.6 keeps it distinct so that XML output can
   re-emit it as CDATA. The coalescing rule itself is implemented exactly as written — adjacent
   CDATA and adjacent ordinary text coalesce separately and never with each other — but the run's
   CDATA-ness does not survive projection into the common model, so from that point it is text.
-  XML rendering is unimplemented, so nothing observable is lost today; this closes with §19.5.
+  **Now that §19.5 rendering exists this is observable**: an XML-to-XML round trip re-emits a
+  `<![CDATA[…]]>` section as escaped ordinary text under the default `PreserveCData`, which is the
+  `CDataAsText` behaviour the caller did not ask for. The document means the same thing; its
+  spelling does not survive.
 - **Element-only children carry no separately addressable content token, and interleaved repeats
   lose their document order.** §11.4 says every parent assigns ordering values "including
   element-only parents", and that element-only children retain element-name addressing "while also
@@ -148,12 +151,12 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   children "form a sequence at `parent.child`", so a repeat is recorded as one property at its
   first appearance; without the content-token value there is nothing left that says where its later
   occurrences stood among differently-named siblings. `<a><b>1</b><c>2</c><b>3</b></a>` and
-  `<a><b>1</b><b>3</b><c>2</c></a>` therefore produce the same model, and the same output, in this
-  preview — **verified**, not merely expected. §11.4 makes content-token values "determine
-  placement in the parent's serialized stream", so this becomes observable when §19.5 lands and the
-  first document must serialize back with its `<c>` between the two `<b>` elements. Until then no
-  implemented output format orders element-only children by anything but first appearance, so
-  nothing observable is lost today.
+  `<a><b>1</b><b>3</b><c>2</c></a>` therefore produce the same model, and the same output —
+  **verified**, not merely expected. §11.4 makes content-token values "determine placement in the
+  parent's serialized stream", and §19.5 rendering now exists, so this **is** observable: the first
+  document round-trips to the second, with its `<c>` moved out from between the two `<b>` elements.
+  That is a silent reordering of a document the tool was asked to preserve, and it is the most
+  consequential item in this section.
 
   An earlier revision of this file claimed here that "document order is preserved — it is what the
   §5.2 position marks record". That was wrong for exactly the interleaved case above, and it is

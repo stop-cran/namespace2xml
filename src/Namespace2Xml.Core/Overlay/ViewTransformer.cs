@@ -56,13 +56,19 @@ public static class ViewTransformer
     /// warns once per declaration that binds nowhere, and a rule binding in one output instance and
     /// not another has bound, so the caller unions this across every view before warning.
     /// </param>
+    /// <param name="effective">
+    /// Receives the bound table, keyed by canonical path relative to the selector prefix. Section
+    /// 16.6's XML node kinds "select an XML rendering for a scalar" without changing the view, so
+    /// the format that has them reads them here at serialization rather than in a pass.
+    /// </param>
     /// <returns>The transformed view, or null when the view root itself was ignored.</returns>
     public static OverlayNode? Transform(
         OverlayNode view,
         ImmutableArray<NamePart> prefix,
         ImmutableArray<TransformRule> rules,
         Action<DiagnosticOccurrence, StableOrderingKey> report,
-        ISet<StableOrderingKey> bound)
+        ISet<StableOrderingKey> bound,
+        out IReadOnlyDictionary<string, EffectiveTransform> effective)
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(report);
@@ -70,21 +76,23 @@ public static class ViewTransformer
 
         if (rules.IsDefaultOrEmpty)
         {
+            effective = ImmutableDictionary<string, EffectiveTransform>.Empty;
             return view;
         }
 
-        var effective = new Dictionary<string, EffectiveTransform>(StringComparer.Ordinal);
+        var table = new Dictionary<string, EffectiveTransform>(StringComparer.Ordinal);
         var paths = new Dictionary<string, ImmutableArray<NamePart>>(StringComparer.Ordinal);
         var bindings = new List<(TransformRule Rule, ImmutableArray<NamePart> Relative)>();
-        Bind(view, prefix, [], rules, effective, paths, bindings);
-        Live(effective, bindings, bound);
+        Bind(view, prefix, [], rules, table, paths, bindings);
+        Live(table, bindings, bound);
+        effective = table;
 
-        if (!Validate(prefix, effective, paths, report))
+        if (!Validate(prefix, table, paths, report))
         {
             return view;
         }
 
-        var context = new Pass(prefix, effective, report);
+        var context = new Pass(prefix, table, report);
 
         var ignored = context.Ignore(view, []);
 

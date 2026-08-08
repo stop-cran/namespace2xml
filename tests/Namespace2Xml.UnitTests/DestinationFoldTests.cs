@@ -59,6 +59,7 @@ public class DestinationFoldTests
             IniOutput.Default,
             JsonOutput.Default,
             YamlOutput.Default,
+            XmlOutput.Default,
             fileMerge,
             WildcardCaptures.Empty,
             WildcardMatchOrder: 0,
@@ -69,6 +70,7 @@ public class DestinationFoldTests
             IniOptionsDeclaration: null,
             JsonOptionsDeclaration: null,
             YamlOptionsDeclaration: null,
+            XmlOptionsDeclaration: null,
             site);
     }
 

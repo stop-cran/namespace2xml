@@ -199,10 +199,12 @@
     {
       "item": 16,
       "text": "XML namespaces, attributes, text, mixed content, comments, CDATA, and whitespace modes.",
-      "milestone": "unassigned",
+      "milestone": "m6",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "xml-node-types-select-the-spelling"
+      ]
     },
     {
       "item": 17,
@@ -981,7 +983,7 @@
         "cli-diagnostics-format-inline-invalid",
         "cli-diagnostics-format-invalid-value",
         "cli-diagnostics-format-missing-value",
-        "cli-preview-not-implemented"
+        "cli-diagnostics-stream-on-a-clean-run"
       ]
     },
     {

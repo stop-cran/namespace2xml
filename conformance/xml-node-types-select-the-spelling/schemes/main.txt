@@ -1,0 +1,6 @@
+cfg.output=xml
+cfg.root=doc
+cfg.item.@id.type=element
+cfg.item.name.type=attribute
+cfg.item.note.type=cdata
+cfg.item.tail.type=text
