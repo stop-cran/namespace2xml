@@ -80,3 +80,24 @@ KNOWN-LIMITS.md records it.
 Also not asserted: `append` at a destination fold, and the cross-format replacement that discards
 every destination high-water mark, which
 `cross-format-replacement-renumbers-the-destination-order` covers.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction that collisions between output instances must use `filemerge`
+  rather than `merge`; Section 3.2 removal of behaviour dependent on shared mutable array-index
+  state; Section 15.1 step 18; Section 17.5 destination high-water rule.
+- Legacy observation: the baseline writes `out.properties` with different bytes from the expected
+  file. The measurement records `content out.properties`, exit `0`, and no standard error beyond
+  the banner.
+- Clean behavior: three items survive the fold at stable ordering values `0`, `1`, and `3`, and
+  Section 5.4 renders them densely as `b.0=w`, `b.1=v`, `b.2=q`. The `replace` accumulator holds
+  the high-water mark that carries `s2`'s implicit item onto value `3` above `s3`'s explicit `0`
+  and `1`.
+- Why the difference is intentional: 2.4.0 had no `filemerge` directive, so `s2.filemerge=replace`
+  and `s3.filemerge=deep` were not recognized as strategy declarations at all. The baseline's
+  destination fold ran under whatever legacy sequence-merge logic it had and produced a different
+  content; the observable divergence names the file rather than a mechanism because the baseline's
+  strategy vocabulary is not the same one this case pins. Which of the readings enumerated in the
+  discrimination above the baseline lands on is not something this fixture is designed to
+  identify.

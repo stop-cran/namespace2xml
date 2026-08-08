@@ -57,3 +57,25 @@ both subtrees and each specific rule matches its own, so an override is not an u
 `WARN009` is expected. A directive that lost every override it took part in has still bound.
 
 The exit code is 0.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**. The baseline writes `cfg.properties` with different content
+  than the case expects (the harness records `content cfg.properties`); the exit code matches.
+- Contract: Section 3.1 preserves "later-entry override precedence" as a general property of the
+  namespace profile and scheme languages. Section 15.2 restates that rule for every scheme
+  directive, and Section 16.5 restates it for `key`.
+- Legacy observation: 2.4.0's `key` directive did not honor later-entry override on this three-
+  directive arrangement. Its resolver scored patterns rather than following source order — a
+  wildcard rule lost to a specific rule regardless of which came later — so both `cfg.a` and
+  `cfg.b` picked up the same field name, and the `cfg.properties` bytes reflect a single field
+  spelling for both subtrees instead of the mixed `name`/`id` spellings the specified rule
+  produces. Only the fact that the bytes differ is measured; the specific spelling is
+  implementation-defined for the baseline.
+- Clean behavior: at `cfg.a` the later of `cfg.*.key=id` (line 3) and `cfg.a.key=name` (line 4)
+  wins, so the field is `name`. At `cfg.b` the later of `cfg.b.key=name` (line 2) and
+  `cfg.*.key=id` (line 3) wins, so the field is `id`. The pair discriminates source order from
+  every plausible non-source-order rule.
+- The difference is intentional: 3.1 preserves the general later-entry override rule from 2.4.0,
+  and the fixture pins the corner where 2.4.0's `key` directive was internally inconsistent with
+  that rule.

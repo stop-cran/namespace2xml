@@ -1,6 +1,5 @@
 -i
 inputs/first.txt
--i
 inputs/second.txt
 -s
 schemes/scheme.txt

@@ -98,22 +98,34 @@ Write-Host "Wrote docs/diagnostics.md ($($registry.codes.Count) codes)."
 
 $cases = Get-ChildItem (Join-Path $root 'conformance') -Directory | Sort-Object Name
 
-$agrees = @()
-$differs = @()
-$unclassified = @()
+$verdicts = [ordered]@{ differs = @(); crashes = @(); nondeterministic = @(); agrees = @() }
+$silent = @()
 
 foreach ($case in $cases) {
     $legacy = Join-Path $case.FullName 'legacy.md'
-    if (-not (Test-Path $legacy)) { continue }
+    if (-not (Test-Path $legacy)) { $silent += $case.Name; continue }
 
     $text = [IO.File]::ReadAllText($legacy) -replace "`r`n", "`n"
-    $body = ($text -split "`n" | Where-Object { $_ -notmatch '^#' }) -join "`n"
+    $lines = $text -split "`n"
 
-    $entry = [pscustomobject]@{ Name = $case.Name; Body = $body.Trim() }
+    $start = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^- namespace2xml 2\.4\.0: \*\*(?<verdict>[a-z]+)\*\*') {
+            $start = $i
+            $verdict = $Matches['verdict']
+            break
+        }
+    }
 
-    if ($text -match '\*\*agrees\*\*') { $agrees += $entry }
-    elseif ($text -match '\*\*differs\*\*') { $differs += $entry }
-    else { $unclassified += $entry }
+    if ($start -lt 0) { $silent += $case.Name; continue }
+
+    $end = $lines.Count - 1
+    for ($i = $start + 1; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^#') { $end = $i - 1; break }
+    }
+
+    $block = (($lines[$start..$end]) -join "`n").Trim()
+    $verdicts[$verdict] += [pscustomobject]@{ Name = $case.Name; Body = $block }
 }
 
 $lines = @(
@@ -138,15 +150,18 @@ $lines = @(
     '  there is no longer such a build. Pin to a released version.'
     '- **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.'
     ''
-    "## Deliberate differences ($($differs.Count))"
+    "## Deliberate differences ($($verdicts.differs.Count))"
+    ''
+    'Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and'
+    'each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.'
     ''
 )
 
-if ($differs.Count -eq 0) {
+if ($verdicts.differs.Count -eq 0) {
     $lines += '_None pinned by a conformance case yet._'
     $lines += ''
 }
-foreach ($entry in $differs) {
+foreach ($entry in $verdicts.differs) {
     $lines += "### ``$($entry.Name)``"
     $lines += ''
     $lines += $entry.Body
@@ -154,32 +169,70 @@ foreach ($entry in $differs) {
 }
 
 $lines += @(
-    "## Behaviour preserved from 2.4.0 ($($agrees.Count))"
+    "## Inputs that crashed 2.4.0 ($($verdicts.crashes.Count))"
     ''
-    'These cases pin behaviour that 2.4.0 already had. They exist so a future change cannot lose it'
-    'silently.'
+    'The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or'
+    'reports a diagnostic and exits deliberately.'
     ''
 )
 
-if ($agrees.Count -eq 0) {
+if ($verdicts.crashes.Count -eq 0) {
     $lines += '_None pinned by a conformance case yet._'
     $lines += ''
 }
-foreach ($entry in $agrees) {
+foreach ($entry in $verdicts.crashes) {
     $lines += "### ``$($entry.Name)``"
     $lines += ''
     $lines += $entry.Body
     $lines += ''
 }
 
-if ($unclassified.Count -gt 0) {
-    $lines += '## Unclassified'
+if ($verdicts.nondeterministic.Count -gt 0) {
+    $lines += @(
+        "## Nondeterministic in 2.4.0 ($($verdicts.nondeterministic.Count))"
+        ''
+        'Repeated baseline runs of these cases do not agree with each other.'
+        ''
+    )
+    foreach ($entry in $verdicts.nondeterministic) {
+        $lines += "### ``$($entry.Name)``"
+        $lines += ''
+        $lines += $entry.Body
+        $lines += ''
+    }
+}
+
+$lines += @(
+    "## Same observable result as 2.4.0 ($($verdicts.agrees.Count))"
+    ''
+    'The baseline produces this case''s expected output tree and exit code. That is a statement about'
+    'the result and not about the reason: two tools exit `1` on the same command line whether they'
+    'reject the same thing or entirely different things. Each entry below says which it is, and only'
+    'those that name a shared reason are behaviour 3.0 preserved.'
+    ''
+)
+
+if ($verdicts.agrees.Count -eq 0) {
+    $lines += '_None pinned by a conformance case yet._'
     $lines += ''
-    $lines += 'These cases carry a `legacy.md` that states neither agreement nor difference. That is a'
-    $lines += 'defect in the fixture; see CONTRIBUTING.md.'
+}
+foreach ($entry in $verdicts.agrees) {
+    $lines += "### ``$($entry.Name)``"
     $lines += ''
-    foreach ($entry in $unclassified) {
-        $lines += "- ``$($entry.Name)``"
+    $lines += $entry.Body
+    $lines += ''
+}
+
+if ($silent.Count -gt 0) {
+    $lines += "## Same observable result, no note ($($silent.Count))"
+    $lines += ''
+    $lines += 'These cases declare no verdict. Appendix C.6 reads that as a claim that the baseline'
+    $lines += 'reproduces the expected result, and the harness checks it against a real run, so their'
+    $lines += 'silence is verified rather than assumed. They carry no note because nothing about the'
+    $lines += 'difference needed explaining.'
+    $lines += ''
+    foreach ($name in $silent) {
+        $lines += "- ``$name``"
     }
     $lines += ''
 }
@@ -193,4 +246,5 @@ $lines += @(
 )
 
 Write-Text (Join-Path $root 'docs/migration-2.x-to-3.0.md') $lines
-Write-Host "Wrote docs/migration-2.x-to-3.0.md ($($differs.Count) differences, $($agrees.Count) preserved, $($unclassified.Count) unclassified)."
+Write-Host ("Wrote docs/migration-2.x-to-3.0.md ({0} differ, {1} crash, {2} nondeterministic, {3} agree, {4} silent)." -f
+    $verdicts.differs.Count, $verdicts.crashes.Count, $verdicts.nondeterministic.Count, $verdicts.agrees.Count, $silent.Count)

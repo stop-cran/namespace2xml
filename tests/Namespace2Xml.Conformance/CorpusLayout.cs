@@ -3,6 +3,17 @@ namespace Namespace2Xml.Conformance;
 /// <summary>Locates the repository root and the conformance corpus from a test binary.</summary>
 internal static class CorpusLayout
 {
+    /// <summary>
+    /// Names Appendix C gives to fixture-owned entries. Everything else in a run directory is a
+    /// destination the tool under test produced.
+    /// </summary>
+    internal static readonly HashSet<string> ReservedNames = new(StringComparer.Ordinal)
+    {
+        "args.txt", "args-diagnostics.txt", "inputs", "schemes", "expected",
+        "expected-diagnostics.json", "expected-exit-code.txt", "expected-stdout.txt",
+        "requirements.txt", "legacy.md",
+    };
+
     internal static string Root { get; } = Locate();
 
     internal static string Corpus => Path.Combine(Root, "conformance");

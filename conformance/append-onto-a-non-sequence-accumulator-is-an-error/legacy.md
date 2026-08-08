@@ -1,9 +1,17 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **unclassified**. Legacy had no `merge` directive, so it makes no claim here.
-- Contract: Section 16.10 `append` — "other non-sequence use is an error"; Section 15.1 step 8;
-  Section 26 item 25.
+- namespace2xml 2.4.0: **differs**. Legacy had no `merge` directive, so the refusal in this case is
+  new behavior; the baseline's silent success is a divergence rather than a claim about the same
+  rule.
+- Contract: Section 3.2 correction against relying on `merge` to control collisions; Section 16.10
+  `append` — "other non-sequence use is an error"; Section 15.1 step 8; Section 26 item 25.
+- Legacy observation: the baseline exits `0` and writes `a.properties`, so the fixture's empty
+  expected tree gains one extra file and the exit code diverges. The measurement records `exit 0
+  (expected 1); extra a.properties`, and standard error beyond the banner is empty. `merge=append`
+  is not a recognized directive in 2.4.0, so the fold proceeds and the scalar plus the sequence
+  contribution reach one output.
 - Clean behavior: `append` refuses a path whose accumulator is not a sequence, in either position.
+  One `TYPE001` at `§16.10` naming path `a`, and exit code 1.
 - Why this case exists: Section 16.10 defines `append` in terms of "the later sequence
   contribution", and an implementation reading only that half validates only the later side. Step 8
   then supplies an innocent-looking excuse for the earlier side — "the earliest or sole contribution

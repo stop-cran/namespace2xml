@@ -36,3 +36,22 @@ with no `filename` composes `a.properties` and `a.ini`, which are two destinatio
 diagnostics — but a selector-derived default name cannot produce a prohibited segment, because
 Section 16.2 step 7 renames a dot-segment or reserved-device condition with a `%5F` prefix rather
 than rejecting it. There is no input that reaches that branch, so this fixture does not pin it.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 16.2 "statically written `.` and `..` segments are prohibited"; Section 22
+  cardinality "once per destination"; Section 26 item 51. Section 3 does not enumerate the
+  traversal-rejection correction as its own bullet — this is a substantive rule of Section 16.2
+  rather than a compatibility-versus-correction line item.
+- Legacy observation: the baseline exits `0` with no standard error beyond its banner. Nothing is
+  rejected. The measurement records `exit 0 (expected 1)` and no output-tree divergence because
+  the case's expected tree is empty either way.
+- Clean behavior: `a.filename=../bad.conf` is a prohibited written `..` segment, and Section 16.2
+  fails the plan with one `PATH001` diagnostic covering both formats, because two formats sharing
+  one explicit `filename` compose one destination.
+- Why the difference is intentional: 2.4.0 resolved `filename` values against the process working
+  directory with no traversal check, so `../bad.conf` was an ordinary relative path and the plan
+  proceeded. The 3.0 correction refuses that path outright rather than write outside a
+  configured output root. This case cannot separately observe the once-per-destination
+  cardinality against the baseline: the baseline emits no `PATH001` at all.

@@ -57,3 +57,10 @@ depth-2 path that condition 2 excludes: an implementation charging it would cros
 earlier and still report `WILDCARD002`, so this file does not distinguish the two on its own. The
 unit test `OnlyItemsUnderTheLiteralPrefixAreCharged` carries that half, where a green run is the
 observable and a fixture cannot express it.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 12.4 shared candidate-check limit; Section 23 wildcard budget; Section 26 items 7 and 36. Section 3 does not enumerate this bound; the fixture pins Section 12.4 and Section 23 rather than a Section 3.1 preservation or a Section 3.2 correction.
+- Legacy observation: the baseline exits `1` with no output tree and no standard error beyond the banner. The measurement records no divergence.
+- Why the observable agreement is not compatibility evidence: `--max-wildcard-candidates` is not an option 2.4.0 had, so the baseline refuses the unknown flag at CLI parsing and returns nonzero before any wildcard is evaluated. That coincides with the case's expected exit `1` and empty tree, but the case exists to pin the third category of Section 12.4's shared candidate-check limit -- wildcard scheme selectors -- and the baseline never reaches selector expansion here. A run whose selectors expanded over an unbounded number of items would also produce an empty tree at exit `1`, which is precisely the failure mode a run with no bound at all could not distinguish from this one. Only the diagnostic stream, which the verdict does not score, could tell them apart.

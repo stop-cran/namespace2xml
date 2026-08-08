@@ -46,3 +46,24 @@ one order, which dense rendering preserves whatever the stable values are.
 Explicit ordering values meeting the fold, which patch rather than rebase, and the `append` and
 `replace` strategies. Those are Section 17.1 and Section 16.11 behaviours reached through the same
 merger, and are pinned by the input-merge fixtures for those clauses.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**. The baseline writes `out.properties` with different content
+  than the case expects (the harness records `content out.properties`); the exit code matches.
+- Contract: Section 3.2 lists as a corrected defect legacy behavior "dependent on shared mutable
+  array-index state". Section 17.5 defines the per-destination high-water mark that carries the
+  correction, and Section 5.4 fixes the dense rendering of the surviving indices.
+- Legacy observation: 2.4.0 had no per-destination high-water mark. The two contributions each
+  allocated implicit ordering values `0` and `1` from their own local marks, and the later
+  contribution's items therefore collided with the earlier ones at the destination. The rendered
+  bytes are not the four values the case expects; the exact reduction 2.4.0 produces at this
+  destination is not stated in the specification because 2.4.0 had no defined model to state, but
+  the observable divergence is a shorter file than the expected four-line one.
+- Clean behavior: each sequence path in the destination accumulator keeps its own high-water
+  mark. The first contribution advances the mark to `1`, so the second contribution's implicit
+  items rebase to `2` and `3`, and Section 5.4 renders the four surviving stable values as
+  dense indices `0..3`.
+- The difference is intentional: shared array-index state made a fold's result depend on the
+  order and shape of contributions rather than on their addressed positions, which is the class
+  of defect Section 3.2 exists to remove.

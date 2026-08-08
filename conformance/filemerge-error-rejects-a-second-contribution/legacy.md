@@ -36,3 +36,20 @@ Section 17.5 warning reports a "merge or replacement decision", and this run mad
 That `filemerge=error` is not sticky, which Section 16.11 states separately and which needs a
 second declaration to observe. Nor a third contribution, which the cardinality rule says would be
 rejected again.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `out.properties` (the harness
+  records `extra out.properties`), where the case expects exit 1 and an empty tree.
+- Contract: Section 3.2 lists as a corrected defect legacy behavior "caused by relying on `merge`
+  to control collisions between output instances; such schemes must use `filemerge`, while `merge`
+  remains recognized with input/common-model scope". Section 16.11 defines `filemerge=error`.
+- Legacy observation: `filemerge` is not a 2.4.0 scheme directive. The baseline had no way to
+  express a blocking cross-destination-contribution rejection, so it merged the two contributions
+  under its default behavior and published `out.properties`. It did not name the directive it did
+  not recognize, and the observable is a successful run.
+- Clean behavior: `filemerge=error` at `a.*` refuses the second contribution to one destination
+  with `COLLISION001` in phase `planning`, before publication, and no file is written.
+- The difference is intentional: Section 3.2's `merge`/`filemerge` split exists precisely to give
+  scheme authors a way to reject a second contribution to one destination, and 2.4.0 had no such
+  facility for the caller to reach.

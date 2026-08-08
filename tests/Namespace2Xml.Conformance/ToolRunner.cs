@@ -25,13 +25,39 @@ public static class ToolRunner
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
 
     /// <summary>Invokes the tool with the given tokens and working directory.</summary>
-    public static ToolResult Run(IReadOnlyList<string> arguments, string workingDirectory)
+    public static ToolResult Run(IReadOnlyList<string> arguments, string workingDirectory) =>
+        Run(ToolAssembly, arguments, workingDirectory);
+
+    /// <summary>
+    /// Invokes an arbitrary managed assembly through the .NET host. The Appendix C.6 differential
+    /// lane uses this to observe the pinned 2.4.0 baseline under exactly the environment the corpus
+    /// harness gives the tool under test, so a divergence is a difference between the two binaries
+    /// rather than between two ways of launching one.
+    /// </summary>
+    /// <param name="assembly">Absolute path of the managed entry assembly.</param>
+    /// <param name="arguments">Argument tokens, passed through without shell interpretation.</param>
+    /// <param name="workingDirectory">Directory the process starts in.</param>
+    public static ToolResult Run(string assembly, IReadOnlyList<string> arguments, string workingDirectory) =>
+        Run(assembly, arguments, workingDirectory, host: null);
+
+    /// <summary>
+    /// Invokes a managed assembly through a chosen .NET host.
+    /// </summary>
+    /// <param name="assembly">Absolute path of the managed entry assembly.</param>
+    /// <param name="arguments">Argument tokens, passed through without shell interpretation.</param>
+    /// <param name="workingDirectory">Directory the process starts in.</param>
+    /// <param name="host">The muxer to launch with, or <see langword="null"/> for the harness's own.</param>
+    public static ToolResult Run(
+        string assembly,
+        IReadOnlyList<string> arguments,
+        string workingDirectory,
+        string? host)
     {
         ArgumentNullException.ThrowIfNull(arguments);
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = DotnetHost,
+            FileName = host ?? DotnetHost,
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -40,7 +66,7 @@ public static class ToolRunner
 
         // Launching through the host keeps the run identical on every platform without needing
         // a platform-specific apphost to be present in the test output.
-        startInfo.ArgumentList.Add(ToolAssembly);
+        startInfo.ArgumentList.Add(assembly);
 
         foreach (var argument in arguments)
         {
@@ -55,6 +81,12 @@ public static class ToolRunner
         startInfo.Environment["LANG"] = "C";
         startInfo.Environment["LC_ALL"] = "C";
         startInfo.Environment["TZ"] = "UTC";
+
+        // Appendix C.6 forbids observing the differential baseline on a runtime it was never
+        // published against. "Minor" is the host's own default and never crosses a major version,
+        // so setting it here changes nothing except that an ambient DOTNET_ROLL_FORWARD=LatestMajor
+        // in the environment cannot silently move either binary onto a different runtime.
+        startInfo.Environment["DOTNET_ROLL_FORWARD"] = "Minor";
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start the tool process.");

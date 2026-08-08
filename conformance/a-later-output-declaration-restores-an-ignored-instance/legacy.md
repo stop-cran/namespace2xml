@@ -43,3 +43,21 @@ own instance and the ignored ones simply produce nothing next to the ones that p
 
 Which declaration supplies the surviving instance's Section 21.3 declaration order. One destination
 cannot observe it.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against a synthetic internal root leaking into user-visible file
+  names; Section 15.2 `output=ignore` restoration; Section 16.2 default filename composition.
+- Legacy observation: the baseline writes `y.properties` where this case expects `a.y.properties`,
+  and it writes no `x.properties`, so exactly one file lands but its name has lost the `a.` prefix.
+  The measurement records this as `missing a.y.properties; extra y.properties`, with exit `0` and
+  no standard error beyond the banner.
+- Clean behavior: the default filename is composed from the whole concrete selector under
+  Section 16.2, so `a.y` writes to `a.y.properties`. `output=ignore` restoration then keeps the one
+  surviving instance's name intact.
+- Why the difference is intentional: dropping a leading namespace segment from a filename is the
+  synthetic-root leak Section 3.2 names, and the same defect would make two distinct sibling
+  instances collide on a shorter shared name on any platform. The single-file observation says
+  nothing about whether 2.4.0's stream logic reached the same restoration decision or arrived at
+  one surviving instance by another route; only the filename is pinned here.

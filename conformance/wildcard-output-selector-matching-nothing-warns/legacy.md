@@ -41,3 +41,21 @@ no output, and a wildcard output creating no instance — and only the anchor di
 
 The message prose, which Appendix C.4 exempts. The exit code is 0: `WARN009` is a warning, and
 Section 6.3 reserves a nonzero code for a blocking error.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.1 preserves the existing wildcard-output declaration and output-format
+  names. The substantive rules under test are Section 14.1's empty-selector clause and Section
+  15.2's `WARN009` binding, and Section 3 does not enumerate them individually.
+- Legacy observation: the baseline writes `a.properties` byte-identically with the expected
+  content, writes no file for `b.*`, and exits `0` with no standard error beyond the banner.
+- Why the observable agreement is not compatibility evidence: this case's expected result and the
+  baseline's observed result coincide on the tree and the exit code, but the case exists to pin
+  `WARN009` and the observation is silent about it. Diagnostics are not part of the observable
+  the verdict is claimed against. The baseline has no `WARN009` code and no stated model for a
+  wildcard output declaration that literalizes to nothing; producing the same tree therefore does
+  not tell whether it consulted the same rule or arrived at "no file" by writing nothing when
+  nothing matched. Discrimination of the warning belongs to `expected-diagnostics.json`, not
+  here.
+

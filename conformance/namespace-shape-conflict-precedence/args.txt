@@ -1,10 +1,7 @@
 -i
 inputs/first.txt
--i
 inputs/native.yaml
--i
 inputs/last.txt
--i
 inputs/empty.yaml
 -s
 schemes/scheme.txt

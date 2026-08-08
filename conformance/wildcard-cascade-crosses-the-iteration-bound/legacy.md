@@ -67,3 +67,10 @@ invocation and has no single position.
 Appendix B maps a crossed wildcard bound to `WILDCARD002` and exit code 1. The fixture carries no
 `expected/` directory, which asserts that the run stages nothing: Section 15.1 places output
 planning after the fixed point, so a run that never completed step 10 has nothing to plan.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 12.4 fixed-point iteration accounting and the requirement to "detect nonterminating or excessively expanding rule sets"; Section 23 wildcard iteration budget; Section 26 items 7 and 36. Section 3 does not enumerate `--max-wildcard-iterations`; the fixture pins the failing half of Section 12.4 rather than a Section 3.1 preservation or a Section 3.2 correction.
+- Legacy observation: the baseline exits `1` with no output tree. Standard error is empty beyond the banner. The measurement records no divergence.
+- Why the observable agreement is not compatibility evidence: 2.4.0 has no `--max-wildcard-iterations` option, so its CommandLineParser refuses the unknown flag before any input is read and returns nonzero without writing anything. That coincides with the case's expected exit `1` and empty tree, but the case is a bound crossing at exactly wave 3 of a four-rule cascade, and the responsibility identification is what the fixture asserts through its `expected-diagnostics.json` -- specifically that `a.*.b` and `a.*.*.c` are named, and `a.*.*.*.d` is not. Neither the responsible-rule set nor the presence of a `WILDCARD002` diagnostic at all is visible to the tree comparison, so the observable is silent on the two rules the correction is really about.

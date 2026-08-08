@@ -1,6 +1,5 @@
 -i
 inputs/many.xml
--i
 inputs/wide.xml
 -s
 schemes/scheme.txt

@@ -39,3 +39,11 @@ behaviour from that one.
 
 The publication order of the two surviving files. Section 21.3 fixes it, but with one file per
 destination nothing here can observe it.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against a synthetic internal root leaking into user-visible file names; Section 14.1 default filename composition; Section 15.2 `output=ignore` scope.
+- Legacy observation: the baseline writes `x.properties` and `z.properties` where this case expects `a.x.properties` and `a.z.properties`. The measurement records `missing a.x.properties; missing a.z.properties; extra x.properties; extra z.properties`. Exit code is `0` and standard error is empty beyond the banner, so the two survivors and the absence of `a.y` land as intended -- only the filenames have lost the leading `a.` segment.
+- Clean behavior: default filenames are composed from the whole concrete selector, so the surviving instances are `a.x.properties` and `a.z.properties`.
+- Why the difference is intentional: dropping the leading namespace segment from a filename is the synthetic-root leak Section 3.2 names, and the same defect would collide two distinct sibling instances on a shorter shared name on any platform. Nothing in the tree the baseline produced says whether its override stream actually reached the same `ignore` decision at `a.y` -- the surviving *count* matches the expected count for reasons the observable does not distinguish. This case is not the one that would find that out; it is pinned by the filenames it names.

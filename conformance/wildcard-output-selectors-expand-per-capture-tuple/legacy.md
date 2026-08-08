@@ -41,3 +41,28 @@ Each file's content has the concrete selector prefix removed, which Section 14.1
 
 The order the two instances were created in. It is observable only through the Section 17.5 fold
 key, and nothing here collides.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against a synthetic internal root leaking into user-visible
+  file names, together with Section 14.1's default-filename rule that the concrete selector is
+  written as one dot-joined filename segment, and Section 16.2 for the extension.
+- Legacy observation: the baseline writes `x.properties` and `y.properties` where this case
+  expects `a.x.properties` and `a.y.properties`. The measurement records
+  `missing a.x.properties; missing a.y.properties; extra x.properties; extra y.properties` at
+  exit `0` with no standard error beyond the banner. The two produced files are the same count
+  as the expected files, so the depth of expansion — one instance per depth-2 capture rather
+  than per descendant — is not what diverges here; the divergence is in how each instance is
+  named.
+- Clean behavior: Section 14.1 fixes the default filename as the concrete literalized selector
+  written as one filename segment with dots preserved between the selector's parts, so `a.x`
+  becomes `a.x.properties` and `a.y` becomes `a.y.properties`. The leading literal `a.` is part
+  of the selector, not a wrapper introduced by expansion, so it is present in the filename.
+- Why the difference is intentional: dropping the literal prefix a wildcard selector shares with
+  its captures is the synthetic-root leak Section 3.2 names, and it makes two distinct sibling
+  instances collide on shorter shared names as soon as any two selectors share a suffix. Whether
+  2.4.0 arrived at `x.properties` by stripping the wildcard's literal prefix, by naming the
+  file after the capture alone, or by a third route is not readable from the observed bytes; the
+  fixture pins only that both file names are wrong.
+

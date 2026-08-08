@@ -46,3 +46,24 @@ member of it is an implementation choice, not a contract.
 
 Collisions between more than two paths, and collisions arising from the *default* filename rather
 than an explicit one.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**. On Linux the baseline sees the two `filename` values as
+  distinct names, writes one of them (the harness records `extra out.conf`), and exits 0. Neither
+  the observed exit (0, expected 1) nor the observed tree (one file, expected none) matches.
+- Contract: Section 3.2, "allowed output paths that differ only by ASCII letter case to coexist on
+  some operating systems but collide on others", is the enumerated correction; Section 16.2 and
+  Section 17.5 carry the mechanism.
+- Legacy observation on Linux: `out.conf` and `Out.conf` coexist on the filesystem, so both files
+  are opened and the run reports success — the exit code and tree therefore depend on which host
+  the run is compared against. On Windows or a default macOS volume the two names refer to one
+  file and the later write silently overwrites the earlier, so the same command produces different
+  content depending on which selector 2.4.0's plan enumerated first. Neither outcome is a
+  diagnostic.
+- Clean behavior: the portability key is computed and compared in the tool at planning, and
+  Section 17.5 makes the collision a blocking `PATH001` before any file is opened, so the exit
+  code and tree are the same on every host.
+- The difference is intentional: the 3.2 clause exists exactly because a run whose result is a
+  property of the host filesystem cannot participate in the byte-identical determinism Section 3
+  promises across platforms.

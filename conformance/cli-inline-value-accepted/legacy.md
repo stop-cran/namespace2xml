@@ -1,15 +1,19 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
-  grammar was never stated in any contract and whose failures carried no stable code and no
-  machine-readable stream.
-- Contract: Section 6.2 option-token grammar; Section 26 item 86.
-- Legacy observation: the inline `--name=value` form was whatever the library happened to accept,
-  and was documented nowhere.
+- namespace2xml 2.4.0: **agrees**. The baseline reproduces the case's expected result observably,
+  and this section explains why that is not evidence its CLI grammar is Section 6.2.
+- Contract: Section 6.2 option-token grammar; Section 3.1 preserves "existing CLI option names";
+  Section 26 item 86.
+- Legacy observation: the baseline writes `app.properties` with the expected `name=example` and
+  exits `0`, matching the case's expected tree and exit code. Its standard error is empty beyond
+  the banner.
 - Clean behavior: every long option accepts its value inline, so `--input=inputs/main.txt` is the
-  same invocation as `--input inputs/main.txt`.
-- Why this case exists: the uniform inline form is the amendment's whole point. A unit test can
-  show the parser accepts it; only a corpus case shows the shipped tool does.
-- How the case proves it: every option in `args-diagnostics.txt` uses the inline form, and the run
-  produces `app.properties` with no diagnostics. A tool that rejected the form, or that read
-  `--input=inputs/main.txt` as a path, could not produce that file.
+  same invocation as `--input inputs/main.txt` and `--scheme=schemes/main.txt` is the same as
+  `--scheme schemes/main.txt`. The scheme selects `app.output=namespace` and the profile supplies
+  `app.name=example`, so `app.properties` is written.
+- Why the observable agreement is not compatibility evidence: 2.4.0's CommandLineParser
+  incidentally supported the `--name=value` inline form because that is a convention of the
+  library, not because any 2.4.0 contract fixed it. A caller who read the 2.4.0 documentation
+  could not learn that the inline form was accepted, and a future library change could have
+  removed it. Section 6.2 pins the uniform inline form so callers can rely on it, and this fixture
+  discriminates a shipped tool that stops accepting it.

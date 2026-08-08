@@ -19,3 +19,11 @@ of anything.
 
 Version 2.4.0 had no equivalent gate: it opened each destination as it produced it, so a run that
 failed partway left a mixture of new and stale files in the output root.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against output files being opened before the complete output plan was validated; Section 21.2 global validation gate; Section 19.6 INI section/key projection and `FLAT001`; Section 26 items 30 and 66.
+- Legacy observation: the baseline exits `0` and writes both `ok.ini` and `bad.ini`. The measurement records `exit 0 (expected 1); extra bad.ini; extra ok.ini`. Standard error is empty beyond the banner, so no `FLAT001` is reported and both destinations land as if the collision at `bad.ini` were not a defect.
+- Clean behavior: the collision at `bad.ini` -- `bad.a.b.k` and `bad.a:b.k` project to the same INI section and key -- is detected at pipeline step 19, before any destination is opened. The run reports `FLAT001` and exits `1`. Neither `ok.ini` nor `bad.ini` is written.
+- Why the difference is intentional: Section 3.2 names this correction directly, "caused by output files being opened before the complete output plan was validated". The specific `ok.ini` byte content the baseline lands is what a run that opens each destination as its serializer completes will write next to a run that then fails on another destination; the specification's rule instead makes the whole plan pass validation together, so a defect in one file scrubs the whole publication. The `bad.ini` bytes are the second half of the same defect -- the collision is not detected at all, and something arbitrarily addressed under the two flat keys is what the file carries. Either byte set is the observable Section 3.2 says the specification does not admit.

@@ -106,6 +106,32 @@ jobs:
           name: corpus-hashes-${{ matrix.os }}
           path: corpus-hashes-${{ matrix.os }}.txt
 
+  # Appendix C.6 makes every conformance case differential evidence: the pinned 2.4.0 baseline is
+  # run against all of them, and a divergence with no verdict to explain it fails the build. The
+  # lane is Linux-only and byte-exact on purpose. 2.4.0 writes Environment.NewLine, so on Windows
+  # every text output differs by its CR bytes alone and a verdict would describe the runner rather
+  # than the tool. Normalizing instead would hide a real line-terminator difference if one existed.
+  differential:
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      # The baseline package targets net9.0 and Appendix C.6 requires it be run on the runtime it
+      # was published against rather than rolled forward.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Fetch and verify the pinned 2.4.0 baseline
+        shell: pwsh
+        run: |
+          $package = pwsh -NoProfile -File tools/fetch-differential-baseline.ps1
+          "N2X_LEGACY_PACKAGE=$package" >> $env:GITHUB_ENV
+      - run: dotnet build namespace2xml.slnx -c Release
+      - run: dotnet test namespace2xml.slnx --no-build -c Release --filter "FullyQualifiedName~DifferentialTests"
+
   cross-os-hash:
     needs: determinism
     runs-on: ubuntu-latest

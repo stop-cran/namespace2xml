@@ -46,3 +46,21 @@ at that point charges nothing here, and this fixture is the difference between t
 Section 8.6's "suppressed paths and descendants never become wildcard candidates" is not in tension
 with this: it governs what a *later* rule may match, which is why a generative template is charged
 for none of them. The mask's own check on an item is what made that item suppressed.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **agrees** on the observable. `--max-wildcard-candidates` was not a 2.4.0
+  option, so the baseline CLI refuses the unknown option and exits nonzero with no output tree.
+  That coincides with the case's expected exit 1 and empty tree, but the refusal is an
+  unknown-option parse error rather than a wildcard-candidate bound crossing, so the observable
+  agreement carries no evidence about the bound.
+- Contract: Section 12.4 defines the candidate-check limit and the `WILDCARD002` diagnostic;
+  Appendix B maps a crossed wildcard bound to exit code 1. Section 3 does not enumerate this
+  bound; it is a Section 23 addition rather than a Section 3.1 preservation or a Section 3.2
+  correction.
+- Legacy observation: 2.4.0 had no configurable wildcard-candidate bound and no diagnostic when
+  a run's wildcard rules over-consumed. The baseline's refusal here happens at CLI parsing, not
+  in the wildcard resolver, so the failure mode the specification is written for is unreachable.
+- Clean behavior: `WILDCARD002` names `a.*` as the responsible rule, exit code 1, no output.
+- The observable agreement is therefore not evidence of compatibility on the rule the fixture
+  pins.

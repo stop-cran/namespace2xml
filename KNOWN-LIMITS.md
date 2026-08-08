@@ -560,6 +560,32 @@ Stating a rule before its enforcer exists is a deliberate choice, but it is a de
 here rather than left implicit. `CONTRIBUTING.md` §3 repeats these qualifications inline; if the two
 ever disagree, this table is the one that is maintained and the discrepancy is itself a bug report.
 
+### 4.1 What the legacy differential lane does not prove
+
+The Appendix C.6 lane runs namespace2xml 2.4.0 over the whole corpus and fails on any divergence no
+case explains. Three things it does not establish, listed so nobody reads more into a green run than
+is there.
+
+- **Sampling refutes; it does not confirm.** A case is run ten times, so a baseline that falls both
+  ways at an even rate is caught reliably. A rare branch is not: `json-strict-parsing-refusals` was
+  measured reproducing its expected result on one run in forty, and `mask-after-sequence-rebasing`
+  was recorded as `agrees` for weeks on the strength of a single lucky run. Other unstable cases may
+  be sitting in the corpus under an `agrees`, `differs` or `crashes` verdict that ten runs happen not
+  to contradict. When one surfaces it is a fixture correction, not a contract change.
+- **`nondeterministic` is asserted, not checked.** Because no bounded sample can refute it, C.6 makes
+  it the one verdict the harness accepts on the contributor's word. It is a real escape hatch. What
+  keeps it honest is publication rather than enforcement: `docs/migration-2.x-to-3.0.md` lists every
+  case that claims it, with the prose that has to carry the measurement.
+- **An `agrees` verdict can be weak evidence.** The verdict compares the observable result — tree and
+  exit code — and nothing else. A case that expects exit `1` and an empty tree `agrees` with a
+  baseline that exits `1` because the option did not exist in 2.4.0 at all. That is the intended
+  reading, and C.6 requires the prose to say which it is, but the *verdict alone* on such a case
+  should not be read as evidence that 2.4.0 implemented the behaviour.
+
+The lane runs on Linux only, on the .NET 9 runtime the baseline package targets. Divergence between
+2.4.0's Windows and Linux behaviour beyond the exit-code convention for an unhandled exception is
+unmeasured.
+
 ## 5. Documentation gaps
 
 - `docs/usage-methodology.md` is an outline. The layering guidance is sound; the worked pipelines are

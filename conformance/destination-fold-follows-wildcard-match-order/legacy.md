@@ -59,3 +59,22 @@ not compare. Exit code 0 asserts separately that a fold is a warning and not a f
 Components 1 and 2 of the fold key, which need two `output` declarations or a comma-separated
 format list. The `filemerge` values other than the default. Both are covered by the sibling
 fixtures for this item.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 15.1 step 18 destination fold; Section 17.5 fold-key components; Section 12.4
+  wildcard match order; Section 26 item 26. Section 3.2 lists corrections against behaviour
+  "dependent on parallel execution order" and "dependent on dictionary iteration order", both of
+  which are what the wildcard-match component of the fold key exists to replace.
+- Legacy observation: the baseline writes `out.properties` with different bytes. The measurement
+  records `content out.properties`, exit `0`, and no standard error beyond the banner.
+- Clean behavior: `a.zebra` matches before `a.alpha` because `zebra` appears first in the mapping,
+  so the fold order is `zebra`, then `alpha`, and the destination reads `list.0=w`, `list.1=x`,
+  `list.2=y`, `list.3=z`.
+- Why the difference is intentional: `alpha` precedes `zebra` under unsigned-byte selector order,
+  the tie-breaker used only after the wildcard-match component decides. 2.4.0's wildcard fold key
+  was not stated in a normative document, and its answer for two matches of one wildcard
+  contributing to one destination is not something Section 3.1 preserves. The observable
+  divergence names the file's bytes rather than a legacy mechanism; the case does not attempt to
+  reconstruct which component the baseline actually reached for.

@@ -1,6 +1,5 @@
 -i
 inputs/base.txt
--i
 inputs/native.yaml
 -s
 schemes/scheme.txt

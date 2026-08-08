@@ -50,3 +50,11 @@ can find the other half of the pair.
 
 The exit code is 1: `SCHEME001` is an error, and the run produces no output file. That the scheme
 is rejected before any file is written is asserted by the absence of an `expected` directory.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 corrections against silent order-dependent behavior and against illegal option combinations that must not be silently reinterpreted; Section 16.5 `SCHEME001` for `type=array` plus `key`; Section 26 item 67.
+- Legacy observation: the baseline exits `0` and writes a `cfg.properties` file. The measurement records `exit 0 (expected 1); extra cfg.properties`. Standard error is empty beyond the banner: no diagnostic is emitted for the pair, so the two directives were both accepted and applied in some order rather than reported as incompatible.
+- Clean behavior: the pair is rejected before rendering with one `SCHEME001` and exit `1`, and nothing is written.
+- Why the difference is intentional: Section 16.5 requires that "implementations must not silently choose an order or reinterpret the resulting sequence as a mapping". The baseline's silent success is exactly that -- an implementation choice made behind the user's back. The specific bytes the baseline wrote to `cfg.properties` reflect whichever of `type=array` or `key` its internal step ordering happened to apply first, and Section 3.2 lists "dependent on parallel execution order" and "dependent on shared mutable array-index state" among the corrections precisely so that no run's shape depends on such an accident.

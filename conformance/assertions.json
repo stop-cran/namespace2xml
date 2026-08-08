@@ -930,7 +930,8 @@
       "assertions": [],
       "fixtures": [
         "cli-help",
-        "cli-help-outranks-version"
+        "cli-help-outranks-version",
+        "cli-repeated-list-options-concatenate"
       ]
     },
     {

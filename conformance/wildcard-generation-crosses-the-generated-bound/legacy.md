@@ -40,3 +40,20 @@ make the diagnostic depend on candidate enumeration order, and Section 12.4 forb
 
 Appendix B maps the crossed bound to `WILDCARD002` and exit code 1. No `expected/` directory: the run
 stages nothing, because output planning follows the fixed point in Section 15.1.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.2 is not the anchor. Section 12.4 fixes the generated-entry bound as a
+  requirement of the fixed-point evaluation, and Section 23 fixes what `--max-generated` counts.
+- Legacy observation: the baseline exits `1` and stages no output tree, so the observed result
+  matches this case's expected result (exit code `1`, empty tree). The measurement records no
+  divergence and no standard error beyond the banner.
+- Why the observable agreement is not compatibility evidence: this case has no expected outputs
+  precisely because the clean tool refuses the run under `WILDCARD002`, but 2.4.0 has no
+  `--max-generated` option. Its exit `1` therefore reports an unknown-option failure, not a
+  crossed generated-entry bound, and the two runs land on the same observable for entirely
+  unrelated reasons. This case cannot discriminate `WILDCARD002` from an early CLI parse error; a
+  fixture that could would need the baseline to accept the invocation, which it cannot without
+  the option.
+

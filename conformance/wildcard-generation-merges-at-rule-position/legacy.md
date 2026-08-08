@@ -31,3 +31,26 @@ contribution loses, and in `whole` it wins.
 
 Neither root emits a diagnostic. `replace` is declared, so Section 8.7's implicit-concatenation
 compatibility warning does not arise, and nothing here contributes a sequence for it to be about.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 12.4 requires that "the rule mark still controls conflict precedence" for a
+  generated contribution, and Section 16.10 defines the `replace` scope as "payload, container
+  presence, children, and sequence projection" at the directive's path. Section 3 does not
+  enumerate this correction as a named item; the substantive contract is Sections 12.4 and 16.10.
+- Legacy observation: the baseline writes `precedence.properties` byte-identically with the
+  expected content, but writes different bytes at `whole.properties`. The measurement records a
+  `content whole.properties` divergence with exit `0` and no standard error beyond the banner.
+- Clean behavior: the generated contribution `whole.*.z=two` is a contribution at `whole.x`, so
+  the effective `whole.x.merge=replace` discards the earlier `whole.x=one` payload together with
+  the rest of the value at `whole.x`. Only `x.z=two` survives. On the `precedence` root the two
+  tools happen to agree because both retain the concrete `precedence.x=concrete` value.
+- Why the difference is intentional: 2.4.0 has no stated model for where a generated contribution
+  merges relative to the concrete inputs it aligns with, and no rule that consults an input merge
+  strategy at an ancestor of a generated leaf. Reading the strategy only at the generated leaf,
+  or treating the generation as later because it was produced last, both keep a payload the
+  scheme asked to replace, which is the source-order and merge-scope contract Section 12.4 and
+  Section 16.10 make explicit. Whether the baseline's specific bytes come from either reading is
+  not observable from one divergent file, so the case pins only that they are wrong.
+

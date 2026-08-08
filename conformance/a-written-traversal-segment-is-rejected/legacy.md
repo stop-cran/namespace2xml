@@ -44,3 +44,22 @@ Whether `a/../b.conf` — a traversal that resolves back inside the root — is 
 written `..` segment and therefore prohibited by the same sentence, but "prohibited" and "resolves
 outside the root" are two different justifications and this fixture pins only the case where both
 agree.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 16.2 "statically written `.` and `..` segments are prohibited"; Section 21.1
+  containment; Section 26 item 51. Section 3 does not enumerate traversal rejection as its own
+  compatibility line; this is a substantive Section 16.2 rule.
+- Legacy observation: the baseline exits `0` with no standard error beyond its banner. Nothing
+  written outside the working directory is rejected. The measurement records `exit 0 (expected 1)`
+  and no output-tree divergence because the case's expected tree is empty either way.
+- Clean behavior: `a.filename=../escape.conf` is a prohibited written `..` segment and the plan
+  fails during Section 15.1 with one `PATH001` diagnostic anchored at `§16.2`; the output root is
+  left untouched.
+- Why the difference is intentional: 2.4.0 resolved `filename` values against the process working
+  directory with no containment check, so an author who wrote `../escape.conf` was silently
+  redirected to a sibling directory of the working directory. 3.0 refuses the path before any file
+  is opened. The observable divergence is the exit code alone; nothing is compared under
+  `expected/` because both runs leave the case's expected tree empty for different reasons — one
+  by refusing to plan, one by never having a containment rule.

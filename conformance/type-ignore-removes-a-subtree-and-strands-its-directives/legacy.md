@@ -62,3 +62,11 @@ and is a separate case.
 
 The exit code is 0: `WARN009` is a warning, and Section 6.3 reserves a nonzero code for a blocking
 error.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.1 preservation of scheme-directive precedence and the `type=ignore` name; Section 3.2 corrections against parallel-execution-order dependence and against unhandled user-input conditions; Section 16.6 `type=ignore` scope and Section 15.2 unbound-directive warning; Section 26 item 18.
+- Legacy observation: the baseline exits `0` and writes a `cfg.properties` whose bytes differ from the expected file. The measurement records `content cfg.properties`. Standard error is empty beyond the banner.
+- Clean behavior: `type=ignore` at `cfg.a` removes the whole subtree from this output instance and the stranded `cfg.a.p.type=array` directive is inert but is reported once as a `WARN009` scheme warning. The rendered file therefore contains only `b=3`, exit `0`.
+- Why the difference is intentional: the *shape* of the tree matches -- one `cfg.properties` at exit `0` -- but the bytes differ, so what the baseline wrote to it is not what the specification prescribes. Section 16.6's rule "an effective ignore at path `P` removes every descendant regardless of directives matching those descendants" is a specification decision about which directive wins at a path an ignore covers; without that rule an implementation is free to evaluate `type=array` on `cfg.a.p` in whichever order its passes happen to visit them, and the resulting bytes depend on that accident. The content divergence here is exactly the observable Section 3.2's "dependent on parallel execution order" and "dependent on dictionary iteration order" corrections were written to remove. The stranded-directive warning is not observable in the tree comparison and is not scored by this verdict.

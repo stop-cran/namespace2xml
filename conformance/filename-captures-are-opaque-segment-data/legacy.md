@@ -82,3 +82,29 @@ fixture does not smuggle it in.
 
 The complementary rejection — a `..` the scheme wrote itself — is
 `a-written-traversal-segment-is-rejected`.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**. The baseline writes `out/CON.conf`, `out/p/q.conf` and
+  `out/x y.conf` where the case expects `out/%5FCON.conf`, `out/p%2Fq.conf` and `out/x%20y.conf`
+  (the harness records three `extra` files and three `missing` files). `out/plain.conf` and
+  `out/..conf` are produced in both trees.
+- Contract: Section 16.2 defines the portable-segment algorithm — split first at literally written
+  separators, substitute captures into segments as opaque text, then encode. Section 3 does not
+  enumerate this defect; the closest 3.2 clause, "caused by a synthetic internal root leaking
+  into user-visible file names", is a different mechanism. The fixture pins Section 16.2 rather
+  than a Section 3 preservation or correction.
+- Legacy observation: 2.4.0 substitutes captures into the `filename` template as raw text and
+  splits the result, which inverts the ordering the specification requires. A `/` inside a
+  capture therefore becomes a directory separator (`p/q` yields `p/q.conf` under a directory the
+  scheme never asked for), a reserved DOS name is not prefixed (`CON` yields `CON.conf`), and a
+  space in a capture is not encoded (`x y` yields `x y.conf`). The two rows that agree do so
+  because they exercise no ambiguity: `plain` has no reserved characters, and `..conf` is
+  assembled from a `.` capture followed by a literal `.conf`, so the composite segment is not the
+  `.` step 4 tests for and no encoding differs.
+- Clean behavior: the algorithm splits the template only at literally written `/` or `\`, then
+  substitutes each capture into a segment and applies steps 4–7 to that segment. Every unsafe
+  outcome that would arise from captured data is encoded rather than materialized as directory
+  hierarchy or a reserved name.
+- The difference is intentional: captures come from data outside the scheme's control, and
+  encoding-after-substitution is the safety guarantee the specification is written for.

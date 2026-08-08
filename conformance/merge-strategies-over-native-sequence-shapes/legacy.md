@@ -57,3 +57,32 @@ it is not a type conflict.
 
 Rendering of a sequence into namespace output as canonical numeric keys follows Section 16.4 and is
 already fixed by `namespace-input-merge-strategies`.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**. The baseline writes `back.properties`, `empty.properties`
+  and `swap.properties` with different content than the case expects (the harness records
+  `content` divergence on all three files); the exit code matches.
+- Contract: Section 3.2 preserves `merge` "with input/common-model scope" — this fixture
+  exercises that preserved scope over native-shape contributions. Section 16.10 is the
+  substantive definition of what each strategy does with a contribution "at path P".
+- Legacy observation: 2.4.0 had no stated model for a native sequence as a contribution at its
+  path, and it had no stated model for `replace` across a mapping/sequence shape change. The
+  three rendered files therefore differ from the specified projection in three ways whose
+  common cause is the same missing definition — the exact reduction is implementation-defined
+  for the baseline, but the measurement records that none of the three files match. `empty`
+  discriminates the "empty sequence is still a sequence contribution" reading (the baseline
+  did not treat `[]` as one, so `append` did not preserve the earlier `[1]` cleanly); `swap`
+  and `back` discriminate `replace` in both directions across a shape change.
+- Clean behavior:
+  - `empty.list` receives `[1]` and then `[]` under `append`. The later contribution has no
+    items to rebase, so the earlier sequence survives unchanged and the file is `list.0=1`.
+  - `swap.k` is a sequence at source 1 and a mapping at source 3 under `replace`. The later
+    complete value replaces the earlier one, so the sequence projection is discarded and the
+    file is `k.child=inner`.
+  - `back.k` is a mapping at source 2 and a sequence at source 4 under `replace`. The later
+    complete value again replaces the earlier one, so the child is discarded and the file is
+    `k.0=9`.
+- The difference is intentional: `replace`'s "later complete value" enumeration exists so that
+  a shape change does not leave earlier marks describing something that is no longer there,
+  and both directions have to work or a defect appears in only one of them.

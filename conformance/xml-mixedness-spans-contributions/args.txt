@@ -1,6 +1,5 @@
 -i
 inputs/base.xml
--i
 inputs/overlay.xml
 -s
 schemes/scheme.txt

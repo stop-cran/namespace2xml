@@ -40,3 +40,30 @@ Neither root emits a diagnostic. Section 12.2 makes an inconsistent repeat a non
 error, so `secret.ab` is silent; both rules match something, and `*[1]` going unused in the
 generated value is not a diagnosed condition -- the only wildcard codes are `WILDCARD001` for an
 invalid, undefined, mixed or inconsistent *capture declaration* and `WILDCARD002` for a limit.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 12.1's rule that each capture takes "the shortest text that still permits
+  **the remaining pattern to match**", together with Section 12.2's constraint that a reused
+  identifier "must match the same text". Section 3 does not enumerate these individually; they
+  are the substantive contract under test.
+- Legacy observation: the baseline writes different bytes at both `secret.properties` and
+  `gen.properties`. The measurement records
+  `content gen.properties; content secret.properties` at exit `0` with no standard error beyond
+  the banner.
+- Clean behavior: on the `secret` root, `!secret.*[x]*[x]` must reconsider its first binding
+  from the empty string to `a` so that the constrained second occurrence can consume the
+  remaining `a` of `aa`, suppressing `secret.aa` and publishing only `ab=keep`. On the `gen`
+  root, the fourth component's requirement `0=pxq` forces the second component to bind
+  `0=pxq`, `1=r` so that the whole pattern matches `gen.pxqxr.b.pxq`, and the generated entry
+  lands beside the existing `v=1` sibling.
+- Why the difference is intentional: 2.4.0's wildcard matcher has no stated capture grammar and
+  no reconsideration model. Fixing each `*` to its shortest first-fit binding answers a
+  different question than Section 12.1 asks, and answering it produces both directions of the
+  observable defect visible here — a mask fails to suppress a name it should suppress, and a
+  template fails to graft a name it should graft. Whether the baseline's specific bytes come
+  from a non-backtracking legacy `*` matcher applied to the explicit-capture syntax, from
+  treating `*[x]` as literal text, or from a third reading is not readable from the observed
+  files; the fixture pins only that both roots' outputs are wrong.
+

@@ -59,3 +59,22 @@ they "may emit a scalar document" — and all three formats are declined in this
 The empty root selector. Section 14.1 requires an explicit `root` there rather than falling back to a
 selector part, because there is no final concrete selector part to fall back to. That is a different
 branch and a different diagnostic.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 19.1, 19.2, and 19.4 bare-scalar-with-key rule; Section 15.1 step 16
+  transformation order; Section 26 item 56. Section 3 does not enumerate the bare-scalar-with-key
+  behaviour as its own compatibility line; these are substantive rules of Section 19.
+- Legacy observation: the baseline writes `a.properties` with different bytes, does not write
+  `a.sh` at all, and writes `b.ini` with different bytes. Exit `0`, no standard error beyond the
+  banner. The measurement records `content a.properties; missing a.sh; content b.ini`.
+- Clean behavior: after `type=multiline` joins each sequence into one scalar, Sections 19.1, 19.2,
+  and 19.4 each retain the final concrete selector part as the emitted key, so `a.properties`
+  writes `a=x\ny`, `a.sh` writes `a='x` LF `y'`, and `b.ini` writes `b=solo`.
+- Why the difference is intentional: joining a sequence into a bare scalar is a shape change of the
+  selected view, and 3.0 fixes what an entry with no key looks like for every flat format so a
+  legal scheme is not turned into a blocking `SERIALIZE001`. 2.4.0 had no stated rule for the same
+  shape; the observation is that all three flat destinations diverged, but the observable does not
+  tell which of the three legacy paths — a missing key, a written filename, or a serializer
+  refusal — produced each divergence, and this case is not written to identify it.

@@ -55,3 +55,11 @@ what makes the loss silent.
 
 Asserting the file *contents* rather than their presence is the point. A fixture that only checked
 that `a.0.properties` exists would pass against that implementation.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against a synthetic internal root leaking into user-visible file names; Section 14.1 default filename composition; Section 15.1 step 9 sequence/mapping unification for selectors.
+- Legacy observation: the baseline writes `0.properties` and `1.properties` where this case expects `a.0.properties` and `a.1.properties`. The measurement records `missing a.0.properties; missing a.1.properties; extra 0.properties; extra 1.properties`. Exit code is `0` and standard error is empty beyond the banner, so two files land with the two sequence items' contents in them -- the leading `a.` segment is missing from each name.
+- Clean behavior: the default filename is the whole concrete selector, so the two instances render at `a.0.properties` and `a.1.properties`.
+- Why the difference is intentional: the missing `a.` prefix is the Section 3.2 synthetic-root leak, and the fact that both instances land at all says nothing about whether 2.4.0 addressed the sequence facet at step 9 or reached these items by another path -- the surviving *content* would be identical either way for this data, so the tree comparison here settles filenames rather than addressing. The Section 15.1 step 9 discriminator (a sequence item is addressable through its ordering value) is invisible in the observable this verdict is scored against; it is asserted by the fixture's `expected/` bytes, not by whether the baseline reproduces them for the right reason.

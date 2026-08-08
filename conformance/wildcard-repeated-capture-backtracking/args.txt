@@ -1,6 +1,5 @@
 -i
 inputs/data.txt
--i
 inputs/rules.txt
 -s
 schemes/scheme.txt

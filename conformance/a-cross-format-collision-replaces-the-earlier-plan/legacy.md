@@ -48,3 +48,19 @@ consulted:
 The high-water reset the same clause requires. Dense rendering makes destination ordering values
 invisible in every output format, so no fixture in this corpus can observe the reset; acceptance
 item 64 records that gap explicitly rather than claiming coverage.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.2 correction that collisions between output instances must not rely on
+  `merge`; Section 15.1 step 18 and Section 17.5.
+- Legacy observation: the baseline reproduces `out.conf` as `m=2` and exits `0` with no standard
+  error beyond its banner.
+- Why the observable agreement is not compatibility evidence: this fixture is deliberately built
+  around disjoint keys — `a` contributes `k` and `b` contributes `m` — so a merge and a Section 17.5
+  replacement leave the same single INI line at the destination. The prose above already records
+  that the format and the key set are what this case discriminates, and neither of those is enough
+  to tell the two rules apart when only one contribution supplies each key. 2.4.0 has no
+  `filemerge` and no stated model for a cross-format collision at one destination, so how it
+  arrived at the same bytes cannot be read off the observable, and this case is not the one that
+  would find out.

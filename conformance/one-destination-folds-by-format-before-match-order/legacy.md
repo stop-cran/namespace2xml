@@ -59,3 +59,30 @@ Which of the two formats the published bytes are in. `first=1` and `second=2` ar
 under the namespace and INI serializers for data this flat, so the format is pinned only indirectly,
 through the key set that survives. A fixture for the renderer-state half of "the complete earlier
 file plan" would need a format pair whose serializations differ on the same model.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**. The baseline writes `out.conf` with different content than
+  the case expects (the harness records `content out.conf`); the exit code matches.
+- Contract: Section 3.2 lists as a corrected defect legacy behavior "dependent on parallel
+  execution order" and "dependent on shared mutable array-index state". Section 17.5 defines
+  the four-component fold key that carries the correction.
+- Legacy observation: 2.4.0 had no four-component fold key. Contributions to a destination were
+  folded in the order the expansion happened to produce them, which nests match order outside
+  format ordinal — the opposite of the specified nesting — so at this destination the four
+  contributions alternate format instead of grouping by format, and every fold after the first
+  is cross-format. Under a fold that "replaces the complete earlier file plan" on a cross-format
+  boundary, only the last contribution's key survives, and the baseline `out.conf` therefore
+  carries a single line rather than the two lines the specified sort produces. The measurement
+  records only that the bytes differ; the specific one-line reduction is implementation-defined
+  for the baseline.
+- Clean behavior: sorted by the fold key the four contributions are namespace/zebra,
+  namespace/alpha, ini/zebra, ini/alpha. Same-format neighbours fold under `filemerge=deep`,
+  the sole cross-format boundary in the middle replaces once, and both keys survive as
+  `first=1` then `second=2`. Section 17.5 additionally forbids grouping by format before
+  folding, and this fixture is the only shape in the corpus where the correction is
+  observable — the sibling fold cases have either one format or one match.
+- The difference is intentional: without the specified sort, the survivor at a destination is a
+  property of the expansion pipeline's iteration order rather than of the fold rules the
+  scheme author wrote, which is exactly the class of parallel/iteration-order dependence
+  Section 3.2 exists to remove.

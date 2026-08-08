@@ -1,23 +1,27 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**. A reference cycle was detected, but the report named whichever
-  member the resolver happened to reach first, which depended on the order the inputs were given.
-- Contract: Section 13.1 cycle detection and `REFERENCE003`; Section 24 diagnostic ordering; Section
-  26 item 5.
-- Legacy observation: legacy items 101 and 1 — recursive scalar reference chains with explicit
-  cycle detection, and processing made independent of accidental ordering.
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 3.1 preservation of value references and cycle detection; Section 13.1 cycle
+  detection and `REFERENCE003`; Section 24 diagnostic ordering; Section 26 item 5.
+- Legacy observation: the baseline exits `1` with no output tree and no standard error beyond the
+  banner. The measurement records no divergence.
 - Clean behavior: a cycle is a set, not a path, so its report is rotated to its lexicographically
   least member and located at that member's origin. `source`, `line`, `column` and `path` are then
-  a pure function of the cycle itself.
+  a pure function of the cycle itself. Exit is `1` with no output.
 - Why this case exists: it is the first half of a permutation pair. This case passes
   `-i inputs/first.txt -i inputs/second.txt`; `reference-cycle-report-source-order-reversed`
   passes the same two files in the opposite order. Their `expected-diagnostics.json` files are
   byte-identical, and that identity *is* the assertion.
-- How the case proves it: `app.a` and `app.b` are defined in different files and refer to each
-  other, so the two runs enter the cycle from opposite ends. An implementation that reported the
-  member it reached first would name `app.a` here and `app.b` in the reversed case; both fixtures
-  require `app.a` at `inputs/first.txt` line 1 column 7, because the origin travels with the
-  payload rather than with the order the file was read.
+- Why the observable agreement is not compatibility evidence: 2.4.0 detected recursive scalar
+  reference cycles (legacy items 101 and 1) and its cycle-detection error path always exited
+  nonzero without emitting a file, so the baseline reaches the same tree and exit code the
+  specification requires here. But this fixture's discrimination lives entirely in the diagnostic
+  stream: the pair asserts that `app.a` at `inputs/first.txt` line 1 column 7 is reported in both
+  input orders. The rotation-to-least-member rule the Section 3.2 corrections against ordering
+  dependence make observable is invisible in tree/exit alone, so an implementation naming
+  whichever cycle member the resolver reached first would also produce an empty tree at exit `1`.
+  Only the sibling case's byte-identical `expected-diagnostics.json` can tell that mishandling
+  apart from the specified rule, and the verdict does not score that stream.
 
 ## Not asserted
 

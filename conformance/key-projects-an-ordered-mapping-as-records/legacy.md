@@ -94,3 +94,26 @@ Comment movement, which acceptance item 79 covers separately.
 
 The exit code is 0 and no diagnostic is emitted: `key` bound to a path that exists, and nothing in
 this fixture is a warning condition.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**. The baseline writes `cfg.ini` and `cfg.properties` with
+  different content than the case expects (the harness records `content cfg.ini` and
+  `content cfg.properties`); the exit code matches.
+- Contract: Section 16.5 is the substantive section that fixes the `key` projection — the
+  generated field is a string scalar inserted first, mapping keys are decoded, and each record
+  is placed at a fresh implicit ordering value in mapping order. Section 3 does not enumerate
+  the projection rule; 3.1 preserves the *name* of the `key` scheme directive but not its
+  detailed shape.
+- Legacy observation: 2.4.0 produces a different projection at this path in both formats. The
+  measurement records only that the bytes differ; the exact reduction 2.4.0 produces — whether
+  the generated field appears in a different position within each record, or whether the record
+  sequence uses a different indexing shape — is implementation-defined for the baseline. The
+  fact that both formats diverge from the specified example bytes is the evidence.
+- Clean behavior: the `a` mapping becomes a sequence of two records. Each record carries a
+  generated `name` field first, holding the decoded mapping-key text, followed by the child's
+  own fields, and the two records sit at ordering values `0` and `1`. The namespace and INI
+  serializers project the same records identically up to how each format spells a sequence.
+- The difference is intentional: Section 16.5's projection is output-neutral by construction —
+  the transformation happens at pipeline step 16, before any serializer runs — so both file
+  formats must reproduce the specification's printed example bytes together.

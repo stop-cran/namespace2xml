@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r35+210303e43640`.**
+**Contract bundle `r36+a15f533b6848`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,28 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (50)
+## Deliberate differences (71)
+
+Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
+each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
+
+### `a-later-output-declaration-restores-an-ignored-instance`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against a synthetic internal root leaking into user-visible file
+  names; Section 15.2 `output=ignore` restoration; Section 16.2 default filename composition.
+- Legacy observation: the baseline writes `y.properties` where this case expects `a.y.properties`,
+  and it writes no `x.properties`, so exactly one file lands but its name has lost the `a.` prefix.
+  The measurement records this as `missing a.y.properties; extra y.properties`, with exit `0` and
+  no standard error beyond the banner.
+- Clean behavior: the default filename is composed from the whole concrete selector under
+  Section 16.2, so `a.y` writes to `a.y.properties`. `output=ignore` restoration then keeps the one
+  surviving instance's name intact.
+- Why the difference is intentional: dropping a leading namespace segment from a filename is the
+  synthetic-root leak Section 3.2 names, and the same defect would make two distinct sibling
+  instances collide on a shorter shared name on any platform. The single-file observation says
+  nothing about whether 2.4.0's stream logic reached the same restoration decision or arrived at
+  one surviving instance by another route; only the filename is pinned here.
 
 ### `a-refused-fold-is-reported-once-per-destination`
 
@@ -65,38 +86,146 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The two `app.x.k` occurrences are byte-identical because Appendix B gives `TYPE001` no member
   naming an output instance. That is the specified member set, and the count is the assertion here.
 
-### `cli-diagnostics-format-inline-invalid`
+### `a-rejected-filename-is-reported-once-for-two-formats`
 
-- namespace2xml 2.4.0: **differs**. The option does not exist in 2.4.0.
-- Contract: Section 3.2 deliberately corrected behavior; Sections 6.4.1 and 6.4.3.
-- Legacy observation: CommandLineParser rejects the unknown option with its own message and a
-  nonzero status, with no stable code and no machine-readable stream.
-- Clean behavior: the pre-scan resolves the encoding from the surviving valid occurrence, then
-  ordinary validation reports `CLI001` for an unrecognized inline value in that encoding, and the process exits 1.
-- The difference is intentional: an invalid command line must still be reportable in the
-  encoding the caller asked for, or an automated caller cannot read its own failure.
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 16.2 "statically written `.` and `..` segments are prohibited"; Section 22
+  cardinality "once per destination"; Section 26 item 51. Section 3 does not enumerate the
+  traversal-rejection correction as its own bullet — this is a substantive rule of Section 16.2
+  rather than a compatibility-versus-correction line item.
+- Legacy observation: the baseline exits `0` with no standard error beyond its banner. Nothing is
+  rejected. The measurement records `exit 0 (expected 1)` and no output-tree divergence because
+  the case's expected tree is empty either way.
+- Clean behavior: `a.filename=../bad.conf` is a prohibited written `..` segment, and Section 16.2
+  fails the plan with one `PATH001` diagnostic covering both formats, because two formats sharing
+  one explicit `filename` compose one destination.
+- Why the difference is intentional: 2.4.0 resolved `filename` values against the process working
+  directory with no traversal check, so `../bad.conf` was an ordinary relative path and the plan
+  proceeded. The 3.0 correction refuses that path outright rather than write outside a
+  configured output root. This case cannot separately observe the once-per-destination
+  cardinality against the baseline: the baseline emits no `PATH001` at all.
 
-### `cli-diagnostics-format-invalid-value`
+### `a-replaced-destination-keeps-the-high-water-mark`
 
-- namespace2xml 2.4.0: **differs**. The option does not exist in 2.4.0.
-- Contract: Section 3.2 deliberately corrected behavior; Sections 6.4.1 and 6.4.3.
-- Legacy observation: CommandLineParser rejects the unknown option with its own message and a
-  nonzero status, with no stable code and no machine-readable stream.
-- Clean behavior: the pre-scan resolves the encoding from the surviving valid occurrence, then
-  ordinary validation reports `CLI001` for an unrecognized value in that encoding, and the process exits 1.
-- The difference is intentional: an invalid command line must still be reportable in the
-  encoding the caller asked for, or an automated caller cannot read its own failure.
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction that collisions between output instances must use `filemerge`
+  rather than `merge`; Section 3.2 removal of behaviour dependent on shared mutable array-index
+  state; Section 15.1 step 18; Section 17.5 destination high-water rule.
+- Legacy observation: the baseline writes `out.properties` with different bytes from the expected
+  file. The measurement records `content out.properties`, exit `0`, and no standard error beyond
+  the banner.
+- Clean behavior: three items survive the fold at stable ordering values `0`, `1`, and `3`, and
+  Section 5.4 renders them densely as `b.0=w`, `b.1=v`, `b.2=q`. The `replace` accumulator holds
+  the high-water mark that carries `s2`'s implicit item onto value `3` above `s3`'s explicit `0`
+  and `1`.
+- Why the difference is intentional: 2.4.0 had no `filemerge` directive, so `s2.filemerge=replace`
+  and `s3.filemerge=deep` were not recognized as strategy declarations at all. The baseline's
+  destination fold ran under whatever legacy sequence-merge logic it had and produced a different
+  content; the observable divergence names the file rather than a mechanism because the baseline's
+  strategy vocabulary is not the same one this case pins. Which of the readings enumerated in the
+  discrimination above the baseline lands on is not something this fixture is designed to
+  identify.
 
-### `cli-diagnostics-format-missing-value`
+### `a-transform-that-makes-a-bare-scalar-still-has-a-key`
 
-- namespace2xml 2.4.0: **differs**. The option does not exist in 2.4.0.
-- Contract: Section 3.2 deliberately corrected behavior; Sections 6.4.1 and 6.4.3.
-- Legacy observation: CommandLineParser rejects the unknown option with its own message and a
-  nonzero status, with no stable code and no machine-readable stream.
-- Clean behavior: the pre-scan resolves the encoding from the surviving valid occurrence, then
-  ordinary validation reports `CLI001` for a missing value in that encoding, and the process exits 1.
-- The difference is intentional: an invalid command line must still be reportable in the
-  encoding the caller asked for, or an automated caller cannot read its own failure.
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 19.1, 19.2, and 19.4 bare-scalar-with-key rule; Section 15.1 step 16
+  transformation order; Section 26 item 56. Section 3 does not enumerate the bare-scalar-with-key
+  behaviour as its own compatibility line; these are substantive rules of Section 19.
+- Legacy observation: the baseline writes `a.properties` with different bytes, does not write
+  `a.sh` at all, and writes `b.ini` with different bytes. Exit `0`, no standard error beyond the
+  banner. The measurement records `content a.properties; missing a.sh; content b.ini`.
+- Clean behavior: after `type=multiline` joins each sequence into one scalar, Sections 19.1, 19.2,
+  and 19.4 each retain the final concrete selector part as the emitted key, so `a.properties`
+  writes `a=x\ny`, `a.sh` writes `a='x` LF `y'`, and `b.ini` writes `b=solo`.
+- Why the difference is intentional: joining a sequence into a bare scalar is a shape change of the
+  selected view, and 3.0 fixes what an entry with no key looks like for every flat format so a
+  legal scheme is not turned into a blocking `SERIALIZE001`. 2.4.0 had no stated rule for the same
+  shape; the observation is that all three flat destinations diverged, but the observable does not
+  tell which of the three legacy paths — a missing key, a written filename, or a serializer
+  refusal — produced each divergence, and this case is not written to identify it.
+
+### `a-written-traversal-segment-is-rejected`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 16.2 "statically written `.` and `..` segments are prohibited"; Section 21.1
+  containment; Section 26 item 51. Section 3 does not enumerate traversal rejection as its own
+  compatibility line; this is a substantive Section 16.2 rule.
+- Legacy observation: the baseline exits `0` with no standard error beyond its banner. Nothing
+  written outside the working directory is rejected. The measurement records `exit 0 (expected 1)`
+  and no output-tree divergence because the case's expected tree is empty either way.
+- Clean behavior: `a.filename=../escape.conf` is a prohibited written `..` segment and the plan
+  fails during Section 15.1 with one `PATH001` diagnostic anchored at `§16.2`; the output root is
+  left untouched.
+- Why the difference is intentional: 2.4.0 resolved `filename` values against the process working
+  directory with no containment check, so an author who wrote `../escape.conf` was silently
+  redirected to a sibling directory of the working directory. 3.0 refuses the path before any file
+  is opened. The observable divergence is the exit code alone; nothing is compared under
+  `expected/` because both runs leave the case's expected tree empty for different reasons — one
+  by refusing to plan, one by never having a containment rule.
+
+### `an-empty-qualifier-escapes-the-alias-ambiguity`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.4 `Q{}` empty-qualifier addressing; Section 13.1 XML simple alias and
+  reference resolution; Section 26 item 9. Section 3.1 preserves "value references" as a category,
+  but the `Q{}` marker is a new addressing form and Section 3 does not enumerate it.
+- Legacy observation: the baseline exits `1` and does not produce `a.properties`. The measurement
+  records `exit 1 (expected 0); missing a.properties`. Standard error beyond the banner is empty.
+- Clean behavior: the case expects exit `0` and one `a.properties` whose six lines resolve every
+  `${a.t.Q{}x}`, `${a.t.@x}`, and `${a.Q{}t.x}` against the canonical address the marker names,
+  bypassing the simple-alias ambiguity between the XML attribute `@x` and the child element `x`.
+- Why the difference is intentional: 2.4.0 had no `Q{}` component and no canonical addressing at
+  all. The reference lexer either refuses the token as malformed or resolves it as if the marker
+  were literal text — either way, no correct file can result, and the run fails. This is the whole
+  point of the addressing amendment: without a way to name one canonical component in prose, the
+  ambiguity Section 13.1 describes has no in-band answer at all.
+
+### `append-onto-a-non-sequence-accumulator-is-an-error`
+
+- namespace2xml 2.4.0: **differs**. Legacy had no `merge` directive, so the refusal in this case is
+  new behavior; the baseline's silent success is a divergence rather than a claim about the same
+  rule.
+- Contract: Section 3.2 correction against relying on `merge` to control collisions; Section 16.10
+  `append` — "other non-sequence use is an error"; Section 15.1 step 8; Section 26 item 25.
+- Legacy observation: the baseline exits `0` and writes `a.properties`, so the fixture's empty
+  expected tree gains one extra file and the exit code diverges. The measurement records `exit 0
+  (expected 1); extra a.properties`, and standard error beyond the banner is empty. `merge=append`
+  is not a recognized directive in 2.4.0, so the fold proceeds and the scalar plus the sequence
+  contribution reach one output.
+- Clean behavior: `append` refuses a path whose accumulator is not a sequence, in either position.
+  One `TYPE001` at `§16.10` naming path `a`, and exit code 1.
+- Why this case exists: Section 16.10 defines `append` in terms of "the later sequence
+  contribution", and an implementation reading only that half validates only the later side. Step 8
+  then supplies an innocent-looking excuse for the earlier side — "the earliest or sole contribution
+  retains its supplied ordering values" — but that clause is about a path with nothing on it yet,
+  not a path holding something unappendable. Falling through to a deep merge instead of reporting
+  makes a run that asked to append to a scalar *succeed*, publishing the scalar and the sequence
+  coexisting at one path, with exit code 0 and no diagnostic. Nothing downstream distinguishes that
+  from a deliberate deep merge.
+- How the case proves it: `a=5` arrives first and `a.0=x` second under `a.merge=append`. The later
+  contribution is sequence-eligible, so the existing later-side check passes it; only a check on the
+  accumulator refuses the merge. One `TYPE001` at `§16.10` naming path `a`, and exit code 1.
+
+### `array-runs-before-multiline`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 15.1 step 16 fixed transformation order; Section 16.6 `array` conversion;
+  Section 26 item 54. Section 3.2 lists behaviour "dependent on parallel execution order" and
+  "dependent on dictionary iteration order" among the corrections; step 16 fixes the observable
+  answer for the pair `array,multiline`.
+- Legacy observation: the baseline writes `cfg.properties` with different bytes. The measurement
+  records `content cfg.properties`, exit `0`, and no standard error beyond the banner.
+- Clean behavior: `array` runs first and turns `{p: first, q: second}` into `[first, second]`;
+  `multiline` then joins the sequence with logical LF and Section 19.1 renders it as one physical
+  record, `lines=first\nsecond`.
+- Why the difference is intentional: 2.4.0 applied transformations in an order the specification
+  did not fix — either the declaration order in the scheme value, the map iteration order of the
+  configured passes, or a single-visit-per-node loop. Any of those alternatives changes what the
+  file records here, so 3.0 pins the order at step 16 rather than leaving it to whichever pass a
+  reader believed was implicit. The observable divergence names the file's bytes; the observation
+  does not identify which of the alternatives 2.4.0 used because the case is written to pin the
+  correct answer, not to enumerate the wrong ones.
 
 ### `cli-diagnostics-stream-on-a-clean-run`
 
@@ -118,25 +247,6 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   XML renderer retired that status, so the case now asserts the stream framing over a completed
   run. Section 14.1 denies XML the selector-name fallback for a document element, and the input
   has two top-level members, so the scheme supplies `root` explicitly.
-
-### `cli-end-of-options-values`
-
-- namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
-  grammar was never stated in any contract and whose failures carried no stable code and no
-  machine-readable stream.
-- Contract: Section 6.2 option-token grammar; Section 26 item 86.
-- Legacy observation: `--` and a bare `-` were handled by the library's conventions, which
-  differed from this grammar and were not part of any contract.
-- Clean behavior: `--` ends option recognition and hands every following token to the immediately
-  preceding list-valued option, so `-` and `--output` become ordinary input paths rather than an
-  option and a value. A bare `-` is an ordinary value in this version and does not mean standard
-  input.
-- Why this case exists: this is the only way to name a file whose name begins with `-`, and the
-  rule is worth pinning precisely because it makes a familiar-looking token stop being an option.
-- How the case proves it: neither `-` nor `--output` exists, so each draws the Section 7.2
-  missing-file warning naming it as a *source*. A tool that still treated `--output` as an option
-  would emit one warning, or none, and would not name it. The run nevertheless succeeds and writes
-  `app.properties`, because Section 7.2 makes a missing file warn-and-ignore rather than fail.
 
 ### `cli-help-outranks-version`
 
@@ -169,22 +279,6 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   gives an informational mode no diagnostic stream in either encoding, so no expected-diagnostics
   file is declared and standard error must stay empty.
 
-### `cli-inline-value-accepted`
-
-- namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
-  grammar was never stated in any contract and whose failures carried no stable code and no
-  machine-readable stream.
-- Contract: Section 6.2 option-token grammar; Section 26 item 86.
-- Legacy observation: the inline `--name=value` form was whatever the library happened to accept,
-  and was documented nowhere.
-- Clean behavior: every long option accepts its value inline, so `--input=inputs/main.txt` is the
-  same invocation as `--input inputs/main.txt`.
-- Why this case exists: the uniform inline form is the amendment's whole point. A unit test can
-  show the parser accepts it; only a corpus case shows the shipped tool does.
-- How the case proves it: every option in `args-diagnostics.txt` uses the inline form, and the run
-  produces `app.properties` with no diagnostics. A tool that rejected the form, or that read
-  `--input=inputs/main.txt` as a path, could not produce that file.
-
 ### `cli-option-missing-value-rejected`
 
 - namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
@@ -195,6 +289,23 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   nonzero status, with no stable code and no machine-readable stream.
 - Clean behavior: an option token that reaches the end of the argument vector still requiring a
   value is `CLI001` with exit 1, reported in the requested encoding.
+
+### `cli-repeated-list-options-concatenate`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 6.2, and Section 3.1's preservation of the existing option names. The names are
+  preserved; the arity spelling is not something 2.4.0 accepted in the first place.
+- Legacy observation: the baseline rejects the command line outright. It prints
+  `Option 'i, input' is defined multiple times.`, exits `1`, and writes no file, so `seq.properties`
+  is missing from its output tree. 2.4.0's CommandLineParser configuration accepts a list option
+  once, with its values space-separated, and treats a second occurrence of the same option as a
+  usage error.
+- Clean behavior: Section 6.2 makes repeated occurrences concatenate in exact token order, so the
+  run succeeds and produces the three-item sequence in `-i` order.
+- The difference is intentional: `-i a -i b` is the spelling every other command-line tool accepts
+  for an ordered list, and rejecting it forced callers to build one space-separated token list. The
+  space-separated form still works — it is half of this case's own command line — so the change adds
+  a spelling rather than replacing one, and no 2.4.0 invocation stops working because of it.
 
 ### `cli-short-option-inline-rejected`
 
@@ -276,21 +387,109 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   specified one and the first-reached one. The expected stream keeps the two `shared.txt`
   occurrences adjacent, which only an index shared by both produces.
 
-### `empty-output-plan-warning`
+### `destination-fold-follows-wildcard-match-order`
 
 - namespace2xml 2.4.0: **differs**.
-- Contract: Section 22 `WARN008`; Section 21 validation gate.
-- Legacy observation: a run whose scheme declared no output produced no files and said nothing, so
-  a scheme that had been edited into declaring nothing was indistinguishable from a scheme that had
-  been applied successfully. The exit status was the same in both cases.
-- Clean behavior: the validated output plan is checked for emptiness once per invocation and
-  reports `WARN008`. The scheme here is well formed and its `merge` directive is honoured; it
-  simply declares no destination, which is a warning rather than an error because writing nothing
-  is a legitimate result of a filtered or partially-applied scheme.
-- The input is deliberately non-empty: the warning is about the output plan, not about the absence
-  of data, and a case with no input would not distinguish the two.
-- `WARN008` declares no optional Section 6.4.3 members, so the occurrence is exactly the five
-  required ones. It is the only diagnostic in the corpus whose whole content is its identity.
+- Contract: Section 15.1 step 18 destination fold; Section 17.5 fold-key components; Section 12.4
+  wildcard match order; Section 26 item 26. Section 3.2 lists corrections against behaviour
+  "dependent on parallel execution order" and "dependent on dictionary iteration order", both of
+  which are what the wildcard-match component of the fold key exists to replace.
+- Legacy observation: the baseline writes `out.properties` with different bytes. The measurement
+  records `content out.properties`, exit `0`, and no standard error beyond the banner.
+- Clean behavior: `a.zebra` matches before `a.alpha` because `zebra` appears first in the mapping,
+  so the fold order is `zebra`, then `alpha`, and the destination reads `list.0=w`, `list.1=x`,
+  `list.2=y`, `list.3=z`.
+- Why the difference is intentional: `alpha` precedes `zebra` under unsigned-byte selector order,
+  the tie-breaker used only after the wildcard-match component decides. 2.4.0's wildcard fold key
+  was not stated in a normative document, and its answer for two matches of one wildcard
+  contributing to one destination is not something Section 3.1 preserves. The observable
+  divergence names the file's bytes rather than a legacy mechanism; the case does not attempt to
+  reconstruct which component the baseline actually reached for.
+
+### `destinations-differing-only-by-case-collide`
+
+- namespace2xml 2.4.0: **differs**. On Linux the baseline sees the two `filename` values as
+  distinct names, writes one of them (the harness records `extra out.conf`), and exits 0. Neither
+  the observed exit (0, expected 1) nor the observed tree (one file, expected none) matches.
+- Contract: Section 3.2, "allowed output paths that differ only by ASCII letter case to coexist on
+  some operating systems but collide on others", is the enumerated correction; Section 16.2 and
+  Section 17.5 carry the mechanism.
+- Legacy observation on Linux: `out.conf` and `Out.conf` coexist on the filesystem, so both files
+  are opened and the run reports success — the exit code and tree therefore depend on which host
+  the run is compared against. On Windows or a default macOS volume the two names refer to one
+  file and the later write silently overwrites the earlier, so the same command produces different
+  content depending on which selector 2.4.0's plan enumerated first. Neither outcome is a
+  diagnostic.
+- Clean behavior: the portability key is computed and compared in the tool at planning, and
+  Section 17.5 makes the collision a blocking `PATH001` before any file is opened, so the exit
+  code and tree are the same on every host.
+- The difference is intentional: the 3.2 clause exists exactly because a run whose result is a
+  property of the host filesystem cannot participate in the byte-identical determinism Section 3
+  promises across platforms.
+
+### `filemerge-error-rejects-a-second-contribution`
+
+- namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `out.properties` (the harness
+  records `extra out.properties`), where the case expects exit 1 and an empty tree.
+- Contract: Section 3.2 lists as a corrected defect legacy behavior "caused by relying on `merge`
+  to control collisions between output instances; such schemes must use `filemerge`, while `merge`
+  remains recognized with input/common-model scope". Section 16.11 defines `filemerge=error`.
+- Legacy observation: `filemerge` is not a 2.4.0 scheme directive. The baseline had no way to
+  express a blocking cross-destination-contribution rejection, so it merged the two contributions
+  under its default behavior and published `out.properties`. It did not name the directive it did
+  not recognize, and the observable is a successful run.
+- Clean behavior: `filemerge=error` at `a.*` refuses the second contribution to one destination
+  with `COLLISION001` in phase `planning`, before publication, and no file is written.
+- The difference is intentional: Section 3.2's `merge`/`filemerge` split exists precisely to give
+  scheme authors a way to reject a second contribution to one destination, and 2.4.0 had no such
+  facility for the caller to reach.
+
+### `filename-captures-are-opaque-segment-data`
+
+- namespace2xml 2.4.0: **differs**. The baseline writes `out/CON.conf`, `out/p/q.conf` and
+  `out/x y.conf` where the case expects `out/%5FCON.conf`, `out/p%2Fq.conf` and `out/x%20y.conf`
+  (the harness records three `extra` files and three `missing` files). `out/plain.conf` and
+  `out/..conf` are produced in both trees.
+- Contract: Section 16.2 defines the portable-segment algorithm — split first at literally written
+  separators, substitute captures into segments as opaque text, then encode. Section 3 does not
+  enumerate this defect; the closest 3.2 clause, "caused by a synthetic internal root leaking
+  into user-visible file names", is a different mechanism. The fixture pins Section 16.2 rather
+  than a Section 3 preservation or correction.
+- Legacy observation: 2.4.0 substitutes captures into the `filename` template as raw text and
+  splits the result, which inverts the ordering the specification requires. A `/` inside a
+  capture therefore becomes a directory separator (`p/q` yields `p/q.conf` under a directory the
+  scheme never asked for), a reserved DOS name is not prefixed (`CON` yields `CON.conf`), and a
+  space in a capture is not encoded (`x y` yields `x y.conf`). The two rows that agree do so
+  because they exercise no ambiguity: `plain` has no reserved characters, and `..conf` is
+  assembled from a `.` capture followed by a literal `.conf`, so the composite segment is not the
+  `.` step 4 tests for and no encoding differs.
+- Clean behavior: the algorithm splits the template only at literally written `/` or `\`, then
+  substitutes each capture into a segment and applies steps 4–7 to that segment. Every unsafe
+  outcome that would arise from captured data is encoded rather than materialized as directory
+  hierarchy or a reserved name.
+- The difference is intentional: captures come from data outside the scheme's control, and
+  encoding-after-substitution is the safety guarantee the specification is written for.
+
+### `folded-implicit-items-rebase-above-the-destination-mark`
+
+- namespace2xml 2.4.0: **differs**. The baseline writes `out.properties` with different content
+  than the case expects (the harness records `content out.properties`); the exit code matches.
+- Contract: Section 3.2 lists as a corrected defect legacy behavior "dependent on shared mutable
+  array-index state". Section 17.5 defines the per-destination high-water mark that carries the
+  correction, and Section 5.4 fixes the dense rendering of the surviving indices.
+- Legacy observation: 2.4.0 had no per-destination high-water mark. The two contributions each
+  allocated implicit ordering values `0` and `1` from their own local marks, and the later
+  contribution's items therefore collided with the earlier ones at the destination. The rendered
+  bytes are not the four values the case expects; the exact reduction 2.4.0 produces at this
+  destination is not stated in the specification because 2.4.0 had no defined model to state, but
+  the observable divergence is a shorter file than the expected four-line one.
+- Clean behavior: each sequence path in the destination accumulator keeps its own high-water
+  mark. The first contribution advances the mark to `1`, so the second contribution's implicit
+  items rebase to `2` and `3`, and Section 5.4 renders the four surviving stable values as
+  dense indices `0..3`.
+- The difference is intentional: shared array-index state made a fold's result depend on the
+  order and shape of contributions rather than on their addressed positions, which is the class
+  of defect Section 3.2 exists to remove.
 
 ### `ini-projection-and-section-order`
 
@@ -361,95 +560,126 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: Section 9.1 fixes both rules, and either legacy behavior loses
   information the source contained.
 
-### `json-strict-parsing-refusals`
+### `key-directive-precedence-follows-source-order`
 
-- namespace2xml 2.4.0: **differs**.
-- Contract: Sections 9.1, 9.2, 9.3, 22, and 24.
-- Legacy observation: the JSON reader accepted comments and trailing commas, and a duplicate object
-  key silently kept whichever the parser visited last, so a typo that shadowed a real setting
-  produced no message at all.
-- Clean behavior: each nonstandard extension is `PARSE001` against the source that carries it, at
-  the Section 22 one-based line and character column of the offending token. Every failing source
-  reports, in the Section 7.3 command-line order, so one run names every bad file rather than
-  stopping at the first.
-- The difference is intentional: Section 9.3 states that rejecting duplicates "avoids
-  parser-dependent behavior and accidental hidden overrides", which is exactly what the legacy
-  reader did.
-- `surrogate-escape.json` carries a `\u` escape standing for an unpaired surrogate. Section 9.1
-  admits strings, and Appendix A.2 excludes surrogates from every escape, so the document denotes
-  no text and is refused rather than repaired into U+FFFD. The escape is also why this source is
-  here rather than in a reader unit test alone: the condition reaches the host parser through a
-  path that reports it as an ordinary state error, so nothing but an end-to-end run proves it does
-  not leave the process as an unhandled exception, which Section 6.3 forbids.
+- namespace2xml 2.4.0: **differs**. The baseline writes `cfg.properties` with different content
+  than the case expects (the harness records `content cfg.properties`); the exit code matches.
+- Contract: Section 3.1 preserves "later-entry override precedence" as a general property of the
+  namespace profile and scheme languages. Section 15.2 restates that rule for every scheme
+  directive, and Section 16.5 restates it for `key`.
+- Legacy observation: 2.4.0's `key` directive did not honor later-entry override on this three-
+  directive arrangement. Its resolver scored patterns rather than following source order — a
+  wildcard rule lost to a specific rule regardless of which came later — so both `cfg.a` and
+  `cfg.b` picked up the same field name, and the `cfg.properties` bytes reflect a single field
+  spelling for both subtrees instead of the mixed `name`/`id` spellings the specified rule
+  produces. Only the fact that the bytes differ is measured; the specific spelling is
+  implementation-defined for the baseline.
+- Clean behavior: at `cfg.a` the later of `cfg.*.key=id` (line 3) and `cfg.a.key=name` (line 4)
+  wins, so the field is `name`. At `cfg.b` the later of `cfg.b.key=name` (line 2) and
+  `cfg.*.key=id` (line 3) wins, so the field is `id`. The pair discriminates source order from
+  every plausible non-source-order rule.
+- The difference is intentional: 3.1 preserves the general later-entry override rule from 2.4.0,
+  and the fixture pins the corner where 2.4.0's `key` directive was internally inconsistent with
+  that rule.
 
-### `limit-attribution-across-sources`
+### `key-projects-an-ordered-mapping-as-records`
 
-- namespace2xml 2.4.0: **differs**.
-- Contract: Sections 7.3, 11.1, 15.4, 22, 23, and 24.
-- Legacy observation: there were no configurable resource bounds at all. A document deep enough,
-  wide enough, or numerous enough exhausted memory and the process died without a diagnostic, so
-  the failure mode of an oversized input was a stack overflow or an allocation failure rather than
-  a report naming the file that caused it.
-- Clean behavior: Section 23 makes every bound an option, and a crossing is `LIMIT001`. Section 22
-  scopes that code to once per invocation, so when several sources cross bounds together exactly
-  one occurrence is reported and Section 11.1 fixes which one: "the earliest under CLI source order
-  as defined in Section 7.3, then document order within that source, then element order, then the
-  bound name compared as unsigned UTF-8 bytes".
-- This case crosses two different kinds of bound in two sources at once. `inputs/many.xml` crosses
-  the global `--max-nodes` total, which Section 23 accumulates "at the parse-phase join in CLI
-  source order as specified in Section 7.3" — that is, after every source has been parsed.
-  `inputs/wide.xml` crosses the per-element `--max-xml-attributes`, which Section 23 checks "per
-  element within each source" — that is, while that source is still being parsed. The reported
-  occurrence is therefore the one that is decided *later* in time and *earlier* in command-line
-  order, and Section 11.1 is explicit that command-line order is what governs: "attribution is
-  therefore independent of parser worker scheduling."
-- Nothing is published and no output tree is expected. Section 15.4 aborts before the next phase
-  when a phase holds a blocking diagnostic, so planning never runs and the run cannot report that
-  its output plan is empty.
-- The difference is intentional: a tool whose response to an oversized input is to die tells its
-  caller nothing, and a tool whose answer depends on which parser finished first cannot be
-  compared across runs. Appendix C.7 runs this case under varied worker counts for that reason.
+- namespace2xml 2.4.0: **differs**. The baseline writes `cfg.ini` and `cfg.properties` with
+  different content than the case expects (the harness records `content cfg.ini` and
+  `content cfg.properties`); the exit code matches.
+- Contract: Section 16.5 is the substantive section that fixes the `key` projection — the
+  generated field is a string scalar inserted first, mapping keys are decoded, and each record
+  is placed at a fresh implicit ordering value in mapping order. Section 3 does not enumerate
+  the projection rule; 3.1 preserves the *name* of the `key` scheme directive but not its
+  detailed shape.
+- Legacy observation: 2.4.0 produces a different projection at this path in both formats. The
+  measurement records only that the bytes differ; the exact reduction 2.4.0 produces — whether
+  the generated field appears in a different position within each record, or whether the record
+  sequence uses a different indexing shape — is implementation-defined for the baseline. The
+  fact that both formats diverge from the specified example bytes is the evidence.
+- Clean behavior: the `a` mapping becomes a sequence of two records. Each record carries a
+  generated `name` field first, holding the decoded mapping-key text, followed by the child's
+  own fields, and the two records sit at ordering values `0` and `1`. The namespace and INI
+  serializers project the same records identically up to how each format spells a sequence.
+- The difference is intentional: Section 16.5's projection is output-neutral by construction —
+  the transformation happens at pipeline step 16, before any serializer runs — so both file
+  formats must reproduce the specification's printed example bytes together.
 
-### `limit-xml-attributes-per-element`
+### `mask-clears-shape-marks`
 
-- namespace2xml 2.4.0: **differs**.
-- Contract: Sections 7.3, 11.1, 15.4, 22, 23, and 24.
-- Legacy observation: an XML element could carry any number of attributes, and nothing bounded the
-  parse. There was no option to bound it and no diagnostic when the cost became unreasonable.
-- Clean behavior: Section 23 checks XML attributes "per element within each source under
-  `--max-xml-attributes`, as specified in Section 11.1", and a crossing is `LIMIT001`.
-- This case is the mirror of `limit-attribution-across-sources`, with the two sources exchanged in
-  `-i` order. `inputs/wide.xml` now comes first and crosses the per-element attribute bound while
-  it is being parsed; `inputs/many.xml` comes second and crosses the global `--max-nodes` total at
-  the parse-phase join. Section 11.1 attributes the single reported occurrence to "the earliest
-  under CLI source order", so the per-element crossing in the first source is what is reported,
-  even though the global total is not decided until every source has been read.
-- The pair is what makes either case load-bearing. Reported alone, the winning source could be
-  explained by the order the two crossings were detected in rather than by command-line order,
-  because in one arrangement those agree. Exchanging the sources makes them disagree in the other
-  arrangement, and Section 11.1's answer is unchanged. This case additionally fails if
-  `--max-xml-attributes` is not enforced at all: `inputs/wide.xml` would then contribute its nodes
-  to the global total instead of being refused, and the reported source would be `inputs/many.xml`.
-- Nothing is published and no output tree is expected, because Section 15.4 aborts before the next
-  phase when a phase holds a blocking diagnostic.
-- The difference is intentional: Section 23 requires the tool to "fail explicitly rather than
-  degrade without bound".
+- namespace2xml 2.4.0: **differs**. The baseline writes `phantom.properties` with different
+  content than the case expects (the harness records `content phantom.properties`); `kept` and
+  the exit code match.
+- Contract: Section 4.4 defines the effective mapping shape-mark as "the latest **surviving**
+  explicit mapping-presence or descendant contribution that requires mapping shape", and
+  Section 8.7 fixes the word — surviving means not suppressed by a permanent mask. Section 3
+  does not enumerate this defect; it is a new precise statement rather than a preservation or
+  correction.
+- Legacy observation: 2.4.0 had no defined surviving-mark rule at Section 4.4. On `phantom` the
+  only contribution requiring mapping shape came from a descendant that is entirely masked, so
+  once the descendant is gone there is nothing left to require the mapping shape — but the
+  baseline retains the mark set before masking, and the `phantom.properties` bytes reflect that
+  retained mark rather than the empty projection the specified rule leaves. The measurement
+  records only that the bytes differ; the exact content 2.4.0 produces is implementation-
+  defined for the baseline.
+- Clean behavior: after masking, `phantom.gone` is not a surviving contribution and cannot
+  refresh `phantom`'s mapping shape-mark. The projection is empty, and no diagnostic fires
+  because a conflict requires two surviving projections. `kept` agrees on both baselines: the
+  masked contribution is not what discriminates that root, so the surviving-mark subtlety does
+  not reach the emitted bytes there.
+- The difference is intentional: a mask that only deletes data would leave phantom containers
+  behind wherever a suppressed subtree had shaped its ancestor, so the specification withdraws
+  a masked contribution's shape evidence at the same step it withdraws the data.
 
-### `mask-after-sequence-rebasing`
+### `merge-error-rejects-a-second-source-contribution`
 
-- namespace2xml 2.4.0: **differs**.
-- Contract: Sections 8.6, 15.1 step 10, 16.10 `append`, and 5.4.
-- Legacy observation: sequence concatenation did not have a stated ordering-value model, so there
-  was no defined answer to what an ignore pattern written against an index of a concatenated
-  sequence removed, or whether it removed anything at all.
-- Clean behavior: `merge=append` rebases the later contribution's items "onto fresh implicit
-  ordering values above the current high-water mark", so the second document's only item lands at
-  ordering value 1. The mask names that value and suppresses the item there. This is why Section
-  15.1 applies masks at step 10 and not only when contributions are merged: before the merge the
-  item is at ordering value 0 in its own document, and no mask written against its final position
-  could match it.
-- The difference is intentional: a mask addresses the model the run actually builds, and after
-  Section 16.10 rebasing that model is the only place the item's ordering value exists.
+- namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `strict.properties` (the
+  harness records `extra strict.properties`), where the case expects exit 1 and an empty tree.
+- Contract: Section 3.2 preserves `merge` "with input/common-model scope" — this fixture
+  exercises that preserved scope — and Section 16.10's definition of `error` is the substantive
+  rule. The clause a contribution is "at path P" if it "contributes … any descendant under P"
+  is the reading Section 22 required.
+- Legacy observation: 2.4.0's `merge=error` did not treat a descendant-only second contribution
+  as a second contribution at the parent. `second.txt` writes `strict.c` without touching
+  `strict` itself, so on the baseline no rejection fires; both sources merge normally and
+  `strict.properties` is published with all three keys.
+- Clean behavior: `strict.merge=error` refuses "any distinct second source or generated
+  contribution at the path", where *at* covers any descendant. The condition is a `TYPE001`
+  error with `path` of `strict` and no `source` — Section 22 says an input-phase condition
+  reached only after both sources arrived cannot be attributed to either alone. The run exits
+  1 and Section 21.2's validation gate prevents publication.
+- The difference is intentional: `error` exists so that a scheme author can insist a subtree
+  come from exactly one source, and that guarantee has to reach descendants or a typo in a
+  second source silently shadows values in the first.
+
+### `merge-strategies-over-native-sequence-shapes`
+
+- namespace2xml 2.4.0: **differs**. The baseline writes `back.properties`, `empty.properties`
+  and `swap.properties` with different content than the case expects (the harness records
+  `content` divergence on all three files); the exit code matches.
+- Contract: Section 3.2 preserves `merge` "with input/common-model scope" — this fixture
+  exercises that preserved scope over native-shape contributions. Section 16.10 is the
+  substantive definition of what each strategy does with a contribution "at path P".
+- Legacy observation: 2.4.0 had no stated model for a native sequence as a contribution at its
+  path, and it had no stated model for `replace` across a mapping/sequence shape change. The
+  three rendered files therefore differ from the specified projection in three ways whose
+  common cause is the same missing definition — the exact reduction is implementation-defined
+  for the baseline, but the measurement records that none of the three files match. `empty`
+  discriminates the "empty sequence is still a sequence contribution" reading (the baseline
+  did not treat `[]` as one, so `append` did not preserve the earlier `[1]` cleanly); `swap`
+  and `back` discriminate `replace` in both directions across a shape change.
+- Clean behavior:
+  - `empty.list` receives `[1]` and then `[]` under `append`. The later contribution has no
+    items to rebase, so the earlier sequence survives unchanged and the file is `list.0=1`.
+  - `swap.k` is a sequence at source 1 and a mapping at source 3 under `replace`. The later
+    complete value replaces the earlier one, so the sequence projection is discarded and the
+    file is `k.child=inner`.
+  - `back.k` is a mapping at source 2 and a sequence at source 4 under `replace`. The later
+    complete value again replaces the earlier one, so the child is discarded and the file is
+    `k.0=9`.
+- The difference is intentional: `replace`'s "later complete value" enumeration exists so that
+  a shape change does not leave earlier marks describing something that is no longer there,
+  and both directions have to work or a defect appears in only one of them.
 
 ### `namespace-document-trailing-comments-reach-the-output`
 
@@ -572,6 +802,49 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   as unsigned UTF-8 bytes, which reports `mapwins` before `seqwins` even though the scheme and the
   output file both present `seqwins` first.
 
+### `one-destination-folds-by-format-before-match-order`
+
+- namespace2xml 2.4.0: **differs**. The baseline writes `out.conf` with different content than
+  the case expects (the harness records `content out.conf`); the exit code matches.
+- Contract: Section 3.2 lists as a corrected defect legacy behavior "dependent on parallel
+  execution order" and "dependent on shared mutable array-index state". Section 17.5 defines
+  the four-component fold key that carries the correction.
+- Legacy observation: 2.4.0 had no four-component fold key. Contributions to a destination were
+  folded in the order the expansion happened to produce them, which nests match order outside
+  format ordinal — the opposite of the specified nesting — so at this destination the four
+  contributions alternate format instead of grouping by format, and every fold after the first
+  is cross-format. Under a fold that "replaces the complete earlier file plan" on a cross-format
+  boundary, only the last contribution's key survives, and the baseline `out.conf` therefore
+  carries a single line rather than the two lines the specified sort produces. The measurement
+  records only that the bytes differ; the specific one-line reduction is implementation-defined
+  for the baseline.
+- Clean behavior: sorted by the fold key the four contributions are namespace/zebra,
+  namespace/alpha, ini/zebra, ini/alpha. Same-format neighbours fold under `filemerge=deep`,
+  the sole cross-format boundary in the middle replaces once, and both keys survive as
+  `first=1` then `second=2`. Section 17.5 additionally forbids grouping by format before
+  folding, and this fixture is the only shape in the corpus where the correction is
+  observable — the sibling fold cases have either one format or one match.
+- The difference is intentional: without the specified sort, the survivor at a destination is a
+  property of the expansion pipeline's iteration order rather than of the fold rules the
+  scheme author wrote, which is exactly the class of parallel/iteration-order dependence
+  Section 3.2 exists to remove.
+
+### `output-ignore-suppresses-one-concrete-instance`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against a synthetic internal root leaking into user-visible file names; Section 14.1 default filename composition; Section 15.2 `output=ignore` scope.
+- Legacy observation: the baseline writes `x.properties` and `z.properties` where this case expects `a.x.properties` and `a.z.properties`. The measurement records `missing a.x.properties; missing a.z.properties; extra x.properties; extra z.properties`. Exit code is `0` and standard error is empty beyond the banner, so the two survivors and the absence of `a.y` land as intended -- only the filenames have lost the leading `a.` segment.
+- Clean behavior: default filenames are composed from the whole concrete selector, so the surviving instances are `a.x.properties` and `a.z.properties`.
+- Why the difference is intentional: dropping the leading namespace segment from a filename is the synthetic-root leak Section 3.2 names, and the same defect would collide two distinct sibling instances on a shorter shared name on any platform. Nothing in the tree the baseline produced says whether its override stream actually reached the same `ignore` decision at `a.y` -- the surviving *count* matches the expected count for reasons the observable does not distinguish. This case is not the one that would find that out; it is pinned by the filenames it names.
+
+### `output-selector-addresses-a-sequence-item`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against a synthetic internal root leaking into user-visible file names; Section 14.1 default filename composition; Section 15.1 step 9 sequence/mapping unification for selectors.
+- Legacy observation: the baseline writes `0.properties` and `1.properties` where this case expects `a.0.properties` and `a.1.properties`. The measurement records `missing a.0.properties; missing a.1.properties; extra 0.properties; extra 1.properties`. Exit code is `0` and standard error is empty beyond the banner, so two files land with the two sequence items' contents in them -- the leading `a.` segment is missing from each name.
+- Clean behavior: the default filename is the whole concrete selector, so the two instances render at `a.0.properties` and `a.1.properties`.
+- Why the difference is intentional: the missing `a.` prefix is the Section 3.2 synthetic-root leak, and the fact that both instances land at all says nothing about whether 2.4.0 addressed the sequence facet at step 9 or reached these items by another path -- the surviving *content* would be identical either way for this data, so the tree comparison here settles filenames rather than addressing. The Section 15.1 step 9 discriminator (a sequence item is addressable through its ordering value) is invisible in the observable this verdict is scored against; it is asserted by the fixture's `expected/` bytes, not by whether the baseline reproduces them for the right reason.
+
 ### `quoted-namespace-key-collision-is-blocking`
 
 - namespace2xml 2.4.0: **differs**.
@@ -586,74 +859,31 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: an output that loses a value is worse than an output that is
   refused, and the collision is a property of the projection rather than of the data.
 
-### `reference-alias-ambiguity-lists-candidates`
+### `reference-typed-values-and-alias-addressing`
 
-- namespace2xml 2.4.0: **differs**. The format-agnostic alias did not exist, so neither did the
-  possibility of two XML components sharing one. There was nothing to be ambiguous about, and no
-  code to report if there had been.
-- Contract: Section 13.1 alias uniqueness and `REFERENCE004`; Section 26 item 9.
-- Legacy observation: legacy item 110 — simple format-agnostic XML aliases were added for
-  convenience *while rejecting ambiguous aliases*. The convenience and the rejection are one
-  feature; an alias index that resolved silently would be worse than none.
-- Clean behavior: `@x` and `Q{urn:example}x` both reduce to the simple alias `x` under Section
-  13.1, so `${app.t.x}` names two canonical paths and is a blocking error. The error is attributed
-  to the *referring* value, not to either candidate, because the candidates are individually legal.
-- Why this case exists: an alias index is a lookup that can succeed wrongly. The failure mode it
-  must not have is picking one.
-- How the case proves it: an implementation that resolved to the first, the last, or the
-  lexicographically least candidate would produce a successful run and an `app.properties`. This
-  fixture asserts exit code `1`, no output tree, and `REFERENCE004` located at line 3 column 7 —
-  the `$` of the reference, not the start of the record and not either definition.
-
-### `reference-cycle-report-source-order-first`
-
-- namespace2xml 2.4.0: **differs**. A reference cycle was detected, but the report named whichever
-  member the resolver happened to reach first, which depended on the order the inputs were given.
-- Contract: Section 13.1 cycle detection and `REFERENCE003`; Section 24 diagnostic ordering; Section
-  26 item 5.
-- Legacy observation: legacy items 101 and 1 — recursive scalar reference chains with explicit
-  cycle detection, and processing made independent of accidental ordering.
-- Clean behavior: a cycle is a set, not a path, so its report is rotated to its lexicographically
-  least member and located at that member's origin. `source`, `line`, `column` and `path` are then
-  a pure function of the cycle itself.
-- Why this case exists: it is the first half of a permutation pair. This case passes
-  `-i inputs/first.txt -i inputs/second.txt`; `reference-cycle-report-source-order-reversed`
-  passes the same two files in the opposite order. Their `expected-diagnostics.json` files are
-  byte-identical, and that identity *is* the assertion.
-- How the case proves it: `app.a` and `app.b` are defined in different files and refer to each
-  other, so the two runs enter the cycle from opposite ends. An implementation that reported the
-  member it reached first would name `app.a` here and `app.b` in the reversed case; both fixtures
-  require `app.a` at `inputs/first.txt` line 1 column 7, because the origin travels with the
-  payload rather than with the order the file was read.
-
-
-- Cycles longer than two members, and cycles whose least member is not the first-written one.
-  Rotation over longer chains is pinned by unit tests against the resolver.
-
-### `reference-cycle-report-source-order-reversed`
-
-- namespace2xml 2.4.0: **differs**. A reference cycle was detected, but the report named whichever
-  member the resolver happened to reach first, which depended on the order the inputs were given.
-- Contract: Section 13.1 cycle detection and `REFERENCE003`; Section 24 diagnostic ordering; Section
-  26 item 5.
-- Legacy observation: legacy items 101 and 1 — recursive scalar reference chains with explicit
-  cycle detection, and processing made independent of accidental ordering.
-- Clean behavior: a cycle is a set, not a path, so its report is rotated to its lexicographically
-  least member and located at that member's origin. `source`, `line`, `column` and `path` are then
-  a pure function of the cycle itself.
-- Why this case exists: it is the second half of a permutation pair. This case passes
-  `-i inputs/second.txt -i inputs/first.txt`; `reference-cycle-report-source-order-first` passes
-  the same two files in the opposite order. Their `expected-diagnostics.json` files are
-  byte-identical, and that identity *is* the assertion.
-- How the case proves it: reading `second.txt` first makes `app.b` the earlier contribution and the
-  first node the resolver reaches, so an implementation that reported the member it reached first
-  would name `app.b` and locate the defect in `inputs/second.txt`. The expected stream names
-  `app.a` at `inputs/first.txt` line 1 column 7 — identical to the sibling case, whose inputs
-  arrived the other way round.
-
-
-- Cycles longer than two members, and cycles whose least member is not the first-written one.
-  Rotation over longer chains is pinned by unit tests against the resolver.
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 13.1 format-agnostic simple-alias resolution; Section 13.2 kind forwarding and
+  mixed literal/reference concatenation; Section 26 item 9. Section 3.1 preserves value references
+  themselves, but does not enumerate the format-agnostic simple-alias index that reduces `@host` to
+  the alias `host`; that addressing rule is a new specification requirement introduced in Section
+  13.1 rather than a Section 3.2 correction.
+- Legacy observation: the baseline exits `1` and writes no `app.properties`. The measurement
+  records `exit 1 (expected 0); missing app.properties`. Standard error is empty beyond the
+  banner.
+- Clean behavior: `${app.database.port}` forwards the referent's settled kind; `${app.database.@host}`
+  addresses the XML attribute canonically; `${app.database.host}` addresses the same attribute
+  through its format-agnostic alias, which is admissible only because `host` is unique at that
+  node; a mixed literal/reference `endpoint` value is a string under Section 13.2 regardless. The
+  run exits `0` writing `app.properties`.
+- Why the difference is intentional: 2.4.0 had one-level scalar references (legacy item 100) and
+  canonical XML components (item 109), but the format-agnostic simple-alias index that reduces
+  `@host` to the alias `host` was added only for the rewrite. In the 2.4.0 model, the reference
+  `${app.database.host}` on line 4 has no matching canonical path -- the payload lives at
+  `app.database.@host` and there is no rule for reducing one to the other -- so the reference fails
+  to resolve and the run exits nonzero without emitting a file. This is the divergence the case
+  exists to document: the specification's alias index is what makes the same reference portable
+  across formats, and a caller relying on it sees a run that produces nothing under the baseline
+  rather than one that produces `app.properties`.
 
 ### `structured-bare-scalar-and-empty-documents`
 
@@ -669,6 +899,60 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   `root` value.
 - The difference is intentional: a structured format can spell a scalar document, so requiring a
   key would invent a name the source never had.
+
+### `type-array-with-key-is-an-illegal-combination`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 corrections against silent order-dependent behavior and against illegal option combinations that must not be silently reinterpreted; Section 16.5 `SCHEME001` for `type=array` plus `key`; Section 26 item 67.
+- Legacy observation: the baseline exits `0` and writes a `cfg.properties` file. The measurement records `exit 0 (expected 1); extra cfg.properties`. Standard error is empty beyond the banner: no diagnostic is emitted for the pair, so the two directives were both accepted and applied in some order rather than reported as incompatible.
+- Clean behavior: the pair is rejected before rendering with one `SCHEME001` and exit `1`, and nothing is written.
+- Why the difference is intentional: Section 16.5 requires that "implementations must not silently choose an order or reinterpret the resulting sequence as a mapping". The baseline's silent success is exactly that -- an implementation choice made behind the user's back. The specific bytes the baseline wrote to `cfg.properties` reflect whichever of `type=array` or `key` its internal step ordering happened to apply first, and Section 3.2 lists "dependent on parallel execution order" and "dependent on shared mutable array-index state" among the corrections precisely so that no run's shape depends on such an accident.
+
+### `type-ignore-removes-a-subtree-and-strands-its-directives`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.1 preservation of scheme-directive precedence and the `type=ignore` name; Section 3.2 corrections against parallel-execution-order dependence and against unhandled user-input conditions; Section 16.6 `type=ignore` scope and Section 15.2 unbound-directive warning; Section 26 item 18.
+- Legacy observation: the baseline exits `0` and writes a `cfg.properties` whose bytes differ from the expected file. The measurement records `content cfg.properties`. Standard error is empty beyond the banner.
+- Clean behavior: `type=ignore` at `cfg.a` removes the whole subtree from this output instance and the stranded `cfg.a.p.type=array` directive is inert but is reported once as a `WARN009` scheme warning. The rendered file therefore contains only `b=3`, exit `0`.
+- Why the difference is intentional: the *shape* of the tree matches -- one `cfg.properties` at exit `0` -- but the bytes differ, so what the baseline wrote to it is not what the specification prescribes. Section 16.6's rule "an effective ignore at path `P` removes every descendant regardless of directives matching those descendants" is a specification decision about which directive wins at a path an ignore covers; without that rule an implementation is free to evaluate `type=array` on `cfg.a.p` in whichever order its passes happen to visit them, and the resulting bytes depend on that accident. The content divergence here is exactly the observable Section 3.2's "dependent on parallel execution order" and "dependent on dictionary iteration order" corrections were written to remove. The stranded-directive warning is not observable in the tree comparison and is not scored by this verdict.
+
+### `validation-gate-leaves-the-output-root-untouched`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against output files being opened before the complete output plan was validated; Section 21.2 global validation gate; Section 19.6 INI section/key projection and `FLAT001`; Section 26 items 30 and 66.
+- Legacy observation: the baseline exits `0` and writes both `ok.ini` and `bad.ini`. The measurement records `exit 0 (expected 1); extra bad.ini; extra ok.ini`. Standard error is empty beyond the banner, so no `FLAT001` is reported and both destinations land as if the collision at `bad.ini` were not a defect.
+- Clean behavior: the collision at `bad.ini` -- `bad.a.b.k` and `bad.a:b.k` project to the same INI section and key -- is detected at pipeline step 19, before any destination is opened. The run reports `FLAT001` and exits `1`. Neither `ok.ini` nor `bad.ini` is written.
+- Why the difference is intentional: Section 3.2 names this correction directly, "caused by output files being opened before the complete output plan was validated". The specific `ok.ini` byte content the baseline lands is what a run that opens each destination as its serializer completes will write next to a run that then fails on another destination; the specification's rule instead makes the whole plan pass validation together, so a defect in one file scrubs the whole publication. The `bad.ini` bytes are the second half of the same defect -- the collision is not detected at all, and something arbitrarily addressed under the two flat keys is what the file carries. Either byte set is the observable Section 3.2 says the specification does not admit.
+
+### `wildcard-cascade-completes-within-the-iteration-bound`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 12.4 wildcard fixed-point evaluation and iteration accounting; Section 23 wildcard iteration budget; Section 26 items 7 and 36. Section 3 does not enumerate `--max-wildcard-iterations`; the fixture pins the bound side of Section 12.4 rather than a Section 3.1 preservation or a Section 3.2 correction.
+- Legacy observation: the baseline exits `1` with no output tree and prints `ERROR(S):` on standard error. The measurement records `exit 1 (expected 0); missing a.properties`.
+- Clean behavior: `--max-wildcard-iterations 3` admits the three generating waves, the fixed point settles, and the run writes `a.properties` with the four expected lines at exit `0`.
+- Why the difference is intentional: 2.4.0 has no `--max-wildcard-iterations` option, so its CommandLineParser rejects the unknown flag before any input is read and prints `ERROR(S):` -- the standard CommandLineParser preamble for an argument diagnostic. The correction is not merely that the option must be accepted but that the bound be a *bound*, so the companion case `wildcard-cascade-crosses-the-iteration-bound` reproduces the failure side of Section 12.4 and this case pins that a run below the bound still completes. Neither half of that guarantee is expressible in 2.4.0, whose iteration limit was hard-coded rather than configurable.
+
+### `wildcard-generation-merges-at-rule-position`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 12.4 requires that "the rule mark still controls conflict precedence" for a
+  generated contribution, and Section 16.10 defines the `replace` scope as "payload, container
+  presence, children, and sequence projection" at the directive's path. Section 3 does not
+  enumerate this correction as a named item; the substantive contract is Sections 12.4 and 16.10.
+- Legacy observation: the baseline writes `precedence.properties` byte-identically with the
+  expected content, but writes different bytes at `whole.properties`. The measurement records a
+  `content whole.properties` divergence with exit `0` and no standard error beyond the banner.
+- Clean behavior: the generated contribution `whole.*.z=two` is a contribution at `whole.x`, so
+  the effective `whole.x.merge=replace` discards the earlier `whole.x=one` payload together with
+  the rest of the value at `whole.x`. Only `x.z=two` survives. On the `precedence` root the two
+  tools happen to agree because both retain the concrete `precedence.x=concrete` value.
+- Why the difference is intentional: 2.4.0 has no stated model for where a generated contribution
+  merges relative to the concrete inputs it aligns with, and no rule that consults an input merge
+  strategy at an ancestor of a generated leaf. Reading the strategy only at the generated leaf,
+  or treating the generation as later because it was produced last, both keep a payload the
+  scheme asked to replace, which is the source-order and merge-scope contract Section 12.4 and
+  Section 16.10 make explicit. Whether the baseline's specific bytes come from either reading is
+  not observable from one divergent file, so the case pins only that they are wrong.
 
 ### `wildcard-ordering-values-survive`
 
@@ -692,6 +976,56 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   structural normalization exception, and an ordering value that survived deletion but not wildcard
   matching would make the addressed item depend on which step last touched it.
 
+### `wildcard-output-selectors-expand-per-capture-tuple`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against a synthetic internal root leaking into user-visible
+  file names, together with Section 14.1's default-filename rule that the concrete selector is
+  written as one dot-joined filename segment, and Section 16.2 for the extension.
+- Legacy observation: the baseline writes `x.properties` and `y.properties` where this case
+  expects `a.x.properties` and `a.y.properties`. The measurement records
+  `missing a.x.properties; missing a.y.properties; extra x.properties; extra y.properties` at
+  exit `0` with no standard error beyond the banner. The two produced files are the same count
+  as the expected files, so the depth of expansion — one instance per depth-2 capture rather
+  than per descendant — is not what diverges here; the divergence is in how each instance is
+  named.
+- Clean behavior: Section 14.1 fixes the default filename as the concrete literalized selector
+  written as one filename segment with dots preserved between the selector's parts, so `a.x`
+  becomes `a.x.properties` and `a.y` becomes `a.y.properties`. The leading literal `a.` is part
+  of the selector, not a wrapper introduced by expansion, so it is present in the filename.
+- Why the difference is intentional: dropping the literal prefix a wildcard selector shares with
+  its captures is the synthetic-root leak Section 3.2 names, and it makes two distinct sibling
+  instances collide on shorter shared names as soon as any two selectors share a suffix. Whether
+  2.4.0 arrived at `x.properties` by stripping the wildcard's literal prefix, by naming the
+  file after the capture alone, or by a third route is not readable from the observed bytes; the
+  fixture pins only that both file names are wrong.
+
+### `wildcard-repeated-capture-backtracking`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 12.1's rule that each capture takes "the shortest text that still permits
+  **the remaining pattern to match**", together with Section 12.2's constraint that a reused
+  identifier "must match the same text". Section 3 does not enumerate these individually; they
+  are the substantive contract under test.
+- Legacy observation: the baseline writes different bytes at both `secret.properties` and
+  `gen.properties`. The measurement records
+  `content gen.properties; content secret.properties` at exit `0` with no standard error beyond
+  the banner.
+- Clean behavior: on the `secret` root, `!secret.*[x]*[x]` must reconsider its first binding
+  from the empty string to `a` so that the constrained second occurrence can consume the
+  remaining `a` of `aa`, suppressing `secret.aa` and publishing only `ab=keep`. On the `gen`
+  root, the fourth component's requirement `0=pxq` forces the second component to bind
+  `0=pxq`, `1=r` so that the whole pattern matches `gen.pxqxr.b.pxq`, and the generated entry
+  lands beside the existing `v=1` sibling.
+- Why the difference is intentional: 2.4.0's wildcard matcher has no stated capture grammar and
+  no reconsideration model. Fixing each `*` to its shortest first-fit binding answers a
+  different question than Section 12.1 asks, and answering it produces both directions of the
+  observable defect visible here — a mask fails to suppress a name it should suppress, and a
+  template fails to graft a name it should graft. Whether the baseline's specific bytes come
+  from a non-backtracking legacy `*` matcher applied to the explicit-capture syntax, from
+  treating `*[x]` as literal text, or from a third reading is not readable from the observed
+  files; the fixture pins only that both roots' outputs are wrong.
+
 ### `wildcard-template-generation`
 
 - namespace2xml 2.4.0: **differs**.
@@ -709,6 +1043,32 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: the legacy behavior left the result of a two-template profile
   dependent on read order, which Section 12.4's fixed point replaces with an order-independent
   answer.
+
+### `xml-a-reference-does-not-import-a-spelling`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.4's rule that "the element-path scalar and its sole text/CDATA
+  content-token scalar are two canonical addresses for one scalar identity, not two candidates
+  in the simple-alias ambiguity index", and Section 11.6's `<![CDATA[...]]>` preservation as a
+  distinct node kind of the origin element rather than of a referring element. Section 3 does
+  not enumerate this specifically; the substantive contract is Sections 11.4 and 11.6.
+- Legacy observation: the baseline writes different bytes at `r.xml`. The measurement records
+  `content r.xml` at exit `0` with no standard error beyond the banner.
+- Clean behavior: `${r.a}` resolves to the scalar `7` at each of its three referring sites, and
+  the destination element's own spelling decides whether that `7` is written as CDATA or as
+  text. `r.d` was written as `<![CDATA[${r.a}]]>` so its resolved value is emitted as CDATA;
+  `r.e` was written as `${r.a}` in ordinary text so its resolved value is emitted as text; the
+  namespace-supplied `r.c=${r.a}` from `extra.txt` becomes an ordinary text child. No CDATA
+  identity travels along the reference edge.
+- Why the difference is intentional: a scalar reference carries a value, not a spelling. Having
+  `${r.a}` import CDATA-ness into every element it appears in would make one node's node kind
+  a property of the elements pointing at it, which contradicts Section 11.4's "two canonical
+  addresses for one scalar identity" model and would make round-trip stability of every
+  referring element a function of the referent's spelling. 2.4.0 has no stated typed-XML model
+  for references at all, so whether the baseline's specific bytes come from importing the
+  CDATA spelling into `r.e` and `r.c`, from stripping CDATA everywhere, from a different
+  handling of the identity `<a>${r.a}</a>` at `r.a` itself, or from some combination is not
+  readable from one divergent file. The fixture pins only that the bytes are wrong.
 
 ### `xml-canonical-addresses`
 
@@ -736,6 +1096,31 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: Section 11.4 exists so that one XML component has exactly one
   address regardless of how the document spells its prefixes, and every legacy behavior above either
   loses a component the document contained or lets the document's spelling decide its identity.
+
+### `xml-cdata-survives-a-round-trip`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.6's requirement that "CDATA is retained as a distinct XML node kind",
+  that "XML output must preserve imported CDATA as CDATA unless an output option requests
+  conversion to ordinary text", and that "if CDATA content contains `]]>`, the writer must
+  split it into a valid sequence of CDATA and/or text nodes without changing the logical
+  text". Section 3 does not enumerate this specifically; the substantive contract is
+  Section 11.6.
+- Legacy observation: the baseline writes different bytes at `cfg.xml`. The measurement records
+  `content cfg.xml` at exit `0` with no standard error beyond the banner.
+- Clean behavior: the three CDATA fixtures survive the round trip as CDATA. `<plain>` retains
+  its single CDATA child unchanged; `<mixed>` retains its mid-string CDATA between the two
+  text runs; `<split>` retains the logical text `a]]>b` by splitting into
+  `<![CDATA[a]]]]><![CDATA[>b]]>`, which is the safe two-segment sequence whose lexical
+  concatenation contains no lexical `]]>`. Adjacent CDATA created purely for safe splitting is
+  coalesced into one logical run on the next input, so a further round trip is stable.
+- Why the difference is intentional: 2.4.0 has no stated typed-XML model for CDATA — Section
+  11.4 records the CDATA node kind and Section 11.6 its round-trip contract as new material —
+  so a CDATA input either survives as CDATA by whatever the host writer's default is, arrives
+  as plain text, has its `]]>` embedding rejected, or is silently mangled at the split. Any of
+  those four outcomes produces different bytes than the expected safe-split output, and this
+  fixture cannot tell them apart from one divergent file. The fixture pins only that the bytes
+  are wrong.
 
 ### `xml-comments-are-ordered-content-nodes`
 
@@ -790,28 +1175,116 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   UTF-16 byte-order mark and was therefore decoded as UTF-8. Both sources report, in the Section
   7.3 command-line order, so one run names every disagreeing file.
 
-### `xml-prohibited-dtd-and-external-resources`
+### `xml-input-options-are-root-level-only`
 
 - namespace2xml 2.4.0: **differs**.
-- Contract: Sections 11.1, 22, and 24.
-- Legacy observation: XML was read with the host library's defaults, which resolve a document type
-  definition. An internal subset therefore defined entities that were expanded into values, a
-  `SYSTEM` identifier could cause the process to retrieve a resource named by the input document,
-  and a nested-entity document consumed memory proportional to the expansion rather than to the
-  file. A configuration file could thus decide what the tool read and how much of it.
-- Clean behavior: Section 11.1 prohibits a document type definition outright — "rejected, not
-  partially processed" — so the internal subset is never read and its entities are never defined,
-  and external entity resolution and network retrieval are refused with it. Non-retrieval is
-  observed rather than asserted: `local.dtd` exists and defines an entity the documents reference,
-  and it is named both relative to the document and relative to the invocation, so neither
-  resolution base can miss it. A tool that read it would emit the entity's replacement text instead
-  of a diagnostic. Each failing document is `XML001` at the Section 22 one-based line and column of
-  the `<!DOCTYPE` token, so a declaration that follows an XML declaration and a comment reports at
-  line 3 rather than line 1, and every failing source reports in the Section 7.3 command-line order.
-  Nothing is published: a blocking input diagnostic decides the run before any output exists.
-- The difference is intentional: an input file that can name a resource, or expand to an
-  unbounded size, makes the tool's behavior a function of the data it is given rather than of the
-  invocation, and Section 11.1 removes that entirely rather than bounding it.
+- Contract: Section 16.8's rule that "selector-qualified input-option directives are blocking
+  scheme errors because input parsing occurs before output instances exist", together with
+  Section 15's rule that "unknown directives are blocking errors". Section 3 does not
+  enumerate this specifically; the substantive contract is Sections 15 and 16.8.
+- Legacy observation: the baseline accepts the selector-qualified `r.xmlinputoptions`
+  directive, produces `r.xml`, and exits `0`. The measurement records
+  `exit 0 (expected 1); extra r.xml` with no standard error beyond the banner.
+- Clean behavior: `r.xmlinputoptions=NormalizeFormattingWhitespace` is `SCHEME001` because the
+  directive can only be root-level, no output is planned, and the run exits `1`.
+- Why the difference is intentional: 2.4.0 has no `xmlinputoptions` directive at all, so the
+  scheme entry either falls under an "unknown directive" path that 2.4.0 does not diagnose,
+  or is treated as data at path `r.xmlinputoptions` and folded into the output tree, or both;
+  in every reading the run continues. Selector-qualified input options cannot mean anything
+  in the specified pipeline, because Section 15.1 step 2 compiles root-level input options
+  before output instances exist, and letting the run continue with a directive whose scope
+  cannot be honored publishes a plausible-looking file for a request the tool cannot act on.
+  The fixture pins only that the tool must not continue.
+
+### `xml-mixedness-spans-contributions`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.4's rule that "mixedness and repeated-child classification are properties
+  of the merged common-model element and are evaluated at concrete merge time across all input
+  contributions to that element", together with the follow-up "if the merged element is mixed,
+  every content node uses its `#n` wrapper even when it originated in an element-only source
+  document". Section 17.4 forbids deep-merging mixed-content child elements across
+  contributions. Section 3 does not enumerate this specifically.
+- Legacy observation: the baseline writes different bytes at both `r.xml` and `r.properties`.
+  The measurement records `content r.properties; content r.xml` at exit `0` with no standard
+  error beyond the banner.
+- Clean behavior: the merged `a` is mixed because one contribution is mixed, so every content
+  node under `a` is a `#n` node — `r.a.#0=t`, `r.a.#1.b=1`, `r.a.#2.b=9` — and the XML view is
+  `<a>t<b>1</b><b>9</b></a>` with the converted content allocated above the mixed document's
+  own tokens.
+- Why the difference is intentional: 2.4.0 has no stated model for evaluating mixedness across
+  contributions, so an element-only contribution and a mixed one at the same path can only
+  agree by coincidence. Reusing the ordinals the element-only document assigned to sibling
+  ordering alone would land its child on top of the mixed document's first text node, and
+  reaching the same child at two addresses (`a.b` and one of `a.#n.b`) would make one node
+  reachable at two paths. Whether the baseline's specific bytes come from either reading is not
+  observable from two divergent files, so the case pins only that both are wrong.
+
+### `xml-normalize-formatting-whitespace`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.7's `NormalizeFormattingWhitespace` compatibility mode — "non-whitespace
+  text is preserved; whitespace in mixed content is preserved; whitespace under
+  `xml:space="preserve"` is preserved; whitespace-only text between element children must be
+  discarded as formatting indentation" — together with Section 16.8's placement of the
+  root-level `xmlinputoptions` directive. Section 3 does not enumerate this specifically; the
+  substantive contract is Sections 11.7 and 16.8.
+- Legacy observation: the baseline writes different bytes at `r.xml`. The measurement records
+  `content r.xml` at exit `0` with no standard error beyond the banner.
+- Clean behavior: the whitespace-only text between `<a>` and its `<b>` child, and between
+  `<r>` and `<a>` and `<m>`, is formatting indentation and is discarded on input;
+  `NormalizeFormattingWhitespace` is a valid `xmlinputoptions` value at the scheme root. The
+  serializer then re-indents each element-only parent with two spaces per depth. `<m>` is
+  mixed content, so its whitespace — including the whitespace-only text after `<b>2</b>` — is
+  preserved as data, which is why the expected file's `<m>` block is not re-indented.
+- Why the difference is intentional: 2.4.0 has no `xmlinputoptions` directive and no
+  `NormalizeFormattingWhitespace` mode, so the scheme entry is either an unknown-directive
+  no-op or is treated as data; either way the XML reader keeps every whitespace-only text
+  node in element-only content, and the serializer's own indentation is added on top. That
+  produces different bytes at `r.xml` and would also weaken the same-format round-trip
+  guarantee the fixture uses to distinguish the mode's opt-in effect from the default.
+
+### `xml-singleton-promotion-spans-contributions`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.4's rule that "mixedness and repeated-child classification are properties
+  of the merged common-model element", together with the accompanying "implementations must not
+  silently retarget `a.b` to the first repeated child" for singleton-to-sequence promotion.
+  Section 17.4 fixes the resulting concatenation model. Section 3 does not enumerate this
+  specifically.
+- Legacy observation: the baseline writes different bytes at `r.properties`. The measurement
+  records `content r.properties` at exit `0` with no standard error beyond the banner.
+- Clean behavior: the base contribution's two `<d>` children establish `c.d` as a sequence with
+  items at ordering values `0` and `1`, and the overlay's singleton `<d>` becomes a third
+  sequence item at `2`, producing `r.c.d.0=1`, `r.c.d.1=2`, `r.c.d.2=3`.
+- Why the difference is intentional: 2.4.0 has no stated model for reclassifying a per-contribution
+  scalar path when another contribution establishes the same path as a sequence, so a singleton
+  meeting a repeated-child sequence can only land in either "coincidentally right" or one of the
+  two ways Section 11.4 forbids — retargeting `a.b` to the first repeated child, or leaving the
+  singleton scalar beside a sequence at a path that no longer names a scalar. Both readings
+  would make one node reachable at two addresses. The observation records only that the bytes
+  differ from the expected sequence; which of those readings the baseline used is not readable
+  from one divergent file.
+
+### `xml-whitespace-is-preserved-by-default`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.7's rule that "the default XML input mode is `PreserveWhitespace`" and
+  that "the option `PreserveWhitespace` retains every text node". Section 3 does not
+  enumerate this specifically; the substantive contract is Section 11.7.
+- Legacy observation: the baseline writes different bytes at `r.xml`. The measurement records
+  `content r.xml` at exit `0` with no standard error beyond the banner.
+- Clean behavior: with no `xmlinputoptions` in the scheme, every text node in `main.xml`
+  survives — including the whitespace-only text between element-only siblings and the four-
+  space indentation levels — and the writer emits the file byte-for-byte with the whitespace
+  it read.
+- Why the difference is intentional: 2.4.0 has no stated default, so its default is whatever
+  its XML reader and serializer between them produce. Either the reader discards whitespace-
+  only formatting text or the serializer re-indents on output; either behavior is observable
+  as different bytes, and either weakens the same-format round-trip guarantee Section 3.3
+  states for normalized same-format round trips. Making preservation the default is what
+  keeps the round trip byte-stable without an opt-in, and the fixture pins that the bytes
+  match the input's whitespace under the default mode.
 
 ### `yaml-comment-positions-survive-a-round-trip`
 
@@ -911,25 +1384,6 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   does not depend on which YAML library is linked, and every legacy behavior above loses
   information the source contained.
 
-### `yaml-restricted-schema-refusals`
-
-- namespace2xml 2.4.0: **differs**.
-- Contract: Sections 10.1, 10.2, 10.3, 22, and 24.
-- Legacy observation: the YAML reader accepted whatever the host library accepted. Anchors and
-  aliases were expanded silently, so one edit to an anchored value changed every alias that
-  referenced it without saying so; explicit tags were honored; a merge key silently folded another
-  mapping into the current one; and a duplicate mapping key kept whichever the parser visited last,
-  so a typo that shadowed a real setting produced no message at all.
-- Clean behavior: Section 10.2 makes anchors, aliases and "every explicit tag token" blocking input
-  errors, and adds that "no tag is accepted implicitly". Section 10.3 refuses every explicit
-  document marker. Section 10.1 requires every mapping key to be a scalar and excludes both merge
-  keys and duplicate keys. Each is `PARSE001` against the source that carries it, at the Section 22
-  one-based line and character column of the offending token, and every failing source reports in
-  the Section 7.3 command-line order so one run names every bad file.
-- The difference is intentional: each construct either hides an override behind syntax or makes the
-  meaning of a document depend on which library read it, and Section 10.1 exists to remove exactly
-  that dependence.
-
 ### `yaml-scalars-survive-a-same-format-round-trip`
 
 - namespace2xml 2.4.0: **differs**.
@@ -954,31 +1408,287 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
+## Inputs that crashed 2.4.0 (5)
+
+The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
+reports a diagnostic and exits deliberately.
+
+### `an-existing-non-directory-output-root-is-rejected`
+
+- namespace2xml 2.4.0: **crashes**.
+- Contract: Section 3.2 correction against unhandled user-input exceptions; Section 21.1 output-root
+  rejection; Section 26 item 29.
+- Legacy observation: the baseline terminates with an unhandled `System.IO.IOException` reading
+  `Cannot create '…\out' because a file or directory with the same name already exists.` and exits
+  `-532462766`. The measurement records `exit -532462766 (expected 1)`. The pre-existing `out`
+  file is preserved because the exception is raised before anything is written.
+- Clean behavior: the plan is rejected before any directory creation with one `PATH001`
+  diagnostic anchored at `§21.1`, exit `1`, and the output root untouched.
+- Why the difference is intentional: 2.4.0 forwarded the CLI's output path directly to
+  `Directory.CreateDirectory`, which raises `IOException` when the path already exists as a file
+  and the process has no handler for that exception. Section 3.2 lists "caused by unhandled
+  user-input exceptions" among the behaviours the replacement must not preserve, so the correction
+  is not merely to change the exit code but to detect the condition and report it as a stable
+  diagnostic. The crash exit code carries no code, no phase, and no spec anchor; an automated
+  caller cannot tell it apart from a runtime crash.
+
+### `type-mapping-keeps-numeric-keys-and-array-discards-names`
+
+- namespace2xml 2.4.0: **crashes**.
+- Contract: Section 3.2 correction against unhandled user-input exceptions; Section 16.6 `type=mapping` explicit escape hatch and `type=array` conversion; Section 8.7 numeric-map inference; Section 26 item 54.
+- Legacy observation: the baseline terminates with an unhandled `System.AggregateException: One or more errors occurred. (Requested value 'mapping' was not found.)` and exits `-532462766`. The measurement records `exit -532462766 (expected 0); missing cfg.properties`.
+- Clean behavior: `type=mapping` is a recognized directive value under Section 16.6, so pipeline step 16 evaluates it, `cfg.m` renders as a mapping projection with numeric keys preserved and `key=name` then materializes records, `cfg.s` converts under `type=array`, and the whole run exits `0` writing the expected `cfg.properties`.
+- Why the difference is intentional: `type=mapping` is a value the 2.4.0 `type` directive did not accept -- the message text is that verbatim -- and the CLI has no handler for the `AggregateException` its enum parser wraps around `ArgumentException`. Section 3.2 lists "caused by unhandled user-input exceptions" among the behaviours the replacement must not preserve, so the correction is not merely to accept `type=mapping` but to report every recognizable scheme condition as a stable diagnostic with a code, a phase, and a specification anchor. The negative exit code and stack trace this fixture provokes are neither those things, and an automated caller cannot tell them apart from a runtime crash.
+
+### `xml-element-only-children-keep-their-place`
+
+- namespace2xml 2.4.0: **crashes**.
+- Contract: Section 3.2 correction against unhandled user-input exceptions, together with
+  Section 11.4's rules that "for element-only repeated children ... the canonical child paths
+  are `a.b.0`, `a.b.1` ... using the `a.b` sequence path's own high-water allocator" and that
+  "implementations must not silently retarget `a.b` to the first repeated child".
+- Legacy observation: the baseline exits with an unhandled-exception status
+  (`System.Xml.XmlException: Name cannot begin with the '1' character, hexadecimal value 0x31.`,
+  exit `-532462766`) and writes different bytes at `r.xml` before failing. The measurement
+  records `exit -532462766 (expected 0); content r.xml` with that stderr.
+- Clean behavior: the two `<b>` element-only siblings form a sequence at `r.b` with ordering
+  values `0` and `1`; `<c>` sits between them at its own content-token position. The
+  namespace-supplied `r.b.1=30` patches the sequence item at ordering value `1`, so
+  `<r><b>1</b><c>2</c><b>30</b></r>` is emitted with `<c>` retaining its place between the
+  two `<b>` children.
+- Why the difference is intentional: 2.4.0 has no separate high-water allocator for the
+  repeated-child sequence and no rule preventing a numeric qualified-name part from being
+  written straight into an XML element name, so the ordering-value component `1` reaches the
+  XML writer as an element name and the writer refuses it. Producing a partial `r.xml`
+  before crashing also violates Section 15.4's rule that transformation and planning errors
+  never produce a partial output instance for a later phase. Both symptoms are the
+  unhandled-exception class Section 3.2 removes.
+
+### `xml-node-types-select-the-spelling`
+
+- namespace2xml 2.4.0: **crashes**.
+- Contract: Section 3.2 correction against unhandled user-input exceptions, together with
+  Section 15's rule that "unknown directives are blocking errors" and Section 16.6's
+  enumeration of the recognized XML `type` values (`element`, `attribute`, `cdata`, `text`).
+- Legacy observation: the baseline exits with an unhandled-exception status
+  (`System.AggregateException: One or more errors occurred. (Requested value 'attribute' was
+  not found.)`, exit `-532462766`) and produces no `cfg.xml`. The measurement records
+  `exit -532462766 (expected 0); missing cfg.xml` with that stderr.
+- Clean behavior: each of the four `type` values classifies the corresponding path — `@id` as
+  an element under the item, `name` as an attribute, `note` as CDATA, `tail` as text — and
+  the resulting `<item name="widget"><id>7</id><![CDATA[x < y]]>trailing</item>` is emitted
+  under `<doc>`.
+- Why the difference is intentional: 2.4.0 has neither `type=attribute` nor `type=cdata` nor
+  `type=text` in its recognized set, so the scheme value fails an enum parse rather than
+  being classified as an unknown-directive-value error at the scheme phase. `SCHEME001`
+  reports a nonempty scalar value that names an illegal option/type combination cleanly and
+  exits `1`; letting the enum parser propagate its `ArgumentException` all the way to the
+  process boundary is the unhandled-exception class Section 3.2 removes.
+
 ### `yaml-section-22-line-terminators`
 
-- namespace2xml 2.4.0: **differs**.
-- Contract: Sections 10.2 and 22.
-- Legacy observation: 2.4.0 expanded anchors silently, so none of these four documents produced any
-  diagnostic and there was no reported position to be right or wrong about.
-- Clean behavior: Section 10.2 makes an anchor a blocking input error, and Section 22 fixes what
-  the line it is reported at counts: "A line is terminated by LF, CRLF, or a lone CR, and by
-  nothing else; consistently with Section 8.1, U+0085, U+2028, and U+2029 do not terminate a line."
-  The four inputs carry the same anchor after the same two mapping entries and differ only in what
-  separates the first entry from the second. `control.yaml` uses a real LF and reports line 3; the
-  other three use U+0085, U+2028 and U+2029 and report line 2, because those characters are data on
-  line 1 rather than the end of it. All four report column 4, the anchor's column within its own
-  line being unaffected.
-- The difference is intentional: the YAML scanner underneath this reader implements YAML 1.1, in
-  which all three characters *are* line breaks. Passing its line number through would make the
-  position of every diagnostic after such a character depend on which library read the file, which
-  is the dependence Section 10.1 exists to remove. `control.yaml` is in the fixture so that a
-  reader which counts the excluded characters as breaks reports line 3 four times and is caught by
-  three mismatches, rather than passing on a coincidence.
+- namespace2xml 2.4.0: **crashes**.
+- Contract: Section 3.2 correction against unhandled user-input exceptions, together with
+  Section 22's rule that "a line is terminated by LF, CRLF, or a lone CR, and by nothing else;
+  consistently with Section 8.1, U+0085, U+2028, and U+2029 do not terminate a line", and
+  Section 10.2's rejection of anchors.
+- Legacy observation: the baseline exits with an unhandled-exception status
+  (`System.InvalidOperationException: Sequence contains no elements`, exit `-532462766`) and
+  also stages a partial `a.ini` file before crashing. The measurement records
+  `exit -532462766 (expected 1); extra a.ini` with that stderr. An earlier draft of this note
+  claimed the baseline reported wrong line numbers under Section 22; the actual baseline never
+  reaches a diagnostic at all on these inputs.
+- Clean behavior: Section 10.2 rejects each anchor as `PARSE001` at the Section 22 one-based
+  line and column of the anchor token, and Section 22's line count excludes U+0085, U+2028, and
+  U+2029, so `control.yaml` reports line 3 and the other three report line 2. The exit is `1`
+  and no partial output is written; Section 15.4 requires that a failed source contributes no
+  partial overlay and that transformation and planning errors never produce a partial output
+  instance for a later phase.
+- Why the difference is intentional: 2.4.0 has no `RestrictedYaml1` refusal, so it hands the
+  four documents to the host YAML scanner and continues into the INI writer. Something in
+  that pipeline — a sequence assumed nonempty by the writer, or by the mapping-to-INI
+  projection — throws under user-visible conditions, which is exactly the unhandled-exception
+  class Section 3.2 removes. Producing `a.ini` on the way past a crash also violates
+  Section 15.4's rule that a failed source stages no partial output. Whether the baseline's
+  specific exception path was in the YAML reader, the INI writer, or the projection between
+  them is not readable from the observation, and the fixture pins only that the run ended in a
+  crash rather than in a diagnosed refusal.
 
-## Behaviour preserved from 2.4.0 (1)
+## Nondeterministic in 2.4.0 (2)
 
-These cases pin behaviour that 2.4.0 already had. They exist so a future change cannot lose it
-silently.
+Repeated baseline runs of these cases do not agree with each other.
+
+### `json-strict-parsing-refusals`
+
+- namespace2xml 2.4.0: **nondeterministic**. Across forty identical runs on Linux the baseline
+  aborted thirty-nine times — exit `134`, standard error carrying `Unhandled exception.
+  System.InvalidOperationException: Sequence contains no elements`, and an empty `app.ini` left
+  behind that is not in the expected tree — and on one run exited `1` with no output at all, which
+  is indistinguishable from this case's expected result. On Windows the aborting result reports
+  exit `-532462766`, the same unhandled-exception disposition under a different convention. The
+  dominant result is a crash, but a crash is not what the baseline reliably does, and Appendix C.6
+  requires the verdict to say so: a migrating run cannot count on either outcome. That one run in
+  forty is also why C.6 makes this verdict unrefutable by sampling rather than something the lane
+  re-derives.
+- Contract: Sections 9.1, 9.2, 9.3, 22, and 24. Section 3.2 lists "caused by unhandled user-input
+  exceptions" as a defect the replacement must not preserve, and Section 3.2 lists silent
+  duplicate-key acceptance as the "parser-dependent behavior and accidental hidden overrides"
+  Section 9.3 was written to close.
+- Legacy observation: the JSON reader accepted comments and trailing commas, and a duplicate
+  object key silently kept whichever the parser visited last, so a typo that shadowed a real
+  setting produced no message at all. The strict-parse strengthening in 3.0 additionally exposed
+  a legacy code path that the 2.4.0 pipeline could not survive at all on this corpus of refusals.
+- Clean behavior: each nonstandard extension is `PARSE001` against the source that carries it, at
+  the Section 22 one-based line and character column of the offending token. Every failing source
+  reports, in the Section 7.3 command-line order, so one run names every bad file rather than
+  stopping at the first.
+- The difference is intentional: Section 9.3 states that rejecting duplicates "avoids
+  parser-dependent behavior and accidental hidden overrides", which is exactly what the legacy
+  reader did, and Section 6.3 forbids letting a user-input condition leave the process as an
+  unhandled exception.
+- `surrogate-escape.json` carries a `\u` escape standing for an unpaired surrogate. Section 9.1
+  admits strings, and Appendix A.2 excludes surrogates from every escape, so the document denotes
+  no text and is refused rather than repaired into U+FFFD. The escape is also why this source is
+  here rather than in a reader unit test alone: the condition reaches the host parser through a
+  path that reports it as an ordinary state error, so nothing but an end-to-end run proves it does
+  not leave the process as an unhandled exception — which, on the 2.4.0 baseline, it does.
+
+### `mask-after-sequence-rebasing`
+
+- namespace2xml 2.4.0: **nondeterministic**. Ten identical runs of this case on Linux produced
+  three different observable results: `a.ini` containing `0=first` three times, `a.ini` containing
+  `0=second` six times, and one run that exited `1` and wrote no file at all. The inputs, the
+  scheme, the working directory and the environment were the same every time.
+- Contract: Sections 8.6, 15.1 step 10, 16.10 `append`, and 5.4 for the rule under test; Section 1
+  and Section 24 for the determinism this observation refutes in the baseline. Section 3 does not
+  enumerate the ordering-value model that this fixture pins.
+- Legacy observation: sequence concatenation had no stated ordering-value model, and the baseline
+  resolves it differently from run to run. `0=first` is the result this case expects, so roughly a
+  third of baseline runs happen to look correct — which is exactly why a single sample is not
+  evidence. Both surviving values are drawn from the two inputs, and the mask `!a.1` removes
+  whichever item the run happened to place at index 1, so the instability is in the order the two
+  contributions are folded rather than in the mask.
+- Clean behavior: `merge=append` rebases the later contribution's items "onto fresh implicit
+  ordering values above the current high-water mark", so the second document's only item lands at
+  ordering value 1 on every run. The mask names that value and suppresses the item there. This is
+  why Section 15.1 applies masks at step 10 and not only when contributions are merged: before the
+  merge the item is at ordering value 0 in its own document, and no mask written against its final
+  position could match it.
+- The difference is intentional: Section 1 requires identical inputs to produce byte-identical
+  outputs. An ordering that varies with whatever the baseline's fold happened to observe is not a
+  behaviour worth preserving, and a configuration transformer whose output depends on the run is
+  not usable in a build.
+
+This case is also the reason Appendix C.6 samples each baseline run more than once. It was first
+recorded as `agrees` from a single Windows run that returned `0=first`, and the claim survived
+review because it was consistent with everything then measured. Sampling five times per case found
+it, and then found a second unstable case — `json-strict-parsing-refusals`, whose minority branch
+appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
+this verdict.
+
+## Same observable result as 2.4.0 (26)
+
+The baseline produces this case's expected output tree and exit code. That is a statement about
+the result and not about the reason: two tools exit `1` on the same command line whether they
+reject the same thing or entirely different things. Each entry below says which it is, and only
+those that name a shared reason are behaviour 3.0 preserved.
+
+### `a-cross-format-collision-replaces-the-earlier-plan`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.2 correction that collisions between output instances must not rely on
+  `merge`; Section 15.1 step 18 and Section 17.5.
+- Legacy observation: the baseline reproduces `out.conf` as `m=2` and exits `0` with no standard
+  error beyond its banner.
+- Why the observable agreement is not compatibility evidence: this fixture is deliberately built
+  around disjoint keys — `a` contributes `k` and `b` contributes `m` — so a merge and a Section 17.5
+  replacement leave the same single INI line at the destination. The prose above already records
+  that the format and the key set are what this case discriminates, and neither of those is enough
+  to tell the two rules apart when only one contribution supplies each key. 2.4.0 has no
+  `filemerge` and no stated model for a cross-format collision at one destination, so how it
+  arrived at the same bytes cannot be read off the observable, and this case is not the one that
+  would find out.
+
+### `cli-diagnostics-format-inline-invalid`
+
+- namespace2xml 2.4.0: **agrees**, but for an unrelated reason: the `--diagnostics-format` option
+  does not exist in 2.4.0.
+- Contract: Section 3.2 deliberately corrected behavior; Sections 6.4.1 and 6.4.3.
+- Legacy observation: the baseline exits `1` and produces no output tree, matching the case's
+  expected exit code and empty tree. Standard error beyond the banner is empty; whatever 2.4.0
+  wrote about the unfamiliar option went elsewhere, or nowhere, and the harness compares only the
+  tree and the exit code.
+- Clean behavior: the pre-scan resolves the encoding from the surviving valid occurrence, then
+  ordinary validation reports `CLI001` for an unrecognized inline value in that encoding, and the
+  process exits 1.
+- Why the observable agreement is not compatibility evidence: 2.4.0 has no `--diagnostics-format`
+  option, so whatever reason it exited `1` for is not the reason this case's expected diagnostic
+  names. 3.0 emits one `CLI001` in the encoding the pre-scan resolved, then exits `1` before any
+  input or scheme is opened. Both runs exit `1` with an empty tree, but only 3.0 emits a stable
+  code, a `spec` anchor, and — when the surviving occurrence resolves to `json` — a machine-readable
+  diagnostic stream. Section 3.2 exists so an invalid command line can still be reported in the
+  encoding the caller asked for; an automated caller cannot read the baseline's failure.
+
+### `cli-diagnostics-format-invalid-value`
+
+- namespace2xml 2.4.0: **agrees**, but for an unrelated reason: the `--diagnostics-format` option
+  does not exist in 2.4.0.
+- Contract: Section 3.2 deliberately corrected behavior; Sections 6.4.1 and 6.4.3.
+- Legacy observation: the baseline exits `1` and produces no output tree, matching the case's
+  expected exit code and empty tree. Standard error beyond the banner is empty; whatever 2.4.0
+  wrote about the unfamiliar option went elsewhere, or nowhere, and the harness compares only the
+  tree and the exit code.
+- Clean behavior: the pre-scan resolves the encoding from the surviving valid occurrence, then
+  ordinary validation reports `CLI001` for an unrecognized value in that encoding, and the process
+  exits 1.
+- Why the observable agreement is not compatibility evidence: 2.4.0 has no `--diagnostics-format`
+  option, so whatever reason it exited `1` for is not the reason this case's expected diagnostic
+  names. 3.0 emits one `CLI001` in the encoding the pre-scan resolved, then exits `1` before any
+  input or scheme is opened. Both runs exit `1` with an empty tree, but only 3.0 emits a stable
+  code, a `spec` anchor, and — when the surviving occurrence resolves to `json` — a machine-readable
+  diagnostic stream. Section 3.2 exists so an invalid command line can still be reported in the
+  encoding the caller asked for; an automated caller cannot read the baseline's failure.
+
+### `cli-diagnostics-format-missing-value`
+
+- namespace2xml 2.4.0: **agrees**, but for an unrelated reason: the `--diagnostics-format` option
+  does not exist in 2.4.0.
+- Contract: Section 3.2 deliberately corrected behavior; Sections 6.4.1 and 6.4.3.
+- Legacy observation: the baseline exits `1` and produces no output tree, matching the case's
+  expected exit code and empty tree. Standard error beyond the banner is empty; whatever 2.4.0
+  wrote about the unfamiliar option went elsewhere, or nowhere, and the harness compares only the
+  tree and the exit code.
+- Clean behavior: the pre-scan resolves the encoding from the surviving valid occurrence, then
+  ordinary validation reports `CLI001` for a missing value in that encoding, and the process exits
+  1.
+- Why the observable agreement is not compatibility evidence: 2.4.0 has no `--diagnostics-format`
+  option, so whatever reason it exited `1` for is not the reason this case's expected diagnostic
+  names. 3.0 emits one `CLI001` in the encoding the pre-scan resolved, then exits `1` before any
+  input or scheme is opened. Both runs exit `1` with an empty tree, but only 3.0 emits a stable
+  code, a `spec` anchor, and — when the surviving occurrence resolves to `json` — a machine-readable
+  diagnostic stream. Section 3.2 exists so an invalid command line can still be reported in the
+  encoding the caller asked for; an automated caller cannot read the baseline's failure.
+
+### `cli-end-of-options-values`
+
+- namespace2xml 2.4.0: **agrees**. The baseline reproduces the case's expected result observably,
+  and this section explains why that is not evidence its CLI grammar is Section 6.2.
+- Contract: Section 6.2 option-token grammar; Section 3.1 preserves "existing CLI option names"
+  and "missing-file warning-and-ignore behavior"; Section 26 item 86.
+- Legacy observation: the baseline writes `app.properties` with the expected `name=example` and
+  exits `0`, matching the case's expected tree and exit code. Its standard error is empty beyond
+  the banner.
+- Clean behavior: `--` ends option recognition, and every following token — here `-` and
+  `--output` — becomes an ordinary value for the immediately preceding list-valued option `-i`.
+  Neither file exists, so Section 7.2 warns once for each missing source and continues; `-s
+  schemes/main.txt` and `-i inputs/main.txt` still supply the plan, so `app.properties` is written.
+- Why the observable agreement is not compatibility evidence: 2.4.0's CommandLineParser accepted
+  the same three trailing tokens without failing the run — how it interpreted them is not
+  determinable from the observable, since standard error is empty and only the plan bytes are
+  compared. The uniform grammar of Section 6.2 is nowhere stated in any 2.4.0 contract; a future
+  library change, or a different argument parser, could have refused the same input. The
+  specification pins the answer so callers who want to name a file whose name begins with `-`
+  can rely on it.
 
 ### `cli-help`
 
@@ -990,56 +1700,446 @@ silently.
 - The difference is intentional: help text is prose and is not part of byte-identical
   determinism, but the exit status and the stdout channel are contractual.
 
-## Unclassified
+### `cli-inline-value-accepted`
 
-These cases carry a `legacy.md` that states neither agreement nor difference. That is a
-defect in the fixture; see CONTRIBUTING.md.
+- namespace2xml 2.4.0: **agrees**. The baseline reproduces the case's expected result observably,
+  and this section explains why that is not evidence its CLI grammar is Section 6.2.
+- Contract: Section 6.2 option-token grammar; Section 3.1 preserves "existing CLI option names";
+  Section 26 item 86.
+- Legacy observation: the baseline writes `app.properties` with the expected `name=example` and
+  exits `0`, matching the case's expected tree and exit code. Its standard error is empty beyond
+  the banner.
+- Clean behavior: every long option accepts its value inline, so `--input=inputs/main.txt` is the
+  same invocation as `--input inputs/main.txt` and `--scheme=schemes/main.txt` is the same as
+  `--scheme schemes/main.txt`. The scheme selects `app.output=namespace` and the profile supplies
+  `app.name=example`, so `app.properties` is written.
+- Why the observable agreement is not compatibility evidence: 2.4.0's CommandLineParser
+  incidentally supported the `--name=value` inline form because that is a convention of the
+  library, not because any 2.4.0 contract fixed it. A caller who read the 2.4.0 documentation
+  could not learn that the inline form was accepted, and a future library change could have
+  removed it. Section 6.2 pins the uniform inline form so callers can rely on it, and this fixture
+  discriminates a shipped tool that stops accepting it.
 
-- `a-cross-format-collision-replaces-the-earlier-plan`
-- `a-later-output-declaration-restores-an-ignored-instance`
-- `a-rejected-filename-is-reported-once-for-two-formats`
-- `a-replaced-destination-keeps-the-high-water-mark`
-- `a-transform-that-makes-a-bare-scalar-still-has-a-key`
-- `a-written-traversal-segment-is-rejected`
-- `an-empty-qualifier-escapes-the-alias-ambiguity`
-- `an-existing-non-directory-output-root-is-rejected`
-- `append-onto-a-non-sequence-accumulator-is-an-error`
-- `array-runs-before-multiline`
-- `cycle-rotation-uses-utf8-byte-order`
-- `destination-fold-follows-wildcard-match-order`
-- `destination-planning-crosses-the-output-bound`
-- `destinations-differing-only-by-case-collide`
-- `filemerge-error-rejects-a-second-contribution`
-- `filename-captures-are-opaque-segment-data`
-- `folded-implicit-items-rebase-above-the-destination-mark`
-- `key-directive-precedence-follows-source-order`
-- `key-projects-an-ordered-mapping-as-records`
-- `mask-candidates-consume-the-wildcard-limit`
-- `mask-clears-shape-marks`
-- `merge-error-rejects-a-second-source-contribution`
-- `merge-strategies-over-native-sequence-shapes`
-- `one-destination-folds-by-format-before-match-order`
-- `output-ignore-suppresses-one-concrete-instance`
-- `output-selector-addresses-a-sequence-item`
-- `reference-resolution-crosses-the-depth-bound`
-- `reference-scalar-only-and-free-wildcard-rejected`
-- `reference-typed-values-and-alias-addressing`
-- `selector-candidates-consume-the-wildcard-limit`
-- `two-cycles-that-print-alike-are-both-reported`
-- `type-array-with-key-is-an-illegal-combination`
-- `type-ignore-removes-a-subtree-and-strands-its-directives`
-- `type-mapping-keeps-numeric-keys-and-array-discards-names`
-- `validation-gate-leaves-the-output-root-untouched`
-- `wildcard-cascade-completes-within-the-iteration-bound`
-- `wildcard-cascade-crosses-the-iteration-bound`
-- `wildcard-filename-substitutes-the-selector-captures`
-- `wildcard-generation-crosses-the-generated-bound`
-- `wildcard-generation-merges-at-rule-position`
-- `wildcard-output-selector-matching-nothing-warns`
-- `wildcard-output-selectors-expand-per-capture-tuple`
-- `wildcard-repeated-capture-backtracking`
-- `xml-mixedness-spans-contributions`
-- `xml-singleton-promotion-spans-contributions`
+### `cycle-rotation-uses-utf8-byte-order`
+
+- namespace2xml 2.4.0: **agrees**, but for an unrelated reason: only the tree and the exit code are
+  compared, and the byte-order distinction this case pins is invisible outside the diagnostic
+  stream.
+- Contract: Section 22 — "Rotate the ring so its lexicographically smallest canonical path under
+  unsigned UTF-8 byte order is first"; Section 13.1 `REFERENCE003`; Section 26 item 5.
+- Legacy observation: the baseline exits `1` and produces no output tree, matching the case's
+  expected exit code and empty tree. Standard error beyond the banner is empty. Whatever 2.4.0 did
+  with the two-node reference ring is not visible on either channel this harness compares.
+- Clean behavior: the rotation is chosen under unsigned UTF-8 byte order, which is the order the
+  specification names everywhere it orders text. The report is located at line 2 column 6 with
+  path `m.a豈`.
+- Why the observable agreement is not compatibility evidence: this fixture's whole substance is
+  the `path`, `line`, and `column` of one diagnostic, and the harness does not compare a legacy
+  run's diagnostics against `expected-diagnostics.json` — it compares only the tree and the exit
+  code. C#'s native string comparison is ordinal over UTF-16 code units and picks a different
+  rotation on this ring, so 2.4.0's report — if it produces one at all — points at line 1, column
+  6, and path `m.a` + `U+10000`. Both runs exit `1` with an empty tree, so the observable evidence
+  is silent about which rotation was chosen. That is the classic Appendix C.6 case where the
+  verdict says "the observable result is the same" and the prose says "for reasons the observable
+  cannot separate".
+
+### `destination-planning-crosses-the-output-bound`
+
+- namespace2xml 2.4.0: **agrees** on the observable. Legacy had no configurable resource limits and
+  no `--max-outputs` option; the 2.4.0 CLI refuses the unknown option and exits nonzero with no
+  output tree, which coincides with the case's expected exit 1 and empty tree. The observable
+  agreement is therefore evidence of an option 2.4.0 does not have rather than of a planned-
+  destinations bound it honors.
+- Contract: Section 6.2 `--max-outputs`, "Maximum planned destination files"; Section 23 — budgets
+  "consumed in their normative pipeline order" and accounted "before allocation or expansion
+  whenever possible"; Section 15.1 steps 17 and 18; Section 26 item 72. Section 3 does not
+  enumerate this bound; the fixture pins Section 23 rather than a Section 3.1 preservation or a
+  Section 3.2 correction.
+- Clean behavior: the bound is real, and the crossing is attributed to the destination that crossed
+  it rather than to the run as a whole.
+- Why this case exists: as with `--max-reference-depth`, the option was accepted and never consulted.
+  It also has to be charged in the right place. A destination file becomes *planned* at step 18,
+  which is the last point at which one destination can still absorb another under `filemerge` or a
+  cross-format override; counting output instances earlier would charge for files that never exist,
+  and counting after serialization would allocate the buffers the bound is there to prevent.
+- How the case proves it: three sibling roots each declare one namespace output, so three distinct
+  destinations are planned in declaration order. At a bound of 2 the run reports `LIMIT001` naming
+  `z.properties` and exits 1, and no file is written. Naming the third destination rather than the
+  first or the run pins both halves: two destinations were planned without complaint, and the third
+  is the one refused.
+- The diagnostic carries no `source` or `line`. The condition is a property of the planned set
+  rather than of any one line of any input, which is the same reason Section 26 item 25 gives for
+  `merge=error`.
+
+### `empty-output-plan-warning`
+
+- namespace2xml 2.4.0: **agrees** on the observable. A scheme that declares no `output`
+  contributes no destinations, so 2.4.0 produces no files and exits 0 — which is exactly the
+  case's expected exit 0 and empty tree. The `WARN008` diagnostic that the 3.0 stream carries is
+  not part of the observable per Appendix C.6 (exit code and output tree only), so the agreement
+  is genuine on what is checked. It is not evidence of compatibility on what is not checked: 2.4.0
+  has no structured diagnostic stream and never announces that its output plan is empty, so a
+  scheme that had been edited into declaring nothing was indistinguishable from a scheme that had
+  been applied successfully.
+- Contract: Section 22 `WARN008`; Section 21 validation gate. Section 3 does not enumerate this
+  diagnostic; it is a new addition rather than a preservation or correction.
+- Clean behavior: the validated output plan is checked for emptiness once per invocation and
+  reports `WARN008`. The scheme here is well formed and its `merge` directive is honoured; it
+  simply declares no destination, which is a warning rather than an error because writing nothing
+  is a legitimate result of a filtered or partially-applied scheme.
+- The input is deliberately non-empty: the warning is about the output plan, not about the absence
+  of data, and a case with no input would not distinguish the two.
+- `WARN008` declares no optional Section 6.4.3 members, so the occurrence is exactly the five
+  required ones. It is the only diagnostic in the corpus whose whole content is its identity.
+
+### `limit-attribution-across-sources`
+
+- namespace2xml 2.4.0: **agrees** on the observable. Neither `--max-nodes` nor
+  `--max-xml-attributes` was a 2.4.0 option, and the 2.4.0 CLI refuses unknown options with a
+  nonzero exit and no output tree. That produces the case's expected exit 1 and empty tree, but
+  for an unrelated reason — the run never reaches parsing, so no attribution rule is exercised.
+  The agreement is therefore evidence that the options do not exist rather than of a bound the
+  baseline honors.
+- Contract: Sections 7.3, 11.1, 15.4, 22, 23, and 24. Section 3 does not enumerate these bounds;
+  they are Section 23 additions rather than Section 3.1 preservations or Section 3.2 corrections.
+- Legacy observation: there were no configurable resource bounds at all. A document deep enough,
+  wide enough, or numerous enough exhausted memory and the process died without a diagnostic
+  naming a source — but that failure mode is unreachable here, because the tool rejects the
+  option before the sources are opened.
+- Clean behavior: Section 23 makes every bound an option, and a crossing is `LIMIT001`. Section 22
+  scopes that code to once per invocation, so when several sources cross bounds together exactly
+  one occurrence is reported and Section 11.1 fixes which one: "the earliest under CLI source order
+  as defined in Section 7.3, then document order within that source, then element order, then the
+  bound name compared as unsigned UTF-8 bytes".
+- This case crosses two different kinds of bound in two sources at once. `inputs/many.xml` crosses
+  the global `--max-nodes` total, which Section 23 accumulates "at the parse-phase join in CLI
+  source order as specified in Section 7.3" — that is, after every source has been parsed.
+  `inputs/wide.xml` crosses the per-element `--max-xml-attributes`, which Section 23 checks "per
+  element within each source" — that is, while that source is still being parsed. The reported
+  occurrence is therefore the one that is decided *later* in time and *earlier* in command-line
+  order, and Section 11.1 is explicit that command-line order is what governs: "attribution is
+  therefore independent of parser worker scheduling."
+- Nothing is published and no output tree is expected. Section 15.4 aborts before the next phase
+  when a phase holds a blocking diagnostic, so planning never runs and the run cannot report that
+  its output plan is empty.
+- The difference is intentional: a tool whose response to an oversized input is to die tells its
+  caller nothing, and a tool whose answer depends on which parser finished first cannot be
+  compared across runs. Appendix C.7 runs this case under varied worker counts for that reason.
+
+### `limit-xml-attributes-per-element`
+
+- namespace2xml 2.4.0: **agrees** on the observable. Neither `--max-xml-attributes` nor
+  `--max-nodes` was a 2.4.0 option, and the 2.4.0 CLI refuses unknown options with a nonzero exit
+  and no output tree. That produces the case's expected exit 1 and empty tree, but for an
+  unrelated reason — the run never reaches parsing, so no attribution rule is exercised. The
+  agreement is therefore evidence that the options do not exist rather than of a bound the
+  baseline honors.
+- Contract: Sections 7.3, 11.1, 15.4, 22, 23, and 24. Section 3 does not enumerate these bounds;
+  they are Section 23 additions rather than Section 3.1 preservations or Section 3.2 corrections.
+- Legacy observation: an XML element could carry any number of attributes, and nothing bounded the
+  parse. There was no option to bound it and no diagnostic when the cost became unreasonable —
+  but that failure mode is unreachable here, because the tool rejects the option before the
+  sources are opened.
+- Clean behavior: Section 23 checks XML attributes "per element within each source under
+  `--max-xml-attributes`, as specified in Section 11.1", and a crossing is `LIMIT001`.
+- This case is the mirror of `limit-attribution-across-sources`, with the two sources exchanged in
+  `-i` order. `inputs/wide.xml` now comes first and crosses the per-element attribute bound while
+  it is being parsed; `inputs/many.xml` comes second and crosses the global `--max-nodes` total at
+  the parse-phase join. Section 11.1 attributes the single reported occurrence to "the earliest
+  under CLI source order", so the per-element crossing in the first source is what is reported,
+  even though the global total is not decided until every source has been read.
+- The pair is what makes either case load-bearing. Reported alone, the winning source could be
+  explained by the order the two crossings were detected in rather than by command-line order,
+  because in one arrangement those agree. Exchanging the sources makes them disagree in the other
+  arrangement, and Section 11.1's answer is unchanged. This case additionally fails if
+  `--max-xml-attributes` is not enforced at all: `inputs/wide.xml` would then contribute its nodes
+  to the global total instead of being refused, and the reported source would be `inputs/many.xml`.
+- Nothing is published and no output tree is expected, because Section 15.4 aborts before the next
+  phase when a phase holds a blocking diagnostic.
+- The difference is intentional: Section 23 requires the tool to "fail explicitly rather than
+  degrade without bound".
+
+### `mask-candidates-consume-the-wildcard-limit`
+
+- namespace2xml 2.4.0: **agrees** on the observable. `--max-wildcard-candidates` was not a 2.4.0
+  option, so the baseline CLI refuses the unknown option and exits nonzero with no output tree.
+  That coincides with the case's expected exit 1 and empty tree, but the refusal is an
+  unknown-option parse error rather than a wildcard-candidate bound crossing, so the observable
+  agreement carries no evidence about the bound.
+- Contract: Section 12.4 defines the candidate-check limit and the `WILDCARD002` diagnostic;
+  Appendix B maps a crossed wildcard bound to exit code 1. Section 3 does not enumerate this
+  bound; it is a Section 23 addition rather than a Section 3.1 preservation or a Section 3.2
+  correction.
+- Legacy observation: 2.4.0 had no configurable wildcard-candidate bound and no diagnostic when
+  a run's wildcard rules over-consumed. The baseline's refusal here happens at CLI parsing, not
+  in the wildcard resolver, so the failure mode the specification is written for is unreachable.
+- Clean behavior: `WILDCARD002` names `a.*` as the responsible rule, exit code 1, no output.
+- The observable agreement is therefore not evidence of compatibility on the rule the fixture
+  pins.
+
+### `reference-alias-ambiguity-lists-candidates`
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 13.1 alias uniqueness and `REFERENCE004`; Section 26 item 9. Section 3.1
+  preserves value references themselves, but does not enumerate the format-agnostic simple-alias
+  index or the ambiguity diagnostic; both are new specification requirements introduced in Section
+  13.1 rather than a Section 3.2 correction.
+- Legacy observation: the baseline exits `1` with no output tree and no standard error beyond the
+  banner. The measurement records no divergence.
+- Clean behavior: `@x` and `Q{urn:example}x` both reduce to the simple alias `x` under Section
+  13.1, so `${app.t.x}` names two canonical paths and is a blocking error. The error is attributed
+  to the *referring* value, not to either candidate, because the candidates are individually legal.
+  Exit is `1`, no output tree is written.
+- Why the observable agreement is not compatibility evidence: 2.4.0 never had the format-agnostic
+  simple-alias index, so `${app.t.x}` in that model resolves against the canonical path `app.t.x`,
+  which does not exist in the data -- both scalar payloads live at typed sibling names
+  (`app.t.@x` and `app.t.Q{urn:example}x`). The baseline therefore fails to resolve the reference
+  and exits nonzero with no output. That coincides with the case's expected exit `1` and empty
+  tree, but the case exists to pin an *ambiguity* diagnostic (`REFERENCE004`) that lists two
+  canonical candidates and is attributed to the referring value at line 3 column 7. An
+  implementation resolving to the first, last, or lexicographically least candidate would exit
+  `0` and write an `app.properties`; only the `REFERENCE004` diagnostic in
+  `expected-diagnostics.json` distinguishes the specified rule from either mishandling, and the
+  verdict is not scored on that stream.
+
+### `reference-cycle-report-source-order-first`
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 3.1 preservation of value references and cycle detection; Section 13.1 cycle
+  detection and `REFERENCE003`; Section 24 diagnostic ordering; Section 26 item 5.
+- Legacy observation: the baseline exits `1` with no output tree and no standard error beyond the
+  banner. The measurement records no divergence.
+- Clean behavior: a cycle is a set, not a path, so its report is rotated to its lexicographically
+  least member and located at that member's origin. `source`, `line`, `column` and `path` are then
+  a pure function of the cycle itself. Exit is `1` with no output.
+- Why this case exists: it is the first half of a permutation pair. This case passes
+  `-i inputs/first.txt -i inputs/second.txt`; `reference-cycle-report-source-order-reversed`
+  passes the same two files in the opposite order. Their `expected-diagnostics.json` files are
+  byte-identical, and that identity *is* the assertion.
+- Why the observable agreement is not compatibility evidence: 2.4.0 detected recursive scalar
+  reference cycles (legacy items 101 and 1) and its cycle-detection error path always exited
+  nonzero without emitting a file, so the baseline reaches the same tree and exit code the
+  specification requires here. But this fixture's discrimination lives entirely in the diagnostic
+  stream: the pair asserts that `app.a` at `inputs/first.txt` line 1 column 7 is reported in both
+  input orders. The rotation-to-least-member rule the Section 3.2 corrections against ordering
+  dependence make observable is invisible in tree/exit alone, so an implementation naming
+  whichever cycle member the resolver reached first would also produce an empty tree at exit `1`.
+  Only the sibling case's byte-identical `expected-diagnostics.json` can tell that mishandling
+  apart from the specified rule, and the verdict does not score that stream.
+
+### `reference-cycle-report-source-order-reversed`
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 3.1 preservation of value references and cycle detection; Section 13.1 cycle
+  detection and `REFERENCE003`; Section 24 diagnostic ordering; Section 26 item 5.
+- Legacy observation: the baseline exits `1` with no output tree and no standard error beyond the
+  banner. The measurement records no divergence.
+- Clean behavior: a cycle is a set, not a path, so its report is rotated to its lexicographically
+  least member and located at that member's origin. `source`, `line`, `column` and `path` are then
+  a pure function of the cycle itself. Exit is `1` with no output.
+- Why this case exists: it is the second half of a permutation pair. This case passes
+  `-i inputs/second.txt -i inputs/first.txt`; `reference-cycle-report-source-order-first` passes
+  the same two files in the opposite order. Their `expected-diagnostics.json` files are
+  byte-identical, and that identity *is* the assertion.
+- Why the observable agreement is not compatibility evidence: 2.4.0 detected recursive scalar
+  reference cycles (legacy items 101 and 1) and its cycle-detection error path always exited
+  nonzero without emitting a file, so the baseline reaches the same tree and exit code the
+  specification requires here. But this fixture's discrimination lives entirely in the diagnostic
+  stream: the pair asserts that `app.a` at `inputs/first.txt` line 1 column 7 is reported in both
+  input orders. Reading `second.txt` first makes `app.b` the earlier contribution and the first
+  node the resolver reaches, so an implementation that reported the member it reached first would
+  name `app.b` and locate the defect in `inputs/second.txt`; it would still exit `1` with no
+  output. Only the sibling case's byte-identical `expected-diagnostics.json` can tell that
+  mishandling apart from the rotation-to-least-member rule the specification pins, and the verdict
+  does not score that stream.
+
+### `reference-resolution-crosses-the-depth-bound`
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 6.2 `--max-reference-depth`, "Maximum reference recursion depth"; Section 23 —
+  "wildcard, reference, output, and serialization budgets are consumed in their normative pipeline
+  order"; Section 26 item 72. Section 3 does not enumerate this bound; the fixture pins Section 6.2
+  and Section 23 rather than a Section 3.1 preservation or a Section 3.2 correction.
+- Legacy observation: the baseline exits `1` with no output tree and no standard error beyond the
+  banner. The measurement records no divergence.
+- Clean behavior: the bound is real, and the crossing is attributed to the value that crossed it.
+  At a bound of 2 the run reports `LIMIT001` at `r.c` and exits `1`, and no output tree is written.
+- Why the observable agreement is not compatibility evidence: 2.4.0 has no `--max-reference-depth`
+  option, so its CommandLineParser refuses the unknown flag before any input is read and returns
+  nonzero without writing anything. That coincides with the case's expected exit `1` and empty
+  tree, but this fixture exists to pin the bound as a threshold in both directions and to attribute
+  the crossing to `r.c` on line 3. Neither the location nor the presence of a `LIMIT001` diagnostic
+  is visible to the tree comparison, so the observable is silent on what the case actually asserts.
+- Why this case exists: Section 6.2 declares the option, Section 23 lists the budget, and the CLI
+  parsed the number into the limit record — but the 3.0 code path initially failed to consult it.
+  An unenforced bound is worse than an absent one: it is documented, accepted on the command line,
+  and silently ignored, so a caller who sets it believes a run is bounded when it is not.
+- How the case proves it: `r.a` refers to `r.b` refers to `r.c` refers to `r.d`, which is a settled
+  scalar. At a bound of 2 the run reports `LIMIT001` at `r.c` — line 3 — and exits 1. That location
+  is the whole assertion. It pins the bound as a threshold in both directions at once: levels 1 and
+  2 were entered without complaint, so the bound is not off by one downward, and level 3 was
+  refused, so it is not off by one upward. It also pins what "depth" counts. Reaching `r.d` is a
+  lookup of a value that is already settled, not another level of recursion, so the depth entered is
+  the number of nested *unresolved* values and a wide model of a thousand independent one-deep
+  references is not deep.
+
+### `reference-scalar-only-and-free-wildcard-rejected`
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 3.1 preservation of value references, including scalar-only resolution and the
+  rejection of free wildcard references; Section 13.1 scalar-only resolution and `REFERENCE002`;
+  Section 13.3 explicit capture binding and `REFERENCE001`; Section 26 item 46.
+- Legacy observation: the baseline exits `1` with no output tree and no standard error beyond the
+  banner. The measurement records no divergence.
+- Clean behavior: `${app.subtree}` names a node that has a descendant and no scalar payload, which
+  Section 13.1 makes a missing reference rather than a subtree copy or an empty string.
+  `${app.*[n]}` binds no capture that the referring name defines, so Section 13.3 refuses it as a
+  free wildcard reference. Both defects fire, and Section 24 orders them by source position, so
+  `REFERENCE002` precedes `REFERENCE001` in the diagnostic stream and the run exits `1` with no
+  output.
+- Why the observable agreement is compatible-looking but not sufficient: 2.4.0 rejected both
+  constructs too — legacy items 99, 91 and 92 describe scalar-only resolution and the rejection of
+  free wildcard captures — so the baseline reaches the same tree and exit code the specification
+  now requires. That is the Section 3.1 preservation half of what this fixture asserts, and to
+  that extent the agreement *is* compatibility evidence. What the observable does not settle is the
+  Section 24 ordering claim (`REFERENCE002` before `REFERENCE001` because of source position rather
+  than code) and the specific codes and anchors the diagnostic stream carries; both live in
+  `expected-diagnostics.json`, which the verdict does not score.
+
+### `selector-candidates-consume-the-wildcard-limit`
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 12.4 shared candidate-check limit; Section 23 wildcard budget; Section 26 items 7 and 36. Section 3 does not enumerate this bound; the fixture pins Section 12.4 and Section 23 rather than a Section 3.1 preservation or a Section 3.2 correction.
+- Legacy observation: the baseline exits `1` with no output tree and no standard error beyond the banner. The measurement records no divergence.
+- Why the observable agreement is not compatibility evidence: `--max-wildcard-candidates` is not an option 2.4.0 had, so the baseline refuses the unknown flag at CLI parsing and returns nonzero before any wildcard is evaluated. That coincides with the case's expected exit `1` and empty tree, but the case exists to pin the third category of Section 12.4's shared candidate-check limit -- wildcard scheme selectors -- and the baseline never reaches selector expansion here. A run whose selectors expanded over an unbounded number of items would also produce an empty tree at exit `1`, which is precisely the failure mode a run with no bound at all could not distinguish from this one. Only the diagnostic stream, which the verdict does not score, could tell them apart.
+
+### `two-cycles-that-print-alike-are-both-reported`
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 3.1 preservation of value references (cycle detection was a legacy behaviour);
+  Section 13.1 cycle detection and `REFERENCE003`; Section 22 "once per canonically distinct
+  reachable cycle" and its rotation rule; Section 26 item 5.
+- Legacy observation: the baseline exits `1` with no output tree and no standard error beyond the
+  banner. The measurement records no divergence.
+- Clean behavior: two distinct cycles are two `REFERENCE003` diagnostics, whatever they look like
+  when printed, each rotated to its own least member -- `p.a` at line 1 and `p.a -> q` at line 3.
+  The run exits `1` with no output.
+- Why the observable agreement is not compatibility evidence: 2.4.0 detects cycles too, and its
+  cycle-detection error path always produced a nonzero exit and no output, so the baseline reaches
+  the same tree and exit code the specification requires here. But the case exists to pin the
+  *count* of diagnostics rather than their presence: Section 22 counts cycles that are canonically
+  distinct, and a canonical path escapes the delimiter, `=`, `}`, `*` and the line terminators --
+  but not a space, a hyphen or a greater-than sign. The two rings this fixture writes,
+  `["p.a", "q -> r"]` and `["p.a -> q", "r"]`, print as the same string, so an implementation
+  deduplicating on the printed chain reports the first and swallows the second and still exits `1`
+  with no output. Nothing observable in the tree or exit code distinguishes reporting one cycle
+  from reporting two; the discrimination lives in `expected-diagnostics.json`, which the verdict
+  does not score.
+
+### `wildcard-cascade-crosses-the-iteration-bound`
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 12.4 fixed-point iteration accounting and the requirement to "detect nonterminating or excessively expanding rule sets"; Section 23 wildcard iteration budget; Section 26 items 7 and 36. Section 3 does not enumerate `--max-wildcard-iterations`; the fixture pins the failing half of Section 12.4 rather than a Section 3.1 preservation or a Section 3.2 correction.
+- Legacy observation: the baseline exits `1` with no output tree. Standard error is empty beyond the banner. The measurement records no divergence.
+- Why the observable agreement is not compatibility evidence: 2.4.0 has no `--max-wildcard-iterations` option, so its CommandLineParser refuses the unknown flag before any input is read and returns nonzero without writing anything. That coincides with the case's expected exit `1` and empty tree, but the case is a bound crossing at exactly wave 3 of a four-rule cascade, and the responsibility identification is what the fixture asserts through its `expected-diagnostics.json` -- specifically that `a.*.b` and `a.*.*.c` are named, and `a.*.*.*.d` is not. Neither the responsible-rule set nor the presence of a `WILDCARD002` diagnostic at all is visible to the tree comparison, so the observable is silent on the two rules the correction is really about.
+
+### `wildcard-filename-substitutes-the-selector-captures`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.1 preservation of textual wildcard templates; Section 14.1 wildcard `filename` capture reuse; Section 16.2 explicit `filename` as complete relative path; Section 26 item 49.
+- Legacy observation: the baseline exits `0` and writes `cfg/x.conf` and `cfg/y.conf`, matching the case's expected tree byte for byte. Standard error is empty beyond the banner. The measurement records no divergence.
+- Clean behavior: `a.*.output=namespace` expands into two concrete instances at `a.x` and `a.y`, and `a.*.filename=cfg/*.conf` substitutes the same captures into the filename so the two instances land at `cfg/x.conf` and `cfg/y.conf` without a trailing `.properties`.
+- Why the agreement is compatibility evidence rather than coincidence: the case exercises three of the behaviours Section 3.1 preserves explicitly -- the textual wildcard template, the explicit `filename` value as a complete path without an appended extension, and later-entry override precedence over the wildcard-generated default. 2.4.0's wildcard filename substitution operated on the same textual model, so the two implementations reach the same bytes for the same reason, and this fixture is one of the Section 3.1 preservation checks that Section 26 item 69 requires the corpus to carry.
+
+### `wildcard-generation-crosses-the-generated-bound`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.2 is not the anchor. Section 12.4 fixes the generated-entry bound as a
+  requirement of the fixed-point evaluation, and Section 23 fixes what `--max-generated` counts.
+- Legacy observation: the baseline exits `1` and stages no output tree, so the observed result
+  matches this case's expected result (exit code `1`, empty tree). The measurement records no
+  divergence and no standard error beyond the banner.
+- Why the observable agreement is not compatibility evidence: this case has no expected outputs
+  precisely because the clean tool refuses the run under `WILDCARD002`, but 2.4.0 has no
+  `--max-generated` option. Its exit `1` therefore reports an unknown-option failure, not a
+  crossed generated-entry bound, and the two runs land on the same observable for entirely
+  unrelated reasons. This case cannot discriminate `WILDCARD002` from an early CLI parse error; a
+  fixture that could would need the baseline to accept the invocation, which it cannot without
+  the option.
+
+### `wildcard-output-selector-matching-nothing-warns`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.1 preserves the existing wildcard-output declaration and output-format
+  names. The substantive rules under test are Section 14.1's empty-selector clause and Section
+  15.2's `WARN009` binding, and Section 3 does not enumerate them individually.
+- Legacy observation: the baseline writes `a.properties` byte-identically with the expected
+  content, writes no file for `b.*`, and exits `0` with no standard error beyond the banner.
+- Why the observable agreement is not compatibility evidence: this case's expected result and the
+  baseline's observed result coincide on the tree and the exit code, but the case exists to pin
+  `WARN009` and the observation is silent about it. Diagnostics are not part of the observable
+  the verdict is claimed against. The baseline has no `WARN009` code and no stated model for a
+  wildcard output declaration that literalizes to nothing; producing the same tree therefore does
+  not tell whether it consulted the same rule or arrived at "no file" by writing nothing when
+  nothing matched. Discrimination of the warning belongs to `expected-diagnostics.json`, not
+  here.
+
+### `xml-prohibited-dtd-and-external-resources`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.2 correction against insecure XML document-type or external-entity
+  processing; Section 11.1's outright rejection of a document type definition; Section 22 for
+  `XML001`.
+- Legacy observation: the baseline exits `1` and produces no output tree, so the observed result
+  matches this case's expected result (exit code `1`, empty tree). The measurement records no
+  divergence and no standard error beyond the banner. An earlier draft of this note asserted
+  that 2.4.0 resolved the document type definition, expanded internal entities, and could
+  retrieve `local.dtd`; that assertion was written from reasoning rather than observation and is
+  wrong.
+- Clean behavior: Section 11.1 refuses each `<!DOCTYPE` outright with `XML001` at the token's
+  Section 22 one-based line and column, so `local.dtd` is never read, the internal subset's
+  entities are never defined, and `SYSTEM` identifiers do not cause retrieval. Every failing
+  source reports in Section 7.3 command-line order in a single run.
+- Why the observable agreement is not compatibility evidence: the case exists to pin that no
+  external resource is retrieved and no entity is expanded, but the baseline's exit `1` and
+  empty tree are silent about both. `local.dtd` sits unread whether the baseline refused
+  parsing before the identifier was looked at or refused it after; the fixture cannot tell the
+  two apart from the observable, and it cannot tell either from a run that would have
+  retrieved. The baseline's exit `1` also carries no `XML001` at the specified positions, but
+  diagnostics are not part of the observable the verdict is claimed against — that
+  discrimination belongs to `expected-diagnostics.json`. The clean tool's refusal is the
+  Section 11.1 pre-scan running before parsing begins; the baseline's is whatever mechanism its
+  host XML reader defaults use, which is deliberately unspecified here because the two refusals
+  are unrelated even when they land on the same exit code.
+
+### `yaml-restricted-schema-refusals`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 10.1's `RestrictedYaml1` schema (mapping-key restriction, no duplicate keys,
+  no merge keys, no complex keys, no implicit tags), Section 10.2's rejection of anchors and
+  explicit tags, and Section 10.3's rejection of explicit document markers. Section 22 for
+  `PARSE001`. Section 3 does not enumerate `RestrictedYaml1` individually.
+- Legacy observation: the baseline exits `1` and produces no output tree, so the observed result
+  matches this case's expected result (exit code `1`, empty tree). The measurement records no
+  divergence and no standard error beyond the banner. An earlier draft of this note asserted
+  that 2.4.0 silently accepted anchors, aliases, merge keys, and duplicate keys; that
+  assertion was written from reasoning rather than observation and does not match what the
+  baseline does on this input set.
+- Clean behavior: each construct is `PARSE001` against the source that carries it, at the
+  Section 22 one-based line and character column of the offending token, and every failing
+  source reports in Section 7.3 command-line order so one run names every bad file.
+- Why the observable agreement is not compatibility evidence: this case exists to pin the
+  per-source classification and the per-source position of six distinct refusals, and the
+  observable — one exit code and one empty tree — is silent about both. The baseline's YAML
+  reader raises an exception on at least one of the six inputs (the batch's stderr is empty
+  after banner stripping, which is consistent with the exception being caught and mapped to
+  exit `1`), and that is enough to end the run before any output is written; whether the
+  reader would have refused the other five, silently accepted them, or produced surprising
+  output is not readable from this observation. Two of the six inputs — duplicate-key and
+  complex-key — are refused by the host YamlDotNet library for its own reasons, so a baseline
+  that exits `1` after refusing one of them for a library-internal reason is doing something
+  quite different from the clean tool refusing all six under `RestrictedYaml1`. Diagnostic
+  members belong to `expected-diagnostics.json` for exactly this reason.
 
 ## Something changed that is not listed here
 

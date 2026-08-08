@@ -54,3 +54,24 @@ both compared here even though neither is derivable from `TYPE001` alone.
 
 The message prose. Appendix C.4 exempts `message` from comparison, and this fixture says nothing
 about how the conflict is worded.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `strict.properties` (the
+  harness records `extra strict.properties`), where the case expects exit 1 and an empty tree.
+- Contract: Section 3.2 preserves `merge` "with input/common-model scope" — this fixture
+  exercises that preserved scope — and Section 16.10's definition of `error` is the substantive
+  rule. The clause a contribution is "at path P" if it "contributes … any descendant under P"
+  is the reading Section 22 required.
+- Legacy observation: 2.4.0's `merge=error` did not treat a descendant-only second contribution
+  as a second contribution at the parent. `second.txt` writes `strict.c` without touching
+  `strict` itself, so on the baseline no rejection fires; both sources merge normally and
+  `strict.properties` is published with all three keys.
+- Clean behavior: `strict.merge=error` refuses "any distinct second source or generated
+  contribution at the path", where *at* covers any descendant. The condition is a `TYPE001`
+  error with `path` of `strict` and no `source` — Section 22 says an input-phase condition
+  reached only after both sources arrived cannot be attributed to either alone. The run exits
+  1 and Section 21.2's validation gate prevents publication.
+- The difference is intentional: `error` exists so that a scheme author can insist a subtree
+  come from exactly one source, and that guarantee has to reach descendants or a typo in a
+  second source silently shadows values in the first.

@@ -61,3 +61,23 @@ What `multiline` does to a sequence containing a null, an empty sequence, or a n
 those are Section 16.6's own cases rather than step 16's ordering. Nor the position of `key` or
 `root` in the order: `key` after `multiline` is not separately observable without a second fixture,
 and `root` is not a pass at all.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 15.1 step 16 fixed transformation order; Section 16.6 `array` conversion;
+  Section 26 item 54. Section 3.2 lists behaviour "dependent on parallel execution order" and
+  "dependent on dictionary iteration order" among the corrections; step 16 fixes the observable
+  answer for the pair `array,multiline`.
+- Legacy observation: the baseline writes `cfg.properties` with different bytes. The measurement
+  records `content cfg.properties`, exit `0`, and no standard error beyond the banner.
+- Clean behavior: `array` runs first and turns `{p: first, q: second}` into `[first, second]`;
+  `multiline` then joins the sequence with logical LF and Section 19.1 renders it as one physical
+  record, `lines=first\nsecond`.
+- Why the difference is intentional: 2.4.0 applied transformations in an order the specification
+  did not fix — either the declaration order in the scheme value, the map iteration order of the
+  configured passes, or a single-visit-per-node loop. Any of those alternatives changes what the
+  file records here, so 3.0 pins the order at step 16 rather than leaving it to whichever pass a
+  reader believed was implicit. The observable divergence names the file's bytes; the observation
+  does not identify which of the alternatives 2.4.0 used because the case is written to pin the
+  correct answer, not to enumerate the wrong ones.

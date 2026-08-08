@@ -1,9 +1,15 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **unclassified**. Legacy had no configurable resource limits.
+- namespace2xml 2.4.0: **agrees** on the observable. Legacy had no configurable resource limits and
+  no `--max-outputs` option; the 2.4.0 CLI refuses the unknown option and exits nonzero with no
+  output tree, which coincides with the case's expected exit 1 and empty tree. The observable
+  agreement is therefore evidence of an option 2.4.0 does not have rather than of a planned-
+  destinations bound it honors.
 - Contract: Section 6.2 `--max-outputs`, "Maximum planned destination files"; Section 23 — budgets
   "consumed in their normative pipeline order" and accounted "before allocation or expansion
-  whenever possible"; Section 15.1 steps 17 and 18; Section 26 item 72.
+  whenever possible"; Section 15.1 steps 17 and 18; Section 26 item 72. Section 3 does not
+  enumerate this bound; the fixture pins Section 23 rather than a Section 3.1 preservation or a
+  Section 3.2 correction.
 - Clean behavior: the bound is real, and the crossing is attributed to the destination that crossed
   it rather than to the run as a whole.
 - Why this case exists: as with `--max-reference-depth`, the option was accepted and never consulted.

@@ -44,3 +44,11 @@ format is `namespace`, whose default extension would otherwise be `.properties`.
 
 What a wildcard in a `filename` means under a selector that bound no captures. The specification
 does not say, and this fixture does not pretend to settle it.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.1 preservation of textual wildcard templates; Section 14.1 wildcard `filename` capture reuse; Section 16.2 explicit `filename` as complete relative path; Section 26 item 49.
+- Legacy observation: the baseline exits `0` and writes `cfg/x.conf` and `cfg/y.conf`, matching the case's expected tree byte for byte. Standard error is empty beyond the banner. The measurement records no divergence.
+- Clean behavior: `a.*.output=namespace` expands into two concrete instances at `a.x` and `a.y`, and `a.*.filename=cfg/*.conf` substitutes the same captures into the filename so the two instances land at `cfg/x.conf` and `cfg/y.conf` without a trailing `.properties`.
+- Why the agreement is compatibility evidence rather than coincidence: the case exercises three of the behaviours Section 3.1 preserves explicitly -- the textual wildcard template, the explicit `filename` value as a complete path without an appended extension, and later-entry override precedence over the wildcard-generated default. 2.4.0's wildcard filename substitution operated on the same textual model, so the two implementations reach the same bytes for the same reason, and this fixture is one of the Section 3.1 preservation checks that Section 26 item 69 requires the corpus to carry.

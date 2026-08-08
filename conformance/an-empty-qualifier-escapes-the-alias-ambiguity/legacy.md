@@ -60,3 +60,20 @@ distinct component satisfies the addressing half and splits one overlay node in 
 `Q{}` in a scheme selector. Section 15.2 grants the same escape to output-view directives, and
 `KNOWN-LIMITS.md` section 1.10 records that scheme paths do not consult the alias index in the first
 place, so there is nothing there for the marker to escape yet.
+
+## Legacy differential
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.4 `Q{}` empty-qualifier addressing; Section 13.1 XML simple alias and
+  reference resolution; Section 26 item 9. Section 3.1 preserves "value references" as a category,
+  but the `Q{}` marker is a new addressing form and Section 3 does not enumerate it.
+- Legacy observation: the baseline exits `1` and does not produce `a.properties`. The measurement
+  records `exit 1 (expected 0); missing a.properties`. Standard error beyond the banner is empty.
+- Clean behavior: the case expects exit `0` and one `a.properties` whose six lines resolve every
+  `${a.t.Q{}x}`, `${a.t.@x}`, and `${a.Q{}t.x}` against the canonical address the marker names,
+  bypassing the simple-alias ambiguity between the XML attribute `@x` and the child element `x`.
+- Why the difference is intentional: 2.4.0 had no `Q{}` component and no canonical addressing at
+  all. The reference lexer either refuses the token as malformed or resolves it as if the marker
+  were literal text — either way, no correct file can result, and the run fails. This is the whole
+  point of the addressing amendment: without a way to name one canonical component in prose, the
+  ambiguity Section 13.1 describes has no in-band answer at all.
