@@ -23,9 +23,29 @@ public sealed record MergeContext(DiagnosticPhase Phase, string Spec, string Dir
     public static MergeContext Input { get; } =
         new(DiagnosticPhase.Input, "\u00A716.10", "merge");
 
-    /// <summary>Section 15.1 step 18: destination folding under Sections 16.11 and 17.5.</summary>
-    public static MergeContext Destination { get; } =
+    private static MergeContext DestinationFold { get; } =
         new(DiagnosticPhase.Planning, "\u00A717.5", "filemerge");
+
+    /// <summary>
+    /// What Section 22 counts this merge's diagnostics against, beyond the path, or
+    /// <see langword="null"/> when the path alone is the whole identity.
+    /// </summary>
+    /// <remarks>
+    /// Section 22 counts TYPE001 "once per path and applicable source/output instance". Step 8
+    /// merges into the one common model, so a path names the occurrence completely and this is
+    /// null. Step 18 runs one merge per destination, and every destination folds from its own view
+    /// root, so a path does not name the occurrence at all: <c>filemerge=append</c> onto a mapping
+    /// is refused at the root of every destination it is declared on, and Appendix A.2 gives the
+    /// root no spelling. Keyed on the path alone, a run reports the first such destination and
+    /// retires every other one as a repeat.
+    /// </remarks>
+    public string? Scope { get; init; }
+
+    /// <summary>Section 15.1 step 18: destination folding under Sections 16.11 and 17.5.</summary>
+    /// <param name="destination">The canonical relative path being folded.</param>
+    /// <returns>The context for that destination's fold.</returns>
+    public static MergeContext ForDestination(string destination) =>
+        DestinationFold with { Scope = destination };
 }
 
 /// <summary>
@@ -504,18 +524,36 @@ public sealed class OverlayMerger
             ({ } left, { } right) => right > left ? later.Payload : earlier.Payload,
         };
 
+    /// <summary>The Section 22 cardinality key of one merge diagnostic.</summary>
+    /// <param name="path">The Appendix A spelling of the path, or null at the root.</param>
+    /// <returns>A key that separates exactly the occurrences Section 22 counts separately.</returns>
+    /// <remarks>
+    /// The two parts are length-prefixed rather than joined by a separator. A canonical path escapes
+    /// only the delimiter, <c>=</c>, <c>}</c>, <c>*</c> and line terminators, and a destination is a
+    /// relative file path, so any separator can occur inside either; a cardinality key is a
+    /// suppression rule, and two keys that collide cost a diagnostic.
+    /// </remarks>
+    private string CardinalityKey(string? path) =>
+        string.Concat(
+            new[] { context.Scope, path }.Select(part => $"{part?.Length ?? -1}\u0000{part}"));
+
     private void Report(
         ImmutableArray<NamePart> path, string message, StableOrderingKey key)
     {
         var text = PathText(path);
 
+        // Appendix B gives TYPE001 a 'destination' member, and a step 18 fold is refused at the
+        // destination's view root, where Appendix A.2 leaves 'path' absent. Without it two
+        // destinations refusing the same fold are byte-identical, and the run names neither of the
+        // files it failed to produce. Step 8 has no destination and omits the member.
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Type001(
                 context.Phase,
                 context.Spec,
                 message,
-                cardinalityKey: text ?? string.Empty,
-                path: text),
+                cardinalityKey: CardinalityKey(text),
+                path: text,
+                destination: context.Scope),
             key));
     }
 
@@ -531,7 +569,7 @@ public sealed class OverlayMerger
                 "more than one source contributes a native implicit sequence here, and implicit "
                 + "items concatenate while explicit ordering values patch: declare a merge "
                 + "strategy at this path to say which was meant.",
-                cardinalityKey: text ?? string.Empty,
+                cardinalityKey: CardinalityKey(text),
                 path: text),
             key));
     }

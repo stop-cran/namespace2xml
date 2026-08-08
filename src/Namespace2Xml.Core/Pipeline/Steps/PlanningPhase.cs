@@ -830,7 +830,7 @@ public static class PlanningPhase
         var merger = new OverlayMerger(
             MergeStrategyMap.Create([], strategy),
             diagnostics,
-            context: MergeContext.Destination);
+            context: MergeContext.ForDestination(canonical));
 
         // The accumulated key is kept rather than recomputed. Contributions arrive in ascending key
         // order, so it is already the earliest, which is what Section 17.5 requires a same-format

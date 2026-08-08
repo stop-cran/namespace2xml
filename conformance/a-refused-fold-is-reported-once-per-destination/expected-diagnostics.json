@@ -1,0 +1,6 @@
+[
+{"code":"TYPE001","severity":"error","phase":"planning","destination":"one.txt","spec":"§17.5","message":"filemerge=append needs a sequence contribution: this one is neither a sequence nor a nonempty mapping whose child names are all canonical ordering values."},
+{"code":"TYPE001","severity":"error","phase":"planning","destination":"two.txt","spec":"§17.5","message":"filemerge=append needs a sequence contribution: this one is neither a sequence nor a nonempty mapping whose child names are all canonical ordering values."},
+{"code":"WARN005","severity":"warning","phase":"planning","destination":"one.txt","spec":"§17.5"},
+{"code":"WARN005","severity":"warning","phase":"planning","destination":"two.txt","spec":"§17.5"}
+]

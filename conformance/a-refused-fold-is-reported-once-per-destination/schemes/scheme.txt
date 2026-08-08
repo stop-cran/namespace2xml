@@ -1,0 +1,12 @@
+one.output=namespace
+one.filename=one.txt
+one.filemerge=append
+onemore.output=namespace
+onemore.filename=one.txt
+onemore.filemerge=append
+two.output=namespace
+two.filename=two.txt
+two.filemerge=append
+twomore.output=namespace
+twomore.filename=two.txt
+twomore.filemerge=append
