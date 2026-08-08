@@ -1,0 +1,4 @@
+{
+  "target": "hit",
+  "native": "\\${nj.target}"
+}

@@ -62,15 +62,19 @@ $rendered = foreach ($number in ($items.Keys | Sort-Object { [int]$_ })) {
     $status = 'pending'
     $assertions = @()
     $fixtures = @()
+    $gates = @()
+    $whyNotAFixture = $null
 
     if ($null -ne $prior) {
         if ($prior.milestone) { $milestone = $prior.milestone }
         if ($prior.status) { $status = $prior.status }
         if ($prior.assertions) { $assertions = @($prior.assertions) }
         if ($prior.fixtures) { $fixtures = @($prior.fixtures) }
+        if ($prior.gates) { $gates = @($prior.gates) }
+        if ($prior.whyNotAFixture) { $whyNotAFixture = [string]$prior.whyNotAFixture }
     }
 
-    [ordered]@{
+    $entry = [ordered]@{
         item       = [int]$number
         text       = $items[$number]
         milestone  = $milestone
@@ -78,6 +82,14 @@ $rendered = foreach ($number in ($items.Keys | Sort-Object { [int]$_ })) {
         assertions = @($assertions)
         fixtures   = @($fixtures)
     }
+
+    # Appendix C.5: an item a fixture cannot discharge names gates, and must argue the exemption.
+    if ($gates.Count -gt 0) {
+        $entry['gates'] = @($gates)
+        if ($fixtures.Count -eq 0) { $entry['whyNotAFixture'] = $whyNotAFixture }
+    }
+
+    $entry
 }
 
 $document = [ordered]@{
@@ -87,6 +99,7 @@ $document = [ordered]@{
         pending  = 'Not yet owned by a merged milestone. Not enforced by the traceability gate.'
         required = 'Appendix C.5: the fixtures field must name exactly the fixtures that reference this item, and each must assert more than an exit code. Enforced by the traceability gate.'
     }
+    gates       = 'Appendix C.5: an item no fixture can discharge names the test or CI job that checks it instead, and says why a fixture cannot. Every name must resolve to something that exists, or the field is an accounting fiction.'
     items       = @($rendered)
 }
 

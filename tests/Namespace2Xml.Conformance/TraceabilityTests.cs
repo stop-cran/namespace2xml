@@ -75,16 +75,21 @@ public class TraceabilityTests
     }
 
     /// <summary>
-    /// Appendix C.5: a required item's manifest entry must name exactly the fixtures that reference
-    /// it. Coverage stated in one place is a number in a text file; stated in two, a claim cannot be
+    /// Appendix C.5: an item's manifest entry must name exactly the fixtures that reference it.
+    /// Coverage stated in one place is a number in a text file; stated in two, a claim cannot be
     /// added, dropped, or retargeted without the manifest being re-authored and reviewed.
+    /// <para>
+    /// This holds for every item, not only the required ones. Restricting it to required items let
+    /// six pending items accumulate fixtures the manifest never learned about, so the manifest
+    /// understated coverage precisely where coverage was still being built and most needed reading.
+    /// </para>
     /// </summary>
     [Test]
-    public void ARequiredItemNamesExactlyTheFixturesThatClaimIt()
+    public void AnItemNamesExactlyTheFixturesThatClaimIt()
     {
         var cases = ConformanceCase.Discover(CorpusLayout.Corpus).ToList();
 
-        foreach (var item in Required())
+        foreach (var item in Items)
         {
             var number = item.GetProperty("item").GetInt32();
 
@@ -133,6 +138,78 @@ public class TraceabilityTests
         conformanceCase.ExpectedTree is not null
         || File.Exists(conformanceCase.ExpectedStandardOutput)
         || conformanceCase.ExpectedDiagnostics is not null;
+
+    /// <summary>
+    /// Appendix C.5: a gate named in the manifest must resolve to something that exists — a declared
+    /// test, or a job defined in the continuous-integration workflow.
+    /// <para>
+    /// Without this the field would discharge an acceptance item by writing a plausible name into a
+    /// file, which is the exact failure the appendix exists to prevent. A gate is checked by finding
+    /// the name in the sources rather than by reflection, because the tests it names live in an
+    /// assembly this one does not reference and should not have to.
+    /// </para>
+    /// </summary>
+    [Test]
+    public void EveryNamedGateResolvesToSomethingThatExists()
+    {
+        var testSources = Directory
+            .EnumerateFiles(Path.Combine(CorpusLayout.Root, "tests"), "*.cs", SearchOption.AllDirectories)
+            .Select(File.ReadAllText)
+            .ToList();
+
+        var workflows = Directory
+            .EnumerateFiles(
+                Path.Combine(CorpusLayout.Root, ".github", "workflows"),
+                "*.yml",
+                SearchOption.AllDirectories)
+            .Select(File.ReadAllText)
+            .ToList();
+
+        foreach (var item in Items)
+        {
+            if (!item.TryGetProperty("gates", out var gates))
+            {
+                continue;
+            }
+
+            var number = item.GetProperty("item").GetInt32();
+
+            var hasFixtures = item.GetProperty("fixtures").GetArrayLength() > 0;
+
+            if (!hasFixtures)
+            {
+                item.TryGetProperty("whyNotAFixture", out var why).ShouldBeTrue(
+                    $"item {number} is discharged by gates alone but does not say why a fixture "
+                    + "cannot discharge it. Appendix C.5 requires the exemption to be argued "
+                    + "rather than assumed.");
+
+                why.GetString().ShouldNotBeNullOrWhiteSpace();
+            }
+
+            foreach (var gate in gates.EnumerateArray())
+            {
+                var name = gate.GetString()!;
+
+                var resolved = name.StartsWith("ci:", StringComparison.Ordinal)
+                    ? workflows.Any(workflow =>
+                        workflow.Contains("\n  " + name[3..] + ":", StringComparison.Ordinal))
+                    : testSources.Any(source =>
+                        source.Contains(LastSegment(name) + "(", StringComparison.Ordinal));
+
+                resolved.ShouldBeTrue(
+                    $"item {number} names the gate '{name}', which does not resolve to a declared "
+                    + "test or a job in .github/workflows. A gate that names nothing discharges "
+                    + "nothing.");
+            }
+        }
+    }
+
+    private static string LastSegment(string name)
+    {
+        var dot = name.LastIndexOf('.');
+
+        return dot < 0 ? name : name[(dot + 1)..];
+    }
 
     private static IEnumerable<JsonElement> Required() =>
         Items.Where(item => item.GetProperty("status").GetString() == "required");

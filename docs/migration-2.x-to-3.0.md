@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r36+a15f533b6848`.**
+**Contract bundle `r37+2d644be6926e`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (71)
+## Deliberate differences (75)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -180,6 +180,32 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   were literal text — either way, no correct file can result, and the run fails. This is the whole
   point of the addressing amendment: without a way to name one canonical component in prose, the
   ambiguity Section 13.1 describes has no in-band answer at all.
+
+### `an-override-moves-its-key-and-keeps-both-comments`
+
+- namespace2xml 2.4.0: **differs**. It writes `app.yaml` containing `name: second` followed by
+  `only: kept`, and exits 0. Both comments are gone and the overridden key has not moved. The
+  case expects `only` first, then both comments, then `name: second`.
+- Contract: Sections 4.5 and 5.2, and Section 3.2 as a correction.
+- Legacy observation: 2.4.0 kept a mapping key at the position of its *first* contribution and
+  discarded comments outright on the namespace-input path, so neither half of the rule was
+  observable. `name` stays where `first.txt` put it even though `second.txt` is what supplied the
+  surviving value, which means the output orders keys by a contribution that no longer exists in
+  the result.
+- Clean behavior: Section 5.2 states that "overriding a mapping key moves that exact key,
+  together with comments bound to it, to the winning contribution's position mark". `app.name` is
+  overridden by `second.txt`, so it takes that later position and falls below `app.only`, which
+  no later source touched. Section 4.5 adds that "overriding a payload or container contribution
+  does not detach comments already bound to that logical path", so `# original` is not lost when
+  `first.txt`'s value is; both comments end up bound to the same winning path and are emitted in
+  source order above it.
+- The case is shaped to fail three different wrong implementations. Leaving the key at its first
+  position puts `name` above `only`. Detaching the loser's comment drops `# original`. Binding the
+  comment to the value rather than to the logical path drops `# original` as well but keeps the
+  ordering, so the two defects are told apart by the key order rather than by the comment alone.
+- The difference is intentional: a configuration file's comments are written by people to explain
+  the values next to them, and an override that silently deletes the explanation while keeping the
+  value leaves the reader with less than they started with.
 
 ### `append-onto-a-non-sequence-accumulator-is-an-error`
 
@@ -505,6 +531,27 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   and ordering sections by the emission stream keeps every INI rule a function of that stream
   alone.
 
+### `input-extensions-match-case-insensitively`
+
+- namespace2xml 2.4.0: **differs**. It reads all four inputs as namespace profiles, reports
+  `Error parsing input: unexpected ...` once per file — `j.JSON` at line 1 column 2, `y.YAML` and
+  `s.YML` at column 5, `x.XML` at column 38 — exits 1, and writes nothing. The case expects
+  `cfg.properties` with one entry contributed by each of the four formats.
+- Contract: Section 7.1, and Section 3.2 as a correction.
+- Legacy observation: 2.4.0 selected the input reader by comparing the file extension with
+  ordinal case-sensitive equality against the lowercase spellings. `data.JSON` matched none of
+  them and fell through to the "every other extension" branch, so a JSON document was handed to
+  the namespace-profile parser. The column numbers in the four errors are where each format's
+  syntax first stops looking like a `name=value` record.
+- Clean behavior: Section 7.1 states that input file extensions "are matched case-insensitively",
+  and lists `.json`, `.yaml`, `.yml`, and `.xml`. Only after none of those matches does the file
+  use namespace-profile parsing. Each of the four inputs here contributes exactly one entry under
+  `cfg`, and their order in the output follows CLI source order.
+- The failure this catches is loud rather than silent, which is the only reason it was ever
+  survivable: a document that fails to parse at least says so. The same defect is silent whenever
+  the mis-read file happens to be valid namespace-profile text — a `.YML` file of `a: 1` lines
+  parses as namespace records with no error and produces a tree nobody asked for.
+
 ### `json-and-yaml-render-one-exclusive-shape`
 
 - namespace2xml 2.4.0: **differs**.
@@ -801,6 +848,35 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   share one destination and one code, so the remaining tie is broken by the qualified path compared
   as unsigned UTF-8 bytes, which reports `mapwins` before `seqwins` even though the scheme and the
   output file both present `seqwins` first.
+
+### `native-strings-do-not-get-a-second-escape-pass`
+
+- namespace2xml 2.4.0: **differs**. It writes the same content to both outputs — `"native":
+  "\\\\hit"` in `ns.json` and in `nj.json` alike — and exits 0. The case expects the two to be
+  different: `ns.json` carries `"\\hit"` and `nj.json` carries `"\\${nj.target}"`. The baseline is
+  wrong twice over. It emits two literal backslashes where the source text `\\` specifies one, and
+  it resolves a reference inside a decoded native string where Appendix A.5 leaves the text alone.
+- Contract: Appendix A.3, Appendix A.5, and the worked example at the end of Appendix A.3.
+  Section 3.2 as a correction.
+- Legacy observation: 2.4.0 ran one escape and reference pass over every value it held, whatever
+  the value's origin. A string that arrived already decoded from a JSON document was scanned again
+  by the rules written for namespace-file text, so `\\${nj.target}` — which the JSON reader had
+  already turned into the characters `\`, `$`, `{`, … — was re-read as an escape followed by a
+  reference. Emitted text was rescanned for the same reason, which is what doubles the backslash.
+- Clean behavior: the two grammars are deliberately different and the specification states both.
+  In a namespace value (Appendix A.3) `\\` is a recognized escape meaning one literal backslash,
+  and a `${…}` following it is an ordinary reference, so `ns` resolves to a backslash plus `hit`.
+  In a decoded native string (Appendix A.5) only `\*` and `\${` are escapes; any other backslash
+  "emits itself and consumes no following scalar", so the `\` stands alone and the `${nj.target}`
+  after it is literal text. Appendix A.3 gives exactly this pair as its worked example. In neither
+  case is emitted text rescanned.
+- The output is JSON because Section 6.4.3 escapes `"` and `\` with a backslash, which renders one
+  literal backslash as `\\` and makes the count unambiguous in the fixture file. A namespace output
+  would have re-encoded the value and hidden the very distinction under test.
+- The difference is intentional: applying namespace-file escaping to data that a JSON or YAML
+  reader has already decoded corrupts any value that legitimately contains a backslash or a dollar
+  sign — a Windows path or a shell template, say — and does so silently, since the corrupted text
+  is still valid output.
 
 ### `one-destination-folds-by-format-before-match-order`
 
@@ -1243,6 +1319,30 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   node in element-only content, and the serializer's own indentation is added on top. That
   produces different bytes at `r.xml` and would also weaken the same-format round-trip
   guarantee the fixture uses to distinguish the mode's opt-in effect from the default.
+
+### `xml-sequence-classification-spans-three-contributions`
+
+- namespace2xml 2.4.0: **differs**. It writes `r.properties` containing three entries
+  `r.c.d=`, `r.c.d.0=`, `r.c.d.1=` — a scalar and two indices, all of them empty — and exits 0
+  with nothing on standard error. The case expects four values `r.c.d.0=1` through `r.c.d.3=4`.
+  The baseline therefore loses every value, invents a scalar at a path the specification makes a
+  sequence, and miscounts the sequence by two.
+- Contract: Section 17.4, and Section 3.2 as a correction.
+- Legacy observation: 2.4.0 decided whether repeated XML children were a sequence one input
+  document at a time, as each was folded onto the tree. Three documents each contributing a single
+  `<d>` child never presented a repetition to any one of those decisions, so each contribution was
+  classified as a scalar, and each overwrote the last. The empty indices are the residue of that
+  overwriting rather than a considered result.
+- Clean behavior: Section 17.4 computes classification "over the complete destination-level
+  contribution set" and does so *before* folding, so the grouping of contributions into batches
+  cannot change the answer. Three separate documents contributing `r.c.d` once each are the same
+  input as one document contributing it three times, and the fourth value from the third document
+  extends the same sequence. `WARN004` is raised once for the sequence path, not once per
+  contribution.
+- The difference is intentional: a classification that depends on how inputs were divided across
+  files makes the merge non-associative, so splitting a configuration in two — a routine, purely
+  organizational act — silently changes the output. Section 3.2 lists this among the behaviors the
+  rewrite corrects.
 
 ### `xml-singleton-promotion-spans-contributions`
 

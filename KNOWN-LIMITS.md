@@ -486,7 +486,30 @@ members per *code* while the mapping appendix enumerated *conditions*, and Appen
 members exactly, so an omitted member was an assertion of absence that the specification did not
 determine. Appendix B now states the member set each *condition* supplies, and both fixtures have
 since been authored — `merge-error-rejects-a-second-source-contribution` for §16.10 `merge=error`,
-and `WILDCARD002` across the four wildcard-bound cases. Nothing under this heading is outstanding.
+and `WILDCARD002` across the four wildcard-bound cases.
+
+### 2.1 The INI dialect is not tested against any third-party parser
+
+Acceptance item 28 asks for "the documented INI dialect against representative parsers", and
+Section 19.6 names the dialect `PortableIni1` and requires that "conformance tests must cover the
+representative parsers named by the implementation's compatibility documentation."
+
+Neither half exists. No document in this repository names a representative parser, and nothing in
+the corpus or the test suite feeds an emitted `.ini` file to one. `IniSerializerTests` and the
+`.ini`-producing fixtures compare the serializer's own bytes against expected bytes, which
+establishes that the output is stable and matches the specification's description of the dialect —
+but not that any real parser reads it back as the same key-value model. Those are different
+claims, and only the second is what item 28 asks for.
+
+This cannot be closed by a fixture. The corpus compares files; establishing round-trip fidelity
+needs harness machinery that invokes an external parser, and a decision about which parsers are
+normative — plausibly Python's `configparser`, `ini4j`, and whatever the Windows profile API
+accepts, each under both `QuoteValues` settings and both `EscapeMultiline` settings, since those
+options are exactly where dialects disagree. Choosing that list is a specification question, not
+an implementation one.
+
+Until then, treat `PortableIni1` output as specified-and-self-consistent rather than as verified
+interoperable. Item 28 stays `pending` and is the largest single gap in the corpus.
 
 ## 3. Platform and environment
 

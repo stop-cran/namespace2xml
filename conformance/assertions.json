@@ -5,6 +5,7 @@
     "pending": "Not yet owned by a merged milestone. Not enforced by the traceability gate.",
     "required": "Appendix C.5: the fixtures field must name exactly the fixtures that reference this item, and each must assert more than an exit code. Enforced by the traceability gate."
   },
+  "gates": "Appendix C.5: an item no fixture can discharge names the test or CI job that checks it instead, and says why a fixture cannot. Every name must resolve to something that exists, or the field is an accounting fiction.",
   "items": [
     {
       "item": 1,
@@ -12,7 +13,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "cli-option-missing-value-rejected"
+      ]
     },
     {
       "item": 2,
@@ -20,7 +23,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "input-extensions-match-case-insensitively"
+      ]
     },
     {
       "item": 3,
@@ -28,7 +33,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "cli-end-of-options-values"
+      ]
     },
     {
       "item": 4,
@@ -36,7 +43,10 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "key-directive-precedence-follows-source-order",
+        "namespace-input-merge-strategies"
+      ]
     },
     {
       "item": 5,
@@ -103,7 +113,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "wildcard-output-selectors-expand-per-capture-tuple"
+      ]
     },
     {
       "item": 9,
@@ -132,7 +144,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "an-override-moves-its-key-and-keeps-both-comments"
+      ]
     },
     {
       "item": 11,
@@ -140,7 +154,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "namespace-numeric-map-inference"
+      ]
     },
     {
       "item": 12,
@@ -232,7 +248,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "xml-comments-are-ordered-content-nodes"
+      ]
     },
     {
       "item": 18,
@@ -240,7 +258,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "type-ignore-removes-a-subtree-and-strands-its-directives"
+      ]
     },
     {
       "item": 19,
@@ -248,7 +268,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "key-directive-precedence-follows-source-order"
+      ]
     },
     {
       "item": 20,
@@ -291,7 +313,16 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "json-scalar-kinds-and-sequence-order",
+        "namespace-numeric-map-inference",
+        "yaml-restricted-schema-and-scalar-kinds"
+      ],
+      "gates": [
+        "Namespace2Xml.UnitTests.BigDecimalTests.CanonicalTextIgnoresTheCurrentCulture",
+        "Namespace2Xml.Conformance.RuntimeConfigurationTests.TheShippedToolRunsWithInvariantGlobalization",
+        "ci:determinism"
+      ]
     },
     {
       "item": 24,
@@ -407,7 +438,13 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [],
+      "gates": [
+        "Namespace2Xml.Conformance.RuntimeConfigurationTests.TheShippedToolRunsWithInvariantGlobalization",
+        "ci:determinism",
+        "ci:cross-os-hash"
+      ],
+      "whyNotAFixture": "The claim is that every fixture produces identical bytes when the same run is repeated under a different worker count, locale, and time zone. A fixture states one run and one expected tree; it cannot state \"run me three times under three environments and compare\", because the comparison is between runs rather than inside one. tools/hash-corpus-outputs.ps1 supplies that repetition over the whole corpus and the cross-os-hash job compares the resulting digests across the three platforms, so every fixture is evidence for this item without any fixture naming it."
     },
     {
       "item": 32,
@@ -415,7 +452,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "selector-candidates-consume-the-wildcard-limit"
+      ]
     },
     {
       "item": 33,
@@ -461,7 +500,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "mask-after-sequence-rebasing"
+      ]
     },
     {
       "item": 36,
@@ -512,7 +553,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "xml-sequence-classification-spans-three-contributions"
+      ]
     },
     {
       "item": 40,
@@ -548,7 +591,11 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "cross-destination-diagnostic-order",
+        "cross-format-replacement-renumbers-the-destination-order",
+        "xml-declaration-encoding-disagreement"
+      ]
     },
     {
       "item": 44,
@@ -556,7 +603,13 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [],
+      "gates": [
+        "Namespace2Xml.UnitTests.PublisherTests.AFailureStopsPublicationAndLeavesEarlierFilesInPlace",
+        "Namespace2Xml.UnitTests.PublisherTests.AStorageFailureIsReportedAgainstItsDestination",
+        "ci:publication-invariants"
+      ],
+      "whyNotAFixture": "Section 21.3 is about what survives an external storage failure. A conformance fixture states inputs and expects files, and the harness has no way to make a write fail partway, so no case in the corpus can reach the path. The gate injects the failure through a substituted sink and asserts that earlier destinations remain written, the failing one is reported against its own destination, and no rollback occurs."
     },
     {
       "item": 45,
@@ -596,7 +649,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "mask-after-sequence-rebasing"
+      ]
     },
     {
       "item": 48,
@@ -609,6 +664,7 @@
         "Flat output renders fresh dense indices over those same items, so a run whose ordering values and display indices disagree spells both without confusing them."
       ],
       "fixtures": [
+        "output-selector-addresses-a-sequence-item",
         "wildcard-ordering-values-survive"
       ]
     },
@@ -758,7 +814,14 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [],
+      "gates": [
+        "Namespace2Xml.UnitTests.PublisherTests.DestinationsAreWrittenInPublicationKeyOrder",
+        "Namespace2Xml.UnitTests.PublisherTests.TheFoldKeyOrdersItsComponentsFromCoarsestToFinest",
+        "Namespace2Xml.UnitTests.PublisherTests.AFailureStopsPublicationAndLeavesEarlierFilesInPlace",
+        "ci:publication-invariants"
+      ],
+      "whyNotAFixture": "The order in which distinct destinations are published is observable only while publication is still running. Once a successful run finishes, every destination exists and the tree is the same whatever order produced it, so a fixture cannot distinguish a correct order from any other. Interrupting the run at a chosen point is what makes the order visible, and only an injected failure can do that."
     },
     {
       "item": 59,
@@ -766,7 +829,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "native-strings-do-not-get-a-second-escape-pass"
+      ]
     },
     {
       "item": 60,
@@ -862,7 +927,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "type-array-with-key-is-an-illegal-combination"
+      ]
     },
     {
       "item": 68,
@@ -878,7 +945,12 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [],
+      "gates": [
+        "Namespace2Xml.Conformance.DifferentialTests.TheBaselineBehavesAsTheCaseClaims",
+        "ci:differential"
+      ],
+      "whyNotAFixture": "This item is a claim about the corpus rather than about a run: that every Section 3.1 behaviour and every Section 3.2 correction is carried by some case. A case inside the corpus cannot establish a property of the corpus containing it without circularity. The differential lane discharges it by running the pinned 2.4.0 baseline over every case and refusing any divergence no case explains."
     },
     {
       "item": 70,
@@ -920,7 +992,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "cross-destination-diagnostic-order"
+      ]
     },
     {
       "item": 74,
@@ -988,7 +1062,13 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [],
+      "gates": [
+        "Namespace2Xml.UnitTests.DiagnosticRegistryTests.RegistryReproducesTheSection22Table",
+        "Namespace2Xml.UnitTests.DiagnosticRegistryTests.EveryCodeHasAtLeastOneAppendixBMapping",
+        "Namespace2Xml.UnitTests.DiagnosticRegistryTests.ExtractedStreamSchemaMatchesTheSpecificationBlock"
+      ],
+      "whyNotAFixture": "Appendix C fixes how a fixture is laid out and read. A fixture cannot prove that fixtures are read correctly, because the harness under test is the one interpreting it: a misread layout would misread the evidence too. The harness self-tests check the reader against hand-written cases, and the registry tests check Appendix B and the grammar appendices against the specification text."
     },
     {
       "item": 81,
@@ -1021,7 +1101,13 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "a-refused-fold-is-reported-once-per-destination",
+        "a-refused-transform-is-reported-in-every-overlapping-instance",
+        "append-onto-a-non-sequence-accumulator-is-an-error",
+        "limit-attribution-across-sources",
+        "reference-resolution-crosses-the-depth-bound"
+      ]
     },
     {
       "item": 84,
