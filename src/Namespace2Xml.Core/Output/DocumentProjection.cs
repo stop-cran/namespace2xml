@@ -27,6 +27,7 @@ public sealed class DocumentProjection
     private readonly DiagnosticBuffer diagnostics;
     private readonly string anchor;
     private readonly DestinationRef? destination;
+    private int discardedComments;
 
     /// <summary>Creates a projection.</summary>
     /// <param name="diagnostics">The buffer shape-conflict warnings accumulate in.</param>
@@ -73,6 +74,8 @@ public sealed class DocumentProjection
                 []);
         }
 
+        CommentNodes.Report(diagnostics, anchor, destination, discardedComments);
+
         return document;
     }
 
@@ -89,13 +92,25 @@ public sealed class DocumentProjection
 
             foreach (var (value, item) in node.OrderedSequence)
             {
+                if (CommentNodes.Vanishes(item.Node))
+                {
+                    discardedComments++;
+                    continue;
+                }
+
                 items.Add(Visit(item.Node, path.Add(OrderingValues.ToNamePart(value))));
             }
 
             return new DocumentSequence(items.ToImmutable(), comments);
         }
 
-        if (marks.RendersAsScalar && node.Payload is { } payload)
+        if (node.Payload is { IsValue: false })
+        {
+            // A comment node another contribution has given children. Only the comment goes.
+            discardedComments++;
+        }
+
+        if (marks.RendersAsScalar && node.Payload is { IsValue: true } payload)
         {
             return new DocumentScalar(payload, comments);
         }
@@ -109,6 +124,12 @@ public sealed class DocumentProjection
         {
             foreach (var (name, child) in node.OrderedChildren)
             {
+                if (CommentNodes.Vanishes(child))
+                {
+                    discardedComments++;
+                    continue;
+                }
+
                 members.Add(new DocumentMember(
                     StructuredKey.Of(name),
                     Visit(child, path.Add(name))));

@@ -227,7 +227,7 @@ public static class XmlInputReader
                     return Content(reader.Value, cdata: true, reader.XmlSpace, position);
 
                 case XmlNodeType.Comment:
-                    return Comment(reader.Value);
+                    return Comment(reader.Value, position);
 
                 case XmlNodeType.ProcessingInstruction:
                     instructions++;
@@ -421,15 +421,18 @@ public static class XmlInputReader
             return true;
         }
 
-        /// <summary>Consumes a comment's Section 11.4 content-token ordering value.</summary>
+        /// <summary>Retains a comment as a Section 11.5 ordered content node.</summary>
+        /// <param name="value">The comment's text, as the parser decoded it.</param>
+        /// <param name="at">The parser's position reporter.</param>
         /// <remarks>
-        /// Section 11.5 retains comments as ordered nodes and this preview does not; see
-        /// <c>KNOWN-LIMITS.md</c>. The ordering value is still spent, because Section 11.4 assigns
-        /// one "across all child elements, text, CDATA, and comments" and a comment in
-        /// <c>&lt;a&gt;t&lt;!--c--&gt;&lt;b/&gt;&lt;/a&gt;</c> is why <c>b</c> is <c>a.#2</c>. Dropping
-        /// the value as well as the comment would silently renumber its siblings.
+        /// Section 11.5 keeps comments "as ordered comment nodes", and explicitly does not force
+        /// them "into a 'leading comment for the next value' representation because a comment may
+        /// occur between mixed-content nodes or after the final child". A comment therefore takes a
+        /// Section 11.4 content-token ordering value like any other content node — that is why
+        /// <c>b</c> is <c>a.#2</c> in <c>&lt;a&gt;t&lt;!--c--&gt;&lt;b/&gt;&lt;/a&gt;</c> — and
+        /// never becomes a <see cref="BoundComment"/>.
         /// </remarks>
-        private bool Comment(string value)
+        private bool Comment(string value, IXmlLineInfo at)
         {
             // Section 11.1: decoded character data "still consumes --max-nodes, --max-comments,
             // and --max-comment-bytes exactly as other formats do", and Section 23 lists comments
@@ -444,14 +447,13 @@ public static class XmlInputReader
             }
 
             // Section 11.1 has "every element, attribute, text, comment, and CDATA overlay node"
-            // consume --max-nodes. A comment costs the reader the same work whether or not this
-            // version keeps it, so it is charged on the count Section 11.1 names.
+            // consume --max-nodes.
             if (!Charge(frames.Count + 1))
             {
                 return false;
             }
 
-            frames.Peek().CloseRun();
+            frames.Peek().AddComment(value, at.LineNumber, at.LinePosition);
             return true;
         }
 
@@ -634,8 +636,17 @@ public static class XmlInputReader
             public void OpenText(string text, bool cdata, bool preserve, int at, int column) =>
                 tokens.Add(new TextToken(next++, at, column, cdata, preserve, text));
 
-            /// <summary>Spends an ordering value on a node that ends the open run.</summary>
-            public void CloseRun() => tokens.Add(new CommentToken(next++));
+            /// <summary>Records a Section 11.5 comment at its own content-token slot.</summary>
+            /// <param name="text">The comment's text, as the parser decoded it.</param>
+            /// <param name="at">The one-based line it begins on.</param>
+            /// <param name="column">The one-based Section 22 column it begins at.</param>
+            /// <remarks>
+            /// Taking an ordering value also ends any open text run, which is what stops the two
+            /// halves of <c>&lt;a&gt;t1&lt;!--c--&gt;t2&lt;/a&gt;</c> from coalescing into the one
+            /// text node Section 11.4 would then expose at the element path.
+            /// </remarks>
+            public void AddComment(string text, int at, int column) =>
+                tokens.Add(new CommentToken(next++, at, column, text));
 
             /// <summary>
             /// Discards the Section 11.7 formatting whitespace this element holds, if any.
@@ -687,8 +698,13 @@ public static class XmlInputReader
             {
                 var texts = tokens.OfType<TextToken>().ToList();
                 var children = tokens.OfType<ElementToken>().ToList();
+                var comments = tokens.OfType<CommentToken>().ToList();
 
-                if (children.Count == 0 && texts.Count <= 1)
+                // Section 11.4: "an element with no child elements and exactly one non-comment text
+                // or CDATA node also exposes that scalar at the element path". "Non-comment" is
+                // load-bearing -- a comment beside the text does not stop the element being that
+                // scalar, so the classification counts text runs and elements and ignores comments.
+                if (children.Count == 0 && texts.Count <= 1 && comments.Count == 0)
                 {
                     return Simple(texts);
                 }
@@ -698,7 +714,23 @@ public static class XmlInputReader
 
                 if (texts.Count == 0)
                 {
+                    // Section 17.4: "comments alone do not make a parent mixed-content", so an
+                    // element whose only non-element content is a comment keeps element-only
+                    // addressing for its children and places the comment at its own '#n' beside
+                    // them.
                     ElementOnly(children, properties);
+                    Comments(comments, properties);
+                }
+                else if (children.Count == 0 && texts.Count == 1)
+                {
+                    // One text run and a comment: Section 11.4 still exposes the scalar at the
+                    // element path, and the comment still occupies the content token it took.
+                    Comments(comments, properties);
+
+                    return new StructuredMapping(properties.ToImmutable(), Line, Column)
+                    {
+                        Scalar = Scalar(texts[0]),
+                    };
                 }
                 else
                 {
@@ -707,6 +739,38 @@ public static class XmlInputReader
 
                 return new StructuredMapping(properties.ToImmutable(), Line, Column);
             }
+
+            /// <summary>Places retained comments at their Section 11.4 content tokens.</summary>
+            /// <param name="comments">The comments this element holds, in document order.</param>
+            /// <param name="properties">The property list being built.</param>
+            private static void Comments(
+                List<CommentToken> comments,
+                ImmutableArray<StructuredProperty>.Builder properties)
+            {
+                foreach (var comment in comments)
+                {
+                    properties.Add(Property(
+                        new ContentPart(comment.Ordinal),
+                        StructuredScalar.OfTyped(
+                            ScalarPayload.OfString(comment.Text).AsComment(),
+                            comment.Line,
+                            comment.Column) with
+                        {
+                            ContentToken = comment.Ordinal,
+                        },
+                        comment.Line,
+                        comment.Column));
+                }
+            }
+
+            /// <summary>The scalar one text run contributes, under its Section 11.6 spelling.</summary>
+            /// <param name="text">The run.</param>
+            private static StructuredScalar Scalar(TextToken text) =>
+                StructuredScalar.OfNativeString(
+                    text.Text.ToString(), text.Line, text.Column) with
+                {
+                    IsCdata = text.IsCData,
+                };
 
             /// <summary>Builds an element with no element children and at most one text run.</summary>
             /// <param name="texts">Its text runs.</param>
@@ -718,13 +782,7 @@ public static class XmlInputReader
             /// </remarks>
             private StructuredNode Simple(List<TextToken> texts)
             {
-                var scalar = texts.Count == 1
-                    ? StructuredScalar.OfNativeString(
-                        texts[0].Text.ToString(), texts[0].Line, texts[0].Column) with
-                    {
-                        IsCdata = texts[0].IsCData,
-                    }
-                    : null;
+                var scalar = texts.Count == 1 ? Scalar(texts[0]) : null;
 
                 if (attributes.Count == 0)
                 {
@@ -810,11 +868,7 @@ public static class XmlInputReader
                         case TextToken text:
                             properties.Add(Property(
                                 new ContentPart(text.Ordinal),
-                                StructuredScalar.OfNativeString(
-                                    text.Text.ToString(), text.Line, text.Column) with
-                                {
-                                    IsCdata = text.IsCData,
-                                },
+                                Scalar(text) with { ContentToken = text.Ordinal },
                                 text.Line,
                                 text.Column));
                             break;
@@ -825,9 +879,16 @@ public static class XmlInputReader
                                 new StructuredMapping(
                                     [Property(child.Name, child.Node, child.Line, child.Column)],
                                     child.Line,
-                                    child.Column),
+                                    child.Column)
+                                {
+                                    ContentToken = child.Ordinal,
+                                },
                                 child.Line,
                                 child.Column));
+                            break;
+
+                        case CommentToken comment:
+                            Comments([comment], properties);
                             break;
 
                         default:
@@ -872,9 +933,16 @@ public static class XmlInputReader
             XmlNameComponent Name,
             StructuredNode Node) : Token(Ordinal);
 
-        /// <summary>A comment, which spends an ordering value and contributes nothing else.</summary>
+        /// <summary>A Section 11.5 comment, retained as an ordered content node.</summary>
         /// <param name="Ordinal">Its content-token ordering value within its parent.</param>
-        private sealed record CommentToken(long Ordinal) : Token(Ordinal);
+        /// <param name="Line">The one-based line it begins on.</param>
+        /// <param name="Column">The one-based Section 22 column it begins at.</param>
+        /// <param name="Text">Its text, as the parser decoded it.</param>
+        private sealed record CommentToken(
+            long Ordinal,
+            int Line,
+            int Column,
+            string Text) : Token(Ordinal);
     }
 
     /// <summary>Scans the XML prolog, which is the only place a DTD may appear.</summary>

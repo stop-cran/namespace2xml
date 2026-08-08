@@ -228,8 +228,12 @@ public class XmlInputReaderTests
     private static string Join(string path, string part) =>
         path.Length == 0 ? part : path + "." + part;
 
+    /// <summary>Renders a scalar, spelling a Section 11.5 comment so its kind is visible.</summary>
+    /// <param name="scalar">The scalar.</param>
     private static string Text(StructuredScalar scalar) =>
-        scalar.NativeString ?? scalar.Payload!.ToCanonicalText();
+        scalar.Payload is { Spelling: XmlContentSpelling.Comment } comment
+            ? "<!--" + comment.ToCanonicalText() + "-->"
+            : scalar.NativeString ?? scalar.Payload!.ToCanonicalText();
 
     /// <summary>Spells a name as Appendix A.2 writes it.</summary>
     /// <param name="part">The name.</param>
@@ -656,21 +660,25 @@ public class XmlInputReaderTests
 
     /// <summary>
     /// Section 11.4 assigns content-token ordering values "across all child elements, text, CDATA,
-    /// and comments, including element-only parents", so a comment in
-    /// <c>&lt;a&gt;&lt;b/&gt;&lt;!--c--&gt;&lt;d/&gt;&lt;/a&gt;</c> "is therefore addressed as
-    /// <c>a.#1</c>" -- which is only true if it spent that value.
+    /// and comments, including element-only parents", and Section 11.5 retains the comment "as an
+    /// ordered comment node" at the value it took.
     /// </summary>
     [Test]
     public void ACommentSpendsAnOrderingValue() =>
-        Paths("<a>t0<!--c-->t2</a>").ShouldBe(["a.#0=t0", "a.#2=t2"]);
+        Paths("<a>t0<!--c-->t2</a>")
+            .ShouldBe(["a.#0=t0", "a.#1=<!--c-->", "a.#2=t2"]);
 
     /// <summary>
-    /// Section 11.4: "element-only children retain ordinary element-name addressing". A comment
-    /// among them spends a value without turning its siblings into content tokens.
+    /// Section 11.4: "element-only children retain ordinary element-name addressing", and Section
+    /// 17.4: "comments alone do not make a parent mixed-content". A comment among element-only
+    /// children therefore takes its own <c>#n</c> without turning its siblings into content tokens
+    /// — Section 11.4's own example is that a comment in
+    /// <c>&lt;a&gt;&lt;b/&gt;&lt;!--c--&gt;&lt;d/&gt;&lt;/a&gt;</c> "is addressed as <c>a.#1</c>".
     /// </summary>
     [Test]
     public void ElementOnlyChildrenKeepNameAddressing() =>
-        Paths("<a><b>1</b><!--c--><d>2</d></a>").ShouldBe(["a.b=1", "a.d=2"]);
+        Paths("<a><b>1</b><!--c--><d>2</d></a>")
+            .ShouldBe(["a.b=1", "a.d=2", "a.#1=<!--c-->"]);
 
     /// <summary>
     /// Section 11.4: for element-only repeated children the canonical child paths are
@@ -712,9 +720,47 @@ public class XmlInputReaderTests
     /// </summary>
     [TestCase("<a>two</a>", "a=two")]
     [TestCase("<a><![CDATA[two]]></a>", "a=two")]
-    [TestCase("<a><!--c-->two</a>", "a=two")]
     public void AnElementWithOneTextNodeOwnsItsScalar(string document, string path) =>
         Paths(document).ShouldBe([path]);
+
+    /// <summary>
+    /// "Non-comment" is load-bearing in that Section 11.4 sentence: a retained Section 11.5 comment
+    /// beside the one text node does not stop the element exposing that text as its scalar, and the
+    /// comment keeps the content token it took beside it.
+    /// </summary>
+    [TestCase("<a><!--c-->two</a>", "a=two", "a.#0=<!--c-->")]
+    [TestCase("<a>two<!--c--></a>", "a=two", "a.#1=<!--c-->")]
+    public void ACommentBesideOneTextNodeLeavesItTheScalar(
+        string document, string scalar, string comment) =>
+        Paths(document).ShouldBe([scalar, comment]);
+
+    /// <summary>
+    /// Section 11.5 retains a comment even when it is all an element holds. The element is then a
+    /// mapping with one content token rather than Section 4.4's explicit mapping presence, because
+    /// there is something at <c>#0</c> to address.
+    /// </summary>
+    [Test]
+    public void AnElementHoldingOnlyACommentIsAMappingWithOne() =>
+        Paths("<a><!--c--></a>").ShouldBe(["a.#0=<!--c-->"]);
+
+    /// <summary>
+    /// Section 11.5 keeps comments out of "a 'leading comment for the next value' representation
+    /// because a comment may occur between mixed-content nodes or after the final child". Both
+    /// positions are ordinary content tokens, and the one after the final child has no next value
+    /// at all.
+    /// </summary>
+    [Test]
+    public void ACommentAfterTheFinalChildIsStillOrdered() =>
+        Paths("<a><b>1</b><!--c--></a>").ShouldBe(["a.b=1", "a.#1=<!--c-->"]);
+
+    /// <summary>
+    /// Section 4.5: a comment is one of the ordered node kinds, and Section 4.5's channel is for a
+    /// "non-XML comment". An XML comment must therefore never arrive as a <c>BoundComment</c>,
+    /// which is what would make it move to a neighbouring value.
+    /// </summary>
+    [Test]
+    public void ARetainedCommentIsNotABoundComment() =>
+        Read("<a><b>1</b><!--c--></a>").Comments.ShouldBeEmpty();
 
     /// <summary>
     /// The element-path scalar coexists with the element's attributes: Section 11.4 gives an
@@ -818,7 +864,8 @@ public class XmlInputReaderTests
     /// </summary>
     [Test]
     public void ACommentEndsATextRun() =>
-        Paths("<a>t1<!--c-->t2</a>").ShouldBe(["a.#0=t1", "a.#2=t2"]);
+        Paths("<a>t1<!--c-->t2</a>")
+            .ShouldBe(["a.#0=t1", "a.#1=<!--c-->", "a.#2=t2"]);
 
     /// <summary>
     /// A child element ends the run before it for the same reason, and the run after it starts a

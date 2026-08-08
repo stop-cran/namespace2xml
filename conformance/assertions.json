@@ -200,11 +200,22 @@
       "item": 16,
       "text": "XML namespaces, attributes, text, mixed content, comments, CDATA, and whitespace modes.",
       "milestone": "m6",
-      "status": "pending",
-      "assertions": [],
+      "status": "required",
+      "assertions": [
+        "A namespace-qualified name addresses through its URI as Q{uri}local rather than through the prefix the document wrote, an attribute carries its @ marker so it cannot collide with a child element of the same name, and repeated same-name element children form a Section 5.4 sequence while a singleton keeps its name.",
+        "Every content position in a mixed element takes a #n content token, a child element there is #n.name, and adjacent runs of one kind coalesce while text and CDATA do not coalesce with each other.",
+        "CDATA is retained as a distinct node kind and re-emitted as CDATA, the spelling rides the scalar payload so Section 4.4 replacement carries it, a reference imports the referent's value but not its spelling, and a Section 16.6 type directive overrides the spelling in both directions.",
+        "Comments are retained as ordered comment nodes at their own content token, both between mixed-content nodes and after the final child, are never reassigned to an adjacent value, and comments alone do not make a parent mixed-content.",
+        "Only XML renders comment nodes; every other destination omits them and reports one summarized WARN003 for the output file rather than one per comment.",
+        "PreserveWhitespace is the default and retains every text node, NormalizeFormattingWhitespace discards whitespace-only text between element children while preserving whitespace in mixed content, under xml:space=\"preserve\", and in CDATA, and reports one WARN007 per document that lost anything.",
+        "The three Section 16.8 input options are root-level only, so a selector-qualified one is a blocking SCHEME001 and the later complete directive wins.",
+        "An element-only child carries a content-token ordering value as well as its name, so it is emitted at the position its parent assigned even when a same-name sibling makes it a sequence item."
+      ],
       "fixtures": [
         "xml-a-reference-does-not-import-a-spelling",
+        "xml-canonical-addresses",
         "xml-cdata-survives-a-round-trip",
+        "xml-comments-are-ordered-content-nodes",
         "xml-element-only-children-keep-their-place",
         "xml-input-options-are-root-level-only",
         "xml-node-types-select-the-spelling",
@@ -478,7 +489,7 @@
       "status": "required",
       "assertions": [
         "Section 11.4 addresses an attribute as @name and a namespace-qualified name as Q{uri}local resolved from the URI rather than the prefix, and an element owning both text and attributes exposes the text at its own element path with the attributes beneath it.",
-        "Repeated same-name children become a Section 5.4 sequence with generated zero-based parts while a single child keeps its name, and mixed content addresses every position as a #n content token whose numbering a discarded Section 11.5 comment still consumes."
+        "Repeated same-name children become a Section 5.4 sequence with generated zero-based parts while a single child keeps its name, and mixed content addresses every position as a #n content token which a Section 11.5 comment occupies in its own right."
       ],
       "fixtures": [
         "xml-canonical-addresses"

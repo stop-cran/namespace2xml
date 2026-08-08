@@ -50,6 +50,7 @@ public sealed class FlatProjection
 {
     private readonly DiagnosticBuffer diagnostics;
     private readonly DestinationRef? destination;
+    private int discardedComments;
 
     /// <summary>Creates a projection.</summary>
     /// <param name="diagnostics">The buffer shape-conflict warnings accumulate in.</param>
@@ -80,6 +81,8 @@ public sealed class FlatProjection
 
         Visit(view, root, root, entries);
 
+        CommentNodes.Report(diagnostics, "\u00A720", destination, discardedComments);
+
         return entries.ToImmutable();
     }
 
@@ -89,7 +92,12 @@ public sealed class FlatProjection
         ImmutableArray<NamePart> logical,
         ImmutableArray<FlatEntry>.Builder entries)
     {
-        if (node.Payload is { } payload)
+        if (node.Payload is { IsValue: false })
+        {
+            // A comment node another contribution has given children. Only the comment goes.
+            discardedComments++;
+        }
+        else if (node.Payload is { } payload)
         {
             entries.Add(new FlatEntry(path, logical, payload, [.. node.OrderedComments]));
         }
@@ -108,6 +116,13 @@ public sealed class FlatProjection
 
             foreach (var (value, item) in node.OrderedSequence)
             {
+                if (CommentNodes.Vanishes(item.Node))
+                {
+                    discardedComments++;
+                    index++;
+                    continue;
+                }
+
                 Visit(
                     item.Node,
                     path.Add(OrderingValues.ToNamePart(index)),
@@ -120,6 +135,12 @@ public sealed class FlatProjection
         {
             foreach (var (name, child) in node.OrderedChildren)
             {
+                if (CommentNodes.Vanishes(child))
+                {
+                    discardedComments++;
+                    continue;
+                }
+
                 Visit(child, path.Add(name), logical.Add(name), entries);
             }
         }

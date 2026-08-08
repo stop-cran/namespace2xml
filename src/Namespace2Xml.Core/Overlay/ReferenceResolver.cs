@@ -111,7 +111,11 @@ public sealed class ReferenceResolver
         ImmutableArray<NamePart> path,
         Dictionary<string, List<ImmutableArray<NamePart>>> found)
     {
-        if (node.Payload is not null && !path.IsEmpty && SimpleAlias(path) is { } alias)
+        // Section 13.1: "XML comment content-token paths never enter the simple alias index;
+        // comments have no scalar payload and are invisible to format-agnostic reference
+        // resolution". A text or CDATA content token does enter it, which is what makes 'a.x'
+        // ambiguous when 'a' has both an attribute and a content token aliasing to it.
+        if (node.Payload is { IsValue: true } && !path.IsEmpty && SimpleAlias(path) is { } alias)
         {
             if (!found.TryGetValue(alias, out var canonical))
             {
@@ -381,7 +385,7 @@ public sealed class ReferenceResolver
         {
             var node = Descend(name.Parts);
 
-            if (node?.Payload is null)
+            if (node?.Payload is not { IsValue: true })
             {
                 ReportMissing(name, node, path);
                 return false;
@@ -425,7 +429,12 @@ public sealed class ReferenceResolver
         // scalar/null payload is a missing-reference error", while Section 13.3 makes a structured
         // node a non-scalar reference. The distinction is whether the reference names a node the
         // model treats as a container in its own right.
-        if (node is not null && (node.HasExplicitMapping || node.HasExplicitSequence))
+        // Section 13.3: "Mapping, sequence, XML element, comment, and other structured-node
+        // references are unsupported and are blocking reference errors", and Section 13.1 says a
+        // canonical reference addressing a comment "fails as a non-scalar reference". A comment
+        // holds characters but is not a value, so it lands here rather than in the missing case.
+        if (node?.Payload is { IsValue: false } || (node is not null
+            && (node.HasExplicitMapping || node.HasExplicitSequence)))
         {
             Report(
                 DiagnosticCodes.Reference005,

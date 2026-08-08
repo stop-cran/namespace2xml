@@ -222,6 +222,10 @@ public sealed class XmlProjection
                     + "none");
             }
         }
+        else if (SpelledAsComment(kind, payload))
+        {
+            element.Add(new XComment(Text(payload)));
+        }
         else if (SpelledAsCdata(kind, payload))
         {
             element.Add(new XCData(Text(payload)));
@@ -385,6 +389,18 @@ public sealed class XmlProjection
         TypeValue.Text => false,
         _ => preservesCData && payload.Spelling is XmlContentSpelling.Cdata,
     };
+
+    /// <summary>Whether Section 11.5 renders this payload as a comment node.</summary>
+    /// <param name="kind">The Section 16.6 kind effective at its path, if any.</param>
+    /// <param name="payload">The payload.</param>
+    /// <remarks>
+    /// Section 19.5 "emits retained XML comments", and Section 11.4 lets a comment "be selected for
+    /// ignore and conversion through <c>#n</c>". Conversion is the <c>type</c> directive, so naming
+    /// any Section 16.6 kind at a comment's path renders it as that kind instead — <c>type=text</c>
+    /// turns the comment into the text node it sits beside. Only an unqualified comment stays one.
+    /// </remarks>
+    private static bool SpelledAsComment(TypeValue? kind, ScalarPayload payload) =>
+        kind is null && payload.Spelling is XmlContentSpelling.Comment;
 
     /// <summary>The Section 16.6 XML node kind effective at one path, or null when none is.</summary>
     private TypeValue? Kind(ImmutableArray<NamePart> path)

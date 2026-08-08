@@ -78,6 +78,32 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
         _ => throw new InvalidOperationException($"a {Kind} payload cannot be spelled as CDATA."),
     };
 
+    /// <summary>This payload spelled as a Section 11.5 comment node.</summary>
+    /// <remarks>
+    /// A comment holds characters and nothing else, so like <see cref="AsCdata"/> this accepts only
+    /// a textual or still-unresolved payload. Nothing but the XML reader calls it.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The payload is not textual.</exception>
+    public ScalarPayload AsComment() => Kind switch
+    {
+        ScalarKind.String or ScalarKind.UntypedString =>
+            new ScalarPayload(Kind, text, spelling: XmlContentSpelling.Comment),
+        ScalarKind.Unresolved => new ScalarPayload(
+            Kind, unresolved: unresolved, origin: origin, spelling: XmlContentSpelling.Comment),
+        _ => throw new InvalidOperationException($"a {Kind} payload cannot be spelled as a comment."),
+    };
+
+    /// <summary>
+    /// Whether this payload is a value, which every payload except a Section 11.5 comment is.
+    /// </summary>
+    /// <remarks>
+    /// Section 13.1: comments "have no scalar payload and are invisible to format-agnostic
+    /// reference resolution", and Section 13.3 makes a canonical reference to one fail as a
+    /// non-scalar reference. A comment node still carries its characters here, because Section 19.5
+    /// has to render them and Section 11.4 lets <c>type=text</c> convert them into a value.
+    /// </remarks>
+    public bool IsValue => Spelling != XmlContentSpelling.Comment;
+
     /// <summary>This payload under the Section 11.6 spelling of the value that produced it.</summary>
     /// <param name="spelling">The spelling to carry.</param>
     /// <remarks>

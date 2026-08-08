@@ -14,9 +14,10 @@
   sequence with generated zero-based parts, while a single child keeps its name. An element that
   owns both text and attributes exposes the text at the element path and the attributes beneath it,
   which Section 19.1 emits in pre-order — own scalar first, then children. In mixed content every
-  content position takes a `#n` content token, and Section 11.5 orders comments among that content,
-  so a discarded comment still consumes its position and `gapped` addresses as `#0` and `#2` rather
-  than renumbering to `#0` and `#1`. Section 11.6 coalesces adjacent CDATA into one run, so two
+  content position takes a `#n` content token, and Section 11.5 retains comments as ordered nodes
+  among that content, so `gapped` addresses as `#0` and `#2` with the comment at `#1`. Only Section
+  19.5 renders a comment node, so this namespace output drops it and Section 3 summarizes that as
+  one `WARN003` for the file. Section 11.6 coalesces adjacent CDATA into one run, so two
   segments read as `ab`. Section 11.7 makes `PreserveWhitespace` the default, which retains every
   text node: an indented document is therefore mixed content, and `pretty` addresses its two
   formatting runs as `#0` and `#2` with the element between them at `#1`.

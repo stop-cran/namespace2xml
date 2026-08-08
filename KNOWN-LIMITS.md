@@ -131,14 +131,28 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   contributing to the same element — two sources that each supply one `<b/>` produce an override
   rather than the two-item sequence §11.4 requires, and the §11.4 singleton-to-sequence promotion
   and its `WARN009` cannot occur. Overlaying XML onto XML at the same path is the case to avoid.
-- **Comments are not retained.** §11.5 retains them "as ordered comment nodes" and §11.4 allows
-  selecting one "for ignore and conversion through `#n`". This preview parses a comment and
-  discards it — the same common-model gap as §1.2's YAML entry, since structured input has no
-  comment facet. Its §11.4 ordering value **is** spent, so siblings keep their positions:
-  `<a>t<!--c-->u</a>` addresses its two text runs as `#0` and `#2`, never renumbered to `#0` and
-  `#1`. **This is observable through every output format**: YAML output emits retained comments, so
-  an XML-to-YAML run loses every XML comment, and §19.5 makes XML output "emit retained XML
-  comments", so an XML-to-XML round trip drops them too.
+- **Comments are retained**, and this entry records what that costs elsewhere rather than a gap.
+  §11.5 keeps them "as ordered comment nodes", explicitly not "forced into a 'leading comment for
+  the next value' representation because a comment may occur between mixed-content nodes or after
+  the final child", and §4.5 says the same from the other side: "standalone XML comments remain
+  ordered content nodes and are not reassigned to adjacent values". A comment therefore takes an
+  ordinary §11.4 content token — `<a>t<!--c-->u</a>` addresses its text runs as `#0` and `#2` with
+  the comment at `#1` — and is never a §4.5 bound comment. §17.4's "comments alone do not make a
+  parent mixed-content" holds too, so `<a><b/><!--c--><d/></a>` keeps element-name addressing for
+  `b` and `d` and puts the comment at `a.#1`.
+
+  What this costs is every format except XML. §19.5 is the only renderer that "emits retained XML
+  comments"; §19.3 "renders comments nowhere", and although §19.4 emits YAML comments "in
+  normalized positions" and §20 emits namespace comments "where their association can be
+  represented", a comment holding a content-token slot is associated with no value — giving it one
+  is the reassignment §11.5 and §4.5 both forbid. So **an XML comment survives an XML-to-XML run
+  and nothing else**, and every other destination reports one summarized §3 `WARN003` naming how
+  many it dropped. That warning is counted under its own feature category, separate from the §4.5
+  bound comments a YAML or INI source contributes, because the two are different source concepts.
+
+  One reduction remains inside XML itself: a comment is addressed at `#n`, and `#n` does not yet
+  select an element-only child, so `type=ignore` and the §11.4 conversions reach a comment in mixed
+  content but not one sitting among element-only children.
 - **CDATA is retained**, and this entry records what that costs elsewhere rather than a gap. §11.6
   keeps CDATA distinct so XML output can re-emit it; the spelling now rides on the scalar payload,
   so §4.4's last-wins replacement carries it and the two cannot disagree about which text is
