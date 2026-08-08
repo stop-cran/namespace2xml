@@ -88,14 +88,8 @@ YAML input implements the whole of §10.1's `RestrictedYaml1` schema and every �
 refusal, and shares the §15.1 projection with JSON. These cases are declined or unfinished within
 it.
 
-- **Comments are not retained.** §10.1 lists comment support among the subset's features, and this
-  preview parses a comment and discards it. Nothing is misreported — a document with comments reads
-  correctly and its values are right — but a scheme that would carry comments through to an output
-  gets none. The design for the two-pass association layer this needs is worked out and recorded in
-  `spikes/yaml-comments/FINDINGS.md`, against a 28-document corpus; only the implementation is
-  outstanding. **This is now observable.** YAML output emits retained comments in normalized
-  positions, so a YAML-to-YAML run loses every comment in the source while a namespace-to-YAML run
-  keeps them — the asymmetry is in the reader, not the writer.
+- **Anchors, aliases, tags and merge keys are refused rather than retained.** A comment attached to
+  a construct that §10.2 declines never reaches the model, because the document does not.
 - **A wildcard in a key is declined**, with exit `70` and no output, exactly as for JSON, and for the
   same §12.3 reason. `\*` for a literal asterisk works.
 - **`substitute` is parsed and not applied**, again as for JSON and every other format.

@@ -404,11 +404,44 @@ public static class PlanningPhase
         [
             .. views.Select(view => view with
             {
-                View = Descend(resolved, view.Instance.Selector.Name),
+                View = LiftDocumentComments(
+                    resolved, Descend(resolved, view.Instance.Selector.Name)),
             }),
         ];
 
         return StepOutcome.Produced(rebuilt);
+    }
+
+    /// <summary>Carries Section 20 document-position comments into one output view.</summary>
+    /// <param name="model">The merged model root, which owns the ownerless comments.</param>
+    /// <param name="view">The subtree this output instance renders.</param>
+    /// <returns>The view, carrying the document-position comments of every source.</returns>
+    /// <remarks>
+    /// Section 4.5 gives "document-leading and document-trailing comments" no value owner, so a
+    /// reader binds them to the model root rather than to an entry that a later ignore mask or
+    /// re-addressing could take with it. The root is above every output view, so without this lift
+    /// the comments would reach no document at all. Section 20 says where they belong instead:
+    /// "document-leading comments precede that source's first surviving contribution and
+    /// document-trailing comments follow its final surviving contribution", which for one output
+    /// instance is the start and the end of its view. Every output instance the source reaches
+    /// receives them, because each is a separate document with its own first contribution. A view
+    /// selected at the root already carries them.
+    /// </remarks>
+    private static OverlayNode LiftDocumentComments(OverlayNode model, OverlayNode view)
+    {
+        if (ReferenceEquals(model, view) || model.Comments.IsEmpty)
+        {
+            return view;
+        }
+
+        var lifted = view;
+
+        foreach (var comment in model.OrderedComments)
+        {
+            lifted = lifted.WithComment(comment);
+        }
+
+        return lifted;
     }
 
     /// <summary>Section 15.1 step 16: apply path-scoped transformations to each view.</summary>

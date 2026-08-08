@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (46)
+## Deliberate differences (49)
 
 ### `a-refused-fold-is-reported-once-per-destination`
 
@@ -451,6 +451,31 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: a mask addresses the model the run actually builds, and after
   Section 16.10 rebasing that model is the only place the item's ordering value exists.
 
+### `namespace-document-trailing-comments-reach-the-output`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 4.5; Section 8.5; Section 20.
+- Legacy observation: a comment after the last entry of a namespace profile was read and then
+  dropped, because nothing downstream consumed the document-trailing class.
+- Clean behavior: Section 8.5 gives the namespace format its own association rule — "Consecutive
+  comments are associated with the next entry. Trailing comments with no following entry remain
+  document-trailing comments." Both halves are asserted here. `# document leading` and `# leading
+  of b` each have a following entry, so they bind to `cfg.a` and `cfg.b`; `# document trailing` has
+  none, so it stays document-trailing.
+
+  Section 8.5's first sentence is unconditional, which is why `# document leading` binds to the
+  first entry rather than becoming a document-leading comment. Section 20's generic classification
+  — "a comment before the first payload or item is document-leading" — applies to a format that
+  does not state its own rule; the namespace format states one. The distinction is not visible in
+  this output, where both readings emit the comment in the same place, but it decides whether the
+  comment would survive an ignore mask on `cfg.a`.
+
+  Section 4.5 gives a document-trailing comment "no value owner", so it cannot be emitted by
+  following the entry it happened to sit after. Section 20 places it instead: "document-trailing
+  comments follow its final surviving contribution", which for a single output instance is the end
+  of the document. It therefore survives the loss of any one entry, and it is emitted after `b: 2`
+  rather than being bound to `b`.
+
 ### `namespace-escaping-round-trip`
 
 - namespace2xml 2.4.0: **differs**.
@@ -760,6 +785,64 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: an input file that can name a resource, or expand to an
   unbounded size, makes the tool's behavior a function of the data it is given rather than of the
   invocation, and Section 11.1 removes that entirely rather than bounding it.
+
+### `yaml-comment-positions-survive-a-round-trip`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 4.5; Section 19.4; Section 20.
+- Legacy observation: YAML was neither read nor written, so no comment in a YAML source ever
+  reached an output and no association rule was ever exercised.
+- Clean behavior: Section 20 classifies a comment by the content around it, and Section 4.5 says
+  what each class binds to. The three document-level classes are decided first: "a comment before
+  the first payload or item is document-leading", "a comment between two payloads or items becomes
+  a leading comment of the following payload or item", and "a comment after the final payload or
+  item is document-trailing". Section 4.5 gives the two document classes "no value owner", so they
+  are bound to neither the first nor the last entry; Section 20 places them instead, saying
+  "document-leading comments precede that source's first surviving contribution and
+  document-trailing comments follow its final surviving contribution".
+
+  The remaining classes bind to a value. Section 4.5: "an inline comment belongs to the entry or
+  item on the same logical line", so `# inline on alpha` and `# inline on one` stay on their own
+  line of output, the second showing that a sequence item is an owner as much as a mapping entry.
+  "A trailing comment belongs to the immediately preceding entry or item", so `# trailing of delta`
+  stays inside `gamma` next to `delta` rather than escaping to the document, and `# trailing of
+  zeta` follows `zeta`.
+
+  `# leading of epsilon` is the discriminating case. It sits at the column of `cfg`'s children,
+  after `gamma`'s child `delta` and before `epsilon`. Section 20's middle bullet binds it to "the
+  following payload or item", which is `epsilon`, not to the preceding `delta` — a comment is
+  trailing only when nothing follows it at its own level. Reading it as trailing would place it
+  inside `gamma`, one level too deep and attached to the wrong value.
+
+  Ordering is Section 4.5's: comments "accumulate in source order", so `# document leading`
+  precedes `# leading of alpha` even though the first has no owner and the second binds to `alpha`,
+  and `# trailing of zeta` precedes `# document trailing` for the same reason.
+
+  Section 19.4's fixed two-space indentation applies to the comments as well as the values: a
+  comment is written at the indentation of the value it belongs to.
+
+### `yaml-document-comments-have-no-value-owner`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 4.5; Section 20.
+- Legacy observation: YAML was neither read nor written, so no comment had an owner to be wrong
+  about.
+- Clean behavior: this is the case that separates Section 20's document classes from Section 4.5's
+  binding rule, which the round-trip fixture cannot: there, the first entry is the output root, so
+  a comment bound to it and a comment owned by nothing are emitted in the same place.
+
+  Here the source has two top-level keys and only `cfg` is published. `# document leading` is
+  "before the first payload or item", which Section 20 makes document-leading, and Section 4.5
+  gives that class "no value owner". Binding it to the immediately following entry instead would
+  attach it to `other`, which no output selects, and the comment would be lost from every file the
+  run produces. Section 20 says where an ownerless comment goes: "document-leading comments precede
+  that source's first surviving contribution", and in `cfg.yaml` that contribution is `kept`.
+
+  `# document trailing` is "after the final payload or item". It follows the final surviving
+  contribution of the same output for the same reason.
+
+  The pair also fixes what happens as the selection changes: because neither comment is owned by a
+  value, adding or removing an output, or ignoring a path, moves neither of them off the document.
 
 ### `yaml-indentation-block-scalars-and-quoting`
 

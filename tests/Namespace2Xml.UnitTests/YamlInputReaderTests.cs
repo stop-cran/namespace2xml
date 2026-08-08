@@ -576,4 +576,175 @@ public class YamlInputReaderTests
         carried.Line.ShouldBe(2);
         carried.Column.ShouldBe(control.Column);
     }
+
+    private static StructuredNode ValueOfKey(StructuredNode root, string key) =>
+        root.ShouldBeOfType<StructuredMapping>()
+            .Properties.Single(p => p.Key == key).Value;
+
+    /// <summary>
+    /// Section 4.5: "a leading comment binds during parsing to the logical path or sequence item
+    /// of the immediately following entry". A comment written on its own line above a key
+    /// therefore attaches to that key's value node with <see cref="CommentPlacement.Leading"/>,
+    /// not to any earlier sibling and not to the enclosing mapping.
+    /// </summary>
+    [Test]
+    public void ALeadingCommentBindsToTheFollowingEntry()
+    {
+        var root = Read("cfg:\n  # why\n  key: value\n");
+        var value = ValueOfKey(ValueOfKey(root, "cfg"), "key");
+
+        value.Comments.Select(c => (c.Text, c.Placement))
+            .ShouldBe([("why", CommentPlacement.Leading)]);
+    }
+
+    /// <summary>
+    /// Section 4.5: "an inline comment belongs to the entry or item on the same logical line". A
+    /// comment written after a scalar on that scalar's line therefore attaches to that value node
+    /// with <see cref="CommentPlacement.Inline"/>.
+    /// </summary>
+    [Test]
+    public void AnInlineCommentBindsToTheEntryOnTheSameLine()
+    {
+        var root = Read("cfg:\n  key: value # note\n");
+        var value = ValueOfKey(ValueOfKey(root, "cfg"), "key");
+
+        value.Comments.Select(c => (c.Text, c.Placement))
+            .ShouldBe([("note", CommentPlacement.Inline)]);
+    }
+
+    /// <summary>
+    /// Section 4.5's leading and inline rules apply per comment, so both retentions coexist on the
+    /// same value when a leading comment sits above a line whose entry also carries an inline
+    /// comment. Order of appearance on the value node reflects source order.
+    /// </summary>
+    [Test]
+    public void ALeadingAndInlineCommentBothBindToTheSameEntry()
+    {
+        var root = Read("cfg:\n  # leading\n  key: value # inline\n");
+        var value = ValueOfKey(ValueOfKey(root, "cfg"), "key");
+
+        value.Comments.Select(c => (c.Text, c.Placement))
+            .ShouldBe([("leading", CommentPlacement.Leading), ("inline", CommentPlacement.Inline)]);
+    }
+
+    /// <summary>
+    /// Section 4.5: "a trailing comment belongs to the immediately preceding entry or item". A
+    /// comment written on its own line after an entry, when it does not lead any following entry
+    /// in the same container, therefore attaches to that entry's value node with
+    /// <see cref="CommentPlacement.Trailing"/>.
+    /// </summary>
+    [Test]
+    public void ATrailingCommentBindsToThePrecedingEntry()
+    {
+        var root = Read("cfg:\n  key: value\n  # trailing\n");
+        var value = ValueOfKey(ValueOfKey(root, "cfg"), "key");
+
+        value.Comments.Select(c => (c.Text, c.Placement))
+            .ShouldBe([("trailing", CommentPlacement.Trailing)]);
+    }
+
+    /// <summary>
+    /// Section 20 classifies a comment by what precedes it: "a comment before the first payload or
+    /// item is document-leading", and only "a comment between two payloads or items becomes a
+    /// leading comment of the following payload or item". A comment at the very top of the
+    /// document has no preceding content, so it is document-leading and has no value owner per
+    /// Section 4.5 — it does not bind to the first entry.
+    /// </summary>
+    [Test]
+    public void ACommentBeforeTheFirstContentIsDocumentLeading()
+    {
+        var root = Read("# preface\ncfg:\n  key: value\n");
+        var value = ValueOfKey(root, "cfg");
+
+        root.Comments.Select(c => (c.Text, c.Placement))
+            .ShouldBe([("preface", CommentPlacement.Leading)]);
+        value.Comments.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The contrast case for <see cref="ACommentBeforeTheFirstContentIsDocumentLeading"/>. Here the
+    /// mapping key <c>cfg</c> precedes the comment, so Section 20's middle bullet applies — "a
+    /// comment between two payloads or items becomes a leading comment of the following payload or
+    /// item" — and the comment binds to the following entry rather than to the document.
+    /// </summary>
+    [Test]
+    public void ACommentAfterEarlierContentBindsToTheFollowingEntry()
+    {
+        var root = Read("cfg:\n  # about key\n  key: value\n");
+        var cfg = ValueOfKey(root, "cfg");
+        var value = ValueOfKey(cfg, "key");
+
+        value.Comments.Select(c => (c.Text, c.Placement))
+            .ShouldBe([("about key", CommentPlacement.Leading)]);
+        root.Comments.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 20 classifies a document-leading comment by the content before it, not by how many
+    /// top-level entries follow it. With two of them the comment still owns nothing, which matters
+    /// because binding it to the first entry would attach it to <c>other</c> — a subtree an output
+    /// selecting <c>cfg</c> never renders, so the comment would be lost rather than misplaced.
+    /// </summary>
+    [Test]
+    public void ACommentBeforeSeveralTopLevelEntriesIsStillDocumentLeading()
+    {
+        var root = Read("# preface\nother:\n  z: 9\ncfg:\n  a: 1\n");
+
+        root.Comments.Select(c => (c.Text, c.Placement))
+            .ShouldBe([("preface", CommentPlacement.Leading)]);
+        ValueOfKey(root, "other").Comments.ShouldBeEmpty();
+        ValueOfKey(root, "cfg").Comments.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 4.5: "document-leading and document-trailing comments have no value owner". A
+    /// comment in a document that has no following entry to bind to — the only remaining shape a
+    /// comment-only document can take, since Section 10.3 rejects multiple documents and Section
+    /// 10.1 accepts an empty stream — has to land somewhere so the retention rule holds; the root
+    /// is that node.
+    /// </summary>
+    [Test]
+    public void ADocumentLeadingCommentBindsToTheRootWhenNoEntryFollows()
+    {
+        var root = Read("# only\nvalue\n");
+
+        root.Comments.Select(c => (c.Text, c.Placement))
+            .ShouldBe([("only", CommentPlacement.Leading)]);
+    }
+
+    /// <summary>
+    /// Section 4.5: "comments contributed to the same surviving logical path accumulate in source
+    /// order". Two leading comments above the same entry therefore appear on the value node in the
+    /// order they were written.
+    /// </summary>
+    [Test]
+    public void ConsecutiveLeadingCommentsAccumulateInSourceOrder()
+    {
+        var root = Read("cfg:\n  # one\n  # two\n  key: value\n");
+        var value = ValueOfKey(ValueOfKey(root, "cfg"), "key");
+
+        value.Comments.Select(c => c.Text).ShouldBe(["one", "two"]);
+        value.Comments.Select(c => c.Placement)
+            .ShouldBe([CommentPlacement.Leading, CommentPlacement.Leading]);
+    }
+
+    /// <summary>
+    /// Section 23 fixes <c>--max-comments</c>/<c>--max-comment-bytes</c>: a comment "consumes the
+    /// corresponding global budget". Retaining a comment for output must not change how much of
+    /// the budget it consumes; this reader charges once at parse time, and the retention path adds
+    /// no further charge.
+    /// </summary>
+    [Test]
+    public void RetainedCommentsChargeTheBudgetOnce()
+    {
+        var budget = new SourceBudget(ResourceLimits.Defaults, 0);
+        var buffer = new DiagnosticBuffer();
+
+        Read("# a\ncfg:\n  # b\n  key: value # c\n", buffer, ResourceLimits.Defaults, budget)
+            .ShouldNotBeNull();
+        buffer.Drain().ShouldBeEmpty();
+
+        budget.Tally.Comments.ShouldBe(3);
+        budget.Tally.CommentBytes.ShouldBe(3);
+    }
 }

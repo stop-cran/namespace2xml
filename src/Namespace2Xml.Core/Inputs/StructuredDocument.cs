@@ -5,6 +5,22 @@ using Namespace2Xml.Profiles;
 namespace Namespace2Xml.Inputs;
 
 /// <summary>
+/// One Section 4.5 comment a native reader has bound to a value node, before the overlay projection
+/// turns it into a <see cref="BoundComment"/>.
+/// </summary>
+/// <param name="Text">The comment text without its marker, as the source format decoded it.</param>
+/// <param name="Placement">Where the comment sat relative to its owner.</param>
+/// <remarks>
+/// Section 4.5 requires the overlay to hold "text, source order, association with a logical
+/// qualified path, sequence ordering value, or document position, and whether it was leading,
+/// inline, or trailing". The source order and path association are supplied by the projection —
+/// the ordinal is allocated from the same node counter the projection already uses, and the path
+/// is where the projection attaches the node — so the intermediate carries only what the reader
+/// still knows: text and placement.
+/// </remarks>
+public readonly record struct StructuredComment(string Text, CommentPlacement Placement);
+
+/// <summary>
 /// One node of a native structured document, in the three shapes Section 4.2 recognizes.
 /// </summary>
 /// <remarks>
@@ -22,10 +38,26 @@ namespace Namespace2Xml.Inputs;
 /// attribute or content marker. Keeping the difference in the readers keeps it out of everything
 /// downstream.
 /// </para>
+/// <para>
+/// <see cref="Comments"/> is the Section 4.5 channel: a native reader that preserves comments
+/// binds each one to the value node it belongs to, and <see cref="StructuredProfileReader"/> turns
+/// them into <see cref="BoundComment"/>s in source order. A reader that discards comments — JSON
+/// has none; YAML with <c>DiscardComments</c> has them removed at output — leaves this array empty
+/// and the projection attaches nothing.
+/// </para>
 /// </remarks>
 /// <param name="Line">The one-based line this node begins on.</param>
 /// <param name="Column">The one-based Section 22 column this node begins at.</param>
-public abstract record StructuredNode(int Line, int Column);
+public abstract record StructuredNode(int Line, int Column)
+{
+    /// <summary>The Section 4.5 comments bound to this value node, in source order.</summary>
+    /// <remarks>
+    /// The default is <see cref="ImmutableArray{T}.Empty"/> rather than the array's <c>default</c>
+    /// so that a reader which never sees a comment reads back as an empty channel rather than as an
+    /// uninitialized one — the difference matters because the two compare unequal.
+    /// </remarks>
+    public ImmutableArray<StructuredComment> Comments { get; init; } = [];
+}
 
 /// <summary>A native scalar.</summary>
 public sealed record StructuredScalar : StructuredNode

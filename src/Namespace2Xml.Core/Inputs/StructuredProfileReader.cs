@@ -48,7 +48,7 @@ public static class StructuredProfileReader
 
         unsupported = projection.Refusal;
 
-        return new ProfileContribution(overlay, [], [], []);
+        return new ProfileContribution(overlay, [], []);
     }
 
     private sealed class Projection(
@@ -63,7 +63,7 @@ public static class StructuredProfileReader
         {
             var key = StableOrderingKey.FromSource(sourceOrdinal, ++ordinal);
 
-            return node switch
+            var built = node switch
             {
                 StructuredScalar scalar => BuildScalar(scalar, path, key),
                 StructuredMapping mapping => BuildMapping(mapping, path, key),
@@ -71,6 +71,39 @@ public static class StructuredProfileReader
                 _ => throw new InvalidOperationException(
                     $"'{node.GetType().Name}' is not a {nameof(StructuredNode)} shape."),
             };
+
+            return AttachComments(built, node.Comments);
+        }
+
+        /// <summary>Turns a native comment channel into Section 4.5 <see cref="BoundComment"/>s.</summary>
+        /// <param name="node">The overlay node the reader built for the native value.</param>
+        /// <param name="comments">The native reader's comment channel.</param>
+        /// <remarks>
+        /// Section 4.5 requires each retained comment to carry a Section 4.7 ordering key so that
+        /// "comments contributed to the same surviving logical path accumulate in source order".
+        /// The projection's own <c>++ordinal</c> is the source-order counter used for every node in
+        /// this document, so allocating one more from it per comment orders comments against the
+        /// nodes they were bound to as well as against each other. Their Section 4.7 key therefore
+        /// falls between the value node's own key and the next value node's, which is where the
+        /// source read them.
+        /// </remarks>
+        private OverlayNode AttachComments(
+            OverlayNode node, ImmutableArray<StructuredComment> comments)
+        {
+            if (comments.IsDefaultOrEmpty)
+            {
+                return node;
+            }
+
+            var result = node;
+
+            foreach (var comment in comments)
+            {
+                var order = StableOrderingKey.FromSource(sourceOrdinal, ++ordinal);
+                result = result.WithComment(new BoundComment(comment.Text, comment.Placement, order));
+            }
+
+            return result;
         }
 
         private OverlayNode BuildMapping(

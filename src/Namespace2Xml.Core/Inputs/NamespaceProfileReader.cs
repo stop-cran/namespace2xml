@@ -41,20 +41,25 @@ public sealed record ProfileEntry(
 /// <param name="Overlay">The concrete contributions of this source.</param>
 /// <param name="Masks">The Section 8.6 masks this source declares.</param>
 /// <param name="Templates">The wildcard template entries extracted at step 7.</param>
-/// <param name="TrailingComments">
-/// Section 8.5 document-trailing comments: those with no following entry.
-/// </param>
 /// <remarks>
+/// <para>
 /// There is deliberately no separate list of reference-bearing entries. Section 13.1 resolves
 /// references after ordinary merging, so such an entry is an ordinary contribution in
 /// <paramref name="Overlay"/> carrying a <see cref="ScalarKind.Unresolved"/> payload, and the
 /// merged model is the only place step 15 has to look.
+/// </para>
+/// <para>
+/// There is likewise no separate list of document-trailing comments. Section 4.5 gives them "no
+/// value owner", which the overlay expresses by binding them to the root of
+/// <paramref name="Overlay"/>; a list beside the overlay would have to be threaded through merging
+/// and view selection to reach an output, and a channel that reaches no output silently loses the
+/// comments it carries.
+/// </para>
 /// </remarks>
 public sealed record ProfileContribution(
     OverlayNode Overlay,
     ImmutableArray<ProfileMask> Masks,
-    ImmutableArray<ProfileEntry> Templates,
-    ImmutableArray<BoundComment> TrailingComments);
+    ImmutableArray<ProfileEntry> Templates);
 
 /// <summary>
 /// Reads classified Section 8.1 records into a Section 4.2 overlay.
@@ -137,10 +142,34 @@ public static class NamespaceProfileReader
         }
 
         return new ProfileContribution(
-            overlay,
+            AttachDocumentTrailing(overlay, pending),
             masks.ToImmutable(),
-            templates.ToImmutable(),
-            pending.ToImmutable());
+            templates.ToImmutable());
+    }
+
+    /// <summary>Binds the comments no entry ever claimed to the contribution root.</summary>
+    /// <param name="overlay">This source's contributions.</param>
+    /// <param name="pending">The comments still unbound when the source ended.</param>
+    /// <returns>The overlay, carrying any document-trailing comments at its root.</returns>
+    /// <remarks>
+    /// A comment still pending at end of source had no following entry to bind to, so Section 20's
+    /// "a comment after the final payload or item is document-trailing" classifies it and Section
+    /// 4.5 leaves it without a value owner. The root is the node that expresses that: it is never
+    /// re-addressed and never removed by an ignore mask, and Section 15.1's view selection carries
+    /// root comments into each output instance, where Section 20 places them after "its final
+    /// surviving contribution".
+    /// </remarks>
+    private static OverlayNode AttachDocumentTrailing(
+        OverlayNode overlay, ImmutableArray<BoundComment>.Builder pending)
+    {
+        var result = overlay;
+
+        foreach (var comment in pending)
+        {
+            result = result.WithComment(comment with { Placement = CommentPlacement.Trailing });
+        }
+
+        return result;
     }
 
     private static void ReadMask(

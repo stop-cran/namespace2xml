@@ -126,6 +126,8 @@ public class NamespaceProfileReaderTests
 
     /// <summary>
     /// Section 8.5: "Trailing comments with no following entry remain document-trailing comments."
+    /// Section 4.5 gives such a comment "no value owner", which the overlay expresses by binding it
+    /// to the contribution root rather than to the last entry it happened to follow.
     /// </summary>
     [Test]
     public void TrailingCommentsWithNoFollowingEntryAreDocumentTrailing()
@@ -133,7 +135,8 @@ public class NamespaceProfileReaderTests
         var contribution = Read("a=1\n#after");
 
         Descend(contribution.Overlay, "a").Comments.ShouldBeEmpty();
-        contribution.TrailingComments.Select(comment => comment.Text).ShouldBe(["after"]);
+        contribution.Overlay.Comments.Select(comment => (comment.Text, comment.Placement))
+            .ShouldBe([("after", CommentPlacement.Trailing)]);
     }
 
     /// <summary>
@@ -147,7 +150,7 @@ public class NamespaceProfileReaderTests
 
         Descend(contribution.Overlay, "a").Comments.Select(comment => comment.Text)
             .ShouldBe(["before", "after"]);
-        contribution.TrailingComments.ShouldBeEmpty();
+        contribution.Overlay.Comments.ShouldBeEmpty();
     }
 
     /// <summary>Section 8.5, same clause: a Section 8.1 rule 1 record leaves the run open.</summary>
@@ -192,7 +195,7 @@ public class NamespaceProfileReaderTests
     {
         var contribution = Read(@"\#a=1");
 
-        contribution.TrailingComments.ShouldBeEmpty();
+        contribution.Overlay.Comments.ShouldBeEmpty();
         Descend(contribution.Overlay, "#a").Payload!.ToCanonicalText().ShouldBe("1");
     }
 
@@ -257,7 +260,7 @@ public class NamespaceProfileReaderTests
         contribution.Templates.ShouldHaveSingleItem()
             .Comments.Select(comment => comment.Text).ShouldBe(["t"]);
         Descend(contribution.Overlay, "b").Comments.ShouldBeEmpty();
-        contribution.TrailingComments.ShouldBeEmpty();
+        contribution.Overlay.Comments.ShouldBeEmpty();
     }
 
     /// <summary>

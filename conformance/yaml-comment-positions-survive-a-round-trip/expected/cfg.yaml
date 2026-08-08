@@ -1,0 +1,16 @@
+# document leading
+# leading of alpha
+alpha: 1 # inline on alpha
+beta: 2
+gamma:
+  delta: 4
+  # trailing of delta
+# leading of epsilon
+epsilon: 5
+list:
+  # leading of the first item
+  - one # inline on one
+  - two
+zeta: 9
+# trailing of zeta
+# document trailing
