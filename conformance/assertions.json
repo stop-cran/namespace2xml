@@ -581,10 +581,13 @@
       "status": "required",
       "assertions": [
         "A wildcard output=ignore suppresses an instance created by an earlier exact declaration, because Section 15.2 orders the stream by source position and states that pattern specificity does not alter precedence.",
+        "Section 15.2 evaluates type and key against absolute pre-transformation paths in every output instance containing the path, and Section 14.1 lets nested output declarations select overlapping data, so one refused rule at one path is refused once per instance. Section 22 counts TYPE001 once per path and applicable output instance, so both refusals are reported rather than the second being retired as a repeat of the first.",
+        "Two formats of one output declaration are one concrete output instance under Section 14.1, which makes the selector what creates an instance, so a rule refused in it is reported once and not once per format.",
         "A later non-ignore output declaration restores an instance an earlier ignore suppressed, which is the restoration column of the Section 15.2 ignore-mechanism table."
       ],
       "fixtures": [
-        "a-later-output-declaration-restores-an-ignored-instance"
+        "a-later-output-declaration-restores-an-ignored-instance",
+        "a-refused-transform-is-reported-in-every-overlapping-instance"
       ]
     },
     {

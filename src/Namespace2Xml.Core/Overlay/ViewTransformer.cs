@@ -668,6 +668,41 @@ public static class ViewTransformer
             _ => Decoded(part),
         };
 
+        /// <summary>The Section 22 cardinality key of one refusal.</summary>
+        /// <param name="rule">The rule that could not be applied.</param>
+        /// <param name="instance">The concrete selector of the output instance it was applied in.</param>
+        /// <param name="absolute">The absolute path it was applied at.</param>
+        /// <returns>A key that separates exactly the occurrences Section 22 counts separately.</returns>
+        /// <remarks>
+        /// <para>
+        /// Section 22 counts TYPE001 "once per path and applicable source/output instance". Section
+        /// 15.2 evaluates <c>type</c> and <c>key</c> "against absolute stable pre-transformation
+        /// paths in every output instance containing the path", and Section 14.1 lets nested output
+        /// declarations "intentionally select overlapping data and create duplicate content in
+        /// separate files", so one rule at one path can legitimately be refused twice. Those are two
+        /// facts about two files, and a key omitting the instance would report the first and retire
+        /// the second, leaving a run that names one of the files it failed to produce.
+        /// </para>
+        /// <para>
+        /// The instance is identified by the concrete selector it was created from, which is this
+        /// view's prefix. Section 14.1 makes the selector what creates an instance, so the two
+        /// formats of <c>output=namespace,ini</c> share one and are refused once, which is also how
+        /// PATH001 treats them.
+        /// </para>
+        /// <para>
+        /// The parts are length-prefixed rather than joined by a separator. A canonical path escapes
+        /// only the delimiter, <c>=</c>, <c>}</c>, <c>*</c> and line terminators, so any separator
+        /// can also occur inside a part, and a key is a suppression rule: two keys that collide
+        /// cost a diagnostic.
+        /// </para>
+        /// </remarks>
+        private static string CardinalityKey(TransformRule rule, string? instance, string? absolute)
+        {
+            string?[] parts = [rule.Declaration.Source, $"{rule.Declaration.Line}", instance, absolute];
+
+            return string.Concat(parts.Select(part => $"{part?.Length ?? -1}\u0000{part}"));
+        }
+
         private void Refuse(
             TransformRule rule,
             ImmutableArray<NamePart> relative,
@@ -681,7 +716,7 @@ public static class ViewTransformer
                     DiagnosticPhase.Planning,
                     spec,
                     $"'{rule.Declaration.Text}' cannot be applied at '{absolute}': {message}",
-                    cardinalityKey: $"{rule.Declaration.Source}:{rule.Declaration.Line}:{absolute}",
+                    cardinalityKey: CardinalityKey(rule, CanonicalPath.Of(prefix), absolute),
                     source: rule.Declaration.Source,
                     line: rule.Declaration.Line,
                     path: absolute,

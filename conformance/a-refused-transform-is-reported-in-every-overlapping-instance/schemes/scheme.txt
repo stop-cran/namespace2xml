@@ -1,0 +1,5 @@
+app.output=namespace
+app.x.output=namespace
+app.x.k.type=array
+solo.output=namespace,ini
+solo.m.type=array
