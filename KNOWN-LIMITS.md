@@ -331,16 +331,13 @@ them. Items marked `required` are covered and can never lose coverage.
 
 Do not read a passing test run as evidence about a `pending` item.
 
-Two specified conditions cannot be given a fixture at all until a contract decision lands, because
-Section 22 lists diagnostic members per *code* while the mapping appendix enumerates *conditions*,
-and Appendix C.4 compares members exactly — so an omitted member is an assertion of absence that the
-specification does not determine. Writing either fixture today would mean recording what the
-implementation happens to emit, which is the one thing `conformance/` exists to prevent.
-
-| Uncovered | Blocked on |
-|---|---|
-| `merge=error` (§16.10), and so acceptance item 25 for that strategy | [#47](https://github.com/stop-cran/namespace2xml/issues/47) |
-| `WILDCARD002` and its `rule` member | [#46](https://github.com/stop-cran/namespace2xml/issues/46), subsumed by #47 |
+Two specified conditions had no fixture at all until
+[#47](https://github.com/stop-cran/namespace2xml/issues/47) landed: Section 22 listed diagnostic
+members per *code* while the mapping appendix enumerated *conditions*, and Appendix C.4 compares
+members exactly, so an omitted member was an assertion of absence that the specification did not
+determine. Appendix B now states the member set each *condition* supplies, and both fixtures have
+since been authored — `merge-error-rejects-a-second-source-contribution` for §16.10 `merge=error`,
+and `WILDCARD002` across the four wildcard-bound cases. Nothing under this heading is outstanding.
 
 ## 3. Platform and environment
 

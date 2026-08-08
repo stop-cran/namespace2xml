@@ -266,8 +266,8 @@
     {
       "item": 25,
       "text": "Array concatenation, explicit-index patching, and input `merge=replace`.",
-      "milestone": "unassigned",
-      "status": "pending",
+      "milestone": "m3",
+      "status": "required",
       "assertions": [
         "Under the default deep strategy an all-canonical-numeric mapping patches at the supplied ordering value, so a later contribution at an existing value is merged into the item already there by the ordinary rules of Section 17.1 and leaves the other items alone.",
         "Under append the same two contributions concatenate instead: the later contribution is rebased onto fresh implicit ordering values above the high-water mark rather than patching.",
