@@ -135,7 +135,8 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   token from that document's counter. Converted mixed content is allocated above the merged
   element's high-water mark, so it is ordered; a promoted sequence item keeps its own token and can
   therefore be drawn among the items it follows in the address space. The fixtures pin the addresses
-  in both cases and the serialized stream only for the mixed case. Filing this as a specification
+  in both cases and the serialized stream only for the mixed case. §11.4 carries a non-normative
+  open question recording this, so the two cannot drift apart; filing it as a specification
   ambiguity is the fast-follow.
 - **Comments are retained**, and this entry records what that costs elsewhere rather than a gap.
   §11.5 keeps them "as ordered comment nodes", explicitly not "forced into a 'leading comment for
