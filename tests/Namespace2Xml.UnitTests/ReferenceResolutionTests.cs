@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using Namespace2Xml.Budgets;
+using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Overlay;
 using Namespace2Xml.Pipeline;
@@ -389,7 +391,10 @@ public sealed class ReferenceResolutionTests
     {
         var diagnostics = new DiagnosticBuffer();
         var resolved = ReferenceResolver.Resolve(
-            model, [ImmutableArray.Create<NamePart>(Ordinary(root))], diagnostics);
+            model,
+            [ImmutableArray.Create<NamePart>(Ordinary(root))],
+            new GlobalBudget(new ResourceLimits()),
+            diagnostics);
 
         diagnostics.Drain().Select(d => d.Code).ShouldBeEmpty();
 

@@ -200,7 +200,7 @@ public static class Transformation
             PipelineStep.ResolveReferences,
             PipelineRun.Both(views, model),
             (both, diagnostics) =>
-                PlanningPhase.ResolveReferences(both.First, both.Second, diagnostics));
+                PlanningPhase.ResolveReferences(both.First, both.Second, budget, diagnostics));
 
         var transformed = run.Run(
             PipelineStep.ApplyTransformations,
@@ -216,7 +216,8 @@ public static class Transformation
         var folded = run.Run(
             PipelineStep.FoldDestinationCollisions,
             grouped,
-            PlanningPhase.FoldDestinationCollisions);
+            (contributions, diagnostics) =>
+                PlanningPhase.FoldDestinationCollisions(contributions, budget, diagnostics));
 
         var serialized = run.Run(
             PipelineStep.Serialize,

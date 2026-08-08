@@ -1,0 +1,6 @@
+-i
+inputs/data.txt
+-s
+schemes/scheme.txt
+--max-reference-depth
+2

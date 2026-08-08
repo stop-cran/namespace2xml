@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text;
+using Namespace2Xml.Budgets;
 using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Pipeline;
 using Namespace2Xml.Profiles;
@@ -30,14 +31,17 @@ public sealed class ReferenceResolver
 {
     private readonly OverlayNode model;
     private readonly DiagnosticBuffer diagnostics;
+    private readonly GlobalBudget budget;
     private readonly Dictionary<string, ImmutableArray<ImmutableArray<NamePart>>> aliases;
     private readonly Dictionary<string, ScalarPayload?> resolved = new(StringComparer.Ordinal);
     private readonly HashSet<string> reportedCycles = new(StringComparer.Ordinal);
 
-    private ReferenceResolver(OverlayNode model, DiagnosticBuffer diagnostics)
+    private ReferenceResolver(
+        OverlayNode model, DiagnosticBuffer diagnostics, GlobalBudget budget)
     {
         this.model = model;
         this.diagnostics = diagnostics;
+        this.budget = budget;
         aliases = BuildAliasIndex(model);
     }
 
@@ -46,18 +50,21 @@ public sealed class ReferenceResolver
     /// </summary>
     /// <param name="model">The merged model, after step 12.</param>
     /// <param name="roots">The selected paths of the concrete output instances.</param>
+    /// <param name="budget">The invocation's Section 23 budgets.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>The model with every reachable unresolved payload replaced.</returns>
     public static OverlayNode Resolve(
         OverlayNode model,
         IEnumerable<ImmutableArray<NamePart>> roots,
+        GlobalBudget budget,
         DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        var resolver = new ReferenceResolver(model, diagnostics);
+        var resolver = new ReferenceResolver(model, diagnostics, budget);
 
         foreach (var root in roots)
         {
@@ -249,6 +256,20 @@ public sealed class ReferenceResolver
             // Already a settled scalar, or nothing at all. Either way there is nothing to resolve;
             // the caller decides whether the absence is a missing-reference error.
             return node?.Payload;
+        }
+
+        // Section 6.2 bounds "reference recursion depth" and Section 23 requires the reference
+        // budget be "consumed in [its] normative pipeline order". The level charged is the number
+        // of nested unresolved values entered, so reading a value that is already settled costs
+        // nothing: that is a lookup, not recursion. TryEnter rather than TryConsume because
+        // Section 23 lists this among the levels rather than the totals -- a wide model that
+        // resolves a thousand independent one-deep references is not deep.
+        if (!budget.TryEnter(ResourceBound.MaxReferenceDepth, chain.Length + 1, out var tooDeep))
+        {
+            ReportDepth(path, tooDeep);
+            resolved[key] = null;
+
+            return null;
         }
 
         var value = Resolve(payload, path, chain.Add(path));
@@ -548,6 +569,34 @@ public sealed class ReferenceResolver
                 spec,
                 message,
                 canonical ?? string.Empty,
+                origin.Source,
+                origin.Line,
+                origin.Column,
+                canonical),
+            node?.Marks.PayloadMark ?? node?.Marks.Position ?? StableOrderingKey.First));
+    }
+
+    /// <summary>Reports the reference-depth budget crossing against the value that crossed it.</summary>
+    /// <param name="path">The path whose resolution would have entered a level too deep.</param>
+    /// <param name="fault">The crossing.</param>
+    /// <remarks>
+    /// <c>LIMIT001</c> is counted once per invocation, so the buffer keeps the first of these and
+    /// the rest are the same crossing seen again from another reachable value. Locating it at the
+    /// owning payload still matters for that first one, and is what <see cref="Report"/> does for
+    /// every other reference diagnostic.
+    /// </remarks>
+    private void ReportDepth(ImmutableArray<NamePart> path, BudgetFault fault)
+    {
+        var canonical = CanonicalPath.Of(path);
+        var node = Descend(path);
+        var owner = node?.Payload;
+        var origin = owner is { IsUnresolved: true } ? owner.Origin : default;
+
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Limit001(
+                DiagnosticPhase.Planning,
+                "\u00A723",
+                $"resolving this reference crosses {fault.Spelling}, whose limit is {fault.Limit}.",
                 origin.Source,
                 origin.Line,
                 origin.Column,

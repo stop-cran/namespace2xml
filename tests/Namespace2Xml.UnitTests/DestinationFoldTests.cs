@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using Namespace2Xml.Budgets;
+using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Output;
 using Namespace2Xml.Overlay;
@@ -116,7 +118,8 @@ public class DestinationFoldTests
         DiagnosticBuffer diagnostics,
         params DestinationContribution[] contributions)
     {
-        var outcome = PlanningPhase.FoldDestinationCollisions([.. contributions], diagnostics);
+        var outcome = PlanningPhase.FoldDestinationCollisions(
+            [.. contributions], new GlobalBudget(new ResourceLimits()), diagnostics);
 
         outcome.Faulted.ShouldBeFalse();
 
@@ -191,6 +194,7 @@ public class DestinationFoldTests
                 Contribution("a", "out.conf", "k", "1", declarationOrder: 0, MergeStrategy.Error),
                 Contribution("b", "out.conf", "m", "2", declarationOrder: 1, MergeStrategy.Error),
             ],
+            new GlobalBudget(new ResourceLimits()),
             diagnostics).Faulted.ShouldBeTrue();
 
         diagnostics.HasBlockingError.ShouldBeTrue();

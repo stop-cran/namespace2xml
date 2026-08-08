@@ -821,11 +821,15 @@
       "status": "required",
       "assertions": [
         "Section 23 accumulates parsed node, comment, and comment-byte totals at the parse-phase join in CLI source order, and Section 11.1 makes the single reported LIMIT001 the earliest under that order rather than the first crossing detected, so a global crossing decided at the join is reported in preference to a per-source crossing that a later source detected earlier in time.",
-        "Appendix C.7 runs every case under varied DOTNET_PROCESSOR_COUNT values and compares the structured diagnostic stream with prose removed, so Section 11.1's claim that attribution is independent of parser worker scheduling is measured rather than only stated."
+        "Appendix C.7 runs every case under varied DOTNET_PROCESSOR_COUNT values and compares the structured diagnostic stream with prose removed, so Section 11.1's claim that attribution is independent of parser worker scheduling is measured rather than only stated.",
+        "Section 23's reference budget is consumed in its normative pipeline order, so --max-reference-depth bounds the nesting of unresolved values entered during step 15 and the crossing is attributed to the value that crossed it rather than to the run.",
+        "Section 23's output budget is consumed at step 18, where a destination file becomes planned, so --max-outputs bounds distinct canonical destinations after collisions have folded and the crossing names the destination that crossed it."
       ],
       "fixtures": [
+        "destination-planning-crosses-the-output-bound",
         "limit-attribution-across-sources",
-        "limit-xml-attributes-per-element"
+        "limit-xml-attributes-per-element",
+        "reference-resolution-crosses-the-depth-bound"
       ]
     },
     {

@@ -332,6 +332,7 @@ public static class PlanningPhase
     /// <summary>Section 15.1 step 15: resolve references within each instance's closure.</summary>
     /// <param name="views">Step 14's product.</param>
     /// <param name="model">Step 12's product, which holds every unresolved payload.</param>
+    /// <param name="budget">The invocation's Section 23 budgets.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>The views, re-descended into the resolved model.</returns>
     /// <remarks>
@@ -353,16 +354,18 @@ public static class PlanningPhase
     public static StepOutcome<ImmutableArray<OutputView>> ResolveReferences(
         ImmutableArray<OutputView> views,
         OverlayNode model,
+        GlobalBudget budget,
         DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
         var roots = views
             .Select(view => view.Instance.Selector.Name?.Parts ?? [])
             .ToImmutableArray();
 
-        var resolved = ReferenceResolver.Resolve(model, roots, diagnostics);
+        var resolved = ReferenceResolver.Resolve(model, roots, budget, diagnostics);
 
         if (diagnostics.HasBlockingError)
         {
@@ -561,6 +564,7 @@ public static class PlanningPhase
 
     /// <summary>Section 15.1 step 18: fold same-format collisions and cross-format overrides.</summary>
     /// <param name="contributions">Step 17's product.</param>
+    /// <param name="budget">The invocation's Section 23 budgets.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>The contributions, once no two share a destination.</returns>
     /// <remarks>
@@ -583,11 +587,21 @@ public static class PlanningPhase
     /// contributions with different roots therefore merge as siblings under one document instead of
     /// overwriting each other at the document root.
     /// </para>
+    /// <para>
+    /// Section 6.2's <c>--max-outputs</c> bounds "planned destination files", and this is where a
+    /// destination file becomes planned: step 17 groups contributions and step 18 is the last place
+    /// one destination can still absorb another, so counting before the fold would charge for files
+    /// that never exist. The charge is one per newly seen destination rather than a single tally at
+    /// the end, because Section 23 accounts "before allocation or expansion whenever possible" and
+    /// wants the crossing attributed to the destination that crossed it.
+    /// </para>
     /// </remarks>
     public static StepOutcome<ImmutableArray<DestinationContribution>> FoldDestinationCollisions(
         ImmutableArray<DestinationContribution> contributions,
+        GlobalBudget budget,
         DiagnosticBuffer diagnostics)
     {
+        ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
         var folded = new Dictionary<string, DestinationContribution>(StringComparer.Ordinal);
@@ -600,6 +614,21 @@ public static class PlanningPhase
 
             if (!folded.TryGetValue(canonical, out var accumulated))
             {
+                if (!budget.TryConsume(ResourceBound.MaxOutputs, 1, out var tooMany))
+                {
+                    diagnostics.Add(new BufferedDiagnostic(
+                        DiagnosticCodes.Limit001(
+                            DiagnosticPhase.Planning,
+                            "\u00A723",
+                            $"planning this destination crosses {tooMany.Spelling}, whose limit is "
+                            + $"{tooMany.Limit}.",
+                            path: canonical),
+                        StableOrderingKey.FromSource(
+                            contribution.View.Instance.DeclarationOrder, 0)));
+
+                    return StepOutcome.Failed<ImmutableArray<DestinationContribution>>();
+                }
+
                 folded.Add(canonical, rooted);
                 order.Add(canonical);
                 continue;

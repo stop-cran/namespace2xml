@@ -714,6 +714,7 @@ defect in the fixture; see CONTRIBUTING.md.
 - `array-runs-before-multiline`
 - `cycle-rotation-uses-utf8-byte-order`
 - `destination-fold-follows-wildcard-match-order`
+- `destination-planning-crosses-the-output-bound`
 - `destinations-differing-only-by-case-collide`
 - `filemerge-error-rejects-a-second-contribution`
 - `filename-captures-are-opaque-segment-data`
@@ -727,6 +728,7 @@ defect in the fixture; see CONTRIBUTING.md.
 - `one-destination-folds-by-format-before-match-order`
 - `output-ignore-suppresses-one-concrete-instance`
 - `output-selector-addresses-a-sequence-item`
+- `reference-resolution-crosses-the-depth-bound`
 - `reference-scalar-only-and-free-wildcard-rejected`
 - `reference-typed-values-and-alias-addressing`
 - `selector-candidates-consume-the-wildcard-limit`
