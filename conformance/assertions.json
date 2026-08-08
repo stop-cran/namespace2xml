@@ -284,6 +284,7 @@
       "assertions": [
         "Under the default deep strategy an all-canonical-numeric mapping patches at the supplied ordering value, so a later contribution at an existing value is merged into the item already there by the ordinary rules of Section 17.1 and leaves the other items alone.",
         "Under append the same two contributions concatenate instead: the later contribution is rebased onto fresh implicit ordering values above the high-water mark rather than patching.",
+        "Append refuses a path whose accumulator is not a sequence just as it refuses a later contribution that is not one, so appending onto a scalar is an error rather than a silent deep merge.",
         "Under replace the later complete value replaces the earlier one, so a child written only by the earlier contribution is gone even though the later contribution never mentioned it.",
         "A merge directive governs only the node it matches, so sibling roots carrying different strategies over identical two-source input each behave as their own directive says.",
         "An explicitly empty native sequence is a sequence contribution with no items to rebase, so appending it leaves the earlier sequence unchanged rather than being rejected as a non-sequence use.",
@@ -291,6 +292,7 @@
         "Under error a second contribution at the path is refused outright, and because the condition is a property of the folded node rather than of either contribution the diagnostic names the path and no source."
       ],
       "fixtures": [
+        "append-onto-a-non-sequence-accumulator-is-an-error",
         "merge-error-rejects-a-second-source-contribution",
         "merge-strategies-over-native-sequence-shapes",
         "namespace-input-merge-strategies",

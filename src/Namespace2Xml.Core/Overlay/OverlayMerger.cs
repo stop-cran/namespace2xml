@@ -271,8 +271,25 @@ public sealed class OverlayMerger
         // contribution exists"; otherwise "the earliest or sole contribution retains its supplied
         // ordering values". Rebasing regardless would shift the first sequence at a path off the
         // values its author wrote, which Section 5.4 forbids in the same words.
+        //
+        // "The earliest or sole contribution" is the case where nothing is at the path yet, not the
+        // case where something is there and is not a sequence. Section 16.10 closes that second
+        // case in the same sentence that opens the first: "other non-sequence use is an error".
+        // Checking only the later side let append run over a scalar or an ordinary mapping and
+        // silently degrade to a deep merge, so a run that asked to append to something unappendable
+        // succeeded and published a scalar and a sequence coexisting at one path.
         if (!TryReadSequenceContribution(earlier, out _))
         {
+            if (IsContributionAt(earlier))
+            {
+                Report(
+                    path,
+                    $"{context.Directive}=append has nothing to append to here: the earlier "
+                    + "contribution at this path is neither a sequence nor a nonempty mapping "
+                    + "whose child names are all canonical ordering values.",
+                    earlier.Marks.Latest);
+            }
+
             return DeepMerge(earlier, later, path);
         }
 
