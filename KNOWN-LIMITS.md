@@ -206,26 +206,30 @@ If you have a real document deeper than 4096, that is a finding worth reporting 
 to convert the recursive phases to explicit traversal, and a real document is the evidence that
 justifies it.
 
-### 1.6 `Q{}local-name` is not separately addressable, by decision
+### 1.6 `Q{}local-name` narrows addressing in references, and not yet in scheme paths
 
-§11.4 now says a `Q{}local` component and an unmarked `local` component **are the same component**
-and address the same overlay node, and that the marker "does not narrow the component — it narrows
-the addressing". This build implements that: the lexer yields an ordinary component for an empty
-URI, and `QualifiedElementPart` refuses to represent one, so the redundant form does not exist.
-**verified**
+§11.4 says a `Q{}local` component and an unmarked `local` component **are the same component** and
+address the same overlay node, and that the marker "does not narrow the component — it narrows the
+addressing". Both halves now hold. The lexer yields an ordinary component for an empty URI and
+records that the marker was written; `OrdinaryPart.IsExplicitlyCanonical` is excluded from equality,
+so `a.Q{}b=1` and `a.b=2` remain one node and the second overrides the first, while §13.1 can still
+see that the path was addressed canonically. **verified**
 
-What the marker still does is opt a path out of the §13.1 and §15.2 simple alias index, so that an
-attribute `@x` or a content token `#n` cannot compete with an element `x` for the same unmarked
-spelling. **That behaviour is unimplemented**, and it is now reachable: §13.1 value references
-resolve in this build, and `${a.b}` against a model carrying both `a.@b` and `a.b` reports
-`REFERENCE004` naming two candidates. §11.4 offers `a.Q{}b` as the way to say "the element", and
-that spelling does not survive the lexer, so the ambiguity has no in-band escape. Address the
-attribute canonically as `${a.@b}` and rename the element, or vice versa. **verified**
+What the marker does is opt a reference out of the §13.1 simple alias index, so that an attribute
+`@x` or a content token `#n` cannot compete with an element `x` for the same unmarked spelling.
+`${a.b}` against a model carrying both `a.@b` and `a.b` reports `REFERENCE004` naming two
+candidates, and `${a.Q{}b}` selects the element. The fixture
+`an-empty-qualifier-escapes-the-alias-ambiguity` pins it. **verified**
 
-`Q{}` cannot simply be admitted as a distinct component without contradicting the rest of §11.4,
-which says the two spellings *are* the same node. The narrowing has to live in the reference
-grammar rather than in the name, and where §15.2 directive binding needs the same distinction is
-not yet settled. See issue #43 for the reasoning that settled the reading.
+§13.1 decides canonical addressing per reference rather than per component — "a reference containing
+an unescaped XML `Q{...}`, `@`, or `#n` typed address component is canonical" — so `${a.Q{}t.x}`
+takes the whole reference off the index, including the unmarked final part. That is what the clause
+says; if you wanted the marker to bind only to its own component, that is a specification amendment
+and not a defect here.
+
+The §15.2 half is still open, but vacuously: scheme paths do not consult the alias index at all, so
+a marker there has nothing to escape. See §1.10, which is the entry that has to close first. Issue
+#43 carries the reasoning that settled the §11.4 reading.
 
 ### 1.9 A canonical reference to an XML comment position reports `REFERENCE002`, not `REFERENCE005`
 

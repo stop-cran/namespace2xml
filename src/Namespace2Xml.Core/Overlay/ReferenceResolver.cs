@@ -178,8 +178,20 @@ public sealed class ReferenceResolver
     /// Whether a reference is canonical, which Section 13.1 decides by the presence of a typed
     /// address component.
     /// </summary>
+    /// <remarks>
+    /// An <see cref="OrdinaryPart"/> written <c>Q{}local</c> counts. Section 11.4 gives that
+    /// spelling exactly this job — "a marked component bypasses that index and names one canonical
+    /// component outright" — and Section 13.1's worked example ends "<c>${a.Q{}x}</c> selects the
+    /// child element", which is only true if the marker reaches this predicate. It is the sole
+    /// in-band escape from the ambiguity the index can raise, so an implementation that drops it
+    /// creates a blocking error with no expressible answer.
+    /// </remarks>
     private static bool IsCanonical(QualifiedName name) =>
-        name.Parts.Any(part => part is AttributePart or ContentPart or QualifiedElementPart);
+        name.Parts.Any(part =>
+            part is AttributePart
+                or ContentPart
+                or QualifiedElementPart
+                or OrdinaryPart { IsExplicitlyCanonical: true });
 
     private void Reach(ImmutableArray<NamePart> root)
     {

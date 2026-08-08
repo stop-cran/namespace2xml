@@ -111,11 +111,15 @@
         "A canonical reference names an XML attribute, qualified element, or content position directly, and bypasses the alias index.",
         "A format-agnostic reference resolves through the simple alias of a canonical path, and is admissible only when that alias names exactly one canonical path at the node.",
         "An alias naming more than one canonical path is REFERENCE004, attributed to the referring value rather than to either candidate.",
-        "A value mixing literals and references, or more than one reference, is a string, and its concatenation is not re-inferred."
+        "A value mixing literals and references, or more than one reference, is a string, and its concatenation is not re-inferred.",
+        "A reference containing an unescaped Q{} component is canonical and bypasses the simple alias index, so Q{}x selects the child element where the unmarked spelling is ambiguous with an attribute of the same name.",
+        "Section 13.1 decides canonical addressing per reference rather than per component, so a marker on any component takes the whole reference off the index.",
+        "The marker is an addressing annotation and not part of a component identity: a.Q{}b and a.b remain one overlay node, and no canonical path is ever spelled with an empty qualifier."
       ],
       "fixtures": [
         "reference-alias-ambiguity-lists-candidates",
-        "reference-typed-values-and-alias-addressing"
+        "reference-typed-values-and-alias-addressing",
+        "an-empty-qualifier-escapes-the-alias-ambiguity"
       ]
     },
     {

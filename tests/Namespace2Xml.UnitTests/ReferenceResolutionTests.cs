@@ -145,13 +145,25 @@ public sealed class ReferenceResolutionTests
         Failure("a.k=${a.t.x}\na.t.@x=v\na.t.x=w\n").ShouldBe("REFERENCE004");
 
     /// <summary>
-    /// Section 11.4 offers <c>Q{}x</c> as the way to say "the element, not the attribute", but an
-    /// empty URI yields an ordinary component, so the escape is unavailable and the reference stays
-    /// ambiguous. Recorded in <c>KNOWN-LIMITS.md</c> section 1.6.
+    /// Section 13.1's worked example ends "<c>${a.@x}</c> selects the attribute and
+    /// <c>${a.Q{}x}</c> selects the child element". Section 11.4 explains why that works: "a marked
+    /// component bypasses that index and names one canonical component outright". It is the only
+    /// in-band escape from an ambiguity the index itself creates.
     /// </summary>
     [Test]
-    public void AnEmptyQualifierDoesNotEscapeTheAmbiguity() =>
-        Failure("a.k=${a.t.Q{}x}\na.t.@x=v\na.t.x=w\n").ShouldBe("REFERENCE004");
+    public void AnEmptyQualifierEscapesTheAmbiguity() =>
+        Render("a.k=${a.t.Q{}x}\na.t.@x=v\na.t.x=w\n").ShouldBe("k=w\nt.@x=v\nt.x=w\n");
+
+    /// <summary>
+    /// Section 11.4: "A <c>Q{}local</c> component and an unmarked <c>local</c> component are the
+    /// same component and address the same overlay node … Where no such alias competes,
+    /// <c>a.b</c> and <c>a.Q{}b</c> name the same thing and behave identically." The marker narrows
+    /// the addressing, so it must not also split the node: the second line here overrides the
+    /// first rather than creating a sibling, and the rendered path carries no marker.
+    /// </summary>
+    [Test]
+    public void AnEmptyQualifierAddressesTheSameNodeAsTheUnmarkedSpelling() =>
+        Render("a.t.x=v\na.t.Q{}x=w\na.k=${a.t.x}\n").ShouldBe("t.x=w\nk=w\n");
 
     /// <summary>
     /// Section 13.1, continuing the same example: "<c>${a.@x}</c> selects the attribute and

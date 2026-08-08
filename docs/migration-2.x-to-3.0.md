@@ -708,6 +708,7 @@ defect in the fixture; see CONTRIBUTING.md.
 - `a-later-output-declaration-restores-an-ignored-instance`
 - `a-rejected-filename-is-reported-once-for-two-formats`
 - `a-written-traversal-segment-is-rejected`
+- `an-empty-qualifier-escapes-the-alias-ambiguity`
 - `array-runs-before-multiline`
 - `destination-fold-follows-wildcard-match-order`
 - `destinations-differing-only-by-case-collide`

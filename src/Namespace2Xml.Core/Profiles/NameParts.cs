@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 
 namespace Namespace2Xml.Profiles;
 
@@ -60,6 +61,28 @@ public sealed record OrdinaryPart : XmlNameComponent
     /// <summary>The component's tokens, in source order. Never empty.</summary>
     public ImmutableArray<NameToken> Tokens { get; }
 
+    /// <summary>
+    /// Whether this component was written with the explicit <c>Q{}</c> marker.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Section 11.4: "A <c>Q{}local</c> component and an unmarked <c>local</c> component are the
+    /// same component and address the same overlay node … The marker does not narrow the component
+    /// — it narrows the <i>addressing</i>." Both halves of that sentence are load-bearing, and they
+    /// pull in opposite directions: the component must compare equal to its unmarked spelling so the
+    /// two reach one node, and it must still be distinguishable so Sections 13.1 and 15.2 can see
+    /// that this path was addressed canonically and skip the simple alias index.
+    /// </para>
+    /// <para>
+    /// This property is therefore excluded from <see cref="Equals(OrdinaryPart?)"/> and
+    /// <see cref="GetHashCode"/> deliberately. It is an annotation on how a path was <i>written</i>,
+    /// not part of the component's identity, and a component that changed identity when marked
+    /// would split <c>a.Q{}x=1</c> and <c>a.x=2</c> into two overlay nodes — which is exactly what
+    /// the first half of that sentence forbids.
+    /// </para>
+    /// </remarks>
+    public bool IsExplicitlyCanonical { get; init; }
+
     /// <summary>The literal text when the component contains no wildcard, otherwise null.</summary>
     public string? LiteralText =>
         Tokens.Length == 1 && Tokens[0] is LiteralToken literal ? literal.Text : null;
@@ -69,6 +92,19 @@ public sealed record OrdinaryPart : XmlNameComponent
 
     /// <inheritdoc/>
     public override int GetHashCode() => TokenSequence.HashCode(Tokens);
+
+    /// <summary>
+    /// Prints the tokens only. <see cref="IsExplicitlyCanonical"/> is excluded for the same reason
+    /// it is excluded from equality, and because this text reaches diagnostics.
+    /// </summary>
+    /// <param name="builder">The builder the record's <c>ToString</c> is assembling.</param>
+    /// <returns>True, so the base implementation emits the printed members.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.Append("Tokens = ").Append(string.Join(", ", Tokens));
+        return true;
+    }
 }
 
 /// <summary>An Appendix A.2 <c>qualified-element</c>: <c>Q{uri}local</c>.</summary>

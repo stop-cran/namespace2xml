@@ -189,7 +189,10 @@ public static class WildcardSubstitution
         {
             case OrdinaryPart ordinary:
                 return new OrdinaryPart(
-                    SubstituteTokens(ordinary.Tokens, captures, ref positional));
+                    SubstituteTokens(ordinary.Tokens, captures, ref positional))
+                {
+                    IsExplicitlyCanonical = ordinary.IsExplicitlyCanonical,
+                };
 
             case QualifiedElementPart qualified:
                 return new QualifiedElementPart(
