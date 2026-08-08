@@ -433,7 +433,18 @@ public static class PlanningPhase
             // relying on the diagnostic having been raised.
             if (result is not null)
             {
-                transformed.Add(view with { View = result });
+                // Section 19.1 states the bare-scalar rule about "the selected output root", and
+                // rendering is Section 15.1 step 19 — after this pass. A view that was a sequence
+                // when step 15 derived its root and is a scalar now needs the final selector part
+                // as its key, or Section 19.1 has no key to write and rejects valid input; a view
+                // that went the other way must lose the key it no longer needs. Step 15 stops the
+                // run on its own TYPE001, so this cannot report the same condition twice.
+                if (!TryRoot(view.Instance, result, diagnostics, out var root))
+                {
+                    continue;
+                }
+
+                transformed.Add(view with { View = result, Root = root });
             }
         }
 

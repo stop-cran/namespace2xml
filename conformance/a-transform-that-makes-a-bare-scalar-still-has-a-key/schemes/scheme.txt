@@ -1,0 +1,4 @@
+a.output=namespace,quotednamespace
+a.type=multiline
+b.output=ini
+b.type=multiline

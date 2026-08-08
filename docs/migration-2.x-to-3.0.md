@@ -707,6 +707,7 @@ defect in the fixture; see CONTRIBUTING.md.
 - `a-cross-format-collision-replaces-the-earlier-plan`
 - `a-later-output-declaration-restores-an-ignored-instance`
 - `a-rejected-filename-is-reported-once-for-two-formats`
+- `a-transform-that-makes-a-bare-scalar-still-has-a-key`
 - `a-written-traversal-segment-is-rejected`
 - `an-empty-qualifier-escapes-the-alias-ambiguity`
 - `array-runs-before-multiline`

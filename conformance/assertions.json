@@ -662,8 +662,15 @@
       "text": "Bare-scalar output behavior for every format.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "The bare-scalar question is asked of the rendered view, not the step-15 one: a sequence that a step-16 transform joins into a scalar takes the final concrete selector part as its key, rather than failing with SERIALIZE001 for having no key at all.",
+        "Namespace renders the joined LF as the two-character escape and quoted namespace renders it as a literal line break inside single quotes, which Sections 19.1 and 19.2 require separately.",
+        "INI renders the bare scalar as a global key with no section header.",
+        "NOT COVERED: JSON, YAML and XML. Section 14.1 gives the structured formats a different bare-scalar answer and all three writers are declined in this preview with exit 70, so this item cannot become required until they land."
+      ],
+      "fixtures": [
+        "a-transform-that-makes-a-bare-scalar-still-has-a-key"
+      ]
     },
     {
       "item": 57,
