@@ -99,7 +99,82 @@ public static class PlanningPhase
 
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<ImmutableArray<OutputInstance>>()
-            : StepOutcome.Produced(expanded.ToImmutable());
+            : StepOutcome.Produced(Consolidate(expanded));
+    }
+
+    /// <summary>
+    /// Section 15.2: "exact and wildcard declarations that literalize to the same concrete selector
+    /// participate in one source-ordered override stream".
+    /// </summary>
+    /// <param name="expanded">Every instance produced by literalizing the declarations.</param>
+    /// <returns>One effective instance per concrete selector, in declaration order.</returns>
+    /// <remarks>
+    /// <para>
+    /// Until the declarations are folded they are two independent instances writing two files, so
+    /// <c>a.*.output=namespace</c> followed by <c>a.x.output=ignore</c> still writes <c>a.x</c>. The
+    /// Section 15.2 table gives <c>output=ignore</c> the scope "one concrete output instance" and the
+    /// restoration "later non-ignore <c>output</c> declaration", which only means anything if both
+    /// declarations are in one stream.
+    /// </para>
+    /// <para>
+    /// Each setting is taken from the latest member that declared it, which is why the nullable
+    /// settings and the declaration sites are consulted rather than the values: a member that never
+    /// wrote <c>filemerge</c> carries the Section 16.11 default, and letting that default win over an
+    /// earlier explicit declaration would invert the override. <see cref="OutputInstance.Captures"/>
+    /// travels with <see cref="OutputInstance.FilenameTemplate"/> because it is only ever applied to
+    /// it, and a template written on a wildcard declaration must be substituted with that
+    /// declaration's captures rather than the winning one's.
+    /// </para>
+    /// </remarks>
+    private static ImmutableArray<OutputInstance> Consolidate(
+        ImmutableArray<OutputInstance>.Builder expanded)
+    {
+        var streams = new Dictionary<SelectorKey, OutputInstance>();
+        var order = new List<SelectorKey>();
+
+        foreach (var instance in expanded)
+        {
+            if (!streams.TryGetValue(instance.Selector, out var accumulated))
+            {
+                streams.Add(instance.Selector, instance);
+                order.Add(instance.Selector);
+                continue;
+            }
+
+            streams[instance.Selector] = instance with
+            {
+                FilenameTemplate = instance.FilenameDeclaration is null
+                    ? accumulated.FilenameTemplate
+                    : instance.FilenameTemplate,
+                Captures = instance.FilenameDeclaration is null
+                    ? accumulated.Captures
+                    : instance.Captures,
+                FilenameDeclaration = instance.FilenameDeclaration ?? accumulated.FilenameDeclaration,
+                Root = instance.Root ?? accumulated.Root,
+                Delimiter = instance.Delimiter ?? accumulated.Delimiter,
+                IniOptions = instance.IniOptionsDeclaration is null
+                    ? accumulated.IniOptions
+                    : instance.IniOptions,
+                IniOptionsDeclaration =
+                    instance.IniOptionsDeclaration ?? accumulated.IniOptionsDeclaration,
+                FileMerge = instance.FileMergeDeclaration is null
+                    ? accumulated.FileMerge
+                    : instance.FileMerge,
+                FileMergeDeclaration =
+                    instance.FileMergeDeclaration ?? accumulated.FileMergeDeclaration,
+            };
+        }
+
+        // Section 16.1 compiles 'output=ignore' to an empty format set, and Section 14.2 says a
+        // selector whose winning declaration is 'output=ignore' "creates no output instance". The
+        // suppression happens here rather than at compile time because only the folded stream knows
+        // which declaration won.
+        return
+        [
+            .. order
+                .Select(selector => streams[selector])
+                .Where(instance => !instance.Formats.IsEmpty),
+        ];
     }
 
     private static bool Expand(
@@ -668,6 +743,14 @@ public static class PlanningPhase
     /// Section 14.2 strict prefix filtering, plus Section 14.1's unconditional removal of the
     /// concrete selector prefix.
     /// </summary>
+    /// <remarks>
+    /// Descent goes through <see cref="OverlayAddressing.TryAddress"/> because Section 15.1 step 9
+    /// makes a canonical numeric mapping child and the sequence item with that value "one structural
+    /// overlay node for merging, comments, references, selectors, generation, and wildcard
+    /// candidacy". Walking only <see cref="OverlayNode.Children"/> here selects nothing at a native
+    /// sequence item, and Section 14.1's rule that a namespace output with no records still emits
+    /// its normalized empty file makes that loss silent.
+    /// </remarks>
     private static OverlayNode Descend(OverlayNode model, QualifiedName? selector)
     {
         if (selector is null)
@@ -679,7 +762,7 @@ public static class PlanningPhase
 
         foreach (var part in selector.Parts)
         {
-            if (!node.Children.TryGetValue(part, out var child))
+            if (!OverlayAddressing.TryAddress(node, part, out var child))
             {
                 return OverlayNode.Empty(node.Marks);
             }
@@ -766,12 +849,17 @@ public static class PlanningPhase
         // Appendix B gives PATH001 the members 'declaration' and 'destination' only, so the
         // declaration's source and line are not carried even though Section 22 would supply them
         // for a condition about a declaration.
+        //
+        // Section 22 counts PATH001 "once per destination". The key is therefore the written
+        // destination that failed to compose, and it excludes the format: Section 16.2 gives an
+        // explicit 'filename' no format extension, so 'output=namespace,ini' with one bad filename
+        // is one rejected destination reached twice, not two.
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Path001(
                 DiagnosticPhase.Planning,
                 "\u00A716.2",
                 $"the destination for selector '{view.Instance.Selector}' is rejected: {violation}",
-                cardinalityKey: view.Instance.Selector.ToString() + '\u001F' + view.Format,
+                cardinalityKey: view.Instance.Filename ?? view.Instance.Selector.ToString(),
                 declaration: view.Instance.FilenameDeclaration?.Text),
             DestinationOrder: order));
 

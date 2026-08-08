@@ -214,10 +214,15 @@
     {
       "item": 20,
       "text": "Negative `output=ignore`.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A wildcard declaration and a later exact output=ignore that literalize to the same concrete selector are one Section 15.2 source-ordered override stream, so the ignore wins and Section 14.2 creates no output instance for it.",
+        "The suppression is scoped to that one concrete instance: the other instances the same wildcard declaration created still publish, because Section 15.2 states output=ignore never removes data from another output instance."
+      ],
+      "fixtures": [
+        "output-ignore-suppresses-one-concrete-instance"
+      ]
     },
     {
       "item": 21,
@@ -562,10 +567,15 @@
     {
       "item": 50,
       "text": "Output-instance-scoped scheme overrides and `output=ignore` restoration.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A wildcard output=ignore suppresses an instance created by an earlier exact declaration, because Section 15.2 orders the stream by source position and states that pattern specificity does not alter precedence.",
+        "A later non-ignore output declaration restores an instance an earlier ignore suppressed, which is the restoration column of the Section 15.2 ignore-mechanism table."
+      ],
+      "fixtures": [
+        "a-later-output-declaration-restores-an-ignored-instance"
+      ]
     },
     {
       "item": 51,
@@ -576,11 +586,13 @@
         "A separator written literally in the scheme splits the path and creates a subdirectory, so a relative subfolder can be substituted into the destination.",
         "A separator arriving inside a capture is encoded as %2F rather than obeyed, because Section 16.2 step 1 splits the scheme-written path before step 2 substitutes captures into a segment.",
         "A capture is encoded by step 5 whatever it holds, so a reserved device name, a space, and a traversal sequence all compose to one ordinary file name inside the output root.",
-        "A dot segment the scheme wrote itself is rejected with PATH001 in phase planning, before any directory is created, rather than being renamed."
+        "A dot segment the scheme wrote itself is rejected with PATH001 in phase planning, before any directory is created, rather than being renamed.",
+        "Section 22 counts PATH001 once per destination, and Section 16.2 appends no format extension to an explicit filename, so two formats sharing one rejected filename are one destination and one diagnostic."
       ],
       "fixtures": [
         "filename-captures-are-opaque-segment-data",
-        "a-written-traversal-segment-is-rejected"
+        "a-written-traversal-segment-is-rejected",
+        "a-rejected-filename-is-reported-once-for-two-formats"
       ]
     },
     {

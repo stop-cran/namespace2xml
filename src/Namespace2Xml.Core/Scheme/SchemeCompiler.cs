@@ -77,6 +77,12 @@ public readonly record struct DeclarationSite(string Text, string Source, int Li
 /// the two rejected contributions may share one <c>output</c> declaration, so naming it would not
 /// tell a reader which setting refused the fold.
 /// </param>
+/// <param name="IniOptionsDeclaration">
+/// The site of the winning <c>inioutputoptions</c> declaration, or null when the instance takes the
+/// Section 16.9 defaults. Unlike <c>filename</c>, <c>root</c> and <c>delimiter</c>, an INI option set
+/// has no null value to mean "not declared" — a scheme may explicitly write the defaults — so the
+/// Section 15.2 override stream needs the site to know whether this member won anything.
+/// </param>
 /// <param name="Declaration">
 /// The written text of the winning <c>output</c> declaration, its source, and the line it was
 /// written on. Section 22 supplies a diagnostic's <c>source</c>, <c>line</c>, and
@@ -97,6 +103,7 @@ public sealed record OutputInstance(
     int WildcardMatchOrder,
     DeclarationSite? FilenameDeclaration,
     DeclarationSite? FileMergeDeclaration,
+    DeclarationSite? IniOptionsDeclaration,
     DeclarationSite Declaration)
 {
     /// <summary>
@@ -365,6 +372,7 @@ public static class SchemeCompiler
                 WildcardMatchOrder: 0,
                 Site(winners, selector, SchemeDirective.Filename),
                 Site(winners, selector, SchemeDirective.FileMerge),
+                Site(winners, selector, SchemeDirective.IniOutputOptions),
                 new DeclarationSite(
                     winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)));
         }

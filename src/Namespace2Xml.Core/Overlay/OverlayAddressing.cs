@@ -156,7 +156,13 @@ internal static class OverlayAddressing
     /// <param name="node">The node to look inside.</param>
     /// <param name="name">The name part.</param>
     /// <param name="addressed">The node it names, when there is one.</param>
-    private static bool TryAddress(
+    /// <remarks>
+    /// Section 15.1 step 9 lists <c>selectors</c> among the operations for which a canonical numeric
+    /// mapping child and the sequence item with that value "are one structural overlay node", so
+    /// output-selector descent in <see cref="Pipeline.Steps.PlanningPhase"/> resolves names through
+    /// here rather than through a second, mapping-only walk of its own.
+    /// </remarks>
+    public static bool TryAddress(
         OverlayNode node, NamePart name, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out OverlayNode? addressed)
     {
         if (node.Children.TryGetValue(name, out addressed))

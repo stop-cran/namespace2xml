@@ -705,6 +705,8 @@ These cases carry a `legacy.md` that states neither agreement nor difference. Th
 defect in the fixture; see CONTRIBUTING.md.
 
 - `a-cross-format-collision-replaces-the-earlier-plan`
+- `a-later-output-declaration-restores-an-ignored-instance`
+- `a-rejected-filename-is-reported-once-for-two-formats`
 - `a-written-traversal-segment-is-rejected`
 - `array-runs-before-multiline`
 - `destination-fold-follows-wildcard-match-order`
@@ -719,6 +721,8 @@ defect in the fixture; see CONTRIBUTING.md.
 - `merge-error-rejects-a-second-source-contribution`
 - `merge-strategies-over-native-sequence-shapes`
 - `one-destination-folds-by-format-before-match-order`
+- `output-ignore-suppresses-one-concrete-instance`
+- `output-selector-addresses-a-sequence-item`
 - `reference-scalar-only-and-free-wildcard-rejected`
 - `reference-typed-values-and-alias-addressing`
 - `selector-candidates-consume-the-wildcard-limit`

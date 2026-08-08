@@ -62,6 +62,7 @@ public class DestinationFoldTests
             FileMergeDeclaration: fileMerge == MergeStrategy.Deep
                 ? null
                 : new DeclarationSite($"{selector}.filemerge", "scheme.txt", 2),
+            IniOptionsDeclaration: null,
             site);
     }
 

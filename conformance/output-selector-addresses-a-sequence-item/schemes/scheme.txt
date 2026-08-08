@@ -1,0 +1,2 @@
+a.0.output=namespace
+a.1.output=namespace
