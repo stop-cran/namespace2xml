@@ -293,7 +293,11 @@ try {
                 }
                 $measured.Add(("{0}`t{1}`tstderr-{2}`t{3}" -f $name, $vector.Label, $encoding, $stderr))
 
-                foreach ($file in Get-ChildItem -Path $work -Recurse -File) {
+                # -Force is load-bearing: on Unix a name beginning with '.' carries the Hidden
+                # attribute, so Get-ChildItem omits it and the digest silently under-reports. The
+                # corpus contains such an output ('..conf'), which made the cross-OS comparison
+                # fail against Windows, where the same name is not hidden.
+                foreach ($file in Get-ChildItem -Path $work -Recurse -File -Force) {
                     $relative = $file.FullName.Substring($work.Length + 1) -replace '\\', '/'
                     $segment = ($relative -split '/', 2)[0]
                     if ($reserved -contains $segment) { continue }
@@ -302,7 +306,7 @@ try {
                     $measured.Add(("{0}`t{1}`t{2}`t{3}" -f $name, $vector.Label, $relative, $hash))
                 }
 
-                foreach ($directory in Get-ChildItem -Path $work -Recurse -Directory) {
+                foreach ($directory in Get-ChildItem -Path $work -Recurse -Directory -Force) {
                     $relative = $directory.FullName.Substring($work.Length + 1) -replace '\\', '/'
                     $segment = ($relative -split '/', 2)[0]
                     if ($reserved -contains $segment) { continue }
