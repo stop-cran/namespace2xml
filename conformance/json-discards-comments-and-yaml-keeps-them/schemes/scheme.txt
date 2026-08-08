@@ -1,0 +1,3 @@
+cfg.output=json,yaml
+quiet.output=yaml
+quiet.yamloutputoptions=DiscardComments

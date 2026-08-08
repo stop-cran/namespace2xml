@@ -1,0 +1,6 @@
+-i
+inputs/first.txt
+-i
+inputs/last.txt
+-s
+schemes/scheme.txt

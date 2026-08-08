@@ -175,6 +175,16 @@ public static class PlanningPhase
                     : instance.IniOptions,
                 IniOptionsDeclaration =
                     instance.IniOptionsDeclaration ?? accumulated.IniOptionsDeclaration,
+                JsonOptions = instance.JsonOptionsDeclaration is null
+                    ? accumulated.JsonOptions
+                    : instance.JsonOptions,
+                JsonOptionsDeclaration =
+                    instance.JsonOptionsDeclaration ?? accumulated.JsonOptionsDeclaration,
+                YamlOptions = instance.YamlOptionsDeclaration is null
+                    ? accumulated.YamlOptions
+                    : instance.YamlOptions,
+                YamlOptionsDeclaration =
+                    instance.YamlOptionsDeclaration ?? accumulated.YamlOptionsDeclaration,
                 FileMerge = instance.FileMergeDeclaration is null
                     ? accumulated.FileMerge
                     : instance.FileMerge,
@@ -319,21 +329,21 @@ public static class PlanningPhase
             {
                 var format = instance.Formats[ordinal];
 
-                if (!format.TryAsFlat(out _))
+                if (format == OutputFormat.Xml)
                 {
                     return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
                         new UnsupportedCapability(
                             $"{format} output",
                             $"the declaration for selector '{instance.Selector}' asks for "
                             + $"{format}.",
-                            "\u00A719"));
+                            "\u00A719.5"));
                 }
 
                 // Section 14.1: an instance is planned "even when no data path currently matches
                 // its literal prefix", so a missing subtree is an empty view rather than no view.
                 var selected = Descend(model, instance.Selector.Name);
 
-                if (!TryRoot(instance, selected, diagnostics, out var root))
+                if (!TryRoot(instance, format, selected, diagnostics, out var root))
                 {
                     continue;
                 }
@@ -460,7 +470,7 @@ public static class PlanningPhase
                 // as its key, or Section 19.1 has no key to write and rejects valid input; a view
                 // that went the other way must lose the key it no longer needs. Step 15 stops the
                 // run on its own TYPE001, so this cannot report the same condition twice.
-                if (!TryRoot(view.Instance, result, diagnostics, out var root))
+                if (!TryRoot(view.Instance, view.Format, result, diagnostics, out var root))
                 {
                     continue;
                 }
@@ -871,7 +881,12 @@ public static class PlanningPhase
         {
             if (!OverlayAddressing.TryAddress(node, part, out var child))
             {
-                return OverlayNode.Empty(node.Marks);
+                // Section 14.1: an instance whose selector matches nothing has a view with "no
+                // surviving payload, explicit container presence, descendants, or comments". Only
+                // the position mark survives; carrying the parent's shape marks would make the
+                // missing path claim a payload it does not have and a container contest it is not
+                // party to, which is one spurious TYPE002 per empty view.
+                return OverlayNode.Intermediate(node.Marks.Position);
             }
 
             node = child;
@@ -886,6 +901,7 @@ public static class PlanningPhase
     /// </summary>
     private static bool TryRoot(
         OutputInstance instance,
+        OutputFormat format,
         OverlayNode selected,
         DiagnosticBuffer diagnostics,
         out ImmutableArray<NamePart> root)
@@ -896,7 +912,11 @@ public static class PlanningPhase
             return true;
         }
 
-        if (selected.Payload is null)
+        // Section 14.1: "JSON and YAML may emit a scalar document", and Section 16.3 says "the
+        // original selector name is not retained unless it is also present in the 'root' value".
+        // Only the flat formats are listed as retaining the final selector part, and only they need
+        // to: a JSON or YAML document may be a scalar, so nothing has to name it.
+        if (selected.Payload is null || !format.TryAsFlat(out _))
         {
             root = [];
             return true;

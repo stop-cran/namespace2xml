@@ -383,8 +383,14 @@
       "text": "Scalar-plus-descendant overlays across namespace, JSON, YAML, XML, and INI.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "JSON and YAML are Section 4.4 exclusive-shape destinations: the payload competes with the container, the later contribution wins, and the omitted facet is one `TYPE002` counted once per path and output instance.",
+        "The flat formats emit both projections without a shape warning, so the same overlay renders differently by format rather than being rejected.",
+        "XML remains uncovered until the XML writer ships."
+      ],
+      "fixtures": [
+        "json-and-yaml-render-one-exclusive-shape"
+      ]
     },
     {
       "item": 34,
@@ -441,6 +447,7 @@
         "A refusal's reported line counts LF, CRLF and a lone CR and nothing else, so U+0085, U+2028 and U+2029 are data on the line that carries them and do not advance it."
       ],
       "fixtures": [
+        "yaml-indentation-block-scalars-and-quoting",
         "yaml-restricted-schema-and-scalar-kinds",
         "yaml-restricted-schema-refusals",
         "yaml-section-22-line-terminators"
@@ -481,7 +488,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "quoted-namespace-key-collision-is-blocking"
+      ]
     },
     {
       "item": 42,
@@ -680,10 +689,11 @@
         "The bare-scalar question is asked of the rendered view, not the step-15 one: a sequence that a step-16 transform joins into a scalar takes the final concrete selector part as its key, rather than failing with SERIALIZE001 for having no key at all.",
         "Namespace renders the joined LF as the two-character escape and quoted namespace renders it as a literal line break inside single quotes, which Sections 19.1 and 19.2 require separately.",
         "INI renders the bare scalar as a global key with no section header.",
-        "NOT COVERED: JSON, YAML and XML. Section 14.1 gives the structured formats a different bare-scalar answer and all three writers are declined in this preview with exit 70, so this item cannot become required until they land."
+        "NOT COVERED: XML. Section 14.1 gives JSON and YAML a scalar document with no synthesized key, which the structured writers now emit; the XML writer is still declined in this preview with exit 70, so this item cannot become required until it lands."
       ],
       "fixtures": [
-        "a-transform-that-makes-a-bare-scalar-still-has-a-key"
+        "a-transform-that-makes-a-bare-scalar-still-has-a-key",
+        "structured-bare-scalar-and-empty-documents"
       ]
     },
     {
@@ -691,8 +701,16 @@
       "text": "Output-option defaults, XML declaration control, and comment-option enablement.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "assertions": [
+        "Section 16.9's default for JSON layout is indentation and for YAML comments is preservation, and Section 16.9 reapplies a mode group's default when a replacement omits every flag from it.",
+        "Naming both flags of a mutually exclusive mode group is a `SCHEME001` contradiction.",
+        "JSON has no comment syntax, so comments are discarded with one summarized `WARN003` per destination; YAML's `DiscardComments` suppresses them silently because that is what the option asked for.",
+        "XML declaration control remains uncovered until the XML writer ships."
+      ],
+      "fixtures": [
+        "json-discards-comments-and-yaml-keeps-them",
+        "json-output-options-and-escaping"
+      ]
     },
     {
       "item": 58,
@@ -713,10 +731,16 @@
     {
       "item": 60,
       "text": "JSON `EscapeNonAscii` for keys, BMP values, and supplementary Unicode scalars.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m5",
+      "status": "required",
+      "assertions": [
+        "Section 16.9's `EscapeNonAscii` escapes a basic-plane scalar above U+007F as an uppercase hexadecimal `\\uXXXX` escape, and applies to mapping keys as well as to values.",
+        "A supplementary Unicode scalar has no single `\\uXXXX` escape and is emitted as its surrogate pair, so the option leaves no byte above U+007F in the file.",
+        "Without the option, non-ASCII text is emitted literally as UTF-8."
+      ],
+      "fixtures": [
+        "json-output-options-and-escaping"
+      ]
     },
     {
       "item": 61,
@@ -734,10 +758,16 @@
     {
       "item": 62,
       "text": "Fixed two-space YAML indentation, block-scalar indentation, and type-preserving string quoting.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m5",
+      "status": "required",
+      "assertions": [
+        "Section 19.4 indents two ASCII spaces per nesting level and emits no `---`; a block sequence under a key indents its indicator by one step, and a sequence item's own content therefore aligns with a mapping value at the same depth.",
+        "Section 19.4 uses a literal block scalar for a multiline value, indented two spaces beyond its owning key or sequence indicator, and its chomping indicator distinguishes no trailing line break, exactly one, and more than one.",
+        "A string whose plain spelling would resolve to a non-string kind under `RestrictedYaml1` is single-quoted with a literal single quote doubled as `''`, while the spellings Section 10.1 keeps as strings stay plain."
+      ],
+      "fixtures": [
+        "yaml-indentation-block-scalars-and-quoting"
+      ]
     },
     {
       "item": 63,
@@ -781,6 +811,7 @@
         "Two distinct logical paths whose INI section and key coincide are a `FLAT001` collision, and the diagnostic names the view-relative path rather than the absolute one."
       ],
       "fixtures": [
+        "quoted-namespace-key-collision-is-blocking",
         "validation-gate-leaves-the-output-root-untouched"
       ]
     },

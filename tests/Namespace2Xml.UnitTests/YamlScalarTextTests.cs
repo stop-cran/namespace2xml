@@ -1,0 +1,243 @@
+using Namespace2Xml.Output;
+using NUnit.Framework;
+using Shouldly;
+
+namespace Namespace2Xml.UnitTests;
+
+/// <summary>
+/// The Section 10.1 <c>RestrictedYaml1</c> resolution rules read backwards: which strings a
+/// Section 19.4 writer must quote so that reading its own output returns a string.
+/// </summary>
+/// <remarks>
+/// Every expectation here is authored from Section 10.1 and Section 19.4, never from what the
+/// writer currently produces.
+/// </remarks>
+[TestFixture]
+public class YamlScalarTextTests
+{
+    /// <summary>
+    /// Section 10.1: "<c>true</c> and <c>false</c>, case-insensitively, are Boolean", and Section
+    /// 10.1's closing note names <c>tRuE</c> as the deliberate difference from namespace inference.
+    /// </summary>
+    /// <param name="text">A spelling that resolves to a Boolean.</param>
+    [TestCase("true")]
+    [TestCase("false")]
+    [TestCase("True")]
+    [TestCase("FALSE")]
+    [TestCase("tRuE")]
+    public void EveryAsciiCaseSpellingOfATruthValueResolvesToBoolean(string text) =>
+        YamlScalarText.ResolvesToNonString(text).ShouldBeTrue();
+
+    /// <summary>
+    /// Section 10.1: "<c>null</c>, <c>Null</c>, <c>NULL</c>, <c>~</c>, or an empty plain scalar are
+    /// null". The list is exhaustive, so <c>nULL</c> is not one of them.
+    /// </summary>
+    /// <param name="text">A spelling that resolves to null.</param>
+    [TestCase("null")]
+    [TestCase("Null")]
+    [TestCase("NULL")]
+    [TestCase("~")]
+    [TestCase("")]
+    public void OnlyTheFourNamedNullSpellingsAndAnEmptyScalarResolveToNull(string text) =>
+        YamlScalarText.ResolvesToNonString(text).ShouldBeTrue();
+
+    /// <summary>
+    /// Section 10.1 spells the null aliases as a closed list rather than case-insensitively, unlike
+    /// the Boolean rule immediately above it. A writer that treated them alike would quote strings
+    /// it does not need to.
+    /// </summary>
+    /// <param name="text">A case variant Section 10.1 does not list.</param>
+    [TestCase("nULL")]
+    [TestCase("nuLL")]
+    [TestCase("NuLl")]
+    public void UnlistedCaseVariantsOfNullRemainStrings(string text) =>
+        YamlScalarText.ResolvesToNonString(text).ShouldBeFalse();
+
+    /// <summary>
+    /// Section 10.1: "values such as <c>yes</c>, <c>no</c>, <c>on</c>, <c>off</c>, timestamps, and
+    /// sexagesimal numbers remain strings". These are the YAML 1.1 resolutions
+    /// <c>RestrictedYaml1</c> deliberately drops.
+    /// </summary>
+    /// <param name="text">A spelling YAML 1.1 would resolve but Section 10.1 does not.</param>
+    [TestCase("yes")]
+    [TestCase("no")]
+    [TestCase("on")]
+    [TestCase("off")]
+    [TestCase("Yes")]
+    [TestCase("OFF")]
+    [TestCase("2001-12-14")]
+    [TestCase("190:20:30")]
+    [TestCase("y")]
+    [TestCase("n")]
+    public void TheYamlOneDotOneResolutionsRemainStrings(string text) =>
+        YamlScalarText.ResolvesToNonString(text).ShouldBeFalse();
+
+    /// <summary>
+    /// Section 10.1: "JSON-compatible decimal integers and floating-point values are numeric", and
+    /// its closing note says "plain YAML <c>+1</c>, <c>.5</c>, and <c>1.</c> remain strings because
+    /// they are not JSON-compatible numbers".
+    /// </summary>
+    /// <param name="text">A number spelling.</param>
+    /// <param name="numeric">Whether Section 10.1 resolves it as a number.</param>
+    [TestCase("0", true)]
+    [TestCase("-0", true)]
+    [TestCase("42", true)]
+    [TestCase("-42", true)]
+    [TestCase("1.5", true)]
+    [TestCase("-1.5", true)]
+    [TestCase("1e3", true)]
+    [TestCase("1E3", true)]
+    [TestCase("1.5e-3", true)]
+    [TestCase("1.5E+3", true)]
+    [TestCase("0.5", true)]
+    [TestCase("+1", false)]
+    [TestCase(".5", false)]
+    [TestCase("1.", false)]
+    [TestCase("01", false)]
+    [TestCase("-01", false)]
+    [TestCase("0x1F", false)]
+    [TestCase("0o17", false)]
+    [TestCase("1_000", false)]
+    [TestCase(".inf", false)]
+    [TestCase("-.inf", false)]
+    [TestCase(".nan", false)]
+    [TestCase("1e", false)]
+    [TestCase("1e+", false)]
+    [TestCase("", false)]
+    public void OnlyJsonCompatibleNumbersResolveAsNumeric(string text, bool numeric) =>
+        YamlScalarText.IsJsonNumber(text).ShouldBe(numeric);
+
+    /// <summary>
+    /// Section 19.4 quotes a string "whose plain spelling would resolve to a non-string kind", and
+    /// Section 19.4 prefers the single-quoted form. The doubling rule is YAML's own: a single quote
+    /// inside a single-quoted scalar is written twice.
+    /// </summary>
+    /// <param name="text">A string whose plain spelling would resolve to something else.</param>
+    /// <param name="expected">The Section 19.4 spelling.</param>
+    [TestCase("true", "'true'")]
+    [TestCase("tRuE", "'tRuE'")]
+    [TestCase("null", "'null'")]
+    [TestCase("~", "'~'")]
+    [TestCase("", "''")]
+    [TestCase("42", "'42'")]
+    [TestCase("1.5e-3", "'1.5e-3'")]
+    public void AStringThatWouldResolveOtherwiseIsSingleQuoted(string text, string expected) =>
+        YamlScalarText.Spell(text).ShouldBe(expected);
+
+    /// <summary>
+    /// A string that resolves to itself needs no quoting, so Section 19.4's plain form applies. The
+    /// spellings Section 10.1 explicitly keeps as strings are exactly the ones that survive here.
+    /// </summary>
+    /// <param name="text">A string with a safe plain spelling.</param>
+    [TestCase("yes")]
+    [TestCase("off")]
+    [TestCase("+1")]
+    [TestCase(".5")]
+    [TestCase("1.")]
+    [TestCase("hello")]
+    [TestCase("a b")]
+    [TestCase("2001-12-14")]
+    public void AStringWithASafePlainSpellingIsNotQuoted(string text) =>
+        YamlScalarText.Spell(text).ShouldBe(text);
+
+    /// <summary>
+    /// A plain scalar must also be syntactically plain. YAML gives these characters indicator
+    /// meaning at the start of a scalar, so a writer that only consulted Section 10.1 resolution
+    /// would emit text a parser reads as structure.
+    /// </summary>
+    /// <param name="text">A string a plain scalar cannot spell.</param>
+    [TestCase("- item")]
+    [TestCase("? key")]
+    [TestCase(": value")]
+    [TestCase("#comment")]
+    [TestCase("[a]")]
+    [TestCase("{a}")]
+    [TestCase("&anchor")]
+    [TestCase("*alias")]
+    [TestCase("!tag")]
+    [TestCase("|block")]
+    [TestCase(">fold")]
+    [TestCase("'quoted")]
+    [TestCase("\"quoted")]
+    [TestCase("%directive")]
+    [TestCase("@reserved")]
+    [TestCase("`reserved")]
+    [TestCase("a: b")]
+    [TestCase("a #b")]
+    [TestCase("trailing:")]
+    [TestCase(" leading")]
+    [TestCase("trailing ")]
+    public void AStringNeedingIndicatorCharactersIsNotPlain(string text) =>
+        YamlScalarText.IsPlainSafe(text).ShouldBeFalse();
+
+    /// <summary>
+    /// Section 19.4's fallback ladder ends at the double-quoted form, which can spell anything. A
+    /// line break cannot appear in a single-quoted scalar without folding, so a string carrying one
+    /// falls through.
+    /// </summary>
+    [Test]
+    public void AStringCarryingALineBreakCannotBeSingleQuoted() =>
+        YamlScalarText.CanSingleQuote("a\nb").ShouldBeFalse();
+
+    /// <summary>
+    /// A control character is not YAML <c>c-printable</c>, so it cannot appear literally in a plain
+    /// or single-quoted scalar and must be escaped.
+    /// </summary>
+    [Test]
+    public void AControlCharacterForcesTheDoubleQuotedForm() =>
+        YamlScalarText.Spell("a\u0007b").ShouldBe("\"a\\u0007b\"");
+
+    /// <summary>
+    /// The double-quoted form escapes the two characters that would end it or begin an escape, and
+    /// spells a tab as <c>\t</c>, which keeps trailing whitespace visible to a reader and exact to a
+    /// parser.
+    /// </summary>
+    /// <param name="text">The string being spelled.</param>
+    /// <param name="expected">The double-quoted spelling.</param>
+    [TestCase("a\"b", "\"a\\\"b\"")]
+    [TestCase("a\\b", "\"a\\\\b\"")]
+    [TestCase("a\tb", "\"a\\tb\"")]
+    [TestCase("a\nb", "\"a\\nb\"")]
+    [TestCase("a\rb", "\"a\\rb\"")]
+    public void TheDoubleQuotedFormEscapesWhatWouldEndIt(string text, string expected) =>
+        YamlScalarText.DoubleQuote(text).ShouldBe(expected);
+
+    /// <summary>
+    /// Section 19.4 emits UTF-8, so a printable non-ASCII character needs no escape and a plain
+    /// scalar can carry it.
+    /// </summary>
+    [Test]
+    public void PrintableNonAsciiTextStaysLiteral() =>
+        YamlScalarText.Spell("caf\u00e9 \U0001F600").ShouldBe("caf\u00e9 \U0001F600");
+
+    /// <summary>
+    /// A block scalar reproduces its content literally, so it is only available when every line can
+    /// be written literally. Trailing whitespace on a line would be invisible and is stripped by
+    /// some readers, and a first line beginning with a space would need an explicit indentation
+    /// indicator.
+    /// </summary>
+    /// <param name="text">Multi-line text.</param>
+    /// <param name="eligible">Whether a literal block scalar can carry it exactly.</param>
+    [TestCase("a\nb", true)]
+    [TestCase("a\nb\n", true)]
+    [TestCase("a\n\nb", true)]
+    [TestCase("a\nb\n\n", true)]
+    [TestCase("a \nb", false)]
+    [TestCase("a\nb\t", false)]
+    [TestCase(" a\nb", false)]
+    [TestCase("\ta\nb", false)]
+    [TestCase("a\r\nb", false)]
+    [TestCase("a\u0007\nb", false)]
+    [TestCase("single line", false)]
+    [TestCase("", false)]
+    public void ABlockScalarIsAvailableOnlyWhenItIsExact(string text, bool eligible) =>
+        YamlScalarText.CanBlock(text).ShouldBe(eligible);
+
+    /// <summary>
+    /// An empty line inside otherwise indented block content is still block-eligible: the writer
+    /// emits it as a truly empty line rather than as indentation, so nothing invisible is added.
+    /// </summary>
+    [Test]
+    public void AnInteriorEmptyLineDoesNotDisqualifyABlockScalar() =>
+        YamlScalarText.CanBlock("first\n\nthird\n").ShouldBeTrue();
+}

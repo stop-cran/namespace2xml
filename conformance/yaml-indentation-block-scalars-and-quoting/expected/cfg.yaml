@@ -1,0 +1,21 @@
+motd: |
+  line one
+  line two
+stripped: |-
+  alpha
+  beta
+kept: |+
+  solo
+
+tail: end
+truthy: 'true'
+numeric: '42'
+blank: ''
+yes: yes
+plus: +1
+half: .5
+items:
+  - alpha
+  - beta
+nested:
+  deep: value

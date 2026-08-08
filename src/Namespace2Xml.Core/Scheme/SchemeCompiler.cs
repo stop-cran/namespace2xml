@@ -56,6 +56,8 @@ public readonly record struct DeclarationSite(string Text, string Source, int Li
 /// <param name="Root">The Section 16.3 wrapping path, or null when content is not wrapped.</param>
 /// <param name="Delimiter">The Section 16.4 delimiter, or null for each format's own default.</param>
 /// <param name="IniOptions">The Section 16.9 INI options, defaulted when undeclared.</param>
+/// <param name="JsonOptions">The Section 16.9 JSON options, defaulted when undeclared.</param>
+/// <param name="YamlOptions">The Section 16.9 YAML options, defaulted when undeclared.</param>
 /// <param name="FileMerge">The Section 16.11 destination-collision strategy.</param>
 /// <param name="Captures">
 /// The Section 14.1 captures the selector expansion bound, empty for a selector that contained no
@@ -83,6 +85,14 @@ public readonly record struct DeclarationSite(string Text, string Source, int Li
 /// has no null value to mean "not declared" — a scheme may explicitly write the defaults — so the
 /// Section 15.2 override stream needs the site to know whether this member won anything.
 /// </param>
+/// <param name="JsonOptionsDeclaration">
+/// The site of the winning <c>jsonoutputoptions</c> declaration, or null when the instance takes the
+/// Section 16.9 defaults, for the same reason as <paramref name="IniOptionsDeclaration"/>.
+/// </param>
+/// <param name="YamlOptionsDeclaration">
+/// The site of the winning <c>yamloutputoptions</c> declaration, or null when the instance takes the
+/// Section 16.9 defaults, for the same reason as <paramref name="IniOptionsDeclaration"/>.
+/// </param>
 /// <param name="Declaration">
 /// The written text of the winning <c>output</c> declaration, its source, and the line it was
 /// written on. Section 22 supplies a diagnostic's <c>source</c>, <c>line</c>, and
@@ -98,12 +108,16 @@ public sealed record OutputInstance(
     QualifiedName? Root,
     string? Delimiter,
     IniOutputOptions IniOptions,
+    JsonOutputOptions JsonOptions,
+    YamlOutputOptions YamlOptions,
     MergeStrategy FileMerge,
     WildcardCaptures Captures,
     int WildcardMatchOrder,
     DeclarationSite? FilenameDeclaration,
     DeclarationSite? FileMergeDeclaration,
     DeclarationSite? IniOptionsDeclaration,
+    DeclarationSite? JsonOptionsDeclaration,
+    DeclarationSite? YamlOptionsDeclaration,
     DeclarationSite Declaration)
 {
     /// <summary>
@@ -252,6 +266,8 @@ public static class SchemeCompiler
                 case SchemeDirective.Root:
                 case SchemeDirective.Delimiter:
                 case SchemeDirective.IniOutputOptions:
+                case SchemeDirective.JsonOutputOptions:
+                case SchemeDirective.YamlOutputOptions:
                 case SchemeDirective.FileMerge:
                     winners[(new SelectorKey(entry.Selector), entry.Directive)] = (entry, index);
                     break;
@@ -366,6 +382,10 @@ public static class SchemeCompiler
                 CompileDelimiter(winners, selector, formats, diagnostics),
                 Compile(winners, selector, SchemeDirective.IniOutputOptions, diagnostics, CompileIniOptions)
                     ?? IniOutput.Default,
+                Compile(winners, selector, SchemeDirective.JsonOutputOptions, diagnostics, CompileJsonOptions)
+                    ?? JsonOutput.Default,
+                Compile(winners, selector, SchemeDirective.YamlOutputOptions, diagnostics, CompileYamlOptions)
+                    ?? YamlOutput.Default,
                 Compile(winners, selector, SchemeDirective.FileMerge, diagnostics, CompileStrategy)
                     ?? MergeStrategy.Deep,
                 WildcardCaptures.Empty,
@@ -373,6 +393,8 @@ public static class SchemeCompiler
                 Site(winners, selector, SchemeDirective.Filename),
                 Site(winners, selector, SchemeDirective.FileMerge),
                 Site(winners, selector, SchemeDirective.IniOutputOptions),
+                Site(winners, selector, SchemeDirective.JsonOutputOptions),
+                Site(winners, selector, SchemeDirective.YamlOutputOptions),
                 new DeclarationSite(
                     winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)));
         }
@@ -642,7 +664,84 @@ public static class SchemeCompiler
         return options;
     }
 
-    /// <summary>Sections 16.10 and 16.11.</summary>
+    /// <summary>Section 16.9.</summary>
+    private static JsonOutputOptions? CompileJsonOptions(SchemeEntry entry, DiagnosticBuffer diagnostics)
+    {
+        var options = JsonOutputOptions.None;
+
+        foreach (var name in Split(entry.Value.LiteralText!))
+        {
+            if (!IsName(name)
+                || !Enum.TryParse<JsonOutputOptions>(name, ignoreCase: true, out var flag)
+                || !Enum.IsDefined(flag)
+                || flag == JsonOutputOptions.None)
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.9",
+                    $"'{name}' is not one of the Section 16.9 JSON output options.");
+                return null;
+            }
+
+            options |= flag;
+        }
+
+        if (!options.TryValidate(out var contradiction))
+        {
+            Reject(entry, diagnostics, "\u00A716.9", contradiction!);
+            return null;
+        }
+
+        // Section 16.9: "When a replacement omits every flag from a mutually exclusive mode group,
+        // that group's documented default is reapplied." Layout is the only JSON group with a
+        // default; 'EscapeNonAscii' is independent and off unless named.
+        if (!options.HasFlag(JsonOutputOptions.Compact))
+        {
+            options |= JsonOutputOptions.Indent;
+        }
+
+        return options;
+    }
+
+    /// <summary>Section 16.9.</summary>
+    private static YamlOutputOptions? CompileYamlOptions(SchemeEntry entry, DiagnosticBuffer diagnostics)
+    {
+        var options = YamlOutputOptions.None;
+
+        foreach (var name in Split(entry.Value.LiteralText!))
+        {
+            if (!IsName(name)
+                || !Enum.TryParse<YamlOutputOptions>(name, ignoreCase: true, out var flag)
+                || !Enum.IsDefined(flag)
+                || flag == YamlOutputOptions.None)
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.9",
+                    $"'{name}' is not one of the Section 16.9 YAML output options.");
+                return null;
+            }
+
+            options |= flag;
+        }
+
+        if (!options.TryValidate(out var contradiction))
+        {
+            Reject(entry, diagnostics, "\u00A716.9", contradiction!);
+            return null;
+        }
+
+        // Section 16.9: an omitted mode group reapplies its documented default.
+        if (!options.HasFlag(YamlOutputOptions.DiscardComments))
+        {
+            options |= YamlOutputOptions.PreserveComments;
+        }
+
+        return options;
+    }
+
     private static MergeStrategy? CompileStrategy(SchemeEntry entry, DiagnosticBuffer diagnostics)
     {
         var written = entry.Value.LiteralText!.Trim();

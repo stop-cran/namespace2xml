@@ -1,0 +1,4 @@
+lone.output=json,yaml
+absent.output=json,yaml
+holder.output=json,yaml
+holder.root=cfg.app

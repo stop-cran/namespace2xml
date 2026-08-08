@@ -1,0 +1,292 @@
+using System.Globalization;
+using System.Text;
+
+namespace Namespace2Xml.Output;
+
+/// <summary>
+/// Spells a string as a Section 19.4 YAML scalar.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Section 19.4 gives one explicit rule: "a string whose plain spelling would resolve to a
+/// non-string kind under <c>RestrictedYaml1</c> is emitted single-quoted, with a literal single
+/// quote doubled as <c>''</c>". That rule is about <em>meaning</em>. A plain scalar must also be
+/// <em>syntactically</em> plain, and the two conditions are checked together here because a
+/// serializer that honoured only the first would emit files no YAML parser accepts.
+/// </para>
+/// <para>
+/// The plain test is deliberately conservative: a leading indicator character disqualifies plain
+/// spelling whether or not that particular position is ambiguous in block context. Quoting one
+/// scalar too many costs a pair of quotes; quoting one too few costs a wrong file, and the
+/// conservative rule is the one that does not depend on remembering every YAML context rule
+/// correctly.
+/// </para>
+/// </remarks>
+internal static class YamlScalarText
+{
+    private const string LeadingIndicators = "-?:,[]{}#&*!|>'\"%@`";
+
+    /// <summary>
+    /// Whether a plain spelling of this text would resolve to something other than a string under
+    /// the Section 10.1 <c>RestrictedYaml1</c> schema.
+    /// </summary>
+    /// <param name="text">The string value.</param>
+    public static bool ResolvesToNonString(string text) =>
+        text.Length == 0
+        || text == "~"
+        || text is "null" or "Null" or "NULL"
+        || IsBoolean(text)
+        || IsJsonNumber(text);
+
+    /// <summary>Section 10.1: "any ASCII case spelling of <c>true</c> or <c>false</c>".</summary>
+    private static bool IsBoolean(string text) =>
+        string.Equals(text, "true", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(text, "false", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Section 10.1: "JSON-compatible decimal integers and floating-point values are numeric",
+    /// while "<c>+1</c>, <c>.5</c>, and <c>1.</c> remain strings because they are not JSON-compatible
+    /// numbers".
+    /// </summary>
+    /// <param name="text">The string value.</param>
+    public static bool IsJsonNumber(string text)
+    {
+        var index = 0;
+
+        if (index < text.Length && text[index] == '-')
+        {
+            index++;
+        }
+
+        if (!TryDigits(text, ref index, out var digits))
+        {
+            return false;
+        }
+
+        // JSON forbids a leading zero on a multi-digit integer part.
+        if (digits > 1 && text[index - digits] == '0')
+        {
+            return false;
+        }
+
+        if (index < text.Length && text[index] == '.')
+        {
+            index++;
+
+            if (!TryDigits(text, ref index, out _))
+            {
+                return false;
+            }
+        }
+
+        if (index < text.Length && (text[index] == 'e' || text[index] == 'E'))
+        {
+            index++;
+
+            if (index < text.Length && (text[index] == '+' || text[index] == '-'))
+            {
+                index++;
+            }
+
+            if (!TryDigits(text, ref index, out _))
+            {
+                return false;
+            }
+        }
+
+        return index == text.Length;
+    }
+
+    private static bool TryDigits(string text, ref int index, out int count)
+    {
+        var start = index;
+
+        while (index < text.Length && text[index] is >= '0' and <= '9')
+        {
+            index++;
+        }
+
+        count = index - start;
+
+        return count > 0;
+    }
+
+    /// <summary>Whether the text may be written as a plain scalar.</summary>
+    /// <param name="text">The string value.</param>
+    public static bool IsPlainSafe(string text)
+    {
+        if (text.Length == 0 || ResolvesToNonString(text))
+        {
+            return false;
+        }
+
+        if (text[0] == ' ' || text[^1] == ' ' || text[^1] == ':')
+        {
+            return false;
+        }
+
+        if (LeadingIndicators.Contains(text[0], StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        for (var index = 0; index < text.Length; index++)
+        {
+            var unit = text[index];
+
+            if (unit is '\n' or '\r' or '\t' || char.IsControl(unit))
+            {
+                return false;
+            }
+
+            if (unit is '[' or ']' or '{' or '}' or ',')
+            {
+                return false;
+            }
+
+            if (unit == ':' && index + 1 < text.Length && text[index + 1] == ' ')
+            {
+                return false;
+            }
+
+            if (unit == '#' && index > 0 && text[index - 1] == ' ')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether every scalar in the text is a YAML <c>c-printable</c> character other than a line
+    /// break, which is what a single-quoted scalar can carry without folding or escapes.
+    /// </summary>
+    /// <param name="text">The string value.</param>
+    public static bool CanSingleQuote(string text)
+    {
+        foreach (var unit in text)
+        {
+            if (unit == '\t')
+            {
+                continue;
+            }
+
+            if (unit is '\n' or '\r' || char.IsControl(unit) || char.IsSurrogate(unit))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Section 19.4's single-quoted form, "with a literal single quote doubled as <c>''</c>".</summary>
+    /// <param name="text">The string value.</param>
+    public static string SingleQuote(string text) =>
+        $"'{text.Replace("'", "''", StringComparison.Ordinal)}'";
+
+    /// <summary>
+    /// The double-quoted form, which is the only YAML spelling that can carry text a literal block
+    /// scalar and a single-quoted scalar both refuse.
+    /// </summary>
+    /// <param name="text">The string value.</param>
+    public static string DoubleQuote(string text)
+    {
+        var builder = new StringBuilder(text.Length + 2);
+
+        builder.Append('"');
+
+        foreach (var unit in text)
+        {
+            switch (unit)
+            {
+                case '"':
+                    builder.Append("\\\"");
+                    break;
+
+                case '\\':
+                    builder.Append("\\\\");
+                    break;
+
+                case '\n':
+                    builder.Append("\\n");
+                    break;
+
+                case '\r':
+                    builder.Append("\\r");
+                    break;
+
+                case '\t':
+                    builder.Append("\\t");
+                    break;
+
+                default:
+                    if (char.IsControl(unit) || char.IsSurrogate(unit))
+                    {
+                        builder
+                            .Append("\\u")
+                            .Append(((int)unit).ToString("X4", CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        builder.Append(unit);
+                    }
+
+                    break;
+            }
+        }
+
+        builder.Append('"');
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// The single-line spelling of a string: plain when that is both safe and unambiguous, single
+    /// quoted when it can be, and double quoted otherwise.
+    /// </summary>
+    /// <param name="text">The string value.</param>
+    public static string Spell(string text) =>
+        IsPlainSafe(text) ? text
+        : CanSingleQuote(text) ? SingleQuote(text)
+        : DoubleQuote(text);
+
+    /// <summary>
+    /// Whether Section 19.4's literal block scalar can carry this multiline value byte for byte.
+    /// </summary>
+    /// <param name="text">The string value.</param>
+    /// <remarks>
+    /// A literal block scalar reproduces its content lines exactly, which makes it lossless only
+    /// when every line survives the round trip. A carriage return, a control character, or trailing
+    /// white space on a line does not: parsers differ on whether such a line keeps its trailing
+    /// spaces, and a CR would be read back as a line break. Leading white space on the first line is
+    /// refused too, because it would need an explicit indentation indicator to be read back at all.
+    /// Those values are double quoted instead, which is uglier and exact.
+    /// </remarks>
+    public static bool CanBlock(string text)
+    {
+        if (!text.Contains('\n', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        foreach (var unit in text)
+        {
+            if (unit is not '\n' && (char.IsControl(unit) || char.IsSurrogate(unit)))
+            {
+                return false;
+            }
+        }
+
+        foreach (var line in text.Split('\n'))
+        {
+            if (line.Length > 0 && (line[^1] == ' ' || line[^1] == '\t'))
+            {
+                return false;
+            }
+        }
+
+        return text[0] != ' ' && text[0] != '\t';
+    }
+}

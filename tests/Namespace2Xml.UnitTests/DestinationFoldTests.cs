@@ -57,6 +57,8 @@ public class DestinationFoldTests
             Root: null,
             Delimiter: null,
             IniOutput.Default,
+            JsonOutput.Default,
+            YamlOutput.Default,
             fileMerge,
             WildcardCaptures.Empty,
             WildcardMatchOrder: 0,
@@ -65,6 +67,8 @@ public class DestinationFoldTests
                 ? null
                 : new DeclarationSite($"{selector}.filemerge", "scheme.txt", 2),
             IniOptionsDeclaration: null,
+            JsonOptionsDeclaration: null,
+            YamlOptionsDeclaration: null,
             site);
     }
 

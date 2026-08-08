@@ -1,6 +1,6 @@
 # Known limits
 
-**As of `3.0.0-preview.1`, contract bundle `r33+925af40f8fec`. Dated 2026-08.**
+**As of `3.0.0-preview.1`, contract bundle `r34+85cadfb66bb5`. Dated 2026-08.**
 
 This file exists because a project that claims completeness cannot receive feedback: every gap reads
 as user error, and the reporter concludes they are holding it wrong. During the preview this list is
@@ -91,8 +91,9 @@ it.
   correctly and its values are right — but a scheme that would carry comments through to an output
   gets none. The design for the two-pass association layer this needs is worked out and recorded in
   `spikes/yaml-comments/FINDINGS.md`, against a 28-document corpus; only the implementation is
-  outstanding. Comment **output** is unimplemented for every format, so nothing observable is lost
-  today.
+  outstanding. **This is now observable.** YAML output emits retained comments in normalized
+  positions, so a YAML-to-YAML run loses every comment in the source while a namespace-to-YAML run
+  keeps them — the asymmetry is in the reader, not the writer.
 - **A wildcard in a key is declined**, with exit `70` and no output, exactly as for JSON, and for the
   same §12.3 reason. `\*` for a literal asterisk works.
 - **`substitute` is parsed and not applied**, again as for JSON and every other format.
@@ -132,7 +133,9 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   discards it — the same common-model gap as §1.2's YAML entry, since structured input has no
   comment facet. Its §11.4 ordering value **is** spent, so siblings keep their positions:
   `<a>t<!--c-->u</a>` addresses its two text runs as `#0` and `#2`, never renumbered to `#0` and
-  `#1`. Comment output is unimplemented for every format, so nothing observable is lost today.
+  `#1`. **This is now observable through a non-XML output**: YAML output emits retained comments,
+  so an XML-to-YAML run loses every XML comment. XML output is unimplemented, so an XML-to-XML run
+  loses nothing that could have been emitted anyway.
 - **CDATA is not retained as a distinct node kind.** §11.6 keeps it distinct so that XML output can
   re-emit it as CDATA. The coalescing rule itself is implemented exactly as written — adjacent
   CDATA and adjacent ordinary text coalesce separately and never with each other — but the run's

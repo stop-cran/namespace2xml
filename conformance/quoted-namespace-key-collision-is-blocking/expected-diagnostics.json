@@ -1,0 +1,3 @@
+[
+{"code":"FLAT001","severity":"error","phase":"planning","path":"a.b_c","destination":"cfg.sh"}
+]

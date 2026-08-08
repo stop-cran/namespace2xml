@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (39)
+## Deliberate differences (45)
 
 ### `a-refused-fold-is-reported-once-per-destination`
 
@@ -306,6 +306,46 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   and ordering sections by the emission stream keeps every INI rule a function of that stream
   alone.
 
+### `json-and-yaml-render-one-exclusive-shape`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 4.4; Section 19.3; Section 19.4.
+- Legacy observation: JSON and YAML output did not exist, so a path carrying both a scalar and a
+  descendant had no defined structured rendering and no warning.
+- Clean behavior: Section 4.4 makes JSON and YAML exclusive-shape destinations. Its own example
+  says a namespace emitting both `a.x=1` and `a.x.z=3` renders `x` as an object containing
+  `z`, omits the scalar, and warns; reversing source order makes the later scalar win. Each loss
+  is one `TYPE002`, counted once per path and output instance, so the same path warns separately
+  for the JSON and the YAML destination.
+- The difference is intentional: a structured document node holds one shape, and Section 24
+  requires the choice to be a function of contribution order rather than of a format preference.
+
+### `json-discards-comments-and-yaml-keeps-them`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 19.3; Section 19.4; Section 16.9; Section 4.5.
+- Legacy observation: neither format existed, so comments had nowhere to be kept or discarded.
+- Clean behavior: Section 19.3 "renders comments nowhere and emits a summarized discard warning
+  when comments exist" — one warning for the destination, not one per comment. Section 19.4 emits
+  retained comments in normalized positions, so the leading comments bound during namespace
+  parsing precede the entries they were bound to. Section 16.9's `DiscardComments` suppresses
+  them without a diagnostic, because discarding is what the option asked for.
+- The difference is intentional: silence about a discarded comment would make JSON output look
+  lossless when it is not, and a per-comment warning would bury the fact in noise.
+
+### `json-output-options-and-escaping`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 16.9; Section 19.3; Section 24.
+- Legacy observation: there was no JSON output and therefore no layout or escaping options.
+- Clean behavior: Section 19.3 "uses indented output by default", which Section 16.9 fixes at two
+  ASCII spaces per nesting level. `Compact` emits no insignificant spaces or line breaks.
+  `EscapeNonAscii` emits every scalar above U+007F as an uppercase hexadecimal `\uXXXX`
+  escape, in keys as well as values; a supplementary-plane scalar has no single escape and is
+  written as its surrogate pair, so the option leaves no byte above U+007F in the file.
+- The difference is intentional: Section 24 makes the output byte-identical across platforms, so
+  the escape spelling and its letter case are part of the contract rather than a writer detail.
+
 ### `json-scalar-kinds-and-sequence-order`
 
 - namespace2xml 2.4.0: **differs**.
@@ -507,6 +547,20 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   as unsigned UTF-8 bytes, which reports `mapwins` before `seqwins` even though the scheme and the
   output file both present `seqwins` first.
 
+### `quoted-namespace-key-collision-is-blocking`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 16.4; Section 19.2.
+- Legacy observation: quoted-namespace output joined path parts without checking that the join was
+  injective, so two distinct logical paths could silently become one shell assignment and the
+  later one would win.
+- Clean behavior: Section 16.4 requires that "two distinct logical paths must never silently
+  become one namespace, shell, or INI key". Quoted namespace has no escape for the underscore it
+  joins with, so `a_b.c` and `a.b_c` both project to `a_b_c`; the second is a blocking
+  `FLAT001` naming the view-relative path, and no file is written.
+- The difference is intentional: an output that loses a value is worse than an output that is
+  refused, and the collision is a property of the projection rather than of the data.
+
 ### `reference-alias-ambiguity-lists-candidates`
 
 - namespace2xml 2.4.0: **differs**. The format-agnostic alias did not exist, so neither did the
@@ -575,6 +629,21 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 
 - Cycles longer than two members, and cycles whose least member is not the first-written one.
   Rotation over longer chains is pinned by unit tests against the resolver.
+
+### `structured-bare-scalar-and-empty-documents`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 14.1; Section 16.3.
+- Legacy observation: neither format existed, so there was no bare-scalar or empty-view behavior
+  to compare.
+- Clean behavior: Section 14.1 lets JSON and YAML "emit a scalar document", so a view that is
+  itself a payload is written as a top-level scalar with no synthesized key — unlike the flat
+  formats, which require an explicit `root`. A view that selects nothing emits an empty mapping.
+  Section 16.3's `root=cfg.app` wraps the document in nested single-member mappings rather than
+  prefixing a key, and the original selector name is not retained because it is not present in the
+  `root` value.
+- The difference is intentional: a structured format can spell a scalar document, so requiring a
+  key would invent a name the source never had.
 
 ### `wildcard-ordering-values-survive`
 
@@ -691,6 +760,22 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - The difference is intentional: an input file that can name a resource, or expand to an
   unbounded size, makes the tool's behavior a function of the data it is given rather than of the
   invocation, and Section 11.1 removes that entirely rather than bounding it.
+
+### `yaml-indentation-block-scalars-and-quoting`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 10.1; Section 19.4; Section 16.9.
+- Legacy observation: YAML was neither read nor written, so neither the restricted schema nor the
+  output layout was a contract.
+- Clean behavior: Section 19.4 indents two spaces per level, emits no `---`, and uses literal
+  block scalars for multiline values, whose chomping indicator carries what the indentation cannot
+  — no trailing line break, exactly one, or more than one. Section 19.4 single-quotes a string
+  "whose plain spelling would resolve to a non-string kind under `RestrictedYaml1`", so `true`
+  and `42` as strings are quoted while Section 10.1's deliberate non-resolutions `yes`, `+1`
+  and `.5` stay plain.
+- The difference is intentional: Section 10.1 is normative "rather than an underlying library's
+  advertised YAML 1.1 or 1.2 mode", so the quoting a writer must apply follows from it and not
+  from a library's own emitter.
 
 ### `yaml-restricted-schema-and-scalar-kinds`
 

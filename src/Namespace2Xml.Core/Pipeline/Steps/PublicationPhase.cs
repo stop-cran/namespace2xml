@@ -99,25 +99,9 @@ public static class PublicationPhase
 
         var view = contribution.View;
         var destination = new DestinationRef(contribution.Path.Canonical, order);
-
-        if (!view.Format.TryAsFlat(out var flat))
-        {
-            throw new InvalidOperationException(
-                $"step 14 admitted {view.Format}, which has no flat projection.");
-        }
-
-        var delimiter = view.Instance.Delimiter ?? FlatKeyProjector.DefaultDelimiter(flat);
-        var entries = new FlatProjection(diagnostics, destination).Project(view.View, view.Root);
-        var keyed = new FlatKeyProjector(flat, delimiter, diagnostics, destination).Project(entries);
         var writer = new OutputBufferWriter(budget);
 
-        var written = flat == FlatFormat.Ini
-            ? new IniSerializer(view.Instance.IniOptions, diagnostics, destination)
-                .TrySerialize(keyed, writer)
-            : new FlatTextSerializer(flat, delimiter, diagnostics, destination)
-                .TrySerialize(keyed, writer);
-
-        if (!written)
+        if (!TryWrite(view, diagnostics, destination, writer))
         {
             return false;
         }
@@ -141,5 +125,50 @@ public static class PublicationPhase
             DestinationOrder: order));
 
         return false;
+    }
+
+    /// <summary>
+    /// Section 15.1 step 19: renders one view through the serializer its format names.
+    /// </summary>
+    /// <remarks>
+    /// The flat formats project to Section 19.1 keyed entries and the structured formats to a
+    /// Section 19.3 document, and the two projections differ in more than layout: Section 4.4 makes
+    /// JSON and YAML exclusive-shape destinations where the payload competes with the container,
+    /// while a flat output emits both facets of one node.
+    /// </remarks>
+    private static bool TryWrite(
+        OutputView view,
+        DiagnosticBuffer diagnostics,
+        DestinationRef destination,
+        OutputBufferWriter writer)
+    {
+        if (view.Format.TryAsFlat(out var flat))
+        {
+            var delimiter = view.Instance.Delimiter ?? FlatKeyProjector.DefaultDelimiter(flat);
+            var entries = new FlatProjection(diagnostics, destination).Project(view.View, view.Root);
+            var keyed = new FlatKeyProjector(flat, delimiter, diagnostics, destination).Project(entries);
+
+            return flat == FlatFormat.Ini
+                ? new IniSerializer(view.Instance.IniOptions, diagnostics, destination)
+                    .TrySerialize(keyed, writer)
+                : new FlatTextSerializer(flat, delimiter, diagnostics, destination)
+                    .TrySerialize(keyed, writer);
+        }
+
+        if (view.Format is not (OutputFormat.Json or OutputFormat.Yaml))
+        {
+            throw new InvalidOperationException(
+                $"step 14 admitted {view.Format}, which has no serializer.");
+        }
+
+        var anchor = view.Format == OutputFormat.Json ? "\u00A719.3" : "\u00A719.4";
+        var document = new DocumentProjection(diagnostics, anchor, destination)
+            .Project(view.View, view.Root);
+
+        return view.Format == OutputFormat.Json
+            ? new JsonSerializer(view.Instance.JsonOptions, diagnostics, destination)
+                .TrySerialize(document, writer)
+            : new YamlSerializer(view.Instance.YamlOptions, diagnostics, destination)
+                .TrySerialize(document, writer);
     }
 }

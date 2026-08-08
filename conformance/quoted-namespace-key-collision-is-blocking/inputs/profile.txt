@@ -1,0 +1,2 @@
+cfg.a_b.c=first
+cfg.a.b_c=second
