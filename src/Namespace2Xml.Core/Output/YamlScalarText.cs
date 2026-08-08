@@ -27,6 +27,41 @@ internal static class YamlScalarText
     private const string LeadingIndicators = "-?:,[]{}#&*!|>'\"%@`";
 
     /// <summary>
+    /// U+FEFF. YAML admits a byte order mark only at the start of a stream, and Section 24 requires
+    /// UTF-8 "without a BOM", so this character can never be written as itself: a reader either
+    /// rejects the file or silently discards the character. It is escaped in every spelling.
+    /// </summary>
+    private const char ByteOrderMark = '\uFEFF';
+
+    /// <summary>
+    /// Whether the text contains a surrogate code unit that is not part of a valid pair. Such a
+    /// unit is not a Unicode scalar value, so no YAML spelling can carry it faithfully; it is
+    /// escaped so the output stays well formed rather than being emitted as invalid UTF-8.
+    /// </summary>
+    /// <param name="text">The string value.</param>
+    private static bool HasLoneSurrogate(string text)
+    {
+        for (var index = 0; index < text.Length; index++)
+        {
+            if (!char.IsSurrogate(text[index]))
+            {
+                continue;
+            }
+
+            if (!char.IsHighSurrogate(text[index])
+                || index + 1 >= text.Length
+                || !char.IsLowSurrogate(text[index + 1]))
+            {
+                return true;
+            }
+
+            index++;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Whether a plain spelling of this text would resolve to something other than a string under
     /// the Section 10.1 <c>RestrictedYaml1</c> schema.
     /// </summary>
@@ -130,11 +165,23 @@ internal static class YamlScalarText
             return false;
         }
 
+        // A line whose content begins "..." is the document-end marker, and a bare scalar occupies
+        // a line of its own, so plain spelling would turn the value into an empty document.
+        if (text.StartsWith("...", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (HasLoneSurrogate(text))
+        {
+            return false;
+        }
+
         for (var index = 0; index < text.Length; index++)
         {
             var unit = text[index];
 
-            if (unit is '\n' or '\r' or '\t' || char.IsControl(unit))
+            if (unit is '\n' or '\r' or '\t' || unit == ByteOrderMark || char.IsControl(unit))
             {
                 return false;
             }
@@ -165,6 +212,11 @@ internal static class YamlScalarText
     /// <param name="text">The string value.</param>
     public static bool CanSingleQuote(string text)
     {
+        if (HasLoneSurrogate(text))
+        {
+            return false;
+        }
+
         foreach (var unit in text)
         {
             if (unit == '\t')
@@ -172,7 +224,12 @@ internal static class YamlScalarText
                 continue;
             }
 
-            if (unit is '\n' or '\r' || char.IsControl(unit) || char.IsSurrogate(unit))
+            if (char.IsSurrogate(unit))
+            {
+                continue;
+            }
+
+            if (unit is '\n' or '\r' || unit == ByteOrderMark || char.IsControl(unit))
             {
                 return false;
             }
@@ -197,43 +254,49 @@ internal static class YamlScalarText
 
         builder.Append('"');
 
-        foreach (var unit in text)
+        for (var index = 0; index < text.Length; index++)
         {
-            switch (unit)
+            var unit = text[index];
+
+            if (unit == '"')
             {
-                case '"':
-                    builder.Append("\\\"");
-                    break;
-
-                case '\\':
-                    builder.Append("\\\\");
-                    break;
-
-                case '\n':
-                    builder.Append("\\n");
-                    break;
-
-                case '\r':
-                    builder.Append("\\r");
-                    break;
-
-                case '\t':
-                    builder.Append("\\t");
-                    break;
-
-                default:
-                    if (char.IsControl(unit) || char.IsSurrogate(unit))
-                    {
-                        builder
-                            .Append("\\u")
-                            .Append(((int)unit).ToString("X4", CultureInfo.InvariantCulture));
-                    }
-                    else
-                    {
-                        builder.Append(unit);
-                    }
-
-                    break;
+                builder.Append("\\\"");
+            }
+            else if (unit == '\\')
+            {
+                builder.Append("\\\\");
+            }
+            else if (unit == '\n')
+            {
+                builder.Append("\\n");
+            }
+            else if (unit == '\r')
+            {
+                builder.Append("\\r");
+            }
+            else if (unit == '\t')
+            {
+                builder.Append("\\t");
+            }
+            else if (char.IsHighSurrogate(unit)
+                && index + 1 < text.Length
+                && char.IsLowSurrogate(text[index + 1]))
+            {
+                // A supplementary character is one Unicode scalar value and is written as itself,
+                // exactly as any other non-ASCII character is. Splitting it into two \u escapes
+                // would spell two unpaired surrogates, which is a different string.
+                builder.Append(unit).Append(text[index + 1]);
+                index++;
+            }
+            else if (char.IsControl(unit) || char.IsSurrogate(unit) || unit == ByteOrderMark)
+            {
+                builder
+                    .Append("\\u")
+                    .Append(((int)unit).ToString("X4", CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                builder.Append(unit);
             }
         }
 
@@ -260,9 +323,11 @@ internal static class YamlScalarText
     /// A literal block scalar reproduces its content lines exactly, which makes it lossless only
     /// when every line survives the round trip. A carriage return, a control character, or trailing
     /// white space on a line does not: parsers differ on whether such a line keeps its trailing
-    /// spaces, and a CR would be read back as a line break. Leading white space on the first line is
-    /// refused too, because it would need an explicit indentation indicator to be read back at all.
-    /// Those values are double quoted instead, which is uglier and exact.
+    /// spaces, and a CR would be read back as a line break. Leading white space on the block's
+    /// <em>first non-empty</em> line is refused too, because a reader detects the block's
+    /// indentation from that line and would absorb the space rather than return it. Checking the
+    /// first character instead would miss a value such as <c>"\n leading"</c>, whose first line is
+    /// empty. Those values are double quoted instead, which is uglier and exact.
     /// </remarks>
     public static bool CanBlock(string text)
     {
@@ -271,9 +336,19 @@ internal static class YamlScalarText
             return false;
         }
 
+        if (HasLoneSurrogate(text))
+        {
+            return false;
+        }
+
         foreach (var unit in text)
         {
-            if (unit is not '\n' && (char.IsControl(unit) || char.IsSurrogate(unit)))
+            if (unit == ByteOrderMark)
+            {
+                return false;
+            }
+
+            if (unit is not '\n' && !char.IsSurrogate(unit) && char.IsControl(unit))
             {
                 return false;
             }
@@ -287,6 +362,16 @@ internal static class YamlScalarText
             }
         }
 
-        return text[0] != ' ' && text[0] != '\t';
+        foreach (var line in text.Split('\n'))
+        {
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            return line[0] != ' ' && line[0] != '\t';
+        }
+
+        return true;
     }
 }

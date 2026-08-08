@@ -240,4 +240,86 @@ public class YamlScalarTextTests
     [Test]
     public void AnInteriorEmptyLineDoesNotDisqualifyABlockScalar() =>
         YamlScalarText.CanBlock("first\n\nthird\n").ShouldBeTrue();
+    /// <summary>
+    /// A reader detects a literal block scalar's indentation from its <em>first non-empty</em>
+    /// line and strips exactly that much from every line. Leading white space there is therefore
+    /// absorbed, so Section 3.3's "writing a format it read preserves the data" forbids a block
+    /// spelling. A value whose first line is empty hides this: the first character is the line
+    /// break, and only the second line carries the space.
+    /// </summary>
+    /// <param name="text">A value whose first non-empty line begins with white space.</param>
+    [TestCase("\n leading")]
+    [TestCase("\n\n  two")]
+    [TestCase("\n\ttabbed")]
+    [TestCase(" first\nsecond")]
+    public void AnIndentedFirstNonEmptyLineDisqualifiesABlockScalar(string text) =>
+        YamlScalarText.CanBlock(text).ShouldBeFalse();
+
+    /// <summary>
+    /// The converse: an empty leading line is harmless when the first line carrying content starts
+    /// at column zero, because the detected indentation is then the writer's own.
+    /// </summary>
+    [TestCase("\nleading")]
+    [TestCase("\n\ntwo")]
+    public void AnEmptyLeadingLineAloneDoesNotDisqualifyABlockScalar(string text) =>
+        YamlScalarText.CanBlock(text).ShouldBeTrue();
+
+    /// <summary>
+    /// A line whose content is <c>...</c> is YAML's document-end marker. A bare scalar occupies a
+    /// line of its own, so a plain spelling would end the document and leave it with no value —
+    /// losing the string entirely rather than quoting it.
+    /// </summary>
+    /// <param name="text">A value a reader would take for a document-end marker.</param>
+    [TestCase("...")]
+    [TestCase("... trailing")]
+    public void ADocumentEndMarkerIsNeverSpelledPlain(string text) =>
+        YamlScalarText.IsPlainSafe(text).ShouldBeFalse();
+
+    /// <summary>
+    /// U+FEFF is a byte order mark at the start of a stream and Section 24 requires UTF-8 "without
+    /// a BOM", so a reader either rejects the file or discards the character. It can never be
+    /// written as itself, in any spelling.
+    /// </summary>
+    [Test]
+    public void AByteOrderMarkIsNeverWrittenAsItself()
+    {
+        const string Text = "\uFEFFx";
+
+        YamlScalarText.IsPlainSafe(Text).ShouldBeFalse();
+        YamlScalarText.CanSingleQuote(Text).ShouldBeFalse();
+        YamlScalarText.CanBlock("\uFEFFa\nb").ShouldBeFalse();
+        YamlScalarText.Spell(Text).ShouldBe("\"\\uFEFFx\"");
+    }
+
+    /// <summary>
+    /// A supplementary character is one Unicode scalar value. Splitting it into two <c>\u</c>
+    /// escapes spells two unpaired surrogates, which is a different string: Section 19.4 preserves
+    /// the scalar, so it is written as itself in every spelling that admits non-ASCII text.
+    /// </summary>
+    [Test]
+    public void ASupplementaryCharacterSurvivesEverySpelling()
+    {
+        const string Emoji = "\uD83D\uDE00";
+
+        YamlScalarText.IsPlainSafe(Emoji).ShouldBeTrue();
+        YamlScalarText.CanSingleQuote("-" + Emoji).ShouldBeTrue();
+        YamlScalarText.Spell("-" + Emoji).ShouldBe("'-" + Emoji + "'");
+        YamlScalarText.DoubleQuote(Emoji).ShouldBe("\"" + Emoji + "\"");
+        YamlScalarText.CanBlock(Emoji + "\nsecond").ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// A surrogate with no partner is not a Unicode scalar value, so no YAML spelling carries it.
+    /// It is escaped rather than written raw, which at least keeps the file well formed.
+    /// </summary>
+    [Test]
+    public void ALoneSurrogateIsEscapedRatherThanWritten()
+    {
+        const string Lone = "a\uD83Db";
+
+        YamlScalarText.IsPlainSafe(Lone).ShouldBeFalse();
+        YamlScalarText.CanSingleQuote(Lone).ShouldBeFalse();
+        YamlScalarText.CanBlock(Lone + "\nsecond").ShouldBeFalse();
+        YamlScalarText.Spell(Lone).ShouldBe("\"a\\uD83Db\"");
+    }
 }

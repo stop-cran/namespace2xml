@@ -196,17 +196,27 @@ public class DocumentProjectionTests
     /// Section 5.4 renders sequence items in ascending ordering value, not in contribution order,
     /// so a later contribution with a lower ordering value is emitted first.
     /// </summary>
+    /// <remarks>
+    /// The ordering values are large and adversarially chosen rather than small and readable.
+    /// <c>ImmutableDictionary&lt;long, T&gt;</c> enumerates every small key in ascending order
+    /// anyway — a search over three-key sets below 100,000 found no counterexample — so a test
+    /// using values such as <c>2, 7, 40</c> passes with the sort deleted and proves nothing. These
+    /// four enumerate as <c>fourth, third, first, second</c> when the sort is removed, which is the
+    /// only reason to prefer them. Section 5.4 permits the whole range "0 through
+    /// 9,223,372,036,854,775,807", so they are ordinary values.
+    /// </remarks>
     [Test]
     public void SequenceItemsFollowAscendingOrderingValue()
     {
         var view = Container(1)
-            .WithSequenceItem(40, Item("last", 1))
-            .WithSequenceItem(2, Item("first", 2))
-            .WithSequenceItem(7, Item("middle", 3));
+            .WithSequenceItem(3525628317485390336, Item("second", 1))
+            .WithSequenceItem(8015552281036764160, Item("fourth", 2))
+            .WithSequenceItem(6080635329187212288, Item("third", 3))
+            .WithSequenceItem(480807690918821696, Item("first", 4));
 
         var items = ((DocumentSequence)Project(view)).Items;
 
-        items.Select(Text).ShouldBe(["first", "middle", "last"]);
+        items.Select(Text).ShouldBe(["first", "second", "third", "fourth"]);
     }
 
     /// <summary>

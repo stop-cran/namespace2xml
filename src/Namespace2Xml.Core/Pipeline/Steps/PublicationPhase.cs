@@ -117,7 +117,12 @@ public static class PublicationPhase
 
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Serialize001(
-                DiagnosticPhase.Publication,
+                // Section 6.4.3 maps planning to "Section 15.1 steps 13 through 19" and publication
+                // to step 20 alone. Building the immutable byte buffer is the tail of step 19,
+                // "serialize all planned destinations into immutable in-memory byte buffers", so a
+                // failure here is a planning diagnostic exactly as one raised inside a serializer
+                // is. The enclosing class is named for the step it ends with, not for this one.
+                DiagnosticPhase.Planning,
                 "\u00A724",
                 $"'{destination.Canonical}' could not be serialized: {violation}",
                 cardinalityKey: destination.Canonical,

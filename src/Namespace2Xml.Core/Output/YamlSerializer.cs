@@ -217,7 +217,13 @@ public sealed class YamlSerializer
     /// tag resolution", but a key that would resolve elsewhere is quoted anyway so that a reader
     /// outside <c>RestrictedYaml1</c> reads back the same key.
     /// </summary>
-    private static string Key(string text) => YamlScalarText.Spell(text);
+    /// <remarks>
+    /// <c>&lt;&lt;</c> is the one key that needs this treatment beyond the value rules: it is an
+    /// ordinary string as a value, but plain as a key it is the merge key, which Section 10.1
+    /// declares unsupported. Quoting it keeps the round trip exact.
+    /// </remarks>
+    private static string Key(string text) =>
+        text is "<<" ? YamlScalarText.SingleQuote(text) : YamlScalarText.Spell(text);
 
     private static string Join(string label, string? value, string? inline)
     {
@@ -236,11 +242,19 @@ public sealed class YamlSerializer
     /// The comment this node carries on the same line as its value, or <see langword="null"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// An inline spelling exists only when the comment is a single line and the node has a line of
     /// its own to sit at the end of. A multiline comment has none, and neither does a container
     /// written without a <c>key:</c> header, whose first line belongs to its first child. Section 20
     /// normalizes comment position rather than preserving it exactly, so those are emitted on their
     /// own line before the node instead of being dropped.
+    /// </para>
+    /// <para>
+    /// Section 4.5: "when several YAML inline comments accumulate at one path, the latest remains
+    /// inline and earlier inline comments become leading comments in source order". The last
+    /// eligible comment is therefore chosen, not the first; <see cref="Emits"/> routes the rest
+    /// into the leading pass, which already walks the list in source order.
+    /// </para>
     /// </remarks>
     private BoundComment? Inline(DocumentNode node, string label)
     {
@@ -259,17 +273,19 @@ public sealed class YamlSerializer
             return null;
         }
 
+        BoundComment? latest = null;
+
         foreach (var comment in node.Comments)
         {
             if (comment.Placement == CommentPlacement.Inline
                 && !comment.Text.AsSpan().ContainsAny('\n', '\r')
                 && !comment.Text.Contains('\0', StringComparison.Ordinal))
             {
-                return comment;
+                latest = comment;
             }
         }
 
-        return null;
+        return latest;
     }
 
     private static string? InlineText(BoundComment? comment) =>
@@ -304,6 +320,14 @@ public sealed class YamlSerializer
                 return false;
             }
 
+            if (HasUnprintable(comment.Text))
+            {
+                Report(
+                    "Section 20 comment text contains a character YAML excludes from c-printable, "
+                    + "and a comment admits no escape for it.");
+                return false;
+            }
+
             foreach (var line in comment.Text.ReplaceLineEndings("\n").Split('\n'))
             {
                 if (!writer.TryWriteLine(Spaces(column) + (line.Length == 0 ? "#" : $"# {line}")))
@@ -314,6 +338,34 @@ public sealed class YamlSerializer
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Whether the text contains a character outside YAML's <c>c-printable</c> set, ignoring the
+    /// line breaks a multiline comment is split on.
+    /// </summary>
+    /// <remarks>
+    /// A comment body is raw text: unlike a scalar it has no quoted form, so a character YAML
+    /// excludes cannot be written at all. Emitting it anyway produces a file no parser will read,
+    /// which is worse than declining to write one.
+    /// </remarks>
+    /// <param name="text">The comment text.</param>
+    private static bool HasUnprintable(string text)
+    {
+        foreach (var unit in text)
+        {
+            if (unit is '\n' or '\r' or '\t')
+            {
+                continue;
+            }
+
+            if (char.IsControl(unit) || unit == '\uFEFF' || unit is '\uFFFE' or '\uFFFF')
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

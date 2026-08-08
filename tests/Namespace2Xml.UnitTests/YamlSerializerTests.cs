@@ -406,4 +406,102 @@ public class YamlSerializerTests
         YamlOutputOptions.PreserveComments.PreservesComments().ShouldBeTrue();
         YamlOutputOptions.DiscardComments.PreservesComments().ShouldBeFalse();
     }
+    // ---- Section 4.5 comment accumulation and Section 10.1 keys ----------------------------------
+
+    /// <summary>
+    /// Section 4.5: "when several YAML inline comments accumulate at one path, the latest remains
+    /// inline and earlier inline comments become leading comments in source order." The earliest
+    /// therefore moves above the line and the last one stays on it.
+    /// </summary>
+    [Test]
+    public void TheLatestAccumulatedInlineCommentIsTheOneThatStaysInline() =>
+        Serialize(new DocumentMapping(
+            [new DocumentMember(
+                "k",
+                new DocumentScalar(
+                    ScalarPayload.OfString("v"),
+                    [
+                        Comment("early", CommentPlacement.Inline),
+                        Comment("late", CommentPlacement.Inline),
+                    ]))],
+            [])).ShouldBe("# early\nk: v # late\n");
+
+    /// <summary>
+    /// The same rule over three comments: only the last is inline, and the two that move keep their
+    /// source order rather than being reversed.
+    /// </summary>
+    [Test]
+    public void EarlierInlineCommentsBecomeLeadingCommentsInSourceOrder() =>
+        Serialize(new DocumentMapping(
+            [new DocumentMember(
+                "k",
+                new DocumentScalar(
+                    ScalarPayload.OfString("v"),
+                    [
+                        Comment("first", CommentPlacement.Inline),
+                        Comment("second", CommentPlacement.Inline),
+                        Comment("third", CommentPlacement.Inline),
+                    ]))],
+            [])).ShouldBe("# first\n# second\nk: v # third\n");
+
+    /// <summary>
+    /// Section 10.1 declares merge keys unsupported and treats "every plain or quoted scalar
+    /// mapping key ... as a string". Plain <c>&lt;&lt;</c> is the merge key, so writing it plain
+    /// would produce a file this tool's own reader rejects; it is quoted instead.
+    /// </summary>
+    [Test]
+    public void AMergeKeyIsQuotedSoItReadsBackAsAString() =>
+        Serialize(Map(("<<", Text("v")))).ShouldBe("'<<': v\n");
+
+    /// <summary>
+    /// A comment body has no quoted form, so a character YAML excludes from <c>c-printable</c>
+    /// cannot be written at all. Emitting it raw would produce a file no parser accepts, so
+    /// serialization declines instead.
+    /// </summary>
+    /// <param name="text">Comment text carrying an unwritable character.</param>
+    [TestCase("bell\u0007here")]
+    [TestCase("\uFEFFmark")]
+    public void ACommentCarryingAnUnwritableCharacterIsRefused(string text)
+    {
+        var writer = new OutputBufferWriter(new GlobalBudget(ResourceLimits.Defaults));
+
+        new YamlSerializer(YamlOutput.Default, diagnostics, new DestinationRef("out.yaml", 0))
+            .TrySerialize(
+                new DocumentMapping(
+                    [new DocumentMember(
+                        "k",
+                        new DocumentScalar(
+                            ScalarPayload.OfString("v"),
+                            [Comment(text, CommentPlacement.Leading)]))],
+                    []),
+                writer)
+            .ShouldBeFalse();
+
+        diagnostics.Drain().Select(item => item.Code).ShouldContain("SERIALIZE001");
+    }
+
+    /// <summary>
+    /// Section 3.3 requires that writing a format preserves the data. A value whose first non-empty
+    /// line is indented cannot use a block scalar, because a reader detects the block's indentation
+    /// from that line and would strip the space; the writer quotes it instead.
+    /// </summary>
+    [Test]
+    public void AnIndentedFirstContentLineIsQuotedRatherThanBlocked() =>
+        Serialize(Map(("k", Text("\n leading")))).ShouldBe("k: \"\\n leading\"\n");
+
+    /// <summary>
+    /// Section 19.4 preserves supported scalars, and a supplementary character is one scalar value.
+    /// Spelling it as two <c>\u</c> escapes would write two unpaired surrogates instead.
+    /// </summary>
+    [Test]
+    public void ASupplementaryCharacterIsWrittenAsItself() =>
+        Serialize(Map(("k", Text("-\uD83D\uDE00")))).ShouldBe("k: '-\uD83D\uDE00'\n");
+
+    /// <summary>
+    /// A bare scalar occupies a line of its own, so <c>...</c> written plain would be read as the
+    /// document-end marker and the value would vanish.
+    /// </summary>
+    [Test]
+    public void ABareDocumentEndMarkerIsQuoted() =>
+        Serialize(Text("...")).ShouldBe("'...'\n");
 }

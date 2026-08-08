@@ -1,0 +1,7 @@
+indented: "\n leading"
+docend: '...'
+mark: "\uFEFFx"
+supplementary: '-😀'
+plainblock: |-
+  first
+  second

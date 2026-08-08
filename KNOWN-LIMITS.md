@@ -17,9 +17,10 @@ The 3.0 rewrite lands in milestones that follow the specification's own pipeline
 has not landed is **not implemented**, and the tool exits with a non-normative status rather than
 pretending to succeed.
 
-The tool currently transforms the **flat family end to end**: namespace-profile, JSON, YAML and XML
-input, overlaying, output planning, and publication of namespace, quoted-namespace and INI
-destinations. Everything below that line is refused, not approximated.
+The tool currently transforms the **flat family and the structured document formats** end to end:
+namespace-profile, JSON, YAML and XML input, overlaying, output planning, and publication of
+namespace, quoted-namespace, INI, JSON and YAML destinations. XML *output* is the one renderer that
+has not landed. Everything below that line is refused, not approximated.
 
 | Area | State | Specification |
 |---|---|---|
@@ -34,6 +35,7 @@ destinations. Everything below that line is refused, not approximated.
 | Scalar inference and canonical numeric text | Implemented | §18 |
 | Output planning, destination paths, collision folding | Implemented | §17 |
 | Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
+| Rendering: JSON, YAML | Implemented, with the reductions in §1.2 | §19.3–§19.4 |
 | Publication and the validation gate | Implemented | §21 |
 | References and value wildcards | Implemented, except the `REFERENCE005` case in §1.9 | §13 |
 | Templates and masks | Implemented for namespace input | §8.6, §12 |
@@ -41,7 +43,7 @@ destinations. Everything below that line is refused, not approximated.
 | Path-scoped view transformations: `type`, `key`, `multiline` | Implemented, with the gaps in §1.10–§1.12 | §16.5, §16.6 |
 | `substitute` | Not yet | §16.7 |
 | Ordered sequences from numeric paths | Implemented, except the §3.2 warning in §1.7 | §8.7, §5.4 |
-| Rendering: JSON, YAML, XML | Not yet | §19.3–§19.5 |
+| Rendering: XML | Not yet | §19.5 |
 | **Scheme files** written as JSON, YAML or XML | Not yet | §15 |
 
 A preview binary returns exit status `70` when an invocation needs something in the second half of
@@ -349,6 +351,45 @@ has just removed back into the overlay tree, where wildcards, references and sel
 which trades a remote divergence for a common one. Closing this properly means carrying the map
 beside the tree and re-addressing it through selector-prefix removal, `root`, `key` and `type`, as
 §17.5 describes.
+
+### 1.14 A JSON or YAML key collision has no diagnostic
+
+§3.3 requires a same-format round trip to preserve "data structure", and §8.2 gives JSON and YAML
+mapping keys as "one ordinary literal component" that never acquires an XML node kind. Two distinct
+overlay components can nevertheless spell the same structured key: an ordinary component whose
+literal text is `@x`, read from JSON, and a typed attribute `x`, read from XML, both project to the
+key `@x`.
+
+The tool emits both members, producing a document with a duplicate key, exit status `0` and no
+diagnostic. Its own reader then rejects that document with `PARSE001`. **verified**
+
+There is no code to raise. §17.4 requires collision detection only of "every flat output", and §22
+states that "`FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions" —
+the closed diagnostic list assigns nothing to the structured formats. Inventing a code here would
+put an unspecified blocking error on a default path, so the gap is recorded rather than filled. It
+is filed as a specification gap; the natural resolutions are to widen `FLAT001` to every format
+whose projection can collide, or to add a structured-format counterpart.
+
+Reaching it needs two input formats disagreeing about the same path, which is why no fixture in the
+corpus produced it.
+
+### 1.15 A value ending in a blank line cannot be the last thing in a YAML file
+
+§19.4 "uses literal block scalars for multiline values", and a value whose content ends in a blank
+line needs the keep indicator `|+` to carry that line. The resulting text ends with two LFs, which
+§24's "end with exactly one LF" forbids, so serialization refuses with a blocking `SERIALIZE001` and
+publishes nothing. **verified**
+
+The refusal is positional, which is the surprising part: the same value renders correctly when any
+other key follows it, because the extra line break is then interior. Adding or removing an unrelated
+key therefore flips the run between success and a blocking error. A mid-document `|+` round trips
+exactly, confirmed against an independent parser.
+
+§19.4 offers no alternative spelling to fall back on and §24 admits no exception, so refusing is the
+only behaviour available that does not corrupt the file. It is filed as a specification gap; the
+candidate resolutions are to permit a quoted spelling when the block form cannot terminate legally,
+to allow a terminating document-end marker, or to state that §24's rule counts the document
+terminator separately from block-scalar content.
 
 ## 2. Acceptance coverage
 

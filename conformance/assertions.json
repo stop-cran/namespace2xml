@@ -448,6 +448,7 @@
       ],
       "fixtures": [
         "yaml-indentation-block-scalars-and-quoting",
+        "yaml-scalars-survive-a-same-format-round-trip",
         "yaml-restricted-schema-and-scalar-kinds",
         "yaml-restricted-schema-refusals",
         "yaml-section-22-line-terminators"
@@ -766,7 +767,8 @@
         "A string whose plain spelling would resolve to a non-string kind under `RestrictedYaml1` is single-quoted with a literal single quote doubled as `''`, while the spellings Section 10.1 keeps as strings stay plain."
       ],
       "fixtures": [
-        "yaml-indentation-block-scalars-and-quoting"
+        "yaml-indentation-block-scalars-and-quoting",
+        "yaml-scalars-survive-a-same-format-round-trip"
       ]
     },
     {
