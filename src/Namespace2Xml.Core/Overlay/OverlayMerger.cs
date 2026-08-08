@@ -6,6 +6,29 @@ using Namespace2Xml.Profiles;
 namespace Namespace2Xml.Overlay;
 
 /// <summary>
+/// Where a merge is happening, which decides how its diagnostics are attributed.
+/// </summary>
+/// <param name="Phase">The Section 6.4.3 phase the merge runs in.</param>
+/// <param name="Spec">The clause the strategy comes from.</param>
+/// <param name="Directive">The directive that selected the strategy, as written.</param>
+/// <remarks>
+/// Section 15.1 step 8 and step 18 apply the same strategies to the same node shapes, so they share
+/// this class; they do not share an anchor, a phase, or a directive name. Reporting a step 18
+/// destination fold as a step 8 <c>merge</c> conflict under Section 16.10 would name a directive the
+/// user did not write, in a phase that had already finished.
+/// </remarks>
+public sealed record MergeContext(DiagnosticPhase Phase, string Spec, string Directive)
+{
+    /// <summary>Section 15.1 step 8: literal-path input merging under Section 16.10.</summary>
+    public static MergeContext Input { get; } =
+        new(DiagnosticPhase.Input, "\u00A716.10", "merge");
+
+    /// <summary>Section 15.1 step 18: destination folding under Sections 16.11 and 17.5.</summary>
+    public static MergeContext Destination { get; } =
+        new(DiagnosticPhase.Planning, "\u00A717.5", "filemerge");
+}
+
+/// <summary>
 /// Pipeline step 8: merges source contributions one at a time in source order under the Section 17
 /// literal-path merge rules.
 /// </summary>
@@ -27,6 +50,7 @@ public sealed class OverlayMerger
     private readonly MergeStrategyMap strategies;
     private readonly DiagnosticBuffer diagnostics;
     private readonly MergeStrategyMap? sourceCompatibility;
+    private readonly MergeContext context;
 
     /// <summary>Creates a merger.</summary>
     /// <param name="strategies">The effective Section 16.10 strategy at each path.</param>
@@ -44,10 +68,15 @@ public sealed class OverlayMerger
     /// question about whether a directive was declared, and the answer lives in the map it does
     /// not otherwise use.
     /// </remarks>
+    /// <param name="context">
+    /// Where the merge is happening, which decides the phase and anchor its diagnostics carry.
+    /// Defaults to step 8's literal-path input merge.
+    /// </param>
     public OverlayMerger(
         MergeStrategyMap strategies,
         DiagnosticBuffer diagnostics,
-        MergeStrategyMap? sourceCompatibility = null)
+        MergeStrategyMap? sourceCompatibility = null,
+        MergeContext? context = null)
     {
         ArgumentNullException.ThrowIfNull(strategies);
         ArgumentNullException.ThrowIfNull(diagnostics);
@@ -55,6 +84,7 @@ public sealed class OverlayMerger
         this.strategies = strategies;
         this.diagnostics = diagnostics;
         this.sourceCompatibility = sourceCompatibility;
+        this.context = context ?? MergeContext.Input;
     }
 
     /// <summary>Merges contributions in CLI source order.</summary>
@@ -130,8 +160,7 @@ public sealed class OverlayMerger
             {
                 Report(
                     path,
-                    "merge=error rejects a second source contribution at this path.",
-                    "\u00A716.10",
+                    $"{context.Directive}=error rejects a second contribution at this path.",
                     later.Marks.Latest);
             }
 
@@ -230,9 +259,9 @@ public sealed class OverlayMerger
             // Section 16.10: "other non-sequence use is an error."
             Report(
                 path,
-                "merge=append needs a sequence contribution: this one is neither a sequence nor a "
-                + "nonempty mapping whose child names are all canonical ordering values.",
-                "\u00A716.10",
+                $"{context.Directive}=append needs a sequence contribution: this one is neither a "
+                + "sequence nor a nonempty mapping whose child names are all canonical ordering "
+                + "values.",
                 later.Marks.Latest);
 
             return DeepMerge(earlier, later, path);
@@ -459,14 +488,14 @@ public sealed class OverlayMerger
         };
 
     private void Report(
-        ImmutableArray<NamePart> path, string message, string spec, StableOrderingKey key)
+        ImmutableArray<NamePart> path, string message, StableOrderingKey key)
     {
         var text = PathText(path);
 
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Type001(
-                DiagnosticPhase.Input,
-                spec,
+                context.Phase,
+                context.Spec,
                 message,
                 cardinalityKey: text ?? string.Empty,
                 path: text),

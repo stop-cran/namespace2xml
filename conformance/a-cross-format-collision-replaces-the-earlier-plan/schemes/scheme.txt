@@ -1,0 +1,4 @@
+a.output=namespace
+a.filename=out.conf
+b.output=ini
+b.filename=out.conf

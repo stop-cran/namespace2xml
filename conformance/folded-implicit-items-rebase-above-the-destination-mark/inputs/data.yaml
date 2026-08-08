@@ -1,0 +1,9 @@
+a:
+  x:
+    list:
+      - alpha
+      - beta
+  y:
+    list:
+      - gamma
+      - delta

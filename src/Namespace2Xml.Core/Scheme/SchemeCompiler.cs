@@ -71,6 +71,12 @@ public readonly record struct DeclarationSite(string Text, string Source, int Li
 /// declaration, not about the <c>output</c> declaration that created the instance, and Section 22
 /// requires the member to name "one scheme declaration ... its canonical spelling".
 /// </param>
+/// <param name="FileMergeDeclaration">
+/// The site of the winning <c>filemerge</c> declaration, or null when the instance takes the Section
+/// 16.11 default. A <c>filemerge=error</c> rejection is a condition about <i>that</i> declaration:
+/// the two rejected contributions may share one <c>output</c> declaration, so naming it would not
+/// tell a reader which setting refused the fold.
+/// </param>
 /// <param name="Declaration">
 /// The written text of the winning <c>output</c> declaration, its source, and the line it was
 /// written on. Section 22 supplies a diagnostic's <c>source</c>, <c>line</c>, and
@@ -90,6 +96,7 @@ public sealed record OutputInstance(
     WildcardCaptures Captures,
     int WildcardMatchOrder,
     DeclarationSite? FilenameDeclaration,
+    DeclarationSite? FileMergeDeclaration,
     DeclarationSite Declaration)
 {
     /// <summary>
@@ -357,6 +364,7 @@ public static class SchemeCompiler
                 WildcardCaptures.Empty,
                 WildcardMatchOrder: 0,
                 Site(winners, selector, SchemeDirective.Filename),
+                Site(winners, selector, SchemeDirective.FileMerge),
                 new DeclarationSite(
                     winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)));
         }

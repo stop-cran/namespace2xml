@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r33+925af40f8fec`.**
+**Contract bundle `r34+85cadfb66bb5`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -704,16 +704,21 @@ silently.
 These cases carry a `legacy.md` that states neither agreement nor difference. That is a
 defect in the fixture; see CONTRIBUTING.md.
 
+- `a-cross-format-collision-replaces-the-earlier-plan`
 - `a-written-traversal-segment-is-rejected`
 - `array-runs-before-multiline`
+- `destination-fold-follows-wildcard-match-order`
 - `destinations-differing-only-by-case-collide`
+- `filemerge-error-rejects-a-second-contribution`
 - `filename-captures-are-opaque-segment-data`
+- `folded-implicit-items-rebase-above-the-destination-mark`
 - `key-directive-precedence-follows-source-order`
 - `key-projects-an-ordered-mapping-as-records`
 - `mask-candidates-consume-the-wildcard-limit`
 - `mask-clears-shape-marks`
 - `merge-error-rejects-a-second-source-contribution`
 - `merge-strategies-over-native-sequence-shapes`
+- `one-destination-folds-by-format-before-match-order`
 - `reference-scalar-only-and-free-wildcard-rejected`
 - `reference-typed-values-and-alias-addressing`
 - `selector-candidates-consume-the-wildcard-limit`

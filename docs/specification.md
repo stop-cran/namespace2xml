@@ -1267,6 +1267,8 @@ Full capture matching may then succeed or fail without another candidate charge.
 
 For candidate accounting, an item is a distinct logical path node. If the rule's last wildcard-containing part is at depth `k`, eligible items are the distinct depth-`k` prefixes of existing paths, not every deeper descendant.
 
+Eligible items are enumerated in the first-appearance order of those depth-`k` nodes in the model being evaluated, which is the mapping order Section 5.2 preserves. That enumeration order is the *match order* referred to by Sections 5 and 17.5, and it applies identically to generative templates, permanent wildcard ignore masks, and wildcard scheme selectors, so the term names one order everywhere it is used.
+
 Breadth-wave iteration counts apply only to generative templates. Every wildcard rule category consumes the shared candidate-check limit once per eligible pair.
 
 Ordering values are never recomputed during the fixed point. Deleting `a.1` does not cause another item to become logical address `a.1`.
@@ -2142,7 +2144,7 @@ Contributions are folded strictly left to right by:
 
 1. output-declaration source order;
 2. format ordinal within one comma-separated `output` value;
-3. wildcard match order;
+3. wildcard match order, as defined in Section 12.4;
 4. concrete selector encoded as UTF-8 and compared by unsigned-byte ordinal order as the final deterministic tie-breaker.
 
 The selector is spelled by the Section 19.1 namespace name encoding before those bytes are taken. That encoding is total and injective, which is what makes this component a tie-breaker rather than another way to tie: a spelling that merely joined part texts with the delimiter would map the one-part selector `a\.b` and the two-part selector `a.b` to the same bytes, leaving two distinct contributions to fold in arrival order.

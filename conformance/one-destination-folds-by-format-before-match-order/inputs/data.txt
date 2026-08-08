@@ -1,0 +1,2 @@
+a.zebra.first=1
+a.alpha.second=2

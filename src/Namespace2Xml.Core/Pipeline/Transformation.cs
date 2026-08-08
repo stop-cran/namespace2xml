@@ -216,7 +216,7 @@ public static class Transformation
         var folded = run.Run(
             PipelineStep.FoldDestinationCollisions,
             grouped,
-            (contributions, _) => PlanningPhase.FoldDestinationCollisions(contributions));
+            PlanningPhase.FoldDestinationCollisions);
 
         var serialized = run.Run(
             PipelineStep.Serialize,

@@ -287,10 +287,24 @@
     {
       "item": 26,
       "text": "Deterministic same-path `filemerge` and cross-format complete-plan overrides.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
-      "fixtures": []
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "Two wildcard matches writing one destination fold in the Section 12.4 match order, which is first appearance in the model, rather than in selector byte order: the later-appearing match's sequence items are allocated second even though its selector sorts first.",
+        "Every destination collision emits one WARN005 in phase planning anchored at Section 17.5 and naming the destination, and a warning does not fail the run.",
+        "A cross-format collision replaces the complete earlier file plan instead of merging it, so a key only the earlier contribution supplied is absent from the published file.",
+        "A later same-format contribution's implicit sequence items are rebased above the destination accumulator's high-water mark rather than patching the items already at those values.",
+        "`filemerge=error` rejects the second contribution to one destination with a blocking COLLISION001 that names the `filemerge` declaration rather than the `output` declaration the two contributions share, and no file is published.",
+        "Four contributions reaching one destination from a two-format wildcard declaration fold by format ordinal before wildcard match order, not in the order the expansion produced them, so a cross-format replacement lands once rather than between every pair.",
+        "WARN005 is counted once per folded contribution pair, so four contributions at one destination report three warnings even when two of the pairs name the same two selectors."
+      ],
+      "fixtures": [
+        "destination-fold-follows-wildcard-match-order",
+        "a-cross-format-collision-replaces-the-earlier-plan",
+        "folded-implicit-items-rebase-above-the-destination-mark",
+        "filemerge-error-rejects-a-second-contribution",
+        "one-destination-folds-by-format-before-match-order"
+      ]
     },
     {
       "item": 27,

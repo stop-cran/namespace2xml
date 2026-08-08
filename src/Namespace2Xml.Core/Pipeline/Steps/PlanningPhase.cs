@@ -434,7 +434,7 @@ public static class PlanningPhase
                 new FoldKey(
                     view.Instance.DeclarationOrder,
                     view.FormatOrdinal,
-                    WildcardMatchOrder: 0,
+                    view.Instance.WildcardMatchOrder,
                     view.Instance.Selector.ToString())));
         }
 
@@ -475,31 +475,194 @@ public static class PlanningPhase
 
     /// <summary>Section 15.1 step 18: fold same-format collisions and cross-format overrides.</summary>
     /// <param name="contributions">Step 17's product.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>The contributions, once no two share a destination.</returns>
+    /// <remarks>
+    /// <para>
+    /// Section 17.5 folds "strictly left to right" by the four-component fold key, whose third
+    /// component is the Section 12.4 wildcard match order. The order is the whole of the
+    /// determinism argument here: the accumulated model depends on which contribution arrives
+    /// first, so folding in dictionary order would make the file's contents depend on a hash seed.
+    /// </para>
+    /// <para>
+    /// Because the key ascends, the first contribution seen at a destination carries the smallest
+    /// key. That is what makes Section 17.5's publication-key rule a matter of not overwriting a
+    /// field: "same-format <c>replace</c> preserves the earliest prior publication key even when no
+    /// prior sequence high-water state exists; only cross-format replacement resets it".
+    /// </para>
+    /// <para>
+    /// Section 16.3's <c>root</c> is folded into the model before merging rather than being applied
+    /// at serialization, because Section 17.5 says "file-level merge operates on fully transformed
+    /// contribution models after <c>type</c>, <c>key</c>, and <c>root</c> have been applied". Two
+    /// contributions with different roots therefore merge as siblings under one document instead of
+    /// overwriting each other at the document root.
+    /// </para>
+    /// </remarks>
     public static StepOutcome<ImmutableArray<DestinationContribution>> FoldDestinationCollisions(
-        ImmutableArray<DestinationContribution> contributions)
+        ImmutableArray<DestinationContribution> contributions,
+        DiagnosticBuffer diagnostics)
     {
-        var seen = new Dictionary<string, DestinationContribution>(StringComparer.Ordinal);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        var folded = new Dictionary<string, DestinationContribution>(StringComparer.Ordinal);
+        var order = new List<string>();
 
         foreach (var contribution in contributions.OrderBy(c => c.Key))
         {
-            if (seen.TryGetValue(contribution.Path.Canonical, out var earlier))
+            var canonical = contribution.Path.Canonical;
+            var rooted = Rooted(contribution);
+
+            if (!folded.TryGetValue(canonical, out var accumulated))
             {
-                return StepOutcome.Unsupported<ImmutableArray<DestinationContribution>>(
-                    new UnsupportedCapability(
-                        "destination collisions",
-                        $"'{earlier.View.Instance.Selector}' and "
-                        + $"'{contribution.View.Instance.Selector}' both write "
-                        + $"'{contribution.Path.Canonical}', which step 18 folds under 'filemerge'.",
-                        "\u00A717.5"));
+                folded.Add(canonical, rooted);
+                order.Add(canonical);
+                continue;
             }
 
-            seen.Add(contribution.Path.Canonical, contribution);
+            folded[canonical] = Fold(accumulated, rooted, order.IndexOf(canonical), diagnostics);
         }
 
-        return StepOutcome.Produced(contributions);
+        return diagnostics.HasBlockingError
+            ? StepOutcome.Failed<ImmutableArray<DestinationContribution>>()
+            : StepOutcome.Produced(
+                ImmutableArray.CreateRange(order.Select(canonical => folded[canonical])));
     }
 
+    /// <summary>
+    /// Section 16.3's <c>root</c>, applied to the model so that Section 17.5 can fold "after
+    /// <c>type</c>, <c>key</c>, and <c>root</c> have been applied".
+    /// </summary>
+    /// <remarks>
+    /// The wrapping nodes are intermediate rather than explicit mappings: Section 16.3 says
+    /// <c>root</c> "wraps the selector's remaining content", and an explicit mapping presence would
+    /// be a container contribution the user never wrote, which Section 4.4 would then let win a
+    /// shape contest against a scalar arriving from another contribution.
+    /// </remarks>
+    private static DestinationContribution Rooted(DestinationContribution contribution)
+    {
+        var view = contribution.View;
+
+        if (view.Root.IsDefaultOrEmpty)
+        {
+            return contribution;
+        }
+
+        var wrapped = view.View;
+
+        for (var i = view.Root.Length - 1; i >= 0; i--)
+        {
+            wrapped = OverlayNode
+                .Intermediate(view.View.Marks.Latest)
+                .WithChild(view.Root[i], wrapped);
+        }
+
+        return contribution with { View = view with { View = wrapped, Root = [] } };
+    }
+
+    /// <summary>The Section 22 cardinality key identifying one folded contribution pair.</summary>
+    /// <param name="canonical">The destination both contributions write.</param>
+    /// <param name="accumulated">The plan accumulated for that destination so far.</param>
+    /// <param name="later">The contribution being folded onto it.</param>
+    /// <remarks>
+    /// Section 22 counts both codes raised here "per folded contribution pair" and "per rejected
+    /// contribution after the first", so the cardinality key has to identify the <i>pair</i>. Naming
+    /// only the later contribution is not enough: one destination fed by a multi-format wildcard
+    /// declaration meets the same two selectors once per format, and a key that dropped the format
+    /// would silently retire the second report as a repeat of the first. That is the half the corpus
+    /// exercises, through <c>one-destination-folds-by-format-before-match-order</c>. The accumulated
+    /// side is here because the key is meant to name the pair rather than one end of it — a
+    /// same-format <c>replace</c> moves the accumulated selector while the later one repeats — but no
+    /// fixture separates it yet.
+    /// </remarks>
+    private static string PairKey(
+        string canonical,
+        DestinationContribution accumulated,
+        DestinationContribution later) =>
+        string.Join(
+            '\u001F',
+            canonical,
+            accumulated.View.Format,
+            accumulated.View.Instance.Selector,
+            later.View.Format,
+            later.View.Instance.Selector);
+
+    /// <summary>Folds one later contribution onto the accumulated plan for its destination.</summary>
+    private static DestinationContribution Fold(
+        DestinationContribution accumulated,
+        DestinationContribution later,
+        int order,
+        DiagnosticBuffer diagnostics)
+    {
+        var canonical = later.Path.Canonical;
+        var strategy = later.View.Instance.FileMerge;
+        var crossFormat = accumulated.View.Format != later.View.Format;
+
+        if (!crossFormat && strategy == MergeStrategy.Error)
+        {
+            // Appendix B maps "'filemerge=error' rejects a second destination contribution" to
+            // COLLISION001, which is a different condition from the WARN005 fold the other three
+            // strategies perform. No warning accompanies it: nothing was folded.
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Collision001(
+                    DiagnosticPhase.Planning,
+                    "\u00A716.11",
+                    $"'{later.View.Instance.Selector}' is a second contribution to "
+                    + $"'{canonical}', which '{accumulated.View.Instance.Selector}' already writes, "
+                    + "and the effective 'filemerge' is 'error'.",
+                    cardinalityKey: PairKey(canonical, accumulated, later),
+                    declaration: later.View.Instance.FileMergeDeclaration?.Text,
+                    destination: canonical),
+                DestinationOrder: order));
+
+            return accumulated;
+        }
+
+        // Section 17.5: "For every destination collision, emit a warning identifying: destination
+        // path; earlier declaration; later declaration; merge or replacement decision." WARN005
+        // carries only 'destination' in Appendix B, so the other three facts are in the message.
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Warn005(
+                DiagnosticPhase.Planning,
+                "\u00A717.5",
+                $"'{canonical}' is written by '{accumulated.View.Instance.Declaration.Text}' and "
+                + $"'{later.View.Instance.Declaration.Text}'; "
+                + (crossFormat
+                    ? $"the formats differ, so the later {later.View.Format} contribution replaces "
+                        + $"the complete {accumulated.View.Format} plan"
+                    : $"the formats agree, so they are folded under 'filemerge="
+                        + $"{strategy.ToString().ToLowerInvariant()}'")
+                + ".",
+                cardinalityKey: PairKey(canonical, accumulated, later),
+                destination: canonical),
+            DestinationOrder: order));
+
+        if (crossFormat)
+        {
+            // Section 17.5: "A cross-format replacement discards the complete accumulated plan for
+            // that destination, including document data, comments, renderer state, sequence
+            // provenance, and every destination high-water mark." Taking the later contribution
+            // whole is exactly that, and it is also what resets the publication key.
+            return later;
+        }
+
+        var merger = new OverlayMerger(
+            MergeStrategyMap.Create([], strategy),
+            diagnostics,
+            context: MergeContext.Destination);
+
+        // The accumulated key is kept rather than recomputed. Contributions arrive in ascending key
+        // order, so it is already the earliest, which is what Section 17.5 requires a same-format
+        // fold -- including 'replace' -- to preserve. The instance comes from the later declaration
+        // because Section 16.11 says "the effective value is taken from the later colliding output
+        // declaration", and Section 17.5 says the same of the renderer option set.
+        return accumulated with
+        {
+            View = later.View with
+            {
+                View = merger.Merge(accumulated.View.View, later.View.View),
+            },
+        };
+    }
 
     /// <summary>
     /// Section 14.2 strict prefix filtering, plus Section 14.1's unconditional removal of the
