@@ -34,6 +34,14 @@ CI additionally runs `actionlint` over `.github/workflows/`, and a gate assertin
 `conformance`, `spec`, `tools` or `spikes` is gitignored and that no conformance fixture carries a
 CR byte.
 
+**The loop above is necessary and not sufficient.** `cross-os-hash` compares digests from three
+runners and has no local equivalent, so a change that behaves differently on Unix passes everything
+here and fails there. After pushing:
+
+```powershell
+gh run list --branch v3 --limit 3
+```
+
 ## Proving a test can fail (CONTRIBUTING C7)
 
 The loop above only shows that everything is green. Green is not evidence: a test nobody has watched
@@ -448,6 +456,32 @@ Join the lines explicitly:
 ```powershell
 $from = @('        if (State == Aborted)', '        {', '            return;', '        }') -join "`n"
 ```
+
+### On Unix a leading dot is the Hidden attribute, and `Get-ChildItem` drops it
+
+`Get-ChildItem` omits hidden entries unless `-Force` is passed, and on Unix .NET reports the Hidden
+attribute for any name beginning with `.`. A script that walks a generated output tree therefore
+sees strictly fewer files on Linux and macOS than on Windows, where the same name is not hidden.
+
+This is how `cross-os-hash` failed for four commits with a §24 violation it invented itself: the
+corpus contains an output named `..conf`, the Windows digest listed it, the Unix digests did not,
+and the tool had been byte-identical on all three platforms the whole time — `build-test` compares
+that same output against the fixture and passed everywhere.
+
+Note which way the failure points. A false alarm is the *lucky* outcome: for every other dotfile
+output the gate compared nothing at all and reported agreement. Pass `-Force` in any enumeration
+whose result is an assertion about completeness.
+
+### The local verification loop does not include the cross-OS gate
+
+`hash-corpus-outputs.ps1` run on one machine proves the corpus is *self-consistent there*. The
+comparison that §24 actually promises happens only in `cross-os-hash`, which diffs the digests three
+runners uploaded. Nothing you can run locally exercises it.
+
+So a green local loop is not a green build, and the gap is exactly the platform-dependent behaviour
+you are least likely to predict. **Check `gh run list --branch v3` after pushing.** Four consecutive
+red runs went unnoticed here because every local check passed and the failure was in a job with no
+local equivalent.
 
 ### The gitignore gate is noisier locally than in CI
 
