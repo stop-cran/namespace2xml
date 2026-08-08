@@ -133,6 +133,24 @@ A single backtick before `$(` escapes the subexpression, so `` `$(...) `` emits 
 a stringified object. To produce a **literal markdown backtick**, use a double backtick. This is the
 bug that put a hashtable in the generated docs.
 
+### PowerShell argument-mode `+` splits a string into three array elements
+
+Inside `@( … )` an element like `'{"spec":"' + $s + '17.5"}'` is parsed in *argument* mode, where
+`+` is not the concatenation operator: the element becomes **three** elements. A subsequent
+`-join "`n"` therefore writes a raw newline into the middle of what should have been one JSON
+string, and the conformance harness reports `'0x0A' is invalid within a JSON string` at a byte
+offset in the middle of a line you believe has no newline in it.
+
+Build every composed string into its own `$variable` first, then put the variable in the array.
+
+### A fixture is verified by its bytes, not by its rendering
+
+`Get-Content -Raw` on a broken `expected-diagnostics.json` prints exactly what you intended, because
+the terminal renders the stray newline as a line break in a file that has line breaks anyway. Use
+`Format-Hex` when a fixture behaves as though it contains something you cannot see, and remember
+that **every conformance fixture file needs a trailing LF**, including `requirements.txt` and
+`expected-exit-code.txt`.
+
 ### PowerShell `-notlike` and `-replace` misfire on fixture text
 
 `-like` / `-notlike` treat `[` and `]` as a character-class, so filtering output that contains
@@ -290,6 +308,20 @@ harness output — a green run against mutated source:
   external subset. When a security posture survives, mutate the layer that actually runs first, and
   check whether the surviving setting is reachable by any input at all before writing a test for it.
 
+### A build check that greps for "error" matches "0 Error(s)"
+
+The MSBuild summary always contains the word `Error`, so `if ($build -match 'error')` reports
+`BUILD FAILED` on a build that succeeded, and a mutation run wastes a cycle. Match the anchored
+count instead:
+
+```powershell
+if ($b -notmatch '(?m)^\s*0 Error\(s\)') { 'BUILD FAILED'; $b }
+```
+
+The converse costs more: a mutation run whose build genuinely failed leaves the **previous**
+binaries in place, and `dotnet test --no-build` then reports a confident green for a mutation that
+never ran. Always assert the build result before believing the test result.
+
 ### A mutation that does not compile has proved nothing
 
 Under `TreatWarningsAsErrors`, deleting the only use of a parameter or field makes the build fail,
@@ -410,6 +442,23 @@ transitivity. That is three tests, and it closes every branch at once.
 
 ---
 
+### Dense rendering hides most sequence-ordering defects
+
+Section 5.4 makes namespace and INI "display fresh dense indices", so an item at stable ordering
+value `0` and an item at stable `3` both render as `.0` when they are the only survivor. Every
+allocation defect below that visibility threshold — a lost high-water mark, an unabsorbed incoming
+mark, a rebase that restarts at zero — publishes a **byte-identical file**.
+
+Two contributions can therefore never discriminate. Reach for three: two to create the disagreement
+and one carrying an *explicit* ordering value that lands on a slot only one of the readings leaves
+free, so the readings differ in the item **count** rather than in one item's position. Pick the
+explicit values by working out what each wrong reading would produce and addressing those slots; a
+mutation that survives here usually means the third contribution addressed a value both readings
+left free.
+
+Avoid making the disagreement a patch — two nodes meeting at one ordering value — because §17.1
+settles that by payload mark, and the fixture would then be asserting two rules at once.
+
 ### A sorted-order test can pass with the sort removed
 
 `ImmutableDictionary<long, T>` enumerates a handful of small keys in ascending order anyway. A test
@@ -454,6 +503,14 @@ destination accumulator absorbs the incoming high-water mark for a path" that th
 forbid.
 
 Before believing a survivor, check that the mutation operates at the same scope as the assertion.
+
+That note was written when the per-path carry looked like a misreading to guard against. It was
+instead a live defect: `ReplaceMerge` maxed the mark only at the node `filemerge` was declared on and
+took the replacement's children wholesale, and `MergeNode` never recurses under `replace`, so every
+descendant mark was dropped. Fixed in `a2481ba`. Two lessons worth keeping — a trap that describes
+"the mutation that *would* discriminate" is describing a test you have not written, and it is worth
+writing it; and a mutation whose scope is wrong can hide a real defect as easily as it can fake a
+test gap.
 
 ### The scalar/container shape contest needs its own mark
 
