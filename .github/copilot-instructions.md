@@ -133,6 +133,14 @@ A single backtick before `$(` escapes the subexpression, so `` `$(...) `` emits 
 a stringified object. To produce a **literal markdown backtick**, use a double backtick. This is the
 bug that put a hashtable in the generated docs.
 
+### PowerShell `-notlike` and `-replace` misfire on fixture text
+
+`-like` / `-notlike` treat `[` and `]` as a character-class, so filtering output that contains
+`Root = []` **throws** rather than matching. `-replace` takes a regex and, worse, silently matches
+more than you meant: replacing `DEST` in a fixture also rewrote the `DEST` inside the literal
+`"destination"`. Use `.Contains(…)` and `.Replace(…)` — the ordinal string methods — for anything
+that is literal text, which in this repository is almost everything.
+
 ### Line endings are not normalized in three trees
 
 `.gitattributes` marks `conformance/**`, `tests/**/fixtures/**` and `spikes/**` as `-text`. Git will
@@ -412,6 +420,40 @@ rule. The same applies to any "is sorted" assertion over a small or clustered ke
 Spread the keys across the real range and insert them out of order, then re-run the mutation that
 removes the sort and confirm it goes red. A sort assertion you have not seen fail is not evidence
 that anything is sorted.
+
+### A scalar cannot observe fold order
+
+Section 4.4 settles a payload contest at a node by "the latest scalar/null contribution", which is a
+**source position** (`NodeMarks.PayloadMark`) and not a fold position. Two colliding scalars therefore
+resolve to the same value whichever way round §17.5 folds their destinations. A fixture that writes
+`k=1` and `k=2` to one destination and expects `k=2` **survives deleting the match order from the
+fold key**, and its first draft here did.
+
+Assert **sequence allocation** instead. §17.5 rebases implicit items above the destination high-water
+mark in fold order, so `zebra`→`w,x` before `alpha`→`y,z` produces `w,x,y,z` and the reversed fold
+produces `y,z,w,x`. That is a real discriminator; a scalar is not.
+
+### The fold-key sort is inert except under a multi-format wildcard
+
+The §17.5 fold key is (declaration order, **format ordinal**, **match order**, selector bytes), but an
+expansion *produces* contributions in the opposite nesting — declaration, then match, then format. The
+sort therefore changes nothing unless **one declaration has ≥2 formats and ≥2 matches reaching one
+destination**. Mutating `OrderBy(c => c.Key)` to arrival order survives the entire corpus except
+`one-destination-folds-by-format-before-match-order`, which exists solely for this shape. §17.5 says
+"Implementations must not group by format before folding" for the same reason.
+
+### A mutation aimed at the wrong scope proves nothing
+
+A fourth false survivor, alongside the three listed under "A mutation that survives is not always a
+test gap": the mutation was real, but it could not reach the property under test. Replacing §17.5's
+cross-format `return later` with a `MergeStrategyMap.Create([], Replace)` merge left the high-water
+assertion green — not because the implementation is untested, but because a replace **at the root**
+carries every child wholesale, so no child's mark is ever consulted. The mutation that does
+discriminate carries the accumulated marks forward **per path**, which is the misreading of "a
+destination accumulator absorbs the incoming high-water mark for a path" that the sentence exists to
+forbid.
+
+Before believing a survivor, check that the mutation operates at the same scope as the assertion.
 
 ### The scalar/container shape contest needs its own mark
 

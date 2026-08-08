@@ -85,6 +85,32 @@ public class DestinationFoldTests
             new FoldKey(declarationOrder, 0, 0, selector));
     }
 
+    private static DestinationContribution Sequenced(
+        string selector,
+        string destination,
+        long highWater,
+        long declarationOrder,
+        OutputFormat format = OutputFormat.Namespace)
+    {
+        var list = OverlayNode
+            .Intermediate(StableOrderingKey.First)
+            .WithSequenceItem(
+                0,
+                SequenceItem.Native(
+                    OverlayNode.OfPayload(ScalarPayload.OfString(selector), StableOrderingKey.First)))
+            .WithReservedOrderingValue(highWater);
+
+        return new DestinationContribution(
+            new OutputView(
+                Instance(selector, MergeStrategy.Deep, declarationOrder),
+                format,
+                FormatOrdinal: 0,
+                OverlayNode.Intermediate(StableOrderingKey.First).WithChild(Ordinary("list"), list),
+                Root: []),
+            Path(destination),
+            new FoldKey(declarationOrder, 0, 0, selector));
+    }
+
     private static ImmutableArray<DestinationContribution> Fold(
         DiagnosticBuffer diagnostics,
         params DestinationContribution[] contributions)
@@ -167,6 +193,59 @@ public class DestinationFoldTests
             diagnostics).Faulted.ShouldBeTrue();
 
         diagnostics.HasBlockingError.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Section 17.5: "A cross-format replacement discards the complete accumulated plan for that
+    /// destination, including document data, comments, renderer state, sequence provenance, and
+    /// every destination high-water mark."
+    /// </summary>
+    /// <remarks>
+    /// No published file can show this. Section 5.4 makes namespace and INI projection "display
+    /// fresh dense indices", and the structured formats have no indices at all, so a destination
+    /// high-water mark that survived a cross-format replacement would change nothing about any
+    /// output until a later contribution allocated against it — and by then the run has moved on.
+    /// The mark is asserted directly here for that reason.
+    /// <para>
+    /// The wrong implementation this guards against is a real one: line 2137 of the specification
+    /// says "a destination accumulator absorbs the incoming high-water mark for a path", and reading
+    /// that as applying to every fold — rather than only to the same-format fold two paragraphs
+    /// above it — produces a cross-format branch that carries the accumulated marks forward. Written
+    /// out as a mutation, that implementation fails this test and passes every other test in the
+    /// repository.
+    /// </para>
+    /// </remarks>
+    [Test]
+    public void ACrossFormatReplacementDiscardsTheDestinationHighWaterMark()
+    {
+        var diagnostics = new DiagnosticBuffer();
+
+        var folded = Fold(
+            diagnostics,
+            Sequenced("a", "out.conf", highWater: 5, declarationOrder: 0),
+            Sequenced("b", "out.conf", highWater: 0, declarationOrder: 1, format: OutputFormat.Ini));
+
+        folded.Length.ShouldBe(1);
+        folded[0].View.View.Children[Ordinary("list")].SequenceHighWater.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// The counterpart: a same-format fold absorbs the incoming contribution rather than replacing
+    /// the accumulator, so Section 17.5's "A destination accumulator absorbs the incoming high-water
+    /// mark for a path" leaves the accumulated mark standing.
+    /// </summary>
+    [Test]
+    public void ASameFormatFoldKeepsTheDestinationHighWaterMark()
+    {
+        var diagnostics = new DiagnosticBuffer();
+
+        var folded = Fold(
+            diagnostics,
+            Sequenced("a", "out.conf", highWater: 5, declarationOrder: 0),
+            Sequenced("b", "out.conf", highWater: 0, declarationOrder: 1));
+
+        folded.Length.ShouldBe(1);
+        folded[0].View.View.Children[Ordinary("list")].SequenceHighWater.ShouldBe(6);
     }
 
     /// <summary>

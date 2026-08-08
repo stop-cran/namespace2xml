@@ -713,12 +713,12 @@
     {
       "item": 64,
       "text": "Portable filename device-name handling, ASCII-case-insensitive destination collision detection, and cross-format high-water reset identically on every platform.",
-      "milestone": "unassigned",
-      "status": "pending",
+      "milestone": "m4",
+      "status": "required",
       "assertions": [
         "A capture whose portion before the first dot is a reserved device name is prefixed with %5F by steps 4 and 7, identically on every operating system rather than only where the name is reserved.",
         "Two destinations differing only by ASCII case share a portability key and are a blocking PATH001 collision rather than a merge, detected in the tool and therefore on every filesystem.",
-        "NOT COVERED: the cross-format high-water reset."
+        "The cross-format high-water reset is not observable in any published output on any platform, because Section 5.4 renders namespace and INI with fresh dense indices and the structured formats carry no indices at all. It is pinned by DestinationFoldTests.ACrossFormatReplacementDiscardsTheDestinationHighWaterMark instead, which a per-path carry-forward implementation fails."
       ],
       "fixtures": [
         "filename-captures-are-opaque-segment-data",
