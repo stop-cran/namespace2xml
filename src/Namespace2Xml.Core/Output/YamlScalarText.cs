@@ -34,12 +34,22 @@ internal static class YamlScalarText
     private const char ByteOrderMark = '\uFEFF';
 
     /// <summary>
+    /// Whether the character is one of YAML's non-ASCII line breaks. U+2028 and U+2029 are
+    /// categorized as separators rather than controls, so <see cref="char.IsControl(char)"/> does
+    /// not report them, yet a YAML reader normalizes them exactly as it normalizes LF. Written
+    /// literally they end the line they sit in, which corrupts every spelling that is not escaped.
+    /// U+0085 is a C1 control and is already covered by the control tests.
+    /// </summary>
+    /// <param name="unit">The character to test.</param>
+    private static bool IsLineSeparator(char unit) => unit is '\u2028' or '\u2029';
+
+    /// <summary>
     /// Whether the text contains a surrogate code unit that is not part of a valid pair. Such a
     /// unit is not a Unicode scalar value, so no YAML spelling can carry it faithfully; it is
     /// escaped so the output stays well formed rather than being emitted as invalid UTF-8.
     /// </summary>
     /// <param name="text">The string value.</param>
-    private static bool HasLoneSurrogate(string text)
+    internal static bool HasLoneSurrogate(string text)
     {
         for (var index = 0; index < text.Length; index++)
         {
@@ -181,7 +191,8 @@ internal static class YamlScalarText
         {
             var unit = text[index];
 
-            if (unit is '\n' or '\r' or '\t' || unit == ByteOrderMark || char.IsControl(unit))
+            if (unit is '\n' or '\r' or '\t' || unit == ByteOrderMark || IsLineSeparator(unit)
+                || char.IsControl(unit))
             {
                 return false;
             }
@@ -229,7 +240,8 @@ internal static class YamlScalarText
                 continue;
             }
 
-            if (unit is '\n' or '\r' || unit == ByteOrderMark || char.IsControl(unit))
+            if (unit is '\n' or '\r' || unit == ByteOrderMark || IsLineSeparator(unit)
+                || char.IsControl(unit))
             {
                 return false;
             }
@@ -288,7 +300,8 @@ internal static class YamlScalarText
                 builder.Append(unit).Append(text[index + 1]);
                 index++;
             }
-            else if (char.IsControl(unit) || char.IsSurrogate(unit) || unit == ByteOrderMark)
+            else if (char.IsControl(unit) || char.IsSurrogate(unit) || unit == ByteOrderMark
+                || IsLineSeparator(unit))
             {
                 builder
                     .Append("\\u")
@@ -320,6 +333,7 @@ internal static class YamlScalarText
     /// </summary>
     /// <param name="text">The string value.</param>
     /// <remarks>
+    /// <para>
     /// A literal block scalar reproduces its content lines exactly, which makes it lossless only
     /// when every line survives the round trip. A carriage return, a control character, or trailing
     /// white space on a line does not: parsers differ on whether such a line keeps its trailing
@@ -328,10 +342,25 @@ internal static class YamlScalarText
     /// indentation from that line and would absorb the space rather than return it. Checking the
     /// first character instead would miss a value such as <c>"\n leading"</c>, whose first line is
     /// empty. Those values are double quoted instead, which is uglier and exact.
+    /// </para>
+    /// <para>
+    /// A value ending in a blank line is refused for a different reason. Carrying that line needs
+    /// the keep indicator <c>|+</c>, whose content then ends with two physical LFs; when the value
+    /// is the last thing in the document, the file does too, and Section 24 requires a text output
+    /// to "end with exactly one LF". Refusing only in that position would make the spelling depend
+    /// on where the value happened to sort, so that adding an unrelated key changed how an
+    /// untouched value was written. The double-quoted form spells the trailing breaks as <c>\n</c>
+    /// escapes, ends the file with exactly one LF, and reads back identically everywhere.
+    /// </para>
     /// </remarks>
     public static bool CanBlock(string text)
     {
         if (!text.Contains('\n', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (text.EndsWith("\n\n", StringComparison.Ordinal))
         {
             return false;
         }
@@ -343,7 +372,7 @@ internal static class YamlScalarText
 
         foreach (var unit in text)
         {
-            if (unit == ByteOrderMark)
+            if (unit == ByteOrderMark || IsLineSeparator(unit))
             {
                 return false;
             }

@@ -769,7 +769,10 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   output layout was a contract.
 - Clean behavior: Section 19.4 indents two spaces per level, emits no `---`, and uses literal
   block scalars for multiline values, whose chomping indicator carries what the indentation cannot
-  — no trailing line break, exactly one, or more than one. Section 19.4 single-quotes a string
+  — no trailing line break (`|-`) or exactly one (`|`). A value ending in a blank line is spelled
+  double-quoted instead: keep chomping would end the file with two line breaks, which Section 24
+  forbids ("end with exactly one LF"), and declining the block only in final position would make a
+  value's spelling depend on where it sorts. Section 19.4 single-quotes a string
   "whose plain spelling would resolve to a non-string kind under `RestrictedYaml1`", so `true`
   and `42` as strings are quoted while Section 10.1's deliberate non-resolutions `yes`, `+1`
   and `.5` stay plain.
@@ -830,7 +833,12 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   blocked; a line reading `...` is the document-end marker, so that string is quoted; U+FEFF is a
   byte order mark that Section 24 forbids and a reader discards, so it is escaped; and a
   supplementary character is one scalar value, so it is written as itself rather than as two
-  surrogate escapes that would spell a different string.
+  surrogate escapes that would spell a different string. U+2028 and U+2029 are line breaks to a
+  YAML reader exactly as LF is, and are outside both control ranges, so they are escaped rather
+  than written as themselves — written literally they end the line and the file no longer parses.
+  A value ending in a blank line would need a keep-chomped block, whose last two bytes are line
+  breaks; Section 24 requires a text output to "end with exactly one LF", so the block spelling is
+  declined for such a value everywhere rather than only where it happens to fall last.
 - The difference is intentional: Section 19.4's single explicit rule is about *meaning* — which
   strings would resolve to a non-string kind. These values resolve to strings correctly and are
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round

@@ -221,16 +221,44 @@ public class YamlSerializerTests
 
     /// <summary>
     /// The chomping indicator is what makes a block scalar exact: the plain form keeps one trailing
-    /// line break, <c>-</c> keeps none, and <c>+</c> keeps every one. Choosing wrongly changes the
-    /// value, which Section 3 forbids.
+    /// line break and <c>-</c> keeps none. Choosing wrongly changes the value, which Section 3
+    /// forbids.
     /// </summary>
     /// <param name="value">The multiline value.</param>
     /// <param name="expected">Its Section 19.4 spelling.</param>
     [TestCase("a\nb", "k: |-\n  a\n  b\n")]
     [TestCase("a\nb\n", "k: |\n  a\n  b\n")]
-    [TestCase("a\nb\n\n", "k: |+\n  a\n  b\n\n")]
     public void TheChompingIndicatorPreservesTrailingLineBreaksExactly(string value, string expected) =>
         Serialize(Map(("k", Text(value)))).ShouldBe(expected);
+
+    /// <summary>
+    /// A value ending in a blank line would need keep chomping, whose block ends with two line
+    /// breaks. Section 24 requires a text output to "end with exactly one LF", so such a block
+    /// cannot be written last in a document. Declining it only in final position would make a
+    /// value's spelling depend on where it sorts among its siblings, so the double-quoted form —
+    /// which is exact — is used everywhere.
+    /// </summary>
+    /// <param name="value">A value ending in a blank line.</param>
+    /// <param name="expected">Its Section 19.4 spelling.</param>
+    [TestCase("a\nb\n\n", "k: \"a\\nb\\n\\n\"\n")]
+    [TestCase("solo\n\n", "k: \"solo\\n\\n\"\n")]
+    [TestCase("a\n\n\n", "k: \"a\\n\\n\\n\"\n")]
+    public void ABlockScalarIsDeclinedForAValueEndingInABlankLine(string value, string expected) =>
+        Serialize(Map(("k", Text(value)))).ShouldBe(expected);
+
+    /// <summary>
+    /// The reason the blank-line-terminated value is quoted is that its block form could not end a
+    /// document. Serializing it as the document's only value therefore has to succeed, and the file
+    /// has to end with exactly one line break.
+    /// </summary>
+    [Test]
+    public void AValueEndingInABlankLineCanEndTheDocument()
+    {
+        string text = Serialize(Map(("k", Text("a\nb\n\n"))));
+
+        text.ShouldEndWith("\"\n");
+        text.ShouldNotEndWith("\n\n");
+    }
 
     /// <summary>
     /// An empty line inside block content is written empty rather than indented, so the value gains
@@ -461,9 +489,44 @@ public class YamlSerializerTests
     /// <param name="text">Comment text carrying an unwritable character.</param>
     [TestCase("bell\u0007here")]
     [TestCase("\uFEFFmark")]
+    [TestCase("split\u2028here")]
+    [TestCase("split\u2029here")]
     public void ACommentCarryingAnUnwritableCharacterIsRefused(string text)
     {
         var writer = new OutputBufferWriter(new GlobalBudget(ResourceLimits.Defaults));
+
+        new YamlSerializer(YamlOutput.Default, diagnostics, new DestinationRef("out.yaml", 0))
+            .TrySerialize(
+                new DocumentMapping(
+                    [new DocumentMember(
+                        "k",
+                        new DocumentScalar(
+                            ScalarPayload.OfString("v"),
+                            [Comment(text, CommentPlacement.Leading)]))],
+                    []),
+                writer)
+            .ShouldBeFalse();
+
+        diagnostics.Drain().Select(item => item.Code).ShouldContain("SERIALIZE001");
+    }
+
+    /// <summary>
+    /// A lone surrogate is not a Unicode scalar value, so UTF-8 cannot encode it: writing one
+    /// substitutes U+FFFD and silently changes the retained comment. A comment body has no escape,
+    /// so serialization declines rather than corrupting it.
+    /// </summary>
+    /// <remarks>
+    /// The text is built here rather than passed through <c>TestCase</c> because an attribute
+    /// argument is stored as UTF-8 in metadata, which replaces a lone surrogate with U+FFFD before
+    /// the test ever runs — the case would silently assert nothing.
+    /// </remarks>
+    [Test]
+    public void ACommentCarryingALoneSurrogateIsRefused()
+    {
+        string text = "lone" + (char)0xD83D + "surrogate";
+        var writer = new OutputBufferWriter(new GlobalBudget(ResourceLimits.Defaults));
+
+        text.ShouldContain("\uD83D", Case.Sensitive);
 
         new YamlSerializer(YamlOutput.Default, diagnostics, new DestinationRef("out.yaml", 0))
             .TrySerialize(

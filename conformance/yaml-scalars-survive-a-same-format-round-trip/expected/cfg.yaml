@@ -5,3 +5,6 @@ supplementary: '-😀'
 plainblock: |-
   first
   second
+separator: "a\u2028b"
+paragraph: "one\u2029two"
+trailing: "x\ny\n\n"

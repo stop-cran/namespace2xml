@@ -4,9 +4,7 @@ motd: |
 stripped: |-
   alpha
   beta
-kept: |+
-  solo
-
+kept: "solo\n\n"
 tail: end
 truthy: 'true'
 numeric: '42'

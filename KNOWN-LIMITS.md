@@ -373,23 +373,27 @@ whose projection can collide, or to add a structured-format counterpart.
 Reaching it needs two input formats disagreeing about the same path, which is why no fixture in the
 corpus produced it.
 
-### 1.15 A value ending in a blank line cannot be the last thing in a YAML file
+### 1.15 A value ending in a blank line is spelled double-quoted, not as a block scalar
 
 §19.4 "uses literal block scalars for multiline values", and a value whose content ends in a blank
-line needs the keep indicator `|+` to carry that line. The resulting text ends with two LFs, which
-§24's "end with exactly one LF" forbids, so serialization refuses with a blocking `SERIALIZE001` and
-publishes nothing. **verified**
+line needs the keep indicator `|+` to carry that line. The resulting block ends with two LFs, so it
+cannot be the last thing in the file: §24 requires a text output to "end with exactly one LF". Such
+a value is therefore written in the double-quoted form instead, in every position. **verified**
 
-The refusal is positional, which is the surprising part: the same value renders correctly when any
-other key follows it, because the extra line break is then interior. Adding or removing an unrelated
-key therefore flips the run between success and a blocking error. A mid-document `|+` round trips
-exactly, confirmed against an independent parser.
+The obvious narrower rule — decline the block only where it would fall last — was rejected. It makes
+a value's spelling depend on where it sorts among its siblings, so adding an unrelated key silently
+rewrites an untouched value. The uniform rule keeps the spelling a property of the value alone.
 
-§19.4 offers no alternative spelling to fall back on and §24 admits no exception, so refusing is the
-only behaviour available that does not corrupt the file. It is filed as a specification gap; the
-candidate resolutions are to permit a quoted spelling when the block form cannot terminate legally,
-to allow a terminating document-end marker, or to state that §24's rule counts the document
-terminator separately from block-scalar content.
+Nothing is lost: the double-quoted form is exact, and a round trip through an independent parser
+returns the value unchanged. What §19.4 promises literally — a block scalar — is not what is
+emitted, which is the reason this is recorded here rather than treated as settled.
+
+The underlying issue is that §19.4's blanket "uses literal block scalars for multiline values" has
+never been the whole rule. A block scalar cannot carry a value containing CR, containing a control
+character, whose lines have trailing whitespace, or whose first non-empty line is indented, and the
+writer has always quoted those instead, because §3.3 requires the round trip to preserve the data.
+The blank-line case is the same shape of exception with §24 in place of §3.3. A specification report
+asks for the qualifier to be stated explicitly, covering all of them rather than this one.
 
 ## 2. Acceptance coverage
 

@@ -347,11 +347,18 @@ public sealed class YamlSerializer
     /// <remarks>
     /// A comment body is raw text: unlike a scalar it has no quoted form, so a character YAML
     /// excludes cannot be written at all. Emitting it anyway produces a file no parser will read,
-    /// which is worse than declining to write one.
+    /// which is worse than declining to write one. A lone surrogate is excluded for the adjacent
+    /// reason that UTF-8 cannot encode it, so writing it substitutes U+FFFD and silently changes
+    /// the retained comment.
     /// </remarks>
     /// <param name="text">The comment text.</param>
     private static bool HasUnprintable(string text)
     {
+        if (YamlScalarText.HasLoneSurrogate(text))
+        {
+            return true;
+        }
+
         foreach (var unit in text)
         {
             if (unit is '\n' or '\r' or '\t')
@@ -359,7 +366,8 @@ public sealed class YamlSerializer
                 continue;
             }
 
-            if (char.IsControl(unit) || unit == '\uFEFF' || unit is '\uFFFE' or '\uFFFF')
+            if (char.IsControl(unit) || unit == '\uFEFF' || unit is '\u2028' or '\u2029'
+                || unit is '\uFFFE' or '\uFFFF')
             {
                 return true;
             }

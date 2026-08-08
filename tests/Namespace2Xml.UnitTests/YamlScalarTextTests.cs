@@ -214,14 +214,15 @@ public class YamlScalarTextTests
     /// A block scalar reproduces its content literally, so it is only available when every line can
     /// be written literally. Trailing whitespace on a line would be invisible and is stripped by
     /// some readers, and a first line beginning with a space would need an explicit indentation
-    /// indicator.
+    /// indicator. A value ending in a blank line is excluded for a different reason, recorded on
+    /// <see cref="ABlockScalarIsDeclinedForAValueEndingInABlankLine"/>.
     /// </summary>
     /// <param name="text">Multi-line text.</param>
     /// <param name="eligible">Whether a literal block scalar can carry it exactly.</param>
     [TestCase("a\nb", true)]
     [TestCase("a\nb\n", true)]
     [TestCase("a\n\nb", true)]
-    [TestCase("a\nb\n\n", true)]
+    [TestCase("a\nb\n\n", false)]
     [TestCase("a \nb", false)]
     [TestCase("a\nb\t", false)]
     [TestCase(" a\nb", false)]
@@ -322,4 +323,35 @@ public class YamlScalarTextTests
         YamlScalarText.CanBlock(Lone + "\nsecond").ShouldBeFalse();
         YamlScalarText.Spell(Lone).ShouldBe("\"a\\uD83Db\"");
     }
+
+    /// <summary>
+    /// YAML normalizes U+2028 and U+2029 as line breaks exactly as it does LF, so writing either
+    /// as itself ends the line and the surrounding spelling with it — a plain or single-quoted
+    /// scalar becomes a syntax error, and a block scalar silently gains a line. Both are outside
+    /// the C0 and C1 ranges, in categories Zl and Zp, so <c>char.IsControl</c> returns false for
+    /// them and the control-character guards do not cover them.
+    /// </summary>
+    /// <param name="separator">A character YAML treats as a line break.</param>
+    [TestCase('\u2028')]
+    [TestCase('\u2029')]
+    public void ALineSeparatorIsTreatedAsALineBreakRatherThanAsText(char separator)
+    {
+        string text = "a" + separator + "b";
+
+        char.IsControl(separator).ShouldBeFalse();
+        YamlScalarText.IsPlainSafe(text).ShouldBeFalse();
+        YamlScalarText.CanSingleQuote(text).ShouldBeFalse();
+        YamlScalarText.CanBlock(text + "\nsecond").ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Only the double-quoted form admits an escape, so it is where a line separator has to land.
+    /// </summary>
+    /// <param name="text">Text carrying a line separator.</param>
+    /// <param name="expected">Its double-quoted spelling.</param>
+    [TestCase("a\u2028b", "\"a\\u2028b\"")]
+    [TestCase("a\u2029b", "\"a\\u2029b\"")]
+    [TestCase("\u2028", "\"\\u2028\"")]
+    public void ALineSeparatorIsEscapedInTheDoubleQuotedForm(string text, string expected) =>
+        YamlScalarText.Spell(text).ShouldBe(expected);
 }
