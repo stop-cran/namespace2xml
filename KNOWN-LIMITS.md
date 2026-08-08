@@ -132,14 +132,12 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   `#1`. **This is observable through every output format**: YAML output emits retained comments, so
   an XML-to-YAML run loses every XML comment, and §19.5 makes XML output "emit retained XML
   comments", so an XML-to-XML round trip drops them too.
-- **CDATA is not retained as a distinct node kind.** §11.6 keeps it distinct so that XML output can
-  re-emit it as CDATA. The coalescing rule itself is implemented exactly as written — adjacent
-  CDATA and adjacent ordinary text coalesce separately and never with each other — but the run's
-  CDATA-ness does not survive projection into the common model, so from that point it is text.
-  **Now that §19.5 rendering exists this is observable**: an XML-to-XML round trip re-emits a
-  `<![CDATA[…]]>` section as escaped ordinary text under the default `PreserveCData`, which is the
-  `CDataAsText` behaviour the caller did not ask for. The document means the same thing; its
-  spelling does not survive.
+- **CDATA is retained**, and this entry records what that costs elsewhere rather than a gap. §11.6
+  keeps CDATA distinct so XML output can re-emit it; the spelling now rides on the scalar payload,
+  so §4.4's last-wins replacement carries it and the two cannot disagree about which text is
+  CDATA. What does *not* follow it is any other format: JSON, YAML and the flat formats have no
+  such spelling, so `PreserveCData` is meaningful only on an XML destination, and a value that
+  reaches XML by way of another format arrives as ordinary text.
 - **Element-only children carry no separately addressable content token, and interleaved repeats
   lose their document order.** §11.4 says every parent assigns ordering values "including
   element-only parents", and that element-only children retain element-name addressing "while also

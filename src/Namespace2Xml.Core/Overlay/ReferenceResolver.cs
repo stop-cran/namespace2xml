@@ -289,7 +289,7 @@ public sealed class ReferenceResolver
         // referent is itself resolved before it is adopted.
         if (tokens is [ReferenceToken single])
         {
-            return Target(single, path, chain);
+            return Target(single, path, chain)?.As(payload.Spelling);
         }
 
         var text = new StringBuilder();
@@ -322,7 +322,7 @@ public sealed class ReferenceResolver
         // settled string rather than an untyped one, so Section 18 inference never sees it: the
         // rule already decided the kind, and re-inferring would turn '${a}${b}' over two digits
         // into a number the specification says is a string.
-        return ScalarPayload.OfString(text.ToString());
+        return ScalarPayload.OfString(text.ToString()).As(payload.Spelling);
     }
 
     private ScalarPayload? Target(

@@ -29,6 +29,7 @@ public sealed class XmlProjection
     private readonly DestinationRef? destination;
     private readonly IReadOnlyDictionary<string, EffectiveTransform> types;
     private readonly int wrapper;
+    private readonly bool preservesCData;
 
     /// <summary>Creates a projection.</summary>
     /// <param name="diagnostics">The buffer a refusal accumulates in.</param>
@@ -41,11 +42,13 @@ public sealed class XmlProjection
     /// How many leading components of the view are Section 16.3 <c>root</c> wrapping rather than
     /// selected content. No scheme path addresses them, so they are removed before a lookup.
     /// </param>
+    /// <param name="options">The Section 16.9 options this destination selected.</param>
     public XmlProjection(
         DiagnosticBuffer diagnostics,
         DestinationRef? destination = null,
         IReadOnlyDictionary<string, EffectiveTransform>? types = null,
-        int wrapper = 0)
+        int wrapper = 0,
+        XmlOutputOptions options = XmlOutput.Default)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
 
@@ -53,6 +56,7 @@ public sealed class XmlProjection
         this.destination = destination;
         this.types = types ?? ImmutableDictionary<string, EffectiveTransform>.Empty;
         this.wrapper = wrapper;
+        preservesCData = options.PreservesCData();
     }
 
     /// <summary>Projects one view, or null when Section 14.1 refuses it.</summary>
@@ -218,7 +222,7 @@ public sealed class XmlProjection
                     + "none");
             }
         }
-        else if (kind is TypeValue.Cdata)
+        else if (SpelledAsCdata(kind, payload))
         {
             element.Add(new XCData(Text(payload)));
         }
@@ -287,6 +291,22 @@ public sealed class XmlProjection
                 return TryFill(element, child, path);
         }
     }
+
+    /// <summary>Whether one payload is written as a CDATA section.</summary>
+    /// <param name="kind">The Section 16.6 kind effective at its path, if any.</param>
+    /// <param name="payload">The payload.</param>
+    /// <remarks>
+    /// Section 11.6: "XML output must preserve imported CDATA as CDATA unless an output option
+    /// requests conversion to ordinary text". An explicit <c>type</c> directive is the stronger
+    /// statement of the two, so it decides first in both directions — <c>type=cdata</c> spells a
+    /// payload that arrived as text, and <c>type=text</c> spells one that arrived as CDATA.
+    /// </remarks>
+    private bool SpelledAsCdata(TypeValue? kind, ScalarPayload payload) => kind switch
+    {
+        TypeValue.Cdata => true,
+        TypeValue.Text => false,
+        _ => preservesCData && payload.Spelling is XmlContentSpelling.Cdata,
+    };
 
     /// <summary>The Section 16.6 XML node kind effective at one path, or null when none is.</summary>
     private TypeValue? Kind(ImmutableArray<NamePart> path)

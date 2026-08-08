@@ -210,8 +210,10 @@ public static class StructuredProfileReader
 
             if (!lexed.Value.ContainsReference)
             {
+                var payload = ScalarPayload.OfString(lexed.Value.LiteralText!);
+
                 return OverlayNode.OfPayload(
-                    ScalarPayload.OfString(lexed.Value.LiteralText!), key);
+                    scalar.IsCdata ? payload.AsCdata() : payload, key);
             }
 
             if (path.IsEmpty)
@@ -234,14 +236,15 @@ public static class StructuredProfileReader
             // an Intermediate node would tell Section 4.4 that this path has no scalar at all, so a
             // reference to it would be a missing-reference error and a mapping written at the same
             // path would win a contest it should lose.
+            var unresolved = ScalarPayload.Unresolved(
+                lexed.Value,
+                new ValueOrigin(
+                    source.File,
+                    source.LineOf(scalar.Line),
+                    source.ColumnOf(scalar.Column)));
+
             return OverlayNode.OfPayload(
-                ScalarPayload.Unresolved(
-                    lexed.Value,
-                    new ValueOrigin(
-                        source.File,
-                        source.LineOf(scalar.Line),
-                        source.ColumnOf(scalar.Column))),
-                key);
+                scalar.IsCdata ? unresolved.AsCdata() : unresolved, key);
         }
 
         private void EmitValueFault(

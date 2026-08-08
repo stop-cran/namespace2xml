@@ -39,7 +39,8 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
         BigInteger integer = default,
         BigDecimal decimalValue = default,
         InterpretedValue? unresolved = null,
-        ValueOrigin origin = default)
+        ValueOrigin origin = default,
+        XmlContentSpelling spelling = XmlContentSpelling.Text)
     {
         Kind = kind;
         this.text = text;
@@ -48,10 +49,56 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
         this.decimalValue = decimalValue;
         this.unresolved = unresolved;
         this.origin = origin;
+        Spelling = spelling;
     }
 
     /// <summary>The Section 4.3 kind of this payload.</summary>
     public ScalarKind Kind { get; }
+
+    /// <summary>
+    /// The Section 11.6 spelling this payload carries when XML holds it, which is
+    /// <see cref="XmlContentSpelling.Text"/> for everything the XML reader did not read as CDATA.
+    /// </summary>
+    public XmlContentSpelling Spelling { get; }
+
+    /// <summary>This payload spelled as Section 11.6 CDATA.</summary>
+    /// <remarks>
+    /// Only a textual or still-unresolved payload can be spelled as CDATA. A CDATA section holds
+    /// characters, so the XML reader produces a native string or a reference-bearing value from
+    /// one and Section 18 inference never sees it as a candidate number — asking for CDATA
+    /// anywhere else is a defect rather than an input error.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The payload is not textual.</exception>
+    public ScalarPayload AsCdata() => Kind switch
+    {
+        ScalarKind.String or ScalarKind.UntypedString =>
+            new ScalarPayload(Kind, text, spelling: XmlContentSpelling.Cdata),
+        ScalarKind.Unresolved => new ScalarPayload(
+            Kind, unresolved: unresolved, origin: origin, spelling: XmlContentSpelling.Cdata),
+        _ => throw new InvalidOperationException($"a {Kind} payload cannot be spelled as CDATA."),
+    };
+
+    /// <summary>This payload under the Section 11.6 spelling of the value that produced it.</summary>
+    /// <param name="spelling">The spelling to carry.</param>
+    /// <remarks>
+    /// Section 13.2 says a sole reference "inherits the referenced scalar kind and value", and
+    /// stops there. Spelling is neither: Section 11.6 preserves <em>imported</em> CDATA, and what
+    /// was imported is the node the value was written at, not the node the value was read from. A
+    /// namespace-profile entry <c>c=${a}</c> is ordinary text however <c>a</c> was spelled, and a
+    /// CDATA section holding a reference stays CDATA however its referent was spelled.
+    /// </remarks>
+    public ScalarPayload As(XmlContentSpelling spelling) => spelling switch
+    {
+        _ when spelling == Spelling => this,
+        XmlContentSpelling.Cdata => AsCdata(),
+        _ => Kind switch
+        {
+            ScalarKind.String or ScalarKind.UntypedString => new ScalarPayload(Kind, text),
+            ScalarKind.Unresolved => new ScalarPayload(
+                Kind, unresolved: unresolved, origin: origin),
+            _ => this,
+        },
+    };
 
     /// <summary>The null payload of Section 4.3.</summary>
     public static ScalarPayload Null { get; } = new(ScalarKind.Null);
@@ -183,12 +230,15 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
         Kind switch
         {
             ScalarKind.UntypedString or ScalarKind.String =>
-                string.Equals(text, other.text, StringComparison.Ordinal),
+                string.Equals(text, other.text, StringComparison.Ordinal)
+                && Spelling == other.Spelling,
             ScalarKind.Boolean => boolean == other.boolean,
             ScalarKind.Integer => integer == other.integer,
             ScalarKind.Decimal => decimalValue == other.decimalValue,
             ScalarKind.Unresolved =>
-                unresolved!.Equals(other.unresolved) && origin == other.origin,
+                unresolved!.Equals(other.unresolved)
+                && origin == other.origin
+                && Spelling == other.Spelling,
             _ => true,
         };
 
@@ -199,11 +249,11 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
     public override int GetHashCode() => Kind switch
     {
         ScalarKind.UntypedString or ScalarKind.String =>
-            HashCode.Combine(Kind, StringComparer.Ordinal.GetHashCode(text!)),
+            HashCode.Combine(Kind, StringComparer.Ordinal.GetHashCode(text!), Spelling),
         ScalarKind.Boolean => HashCode.Combine(Kind, boolean),
         ScalarKind.Integer => HashCode.Combine(Kind, integer),
         ScalarKind.Decimal => HashCode.Combine(Kind, decimalValue),
-        ScalarKind.Unresolved => HashCode.Combine(Kind, unresolved, origin),
+        ScalarKind.Unresolved => HashCode.Combine(Kind, unresolved, origin, Spelling),
         _ => Kind.GetHashCode(),
     };
 

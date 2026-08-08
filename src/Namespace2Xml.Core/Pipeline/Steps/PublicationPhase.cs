@@ -163,7 +163,11 @@ public static class PublicationPhase
         if (view.Format == OutputFormat.Xml)
         {
             var element = new XmlProjection(
-                    diagnostics, destination, view.Types, view.AppliedRoot.Length)
+                    diagnostics,
+                    destination,
+                    view.Types,
+                    view.AppliedRoot.Length,
+                    view.Instance.XmlOptions)
                 .Project(view.View, view.Root);
 
             return element is not null

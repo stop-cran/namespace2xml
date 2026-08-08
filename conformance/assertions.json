@@ -203,6 +203,8 @@
       "status": "pending",
       "assertions": [],
       "fixtures": [
+        "xml-a-reference-does-not-import-a-spelling",
+        "xml-cdata-survives-a-round-trip",
         "xml-node-types-select-the-spelling"
       ]
     },

@@ -643,7 +643,10 @@ public static class XmlInputReader
             {
                 var scalar = texts.Count == 1
                     ? StructuredScalar.OfNativeString(
-                        texts[0].Text.ToString(), texts[0].Line, texts[0].Column)
+                        texts[0].Text.ToString(), texts[0].Line, texts[0].Column) with
+                    {
+                        IsCdata = texts[0].IsCData,
+                    }
                     : null;
 
                 if (attributes.Count == 0)
@@ -728,7 +731,10 @@ public static class XmlInputReader
                             properties.Add(Property(
                                 new ContentPart(text.Ordinal),
                                 StructuredScalar.OfNativeString(
-                                    text.Text.ToString(), text.Line, text.Column),
+                                    text.Text.ToString(), text.Line, text.Column) with
+                                {
+                                    IsCdata = text.IsCData,
+                                },
                                 text.Line,
                                 text.Column));
                             break;

@@ -80,6 +80,16 @@ public sealed record StructuredScalar : StructuredNode
     /// </summary>
     public string? NativeString { get; }
 
+    /// <summary>
+    /// Whether Section 11.6 read this scalar as CDATA rather than as ordinary text.
+    /// </summary>
+    /// <remarks>
+    /// Only the XML reader ever sets this. It survives as a
+    /// <see cref="XmlContentSpelling"/> on the payload the value lexer produces, so a document that
+    /// arrives as CDATA leaves as CDATA without the projection having to ask where it came from.
+    /// </remarks>
+    public bool IsCdata { get; init; }
+
     /// <summary>A scalar whose kind its source format already fixed.</summary>
     /// <param name="payload">The typed payload.</param>
     /// <param name="line">The one-based line it begins on.</param>
