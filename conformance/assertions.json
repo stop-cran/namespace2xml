@@ -46,11 +46,15 @@
       "assertions": [
         "A reference cycle is a blocking error rather than a value, a truncation, or a nontermination.",
         "The cycle report is rotated to the cycle's lexicographically least member and located at that member's origin, so source, line, column and path do not depend on which member the resolver reached first.",
+        "The rotation is chosen under unsigned UTF-8 byte order, which orders an astral scalar above U+F900 where ordinal UTF-16 comparison orders it below.",
+        "Two rings whose chains print identically are two canonically distinct cycles and are reported as two diagnostics.",
         "Namespace escaping remains outstanding under this item."
       ],
       "fixtures": [
+        "cycle-rotation-uses-utf8-byte-order",
         "reference-cycle-report-source-order-first",
-        "reference-cycle-report-source-order-reversed"
+        "reference-cycle-report-source-order-reversed",
+        "two-cycles-that-print-alike-are-both-reported"
       ]
     },
     {

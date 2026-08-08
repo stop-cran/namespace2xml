@@ -426,13 +426,33 @@ public sealed class ReferenceResolver
     /// <param name="path">The path whose resolution re-entered the chain.</param>
     /// <param name="chain">The paths currently being resolved, outermost first.</param>
     /// <remarks>
-    /// Section 22 counts <c>REFERENCE003</c> "once per canonically distinct reachable cycle". A
-    /// cycle of <c>n</c> members is entered from all <c>n</c> of them, and each entry spells the
-    /// chain starting somewhere else, so both the key and the reported location are taken from the
-    /// cycle rotated to its lexicographically least member. Keying alone is not enough: Section 24
-    /// makes the <c>source</c>, <c>line</c> and <c>path</c> members part of the output too, and
-    /// locating the report at whichever member an output instance happened to reach first would
-    /// make them depend on selector order.
+    /// <para>
+    /// Section 22 fixes the canonical form: "Rotate the ring so its lexicographically smallest
+    /// canonical path under unsigned UTF-8 byte order is first; when the same smallest path appears
+    /// more than once, choose the lexicographically smallest resulting rotated sequence." Comparing
+    /// whole rotations states both halves once — the first members are weighed first, so a strictly
+    /// smaller member wins outright and a tie falls through to the rest of the ring. Written as a
+    /// separate tie-break the second half would be unreachable code: <c>ResolveAt</c> pushes a path
+    /// only when its canonical spelling is not already on the chain, so a detected ring holds
+    /// pairwise distinct members.
+    /// </para>
+    /// <para>
+    /// A cycle of <c>n</c> members is entered from all <c>n</c> of them, and each entry spells the
+    /// chain starting somewhere else, so both the key and the reported location are taken from that
+    /// rotation. Keying alone is not enough: Section 24 makes the <c>source</c>, <c>line</c> and
+    /// <c>path</c> members part of the output too, and locating the report at whichever member an
+    /// output instance happened to reach first would make them depend on selector order.
+    /// </para>
+    /// <para>
+    /// The identity of a ring is the ring, not its printed form. A canonical path escapes the
+    /// delimiter, <c>=</c>, <c>}</c>, <c>*</c> and the line terminators, but not a space, a hyphen
+    /// or a greater-than sign, so a member may legitimately contain the text this method joins on:
+    /// <c>["a -&gt; b", "c"]</c> and <c>["a", "b -&gt; c"]</c> print identically. Deduplicating on
+    /// the printed chain would silently discard one of two genuinely distinct cycles, which is the
+    /// same failure <see cref="CanonicalPath.Of(QualifiedName?)"/> documents for a non-injective
+    /// path spelling. The identity therefore length-prefixes each member and the prose is built
+    /// separately.
+    /// </para>
     /// </remarks>
     private void ReportCycle(
         ImmutableArray<NamePart> path, ImmutableArray<ImmutableArray<NamePart>> chain)
@@ -448,28 +468,55 @@ public sealed class ReferenceResolver
 
         for (var i = 1; i < keys.Length; i++)
         {
-            if (string.CompareOrdinal(keys[i], keys[least]) < 0)
+            // CompareRotations weighs first members first, so this one comparison is the whole
+            // Section 22 rule: least first member, and the whole sequence where those tie.
+            if (CompareRotations(keys, i, least) < 0)
             {
                 least = i;
             }
         }
 
         var rotated = members.RemoveRange(0, least).AddRange(members.Take(least));
-        var key = string.Join(" -> ", rotated.Select(member => CanonicalPath.Of(member)));
+        var order = keys.Skip(least).Concat(keys.Take(least)).ToArray();
+        var identity = string.Concat(order.Select(member => $"{member.Length}\u0000{member}"));
 
-        if (!reportedCycles.Add(key))
+        if (!reportedCycles.Add(identity))
         {
             return;
         }
 
-        var owner = Descend(rotated[0])?.Payload;
+        var display = string.Join(" -> ", order);
 
         Report(
             DiagnosticCodes.Reference003,
             "\u00A713.1",
             rotated[0],
-            $"the reference chain {key} -> {CanonicalPath.Of(rotated[0])} is a cycle, so no value "
+            $"the reference chain {display} -> {order[0]} is a cycle, so no value "
             + "in it can be resolved.");
+    }
+
+    /// <summary>
+    /// Compares the two rotations of <paramref name="keys"/> beginning at the given offsets, under
+    /// the Section 22 unsigned UTF-8 byte order.
+    /// </summary>
+    /// <param name="keys">The ring's canonical member paths, in ring order.</param>
+    /// <param name="left">The offset the left rotation starts at.</param>
+    /// <param name="right">The offset the right rotation starts at.</param>
+    /// <returns>A negative value, zero, or a positive value in the usual comparison convention.</returns>
+    private static int CompareRotations(string[] keys, int left, int right)
+    {
+        for (var i = 0; i < keys.Length; i++)
+        {
+            var comparison = Utf8Order.Compare(
+                keys[(left + i) % keys.Length], keys[(right + i) % keys.Length]);
+
+            if (comparison != 0)
+            {
+                return comparison;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>Buffers one reference diagnostic against the value that owns the reference.</summary>

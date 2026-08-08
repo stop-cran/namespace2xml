@@ -711,6 +711,7 @@ defect in the fixture; see CONTRIBUTING.md.
 - `a-written-traversal-segment-is-rejected`
 - `an-empty-qualifier-escapes-the-alias-ambiguity`
 - `array-runs-before-multiline`
+- `cycle-rotation-uses-utf8-byte-order`
 - `destination-fold-follows-wildcard-match-order`
 - `destinations-differing-only-by-case-collide`
 - `filemerge-error-rejects-a-second-contribution`
@@ -728,6 +729,7 @@ defect in the fixture; see CONTRIBUTING.md.
 - `reference-scalar-only-and-free-wildcard-rejected`
 - `reference-typed-values-and-alias-addressing`
 - `selector-candidates-consume-the-wildcard-limit`
+- `two-cycles-that-print-alike-are-both-reported`
 - `type-array-with-key-is-an-illegal-combination`
 - `type-ignore-removes-a-subtree-and-strands-its-directives`
 - `type-mapping-keeps-numeric-keys-and-array-discards-names`
