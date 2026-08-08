@@ -109,7 +109,7 @@ public sealed class SourceLoader
     /// <returns>The loaded source, or <c>null</c> when it contributed nothing at all.</returns>
     public LoadedSource? LoadFile(
         string path, long ordinal, DiagnosticPhase phase, DiagnosticBuffer diagnostics) =>
-        LoadFile(path, ordinal, phase, diagnostics, structured: false);
+        LoadFile(path, ordinal, phase, diagnostics, InputOptions.Default, structured: false);
 
     /// <summary>Reads one file source.</summary>
     /// <param name="path">The path as written on the command line.</param>
@@ -122,12 +122,14 @@ public sealed class SourceLoader
     /// <c>SchemePhase</c> declines a structured scheme before reaching here, so no caller passes
     /// <see langword="true"/> for a scheme.
     /// </param>
+    /// <param name="options">The Section 16.8 input options the readers run under.</param>
     /// <returns>The loaded source, or <c>null</c> when it contributed nothing at all.</returns>
     public LoadedSource? LoadFile(
         string path,
         long ordinal,
         DiagnosticPhase phase,
         DiagnosticBuffer diagnostics,
+        InputOptions options,
         bool structured)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
@@ -193,7 +195,14 @@ public sealed class SourceLoader
                 "YAML" => YamlInputReader.Read(
                     decoded.Text!, limits, budget, origin, phase, diagnostics, key),
                 "XML" => XmlInputReader.Read(
-                    decoded.Text!, decoded.Encoding!.Value, budget, origin, phase, diagnostics, key),
+                    decoded.Text!,
+                    decoded.Encoding!.Value,
+                    options.Xml,
+                    budget,
+                    origin,
+                    phase,
+                    diagnostics,
+                    key),
                 _ => throw new InvalidOperationException(
                     $"Section 7.1 names no structured format '{format}'."),
             };

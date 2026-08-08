@@ -37,13 +37,15 @@ public class XmlInputReaderTests
         DiagnosticBuffer diagnostics,
         ResourceLimits? limits = null,
         SourceBudget? budget = null,
-        SourceEncoding encoding = SourceEncoding.Utf8)
+        SourceEncoding encoding = SourceEncoding.Utf8,
+        XmlInputOptions options = XmlInput.Default)
     {
         var effective = limits ?? ResourceLimits.Defaults;
 
         return XmlInputReader.Read(
             document,
             encoding,
+            options,
             budget ?? new SourceBudget(effective, 0),
             ProfileSource.OfFile("d.xml"),
             DiagnosticPhase.Input,
@@ -156,6 +158,27 @@ public class XmlInputReaderTests
         var result = ImmutableArray.CreateBuilder<string>();
 
         Walk(Read(document), string.Empty, result);
+
+        return result.ToImmutable();
+    }
+
+    /// <summary>The paths a document projects in Section 11.7's normalizing mode.</summary>
+    /// <param name="document">The document to read.</param>
+    /// <param name="warnings">The diagnostic codes the read emitted.</param>
+    private static ImmutableArray<string> Normalized(
+        string document, out ImmutableArray<string> warnings)
+    {
+        var buffer = new DiagnosticBuffer();
+        var node = Read(
+            document,
+            buffer,
+            options: XmlInputOptions.NormalizeFormattingWhitespace);
+
+        warnings = [.. buffer.Drain().Select(entry => entry.Code)];
+
+        var result = ImmutableArray.CreateBuilder<string>();
+
+        Walk(node.ShouldNotBeNull(), string.Empty, result);
 
         return result.ToImmutable();
     }
@@ -918,4 +941,110 @@ public class XmlInputReaderTests
         tally.Comments.ShouldBe(comments);
         tally.CommentBytes.ShouldBe(bytes);
     }
+
+    /// <summary>
+    /// Section 11.7's default mode: "<c>PreserveWhitespace</c> retains every text node."
+    /// </summary>
+    [Test]
+    public void EveryTextNodeSurvivesByDefault() =>
+        Paths("<a>\n  <b>1</b>\n</a>").ShouldBe(["a.#0=\n  ", "a.#1.b=1", "a.#2=\n"]);
+
+    /// <summary>
+    /// Section 11.7 discards "whitespace-only text between element children" in the normalizing
+    /// mode, which leaves an element-only parent addressed by name.
+    /// </summary>
+    [Test]
+    public void FormattingWhitespaceIsDiscardedWhenNormalizing()
+    {
+        Normalized("<a>\n  <b>1</b>\n</a>", out var warnings).ShouldBe(["a.b=1"]);
+
+        warnings.ShouldBe(["WARN007"]);
+    }
+
+    /// <summary>
+    /// Section 11.7 preserves "whitespace in mixed content", so an element holding any
+    /// non-whitespace text keeps every run it holds -- the indentation around a child element is
+    /// part of what mixed content says.
+    /// </summary>
+    [Test]
+    public void MixedContentKeepsItsWhitespaceWhenNormalizing()
+    {
+        Normalized("<a>t\n  <b>1</b>\n</a>", out var warnings)
+            .ShouldBe(["a.#0=t\n  ", "a.#1.b=1", "a.#2=\n"]);
+
+        warnings.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 11.7 preserves "whitespace under <c>xml:space="preserve"</c>", including in the
+    /// subtree the attribute governs. The attribute itself is an ordinary Section 11.3 attribute
+    /// and is projected like any other.
+    /// </summary>
+    /// <param name="document">The document to read.</param>
+    [TestCase("<a xml:space=\"preserve\">\n  <b>1</b>\n</a>")]
+    [TestCase("<o xml:space=\"preserve\"><a>\n  <b>1</b>\n</a></o>")]
+    public void PreservedWhitespaceSurvivesNormalizing(string document)
+    {
+        var paths = Normalized(document, out var warnings);
+
+        paths.Where(path => path.Contains("#0", StringComparison.Ordinal)).ShouldNotBeEmpty();
+        warnings.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 11.7 discards whitespace "between element children", so an element with no element
+    /// children keeps its text: <c>&lt;a&gt; &lt;/a&gt;</c> is a scalar whose value is a space,
+    /// and no writer's indentation produced it.
+    /// </summary>
+    [Test]
+    public void WhitespaceWithNoElementSiblingSurvivesNormalizing()
+    {
+        Normalized("<a>\n  <b> </b>\n</a>", out var warnings).ShouldBe(["a.b= "]);
+
+        warnings.ShouldBe(["WARN007"]);
+    }
+
+    /// <summary>
+    /// A whitespace-only CDATA section is not formatting indentation. An indenting writer emits a
+    /// text node, so Section 11.6's distinct node kind is the evidence that a person wrote it.
+    /// </summary>
+    [Test]
+    public void WhitespaceOnlyCDataSurvivesNormalizing()
+    {
+        Normalized("<a><![CDATA[ ]]><b>1</b></a>", out var warnings)
+            .ShouldBe(["a.#0= ", "a.#1.b=1"]);
+
+        warnings.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 11.7 emits "one warning per input document when whitespace is discarded", so a
+    /// document the mode changes nothing about is not reported.
+    /// </summary>
+    [Test]
+    public void NormalizingWarnsOnlyWhenSomethingWasDiscarded()
+    {
+        Normalized("<a><b>1</b><c>2</c></a>", out var warnings).ShouldBe(["a.b=1", "a.c=2"]);
+
+        warnings.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// A run that looks like indentation is still mixed-content whitespace when its element holds
+    /// any non-whitespace text, and Section 11.7 preserves it. The decision is a property of the
+    /// element, not of the run: the trailing newline of <c>&lt;b&gt;t&lt;c/&gt;\n&lt;/b&gt;</c>
+    /// survives while the identical run around <c>&lt;b&gt;</c> itself does not.
+    /// </summary>
+    [Test]
+    public void IndentationInsideMixedContentSurvivesNormalizing() =>
+        Normalized("<a>\n  <b>t<c/>\n  </b>\n</a>", out _)
+            .ShouldBe(["a.b.#0=t", "a.b.#1.c={}", "a.b.#2=\n  "]);
+
+    /// <summary>
+    /// Section 11.4 promotes repeated same-name children to a sequence, and discarding the
+    /// formatting whitespace between them is what leaves them adjacent element-only children.
+    /// </summary>
+    [Test]
+    public void RepeatedChildrenPromoteAfterNormalizing() =>
+        Normalized("<a>\n  <b>1</b>\n  <b>2</b>\n</a>", out _).ShouldBe(["a.b.0=1", "a.b.1=2"]);
 }

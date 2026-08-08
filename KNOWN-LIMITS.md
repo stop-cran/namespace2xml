@@ -108,15 +108,22 @@ XML input implements every §11.1 prohibition and bound, the §11.2 subset, the 
 projection, the §11.4 canonical addresses, and the §11.6 coalescing rule, and shares the §15.1
 projection with JSON and YAML. These cases are declined or unfinished within it.
 
-- **`NormalizeFormattingWhitespace` is declined**, with exit `70` and no output. Only §11.7's
-  default `PreserveWhitespace` is implemented, and it "retains every text node". **The consequence
-  is worth stating plainly, because it will surprise you:** an indented document is therefore mixed
-  content. `<a>\n  <b>1</b>\n</a>` addresses as `a.#0`, `a.#1.b` and `a.#2` — not as `a.b`. Element
-  name addressing today requires XML written with no formatting whitespace between element
-  children, so there is at present **no way to read a pretty-printed document by element name**.
-  Nothing is misreported and the fixture `xml-canonical-addresses` pins both spellings, but if you
-  are pointing this tool at XML a human wrote, say so: the opt-out §11.7 defines is exactly what
-  you need and it is the next thing to land here.
+- **`NormalizeFormattingWhitespace` is implemented**, and this entry records what enabling it costs.
+  §11.7 defines it as "an explicit opt-in compatibility mode" that "weakens the normalized
+  same-format round-trip guarantee", which is not a warning about the implementation but a property
+  of the mode: XML has no universal test for insignificant whitespace without a schema, so a
+  document whose indentation *was* data comes back different. One `WARN007` per input document
+  reports that the run took the trade. The mode discards a whitespace-only text run only when its
+  element has element children, none of its runs is CDATA, none is under `xml:space="preserve"`, and
+  none holds non-whitespace text — because §11.7 preserves "whitespace in mixed content", so an
+  element holding any real text keeps every run it has, including the one before its end tag that
+  looks exactly like indentation.
+
+  Under the default `PreserveWhitespace`, which "retains every text node", **an indented document is
+  mixed content**: `<a>\n  <b>1</b>\n</a>` addresses as `a.#0`, `a.#1.b` and `a.#2`, not as `a.b`.
+  That is not a defect — it is what retaining every text node means — but it is the reason
+  `xmlinputoptions=NormalizeFormattingWhitespace` exists, and pointing this tool at XML a human
+  wrote without it will surprise you. The fixture `xml-canonical-addresses` pins both spellings.
 - **Mixedness and repeated-child classification are per document.** §11.4 makes them "properties of
   the merged common-model element", "evaluated at concrete merge time across all input
   contributions to that element". This preview classifies each element from the one document that

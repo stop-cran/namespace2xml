@@ -48,6 +48,7 @@ public static class XmlInputReader
     /// <summary>Reads one XML document.</summary>
     /// <param name="text">The decoded document text.</param>
     /// <param name="encoding">The encoding Section 7.4 selected, which Section 11.2 checks.</param>
+    /// <param name="options">The Section 16.8 whitespace mode.</param>
     /// <param name="budget">This source's budget, already charged for its bytes.</param>
     /// <param name="origin">How diagnostics name this source.</param>
     /// <param name="phase">The phase its diagnostics report.</param>
@@ -61,6 +62,7 @@ public static class XmlInputReader
     public static StructuredNode? Read(
         string text,
         SourceEncoding encoding,
+        XmlInputOptions options,
         SourceBudget budget,
         ProfileSource origin,
         DiagnosticPhase phase,
@@ -72,13 +74,15 @@ public static class XmlInputReader
         ArgumentNullException.ThrowIfNull(origin);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        var reader = new Reader(encoding, origin, phase, diagnostics, key, budget, new SourceLines(text));
+        var reader = new Reader(
+            encoding, options, origin, phase, diagnostics, key, budget, new SourceLines(text));
 
         return reader.Run(text);
     }
 
     private sealed class Reader(
         SourceEncoding encoding,
+        XmlInputOptions options,
         ProfileSource origin,
         DiagnosticPhase phase,
         DiagnosticBuffer diagnostics,
@@ -91,6 +95,7 @@ public static class XmlInputReader
         private long order;
         private long elements;
         private long instructions;
+        private bool normalized;
 
         public StructuredNode? Run(string text)
         {
@@ -152,6 +157,26 @@ public static class XmlInputReader
                     key));
             }
 
+            if (normalized)
+            {
+                // Section 11.7: enabling NormalizeFormattingWhitespace "weakens the normalized
+                // same-format round-trip guarantee and emits one warning per input document when
+                // whitespace is discarded". The warning is what carries that weakening to the
+                // operator, so it is emitted only when something was actually discarded -- asking
+                // for the mode and getting no indentation to drop costs nothing and says nothing.
+                diagnostics.Add(new BufferedDiagnostic(
+                    DiagnosticCodes.Warn007(
+                        phase,
+                        "\u00A711.7",
+                        "whitespace-only text between element children was discarded as formatting "
+                        + "indentation, because 'xmlinputoptions=NormalizeFormattingWhitespace' "
+                        + "asked for it. Section 11.7 weakens the normalized same-format "
+                        + "round-trip guarantee for this document.",
+                        cardinalityKey: origin.SourceKey,
+                        source: origin.File),
+                    key));
+            }
+
             return root;
         }
 
@@ -196,10 +221,10 @@ public static class XmlInputReader
                 case XmlNodeType.Text:
                 case XmlNodeType.Whitespace:
                 case XmlNodeType.SignificantWhitespace:
-                    return Content(reader.Value, cdata: false, position);
+                    return Content(reader.Value, cdata: false, reader.XmlSpace, position);
 
                 case XmlNodeType.CDATA:
-                    return Content(reader.Value, cdata: true, position);
+                    return Content(reader.Value, cdata: true, reader.XmlSpace, position);
 
                 case XmlNodeType.Comment:
                     return Comment(reader.Value);
@@ -368,7 +393,7 @@ public static class XmlInputReader
             return true;
         }
 
-        private bool Content(string text, bool cdata, IXmlLineInfo position)
+        private bool Content(string text, bool cdata, XmlSpace space, IXmlLineInfo position)
         {
             if (frames.Count == 0)
             {
@@ -392,7 +417,7 @@ public static class XmlInputReader
 
             var at = At(position);
 
-            frame.OpenText(text, cdata, at.Line, at.Column);
+            frame.OpenText(text, cdata, space == XmlSpace.Preserve, at.Line, at.Column);
             return true;
         }
 
@@ -445,6 +470,12 @@ public static class XmlInputReader
         private bool Close()
         {
             var frame = frames.Pop();
+
+            if (options.NormalizesWhitespace() && frame.Normalize())
+            {
+                normalized = true;
+            }
+
             var node = frame.Build();
 
             if (frames.Count == 0)
@@ -600,11 +631,57 @@ public static class XmlInputReader
                 return true;
             }
 
-            public void OpenText(string text, bool cdata, int at, int column) =>
-                tokens.Add(new TextToken(next++, at, column, cdata, text));
+            public void OpenText(string text, bool cdata, bool preserve, int at, int column) =>
+                tokens.Add(new TextToken(next++, at, column, cdata, preserve, text));
 
             /// <summary>Spends an ordering value on a node that ends the open run.</summary>
             public void CloseRun() => tokens.Add(new CommentToken(next++));
+
+            /// <summary>
+            /// Discards the Section 11.7 formatting whitespace this element holds, if any.
+            /// </summary>
+            /// <returns>Whether anything was discarded.</returns>
+            /// <remarks>
+            /// <para>
+            /// Section 11.7 discards "whitespace-only text between element children" and preserves
+            /// "whitespace in mixed content", so the two conditions are read together: an element
+            /// with element children whose every text run is whitespace was indented by a writer,
+            /// and an element holding one non-whitespace run is mixed content whose whitespace is
+            /// part of what it says. That makes the decision a property of the whole element and
+            /// not of an individual run, which is why it is taken here, at close, rather than as
+            /// each run arrives.
+            /// </para>
+            /// <para>
+            /// Whitespace "under <c>xml:space="preserve"</c> is preserved" regardless, and CDATA is
+            /// never formatting: an indenting writer emits a text node, so a whitespace-only CDATA
+            /// section is something a person wrote on purpose. An element with no element children
+            /// is left alone in full, because its whitespace is not "between element children" —
+            /// <c>&lt;a&gt; &lt;/a&gt;</c> is a scalar whose value is a space.
+            /// </para>
+            /// <para>
+            /// The ordering values the discarded runs spent are <em>not</em> reclaimed. Section
+            /// 11.4 assigns them "across all child elements, text, CDATA, and comments", and
+            /// renumbering the surviving children would move them relative to the addresses another
+            /// contribution to the same element already used.
+            /// </para>
+            /// </remarks>
+            public bool Normalize()
+            {
+                var texts = tokens.OfType<TextToken>().ToList();
+
+                if (texts.Count == 0
+                    || !tokens.OfType<ElementToken>().Any()
+                    || texts.Any(text =>
+                        text.IsCData
+                        || text.Preserve
+                        || !string.IsNullOrWhiteSpace(text.Text.ToString())))
+                {
+                    return false;
+                }
+
+                tokens.RemoveAll(token => token is TextToken);
+                return true;
+            }
 
             public StructuredNode Build()
             {
@@ -769,9 +846,15 @@ public static class XmlInputReader
         /// <param name="Line">The one-based line the run begins on.</param>
         /// <param name="Column">The one-based Section 22 column the run begins at.</param>
         /// <param name="IsCData">Whether the run is CDATA rather than ordinary text.</param>
+        /// <param name="Preserve">Whether Section 11.7's <c>xml:space="preserve"</c> covers it.</param>
         /// <param name="Initial">Its first segment, which later adjacent ones are appended to.</param>
         private sealed record TextToken(
-            long Ordinal, int Line, int Column, bool IsCData, string Initial) : Token(Ordinal)
+            long Ordinal,
+            int Line,
+            int Column,
+            bool IsCData,
+            bool Preserve,
+            string Initial) : Token(Ordinal)
         {
             public StringBuilder Text { get; } = new(Initial);
         }

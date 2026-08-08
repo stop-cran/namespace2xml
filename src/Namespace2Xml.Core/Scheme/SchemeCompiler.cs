@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Namespace2Xml.Diagnostics;
+using Namespace2Xml.Inputs;
 using Namespace2Xml.Output;
 using Namespace2Xml.Overlay;
 using Namespace2Xml.Pipeline;
@@ -278,6 +279,13 @@ public static class SchemeCompiler
                 case SchemeDirective.XmlOutputOptions:
                 case SchemeDirective.FileMerge:
                     winners[(new SelectorKey(entry.Selector), entry.Directive)] = (entry, index);
+                    break;
+
+                case SchemeDirective.XmlInputOptions:
+                case SchemeDirective.JsonInputOptions:
+                case SchemeDirective.YamlInputOptions:
+                    // Section 15.1 step 2 already compiled these, before the inputs they govern
+                    // were parsed. Nothing later configures an output instance from one.
                     break;
 
                 default:
@@ -713,6 +721,144 @@ public static class SchemeCompiler
         }
 
         return options;
+    }
+
+    /// <summary>Section 16.8 step 2: the root-level input options.</summary>
+    /// <param name="entries">Every scheme directive, in source order.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <returns>The compiled options, or the defaults when nothing named one.</returns>
+    /// <remarks>
+    /// Section 16.8: "Selector-qualified input-option directives are blocking scheme errors because
+    /// input parsing occurs before output instances exist." That is a different fault from the
+    /// Section 15.2 <c>WARN009</c> a selector-qualified <em>output</em> directive gets when nothing
+    /// binds it, and the reason is stated: an input option can never bind, at any selector, because
+    /// the thing it would qualify does not exist yet.
+    /// </remarks>
+    public static InputOptions CompileInputOptions(
+        ImmutableArray<SchemeEntry> entries, DiagnosticBuffer diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        var xml = XmlInput.Default;
+
+        foreach (var entry in entries)
+        {
+            var format = entry.Directive switch
+            {
+                SchemeDirective.XmlInputOptions => "XML",
+                SchemeDirective.JsonInputOptions => "JSON",
+                SchemeDirective.YamlInputOptions => "YAML",
+                _ => null,
+            };
+
+            if (format is null)
+            {
+                continue;
+            }
+
+            if (entry.Selector is not null)
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.8",
+                    $"'{entry.Declaration}' qualifies an input-option directive with a selector. "
+                    + "Section 16.8 makes that a blocking scheme error, because input parsing "
+                    + "occurs before output instances exist.");
+                continue;
+            }
+
+            if (entry.Value.LiteralText is not { } text)
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.8",
+                    $"'{entry.Declaration}' does not name a literal option set.");
+                continue;
+            }
+
+            // Section 16.8: "The later complete directive wins." A directive that named something
+            // outside its set is not complete, so it replaces nothing.
+            if (entry.Directive == SchemeDirective.XmlInputOptions)
+            {
+                if (CompileXmlInputOptions(entry, text, diagnostics) is { } compiled)
+                {
+                    xml = compiled;
+                }
+
+                continue;
+            }
+
+            CheckNamed(entry, text, format, diagnostics);
+        }
+
+        return new InputOptions(xml);
+    }
+
+    /// <summary>Section 16.8 XML.</summary>
+    private static XmlInputOptions? CompileXmlInputOptions(
+        SchemeEntry entry, string text, DiagnosticBuffer diagnostics)
+    {
+        var options = XmlInputOptions.None;
+
+        foreach (var name in Split(text))
+        {
+            if (!IsName(name)
+                || !Enum.TryParse<XmlInputOptions>(name, ignoreCase: true, out var flag)
+                || !Enum.IsDefined(flag)
+                || flag == XmlInputOptions.None)
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.8",
+                    $"'{name}' is not one of the Section 16.8 XML input options.");
+                return null;
+            }
+
+            options |= flag;
+        }
+
+        if (!options.TryValidate(out var contradiction))
+        {
+            Reject(entry, diagnostics, "\u00A716.8", contradiction!);
+            return null;
+        }
+
+        // Section 16.8: an option set naming neither member of the group reapplies the default,
+        // which is what an empty 'xmlinputoptions=' asks for.
+        return options == XmlInputOptions.None ? XmlInput.Default : options;
+    }
+
+    /// <summary>
+    /// Checks a Section 16.8 option set whose every value is enabled by default.
+    /// </summary>
+    /// <param name="entry">The directive.</param>
+    /// <param name="text">Its value.</param>
+    /// <param name="format">The format its section names, for the message.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    private static void CheckNamed(
+        SchemeEntry entry, string text, string format, DiagnosticBuffer diagnostics)
+    {
+        var permitted = entry.Directive == SchemeDirective.JsonInputOptions
+            ? "Strict"
+            : "PreserveComments";
+
+        foreach (var name in Split(text))
+        {
+            if (name.Length > 0
+                && !string.Equals(name, permitted, StringComparison.OrdinalIgnoreCase))
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.8",
+                    $"'{name}' is not one of the Section 16.8 {format} input options; "
+                    + $"'{permitted}' is the only one, and it is enabled by default.");
+                return;
+            }
+        }
     }
 
     /// <summary>Section 16.9.</summary>

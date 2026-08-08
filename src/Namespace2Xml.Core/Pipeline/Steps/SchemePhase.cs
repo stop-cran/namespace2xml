@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Namespace2Xml.Budgets;
 using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
+using Namespace2Xml.Inputs;
 using Namespace2Xml.Scheme;
 
 namespace Namespace2Xml.Pipeline.Steps;
@@ -120,17 +121,19 @@ public static class SchemePhase
 
     /// <summary>Section 15.1 step 2: compile root-level input options.</summary>
     /// <param name="entries">Step 1's product.</param>
-    /// <returns>The same entries, once every input-options directive is known to be absent.</returns>
-    public static StepOutcome<ImmutableArray<SchemeEntry>> CompileInputOptions(
-        ImmutableArray<SchemeEntry> entries) =>
-        Decline(
-            entries,
-            directive => directive
-                is SchemeDirective.XmlInputOptions
-                or SchemeDirective.JsonInputOptions
-                or SchemeDirective.YamlInputOptions,
-            "structured input options",
-            "\u00A715.1");
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <returns>The same entries, paired with the options every input reader runs under.</returns>
+    public static StepOutcome<(ImmutableArray<SchemeEntry> Entries, InputOptions Options)>
+        CompileInputOptions(ImmutableArray<SchemeEntry> entries, DiagnosticBuffer diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        var options = SchemeCompiler.CompileInputOptions(entries, diagnostics);
+
+        return diagnostics.HasBlockingError
+            ? StepOutcome.Failed<(ImmutableArray<SchemeEntry>, InputOptions)>()
+            : StepOutcome.Produced((entries, options));
+    }
 
     /// <summary>Section 15.1 step 3: compile <c>substitute</c> path patterns.</summary>
     /// <param name="entries">Step 2's product.</param>

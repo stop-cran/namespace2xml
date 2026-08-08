@@ -31,17 +31,20 @@ public static class InputPhase
     /// <param name="command">The parsed command line.</param>
     /// <param name="loader">The shared source loader.</param>
     /// <param name="budget">The invocation's global budget, already charged for scheme sources.</param>
+    /// <param name="options">Step 2's product: the Section 16.8 input options.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>Every admitted input contribution, in Section 7.3 stream order.</returns>
     public static StepOutcome<ImmutableArray<InputContribution>> ParseInputs(
         CommandLine command,
         SourceLoader loader,
         GlobalBudget budget,
+        InputOptions options,
         DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(loader);
         ArgumentNullException.ThrowIfNull(budget);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
         foreach (var input in command.Inputs)
@@ -69,7 +72,7 @@ public static class InputPhase
         foreach (var input in command.Inputs)
         {
             var source = loader.LoadFile(
-                input, next++, DiagnosticPhase.Input, diagnostics, structured: true);
+                input, next++, DiagnosticPhase.Input, diagnostics, options, structured: true);
 
             if (source is not null)
             {
