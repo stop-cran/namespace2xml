@@ -375,12 +375,18 @@ public class PublisherTests
     }
 
     /// <summary>
-    /// The sink refuses an intermediate reparse point before it can become a traversal.
+    /// The sink refuses a link at an intermediate component before it can become a traversal.
     /// </summary>
     /// <remarks>
     /// <para>
     /// The handle-relative publication sink stays in the handle domain for every component, so this
     /// assertion names the structural refusal rather than a resolved outside-root path string.
+    /// </para>
+    /// <para>
+    /// The assertion quotes the specification clause rather than the kind of link, because the two
+    /// platforms name the same condition differently -- Windows refuses a reparse point, POSIX a
+    /// symbolic link -- and the contract is the refusal, not the vocabulary. Pinning the noun made
+    /// this test assert "the sink is the Windows one", which is false on two of the three runners.
     /// </para>
     /// <para>
     /// Section 21.1's <c>PATH001</c> is asserted through the exception type rather than the
@@ -409,7 +415,9 @@ public class PublisherTests
 
             Should.Throw<UncontainableDestinationException>(
                     () => sink.Write(root, "link/x.json", OutputBuffer.Empty))
-                .Message.ShouldContain("reparse point", Case.Sensitive);
+                .Message.ShouldContain(
+                    "Section 21.1 requires opening destinations without following",
+                    Case.Sensitive);
 
             File.Exists(Path.Combine(outside, "x.json")).ShouldBeFalse();
         }
@@ -431,10 +439,11 @@ public class PublisherTests
     /// </summary>
     /// <remarks>
     /// The link here is a directory link because that is the kind every supported host can create
-    /// unprivileged; the guard it exercises reads the reparse point, not the kind. The diagnostic
-    /// message is asserted rather than only the code, because a directory sitting at a destination
-    /// also fails to open — with the guard removed the run still fails, just for the operating
-    /// system's reason instead of this one, so the code alone would not discriminate.
+    /// unprivileged; the guard it exercises tests for a link, not for its kind, which is why the
+    /// assertion quotes the specification clause both platforms share rather than the noun each
+    /// uses for it. The message is asserted rather than only the code, because a directory sitting
+    /// at a destination also fails to open — with the guard removed the run still fails, just for
+    /// the operating system's reason instead of this one, so the code alone would not discriminate.
     /// </remarks>
     [Test]
     public void ADestinationThatIsItselfALinkIsRefused()
@@ -459,7 +468,9 @@ public class PublisherTests
             var diagnostic = diagnostics.Drain().ShouldHaveSingleItem();
 
             diagnostic.Code.ShouldBe("PATH001");
-            diagnostic.Message.ShouldContain("reparse point", Case.Sensitive);
+            diagnostic.Message.ShouldContain(
+                "Section 21.1 requires opening destinations without following",
+                Case.Sensitive);
         }
         finally
         {
