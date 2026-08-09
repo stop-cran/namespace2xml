@@ -1972,7 +1972,7 @@ Supported flags:
 
 Default: `Indent,PreserveCData,Declaration`.
 
-XML `Indent` uses two ASCII spaces per element nesting level outside mixed content. `NewLineOnAttributes` places each attribute after the first on its own line, indented two spaces beyond the owning start tag. `NoIndent` inserts no formatting whitespace.
+XML `Indent` uses two ASCII spaces per element nesting level outside mixed content. `NewLineOnAttributes` places every attribute on its own line, including the first, indented two spaces beyond the owning start tag; a start tag that carries attributes therefore ends after the element name and its `>` follows the last attribute. `NoIndent` inserts no formatting whitespace.
 
 #### JSON
 

@@ -49,7 +49,7 @@ in a structured format — and both are refused rather than approximated.
 | Wildcard output selectors | Implemented | §14 |
 | Path-scoped view transformations: `type`, `key` | Implemented, with the gaps in §1.10–§1.12 | §16.5, §16.6 |
 | Ordered sequences from numeric paths | Implemented, except the §3.2 warning in §1.7 | §8.7, §5.4 |
-| Rendering: XML | Implemented, with the divergence in §1.18 | §19.5 |
+| Rendering: XML | Implemented | §19.5 |
 | `substitute` | Not yet — [#65](https://github.com/stop-cran/namespace2xml/issues/65) | §16.7 |
 | **Scheme files** written as JSON, YAML or XML | Not yet — [#66](https://github.com/stop-cran/namespace2xml/issues/66) | §15 |
 
@@ -515,31 +515,21 @@ for the qualifier it is missing rather than asking the writer to change — the 
 emits is the right behaviour, it is simply an implementation decision on a default path that the
 contract does not state.
 
-### 1.18 `NewLineOnAttributes` also breaks before the *first* attribute
+### 1.18 *(resolved)* `NewLineOnAttributes` and the first attribute
 
-§16.9 says `NewLineOnAttributes` "places each attribute after the first on its own line, indented
-two spaces beyond the owning start tag". This build places *every* attribute on its own line,
-including the first, so the start tag ends at `<e` and `a="1"` begins on the next line. **verified**
+§16.9 said `NewLineOnAttributes` "places each attribute after the first on its own line", and this
+build placed *every* attribute on its own line, including the first.
+[#53](https://github.com/stop-cran/namespace2xml/issues/53) put the choice to review, and the clause
+moved: §16.9 now says every attribute, including the first. The corpus gap that let the divergence
+survive is closed by `conformance/xml-newline-on-attributes`.
 
-```text
-# r.e.@a=1, r.e.@b=2 with xmloutputoptions=Indent,NewLineOnAttributes
-
-# specified            # emitted
-<e a="1"               <e
-  b="2" />               a="1"
-                         b="2" />
-```
-
-The cause is that `XmlSerializer` sets `XmlWriterSettings.NewLineOnAttributes`, and .NET's writer
-breaks before the first attribute too. Obeying §16.9 literally means not using that setting and
-hand-writing start tags, which puts attribute escaping, namespace declaration placement and mixed
-content back in this project's hands for a purely cosmetic, opt-in flag.
-
-No fixture covers the flag at all, which is why the divergence survived; that gap is the part worth
-closing first. The flag is not in the default `Indent,PreserveCData,Declaration`, so no default run
-is affected. Which side moves — the writer or the clause — is a decision for review rather than for
-whichever is cheaper, and is tracked as
-[#53](https://github.com/stop-cran/namespace2xml/issues/53) until then.
+This entry is kept rather than deleted because the reasoning is the point. The decision went to the
+clause and not to the code, which is the direction rule 2.1 exists to make expensive, and it was
+taken for a reason narrower than "the code was already like that": the flag is cosmetic and opt-in,
+and obeying the old wording meant hand-writing start tags and taking attribute escaping, namespace
+declaration placement and mixed content back from `XmlWriter` — a much larger surface, at risk of
+being wrong in ways nothing else in the contract would catch. Where a clause has teeth, the code
+moves instead.
 
 ### 1.19 `root` on a bare-scalar INI output root has two readings
 

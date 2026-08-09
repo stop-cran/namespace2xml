@@ -13,6 +13,26 @@ independently.
 
 ## [Unreleased]
 
+### Contract
+
+- `contract-bundle` `r38+8c8759be955a`.
+- §16.9 now says `NewLineOnAttributes` "places every attribute on its own line, including the
+  first", where it previously said "each attribute after the first". **Caused by
+  [#53](https://github.com/stop-cran/namespace2xml/issues/53)**, which measured the divergence and
+  routed the decision to review rather than to whichever side was cheaper. The clause moved rather
+  than the code because obeying the old wording meant not using `XmlWriterSettings` and hand-writing
+  start tags, taking attribute escaping, namespace declaration placement and mixed content back from
+  `XmlWriter` for a cosmetic, opt-in flag. `KNOWN-LIMITS.md` §1.18 is kept as the record of that
+  reasoning rather than deleted.
+
+### Added
+
+- `conformance/xml-newline-on-attributes` pins the §16.9 attribute layout, which **no fixture
+  exercised at all** — the corpus gap that let the divergence survive, and the half of #53 worth
+  closing first. Its differential verdict is measured, not assumed: 2.4.0 **crashes** on
+  `cfg.e.@a=1` with an unhandled `XmlException`, after opening the destination, leaving a zero-byte
+  file behind.
+
 ### Changed
 
 - The `TYPE001` raised when an XML view has several top-level members now names

@@ -817,11 +817,13 @@
         "Section 16.9's default for JSON layout is indentation and for YAML comments is preservation, and Section 16.9 reapplies a mode group's default when a replacement omits every flag from it.",
         "Naming both flags of a mutually exclusive mode group is a `SCHEME001` contradiction.",
         "JSON has no comment syntax, so comments are discarded with one summarized `WARN003` per destination; YAML's `DiscardComments` suppresses them silently because that is what the option asked for.",
-        "XML declaration control remains uncovered until the XML writer ships."
+        "Section 16.9's `NewLineOnAttributes` places every attribute on its own line, including the first, indented two spaces beyond the owning start tag, while `Indent` uses two spaces per element nesting level.",
+        "A replacement that names neither `Declaration` nor `NoDeclaration` reapplies the documented `Declaration` default, so the XML declaration is written."
       ],
       "fixtures": [
         "json-discards-comments-and-yaml-keeps-them",
-        "json-output-options-and-escaping"
+        "json-output-options-and-escaping",
+        "xml-newline-on-attributes"
       ]
     },
     {
