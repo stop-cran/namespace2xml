@@ -83,6 +83,27 @@ jobs:
           path: '**/TestResults/**'
           if-no-files-found: ignore
 
+  # A packaged tool is not the same artifact as a built binary: packing, the NuGet layout, the tool
+  # shim and the apphost all sit between them, and each can break while build and test stay green.
+  # This installs what a user installs, on every platform the tool claims. The version assertion is
+  # anchored exactly as the release workflow's is, so a Directory.Build.props drift fails here on a
+  # push instead of at tag time, when the only remaining move is to retag.
+  tool-install:
+    needs: build-test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Pack, install and smoke-test the tool
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/verify-tool-install.ps1
+
   # Section 24 requires byte-identical output for identical inputs. A tool that only claims
   # determinism is not determinate; this job measures it.
   determinism:
