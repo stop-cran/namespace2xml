@@ -51,6 +51,15 @@ independently.
   `<r><a x="1"><x>2</x></a><b x="3"><x>4</x></b></r>` and one ambiguous wildcard directive it exits
   `0` and writes `<a x="" /><b x="" />`, destroying both attributes' values, both child elements and
   both elements' text without a word. That silent loss is what makes the refusal worth the friction.
+- `conformance/scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias` pins the
+  boundary of that alias: a **wildcard** does not consult the index, because the index is a lookup
+  by written name and a wildcard writes none. A wildcard reaching an attribute and an element of one
+  name is a pattern matching two components, not an ambiguous alias — and `SCHEME002`'s remedy, to
+  mark the component and name one outright, is the one thing a wildcard cannot do. The fixture is a
+  regression test: the wider reading turned `r.a.*.type=ignore` over `<a x="1"><x>2</x></a>` into a
+  blocking error, and turned the real 606-line `logback.xml` from
+  [#24](https://github.com/stop-cran/namespace2xml/issues/24) from a clean 1243-line run into
+  `TYPE001`. 2.4.0 **crashes** on it with an unhandled `InvalidOperationException`.
 - `conformance/xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component` pins `WARN011`'s
   positive case and **both** of its withholdings in one invocation, so a future implementation
   cannot satisfy the warning by emitting it everywhere. Its differential verdict is measured:

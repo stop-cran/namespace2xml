@@ -835,6 +835,26 @@ of every invocation that three separate mechanisms should each have caught, and 
 silently: no fixture reached that path, the comparer did not check layout, and the determinism script
 discarded the stream being corrupted. The components were individually sound. The seam was not.
 
+**Check that the remedy a diagnostic offers is available to the author.** Where the specification
+admits two readings, the one whose error message gives an impossible instruction is the wrong one.
+§15.2 grants "an unmarked component" the simple alias index, and a wildcard is not explicitly
+marked, so folding it is an available reading — but it made `r.a.*.type` blocking on any element
+carrying an attribute and a child of one name, with a `SCHEME002` telling the author to "mark the
+component to name one of them outright". A wildcard was written to match both and cannot be marked.
+That impossibility is the evidence the reading is wrong, and it is visible from the message alone.
+
+**Run the reporter's actual file, not only a minimal probe.** The wildcard-fold defect above was
+shipped with 2359 unit tests and 496 conformance cases green, and was found by re-running the
+33 KB `logback.xml` attached to issue #24, which turned from a clean 1243-line run into a blocking
+`TYPE001`. A corpus is authored from the specification and therefore contains the shapes its authors
+thought of; a third party's configuration file contains the shapes they did not. Keep the attached
+reproductions and re-run them after any change to matching, addressing or binding.
+
+Minimal probes mislead in the other direction too. The same issue's deeper `*.*.key` selectors draw
+`WARN009`, and an earlier attempt to reproduce that used a **profile** input and failed — profiles
+have no whitespace text nodes, so the `#n` components that make `*.*` miss at depth 2 never existed.
+Reproduce with the same *format* as the report, not merely the same shape.
+
 **An assertion must name something a fixture can see.** Before writing a line into
 `conformance/assertions.json`, ask: *if this claim were false, which byte of which fixture would
 change?* "No external resource is retrieved" survived in the manifest for months against a case

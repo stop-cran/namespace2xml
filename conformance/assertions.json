@@ -1003,9 +1003,11 @@
         "Appendix A.2's typed components are recognized wherever a name is written -- namespace input, variables, scheme paths, references, and root -- while a JSON or YAML key that merely looks like a marker stays literal data.",
         "Section 15.2 gives an unmarked scheme component the simple alias index, so a directive written a.x binds an attribute written a.@x and a qualified element written a.Q{uri}x, which is the 2.x spelling the clause grants for compatibility.",
         "Section 15.2 has an explicitly marked component select only that XML component, so a.@x binds the attribute alone and a.Q{}x the element alone, and the grant is per component rather than per path as Section 13.1 makes it for a reference.",
-        "Section 15.2 makes an alias that reaches two canonical components at a matched location a blocking SCHEME002 that lists the alternatives and writes no output, rather than a choice the tool makes for the author."
+        "Section 15.2 makes an alias that reaches two canonical components at a matched location a blocking SCHEME002 that lists the alternatives and writes no output, rather than a choice the tool makes for the author.",
+        "Section 15.2's alias is looked up by a written name, so a wildcard component does not consult it: a wildcard reaching an attribute and an element of one name is a pattern matching two components rather than an ambiguous alias, and SCHEME002's remedy of marking the component to name one outright is not available to it."
       ],
       "fixtures": [
+        "scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias",
         "scheme-an-ambiguous-simple-alias-is-blocking",
         "scheme-an-unmarked-directive-reaches-an-attribute-through-the-simple-alias",
         "xml-typed-components-recognized-and-json-yaml-marker-keys-stay-literal"

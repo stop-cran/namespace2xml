@@ -348,6 +348,15 @@ binds to the attribute written `a.@x`, and `SCHEME002` has a call site. A marked
 selects one component outright: `a.@x` binds the attribute only, and `a.Q{}x` the element only.
 **verified**
 
+A **wildcard** component does not consult the index. The alias is a lookup by written name — it maps
+the name an author wrote to the XML components that name could have meant — and a wildcard writes no
+name. `§15.2` also opens by keeping "the same typed component model as canonical data paths", which
+is what §8.6 and §12 apply to a wildcard over data, so folding here would make `*` mean one thing in
+a scheme and another in a profile. The ambiguity clause settles it: its remedy is to mark the
+component and name one outright, which a wildcard cannot do, because it was written to match both.
+Pinned by `conformance/scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias`.
+**verified**
+
 §13.1's other two rewrites — removing a `#n` wrapper before a child element, and removing a terminal
 text or CDATA `#n` — are **not** applied to a scheme path. They change a path's length, so a scheme
 component would have to match a variable number of concrete components, and §11.4 holds an element

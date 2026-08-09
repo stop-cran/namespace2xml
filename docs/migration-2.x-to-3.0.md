@@ -2074,7 +2074,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   refusal is the honest interim behaviour, not the desired one, and closing it is a release
   blocker for 3.0 final rather than a deferred nicety.
 
-## Inputs that crashed 2.4.0 (14)
+## Inputs that crashed 2.4.0 (15)
 
 The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
 reports a diagnostic and exits deliberately.
@@ -2097,6 +2097,34 @@ reports a diagnostic and exits deliberately.
   is not merely to change the exit code but to detect the condition and report it as a stable
   diagnostic. The crash exit code carries no code, no phase, and no spec anchor; an automated
   caller cannot tell it apart from a runtime crash.
+
+### `scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias`
+
+- namespace2xml 2.4.0: **crashes**. It terminates with an unhandled
+  `System.InvalidOperationException: Sequence contains no elements` from `Enumerable.Single` in
+  `Formatters/Extensions.cs:79`, exit `-532462766` (`0xE0434352`), writing nothing.
+  **verified** — measured against the Appendix C.6 pinned 2.4.0 package.
+- Contract: Section 15.2 — "Scheme paths use the same typed component model as canonical data
+  paths. An explicitly marked `Q{}`, `@`, or `#n` component selects only that XML component. An
+  unmarked component uses the simple alias index for compatibility and convenience; if ordinary and
+  XML components make that alias ambiguous at a matched location, selector expansion at pipeline
+  step 13 emits blocking `SCHEME002`".
+- Legacy observation: the input is `<r><a x="1"><x>2</x></a></r>` — an attribute `x` and a child
+  element `x` on one element — and the directive is `r.a.*.type=ignore`. 2.4.0 does not reach a
+  diagnostic at all; the wildcard ignore over that shape reaches an internal `Single()` on an empty
+  sequence and the process faults.
+- Clean behavior: a wildcard does **not** consult the simple alias index. The alias maps a written
+  name to the XML components that name could have meant, and a wildcard writes no name to look up.
+  So `r.a.*` selects the ordinary component `r.a.x` and not the attribute `r.a.@x`, the element is
+  ignored, the attribute is untouched, and the run is clean: `<a x="1" />`, exit `0`, no
+  diagnostics.
+- This fixture exists to pin the boundary of Section 15.2's alias, and it is a regression test. An
+  implementation that folds every unmarked component — a wildcard is not explicitly marked, so the
+  reading is available — makes this input **blocking**: the wildcard reaches `r.a.@x` and `r.a.x`,
+  those fold to one aliased path, and `SCHEME002` fires. That diagnostic then tells the author to
+  "mark the component to name one of them outright", which is the one thing a wildcard cannot do,
+  because it was written to match both. The narrower reading is also what keeps `*` meaning the
+  same thing in a scheme as Sections 8.6 and 12 give it over data.
 
 ### `scheme-an-unmarked-directive-reaches-an-attribute-through-the-simple-alias`
 

@@ -49,9 +49,22 @@ internal static class SchemeAlias
     /// left unmarked, and unchanged everywhere else.
     /// </returns>
     /// <remarks>
-    /// A wildcard component is unmarked, so <c>a.*</c> reaches an attribute written <c>a.@x</c>.
-    /// That is the compatibility affordance Section 15.2 is granting: a 2.x scheme had no typed
-    /// model to mark, so every component it wrote was unmarked.
+    /// <para>
+    /// A <em>wildcard</em> component does not fold. The alias index maps a written name to the XML
+    /// components that name could have meant, and a wildcard writes no name to look up: Section
+    /// 15.2 grants the alias "for compatibility and convenience", and a pattern that already means
+    /// "every component here" needs neither. Section 15.2 also opens by keeping "the same typed
+    /// component model as canonical data paths", which is what Sections 8.6 and 12 apply to a
+    /// wildcard over data, so folding here would make <c>*</c> mean one thing in a scheme and
+    /// another in a profile.
+    /// </para>
+    /// <para>
+    /// The ambiguity clause settles it. It fires "if ordinary and XML components make that alias
+    /// ambiguous at a matched location", and its remedy is to mark the component and name one
+    /// outright — which a wildcard cannot do, because it was written to match both. Folding a
+    /// wildcard made <c>r.a.*.type</c> blocking on any element carrying an attribute and a child of
+    /// one name, offering a remedy that does not exist.
+    /// </para>
     /// </remarks>
     internal static ImmutableArray<NamePart> Align(
         ImmutableArray<NamePart> pattern,
@@ -62,7 +75,8 @@ internal static class SchemeAlias
 
         for (var i = 0; i < count && i < concrete.Length; i++)
         {
-            if (pattern[i] is not OrdinaryPart { IsExplicitlyCanonical: false }
+            if (pattern[i] is not OrdinaryPart { IsExplicitlyCanonical: false } unmarked
+                || WildcardMatch.HasWildcard(unmarked)
                 || Of(concrete[i]) is not { } alias)
             {
                 continue;

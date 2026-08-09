@@ -84,12 +84,40 @@ public sealed class SchemeAliasTests
     }
 
     /// <summary>
-    /// A wildcard component is unmarked, and a 2.x scheme had no typed model to mark with, so the
-    /// compatibility affordance Section 15.2 names has to reach through one.
+    /// A wildcard does not fold. The alias index maps a written name to the XML components that
+    /// name could have meant; a wildcard writes no name, and Section 15.2's remedy for an ambiguous
+    /// alias — mark the component and name one outright — is not available to a pattern written to
+    /// match both.
     /// </summary>
     [Test]
-    public void AWildcardComponentIsUnmarkedAndFolds() =>
-        Align("a.*", "a.@x").ShouldBe("a.x");
+    public void AWildcardComponentDoesNotFold()
+    {
+        Align("a.*", "a.@x").ShouldBe("a.@x");
+        Align("a.x*", "a.@xy").ShouldBe("a.@xy");
+    }
+
+    /// <summary>
+    /// A wildcard reaching an attribute and an element of one name is a wildcard matching two
+    /// components, which is what it was written to do — not an ambiguous alias. Folding it made
+    /// this input blocking.
+    /// </summary>
+    [Test]
+    public void AWildcardOverAClashingNameIsNotAmbiguous()
+    {
+        var sink = new TransformationTests.Sink();
+        var result = TransformationTests.Run(
+            sink,
+            new TransformationTests.Sources(
+                ("in.xml", "<r><a x=\"1\"><x>2</x></a></r>\n"),
+                ("scheme.txt", "r.output=xml\nr.root=r\nr.a.*.type=string\n")),
+            "-i",
+            "in.xml",
+            "-s",
+            "scheme.txt");
+
+        result.Diagnostics.ShouldNotContain(diagnostic => diagnostic.Code == "SCHEME002");
+        sink.Written.ShouldNotBeEmpty();
+    }
 
     /// <summary>A path with nothing to fold is returned unchanged, not rebuilt.</summary>
     [Test]
