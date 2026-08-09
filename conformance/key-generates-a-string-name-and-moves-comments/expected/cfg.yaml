@@ -1,0 +1,6 @@
+- name: '42'
+  # comment on 42
+  value: 1
+- name: other
+  # comment on other
+  value: 2

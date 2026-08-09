@@ -276,6 +276,47 @@ rely on it, because it only fires when the doc comment and the signature disagre
   pass for entirely the wrong reason. Build such strings in the test body, where the literals
   survive.
 
+### PowerShell gotchas that produce confidently wrong audits
+
+`$obj.item` on a `ConvertFrom-Json` array collides with the `IList.Item` indexer and silently
+returns the method signature rather than the property. Use `[int]$_.item` inside a
+`ForEach-Object`.
+
+Worse, because it fails in the safe-looking direction: **`@($null).Count` is `1`, not `0`.**
+Auditing the assertion manifest with
+
+```powershell
+if (@($it.fixtures).Count -eq 0 -and @($it.gates).Count -eq 0) { ... }
+```
+
+reports **zero uncovered items** on a manifest where thirteen are uncovered, because `gates` is
+absent on most entries and `@($null)` is a one-element array. The audit says the work is finished.
+Test for the property first:
+
+```powershell
+$gc = if ($it.PSObject.Properties.Name -contains 'gates') { @($it.gates).Count } else { 0 }
+```
+
+An audit that reports completion is exactly the one nobody re-runs, so prefer a shape that fails
+loudly. Cross-check any "everything is covered" result against a second, differently-written query
+before believing it.
+
+### `create`-style file writes on Windows produce CRLF
+
+Four `legacy.md` files authored through an editor tool landed with CRLF under `conformance/`,
+where `.gitattributes` says `-text` and CI asserts no CR byte. The conformance suite passed anyway
+— the harness reads `legacy.md` as prose — so only the byte-level gate caught it, and only just
+before the commit. After authoring anything under `conformance/`, `tests/**/fixtures/**` or
+`spikes/**` by any means other than an explicit LF write, sweep the tree:
+
+```powershell
+Get-ChildItem conformance -Recurse -File |
+  Where-Object { [IO.File]::ReadAllBytes($_.FullName) -contains 13 }
+```
+
+Note that fixing line endings changes generated documents that embed those files, so re-run
+`tools/sync-docs.ps1` afterwards and expect a real diff.
+
 ### Restoring a mutated file does not rebuild it
 
 Proving a gate red means mutating a file and putting it back. `Copy-Item` **preserves the source
@@ -746,3 +787,23 @@ contract revision cannot be acted on.
 
 Mark every claim `verified-in-session` or `proposed-but-untested`. Do not present reasoning as
 observation. Draft the report, show it to your human, and let them approve it before filing.
+
+### `git checkout --` on a generated file destroys uncommitted hand-authored fields
+
+`conformance/assertions.json` is written by a generator but its `fixtures`, `gates` and
+`whyNotAFixture` fields are **hand-authored and merely preserved** across runs. Reverting the file
+to discard a generator artifact therefore silently discards registration work, and re-running the
+generator cannot recover it — the generator preserves what it finds, and it now finds nothing.
+
+Seventeen fixture registrations were lost this way in one command. The failure surfaces two steps
+later as `AnItemNamesExactlyTheFixturesThatClaimIt`, which names a fixture/item mismatch rather than
+the revert that caused it.
+
+The registrations are recoverable because each fixture's `requirements.txt` is the other half of the
+double entry: rebuild `fixtures` as the sorted set of fixture directories whose `requirements.txt`
+names the item. Verify the restoration against an audit taken *before* the revert — the uncovered
+set and the gated set must both come back identical — rather than against a green test run, because
+the gate compares the manifest to `requirements.txt` and is satisfied by any consistent pair.
+
+Prefer editing the file in place over `git checkout --` whenever the working copy holds uncommitted
+manifest edits.

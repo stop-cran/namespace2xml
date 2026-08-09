@@ -1,0 +1,4 @@
+r.@nsattr=ATTRVAL
+r.nsattr=ELEMVAL
+r.body=hello
+r.ref=${r.@nsattr}

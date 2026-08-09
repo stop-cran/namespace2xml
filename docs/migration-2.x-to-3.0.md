@@ -19,10 +19,13 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Deliberate differences (75)
+## Observable differences (87)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
+Nearly all are corrections, and every case says which contract it is correcting. A difference
+is not automatically an improvement, though: where this preview declines a capability 2.4.0
+implemented, its case says so plainly rather than letting the heading imply otherwise.
 
 ### `a-later-output-declaration-restores-an-ignored-instance`
 
@@ -41,6 +44,31 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   instances collide on a shorter shared name on any platform. The single-file observation says
   nothing about whether 2.4.0's stream logic reached the same restoration decision or arrived at
   one surviving instance by another route; only the filename is pinned here.
+
+### `a-literal-asterisk-in-an-ordinary-value-reaches-the-output`
+
+- namespace2xml 2.4.0: **differs**. It writes `cfg.json` as
+  `{"bare":"star-*","escaped":"star-\\*"}` and exits 0. `bare` matches the expected file, but
+  `escaped` carries the literal backslash `\` followed by the asterisk `*` — one Unicode character
+  where the case requires the asterisk alone.
+- Contract: Section 8.3 value escapes and Appendix A.3's ABNF; Section 3.2 as a correction of
+  behavior "caused by unhandled user-input exceptions" only obliquely — this is more precisely a
+  substantive rule of §8.3 that 2.4.0 did not implement.
+- Legacy observation: 2.4.0's namespace value lexer did not recognize `\*` as an escape at all.
+  Section 8.3 lists `\*` alongside `\\`, `\${`, `\n`, `\r`, and `\t` as one of the six value
+  escapes, but the baseline treated only `\\` and the C-style whitespace triple as escapes and
+  passed every other backslash through as literal text with the following scalar. `\*` therefore
+  reached the JSON writer as two characters, and JSON re-encoded the backslash as `\\`.
+- Clean behavior: §8.3 states that within an interpreted namespace-profile value "`\*` emits
+  literal `*`", and Appendix A.3 lists `\*` among the `value-escape` alternatives with the note
+  that "the `*` emitted by `\*` is never a wildcard token". Both values must therefore reach the
+  common model as `star-*`, and the JSON writer's own escape rules leave `*` untouched.
+- The difference is intentional: the whole reason `\*` exists in §8.3 is to give a namespace-value
+  author a way to write a literal asterisk that a wildcard-active context will not interpret. An
+  implementation that leaves the backslash in the value silently changes a shell pattern, a
+  glob, or an `strftime`-adjacent format string every time somebody quotes one, and the
+  difference between `*` and `\*` in the emitted file is precisely what such a value cannot
+  survive.
 
 ### `a-refused-fold-is-reported-once-per-destination`
 
@@ -370,6 +398,34 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
 - The difference is intentional: a defect report must be able to name the exact contract the
   observed behavior was measured against, which the legacy banner cannot express.
 
+### `contradictory-output-option-flags-are-scheme001`
+
+- namespace2xml 2.4.0: **differs**. It exits 0 rather than the expected 1 and writes `cfg.xml`
+  containing `<?xml version="1.0" encoding="utf-8"?>` on one line then `<cfg a="1" />` on the
+  next. Two independent divergences: the run succeeds where the case says it must be rejected,
+  and the scalar `cfg.a=1` is rendered as an XML *attribute* on the root element rather than as
+  a child element.
+- Contract: Section 16.9 output-options rules and the `SCHEME001` cardinality of Section 22.
+  Section 3.2 lists behaviour "caused by unhandled user-input exceptions" among the corrections;
+  the correction here is the narrower one that a contradictory flag set is a reportable scheme
+  error rather than silently accepted or silently ignored.
+- Legacy observation: the entire output-options concept — the `xmloutputoptions`,
+  `jsonoutputoptions`, `yamloutputoptions`, and `inioutputoptions` directives from §16.9 —
+  did not exist in 2.4.0. An unrecognized scheme directive was ignored rather than reported, so
+  the `cfg.xmloutputoptions=Indent,NoIndent` line contributed nothing at all and its
+  contradictory content was never inspected. The default XML rendering the baseline then chose
+  spelled a scalar mapping child as an attribute of the root element, which is a shape choice
+  the 3.0 XML writer does not repeat.
+- Clean behavior: §16.9 states that "naming both flags of a contradictory pair in one
+  declaration is `SCHEME001`", and lists `Indent` and `NoIndent` as one of the three XML
+  contradictory pairs. Section 22 counts `SCHEME001` "once per declaration", so exactly one
+  error is emitted and the run exits 1 with no output tree.
+- The difference is intentional: a directive whose value contradicts itself is one of two things
+  and cannot be both at once, and an implementation that silently accepts one of the readings
+  hides an authoring mistake in production. The 3.0 refusal fails at scheme-loading time before
+  any input is opened, so no output is written at all — which is also what §21.2's global
+  validation gate requires when a blocking scheme error stands.
+
 ### `cross-destination-diagnostic-order`
 
 - namespace2xml 2.4.0: **differs**.
@@ -629,6 +685,42 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   and the fixture pins the corner where 2.4.0's `key` directive was internally inconsistent with
   that rule.
 
+### `key-generates-a-string-name-and-moves-comments`
+
+- namespace2xml 2.4.0: **differs**. It writes `cfg.yaml` as four lines — `- name: 42` /
+  `  value: 1` / `- name: other` / `  value: 2` — and exits 0. The case expects the same
+  record shape but with the first record's `name` **quoted** as `'42'` and with the two
+  bound comments emitted between each `name` and its `value`. Two independent defects: the
+  generated key `42` is unquoted, so a YAML reader round-trips it as an integer rather than
+  the string it names; and the comment run bound to each `cfg.<key>.value` entry is
+  discarded.
+- Contract: Section 16.5 `key` transformation and Section 4.5 comment binding; Section 3.2
+  as a correction of behaviour "caused by silent loss of multiline values in JSON or XML"
+  only partially — the correction here is the neighbouring rule that comments bound to a
+  logical path survive across the transformations that move that path.
+- Legacy observation: 2.4.0 emitted the generated key field as an ordinary YAML scalar with
+  no consideration for whether its plain spelling would resolve to a non-string kind, so the
+  decimal name `42` produced the plain YAML scalar `42`, which is a YAML 1.1 integer. And
+  2.4.0 discarded namespace-profile comments outright on the namespace-input path; the
+  comment stream had no representation in the overlay, so a downstream `key` transformation
+  had nothing to move. Two different mechanisms produce a single lost feature in the file.
+- Clean behavior: §16.5 states that "the generated key field is inserted first as a string
+  scalar containing the decoded mapping-key text; scalar inference is never applied to this
+  generated field", so `42` reaches the YAML writer typed as a string and §19.4 emits it
+  single-quoted under the rule that "a string whose plain spelling would resolve to a
+  non-string kind under `RestrictedYaml1` is emitted single-quoted". Section 16.5 further
+  states that "comments bound to the original child path move with the complete generated
+  record", so the `# comment on 42` block moves onto the emitted record and §20 renders it
+  in the record's normalized position.
+- The difference is intentional: a mapping whose keys are all decimals is a legal way to
+  spell an ordered sequence of *named* records — a version list, a numbered menu, an
+  ordering-value carried into a normalized record set — and turning the name `42` into the
+  integer 42 by omitting the quotes silently changes what the file *says* about those
+  records. The comment loss is the same category: the namespace author writes a
+  human-readable annotation next to a value and expects the tool to move it with that value,
+  and an implementation that drops the annotation gives the reader less than they started
+  with.
+
 ### `key-projects-an-ordered-mapping-as-records`
 
 - namespace2xml 2.4.0: **differs**. The baseline writes `cfg.ini` and `cfg.properties` with
@@ -651,6 +743,45 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
 - The difference is intentional: Section 16.5's projection is output-neutral by construction —
   the transformation happens at pipeline step 16, before any serializer runs — so both file
   formats must reproduce the specification's printed example bytes together.
+
+### `later-output-options-replace-earlier-set-completely`
+
+- namespace2xml 2.4.0: **differs**. It writes `cfg.xml` as two lines,
+  `<?xml version="1.0" encoding="utf-8"?>` followed by `<cfg a="1" b="2" />`, and exits 0.
+  Three independent divergences from the expected file: the XML declaration is present
+  though the effective option set says `NoDeclaration`, no indentation is applied though
+  the effective option set (with `NoIndent` gone) restores the default `Indent`, and both
+  scalars are rendered as attributes on the single root element rather than as child
+  elements.
+- Contract: Section 16.9's replacement semantics for output-options directives. Section 3.2
+  as a correction of behaviour caused by silently accepted directives — output options had
+  no representation at all in 2.4.0.
+- Legacy observation: `xmloutputoptions` did not exist as a directive in 2.4.0. Neither
+  scheme line was recognized, so the run reached the XML writer with whatever the baseline
+  chose by default. The baseline's default rendering emitted a declaration, produced no
+  indentation, and — as with `contradictory-output-option-flags-are-scheme001` — placed
+  scalar mapping children as attributes on the containing element. The correction here is
+  not that any one of those defaults was wrong but that no scheme configuration could
+  change them, so the two directives this fixture cares about were both inert and their
+  ordering rule was invisible.
+- Clean behavior: §16.9 states that "for every output-options directive, the later complete
+  directive replaces the earlier complete flag set. Flags from separate declarations do not
+  accumulate. When a replacement omits every flag from a mutually exclusive mode group,
+  that group's documented default is reapplied." The second scheme line, `cfg.xmloutputoptions=NoDeclaration`,
+  therefore replaces the first outright: `NoIndent` and `PreserveCData` from the earlier
+  declaration are discarded, `NoDeclaration` stands, and the `Indent`/`NoIndent` and
+  `PreserveCData`/`CDataAsText` groups fall back to their documented defaults
+  `Indent` and `PreserveCData`. The XML writer therefore emits no `<?xml ... ?>`
+  declaration, indents at two spaces per level, and — because a scalar mapping child is a
+  child element under §19.5 — writes `<cfg>` with `<a>1</a>` and `<b>2</b>` on their own
+  indented lines.
+- The difference is intentional: an implementation that accumulates flags across
+  declarations lets an earlier scheme file's choice silently survive into a later file's
+  configuration, which is exactly the failure mode users configure a `NoDeclaration`
+  scheme file to *end*. The 3.0 rule that "the later complete directive replaces the
+  earlier complete flag set" makes an override total, and it makes the mode-group default
+  restoration explicit so that dropping one flag never leaves a group in an undefined
+  state.
 
 ### `mask-clears-shape-marks`
 
@@ -727,6 +858,43 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
 - The difference is intentional: `replace`'s "later complete value" enumeration exists so that
   a shape change does not leave earlier marks describing something that is no longer there,
   and both directions have to work or a defect appears in only one of them.
+
+### `multiline-on-lone-scalar-empty-sequence-and-scalar-null-sequence`
+
+- namespace2xml 2.4.0: **differs**. It writes `cfg.properties` as five lines — `empty=[]`,
+  `lone=hello`, `mixed.0=one`, `mixed.1=null`, `mixed.2=three` — and exits 0. The case
+  expects three lines: `lone=hello`, `empty=` (an empty value, not the literal `[]`), and
+  `mixed=one\n\nthree` with the two-character `\n` escape between items and the middle null
+  contributing an empty logical line. Three defects: `type=multiline` is not implemented at
+  all, so the empty sequence leaks the reader's textual `[]` into the value, the three-item
+  sequence is projected as three separate indexed keys instead of being joined, and the
+  emitted keys are reordered by the baseline's dictionary iteration.
+- Contract: Section 16.6 `multiline` transformation; Section 19.1 namespace value encoding
+  (LF as `\n`); Section 3.2 corrections against "silent loss of multiline values in JSON or
+  XML" and "dictionary iteration order".
+- Legacy observation: 2.4.0 had no `multiline` type. The three scheme lines addressing it
+  were unrecognized `type=` values, ignored rather than reported, so each of `lone`,
+  `empty`, and `mixed` reached the namespace writer with whatever shape the reader
+  produced. YAML's empty flow sequence `[]` was carried through as a mapping value with no
+  container structure the writer knew how to spell, so its `ToString()` — the literal
+  `[]` — was written as the value. The `mixed` sequence was projected as an indexed
+  mapping and each item emitted as its own indexed key; `~` was decoded to the string
+  `null` by the YAML reader. And the three top-level keys were emitted in the order the
+  baseline's underlying dictionary produced them, which put `empty` first and `mixed`
+  before `lone`.
+- Clean behavior: §16.6 states that under `multiline` "a lone scalar is a one-line value
+  and is unchanged; an empty sequence becomes the empty string; a nonempty sequence must
+  contain only scalar or null payloads; null contributes an empty line". §19.1 then
+  represents the joined scalar in one physical namespace record with "LF as `\n`". So
+  `lone=hello` is unchanged, `empty=` is the joined empty string, and `mixed=one\n\nthree`
+  spells the three-item join `one`, empty line, `three` with two `\n` escapes.
+- The difference is intentional: an implementation that spells a sequence as a mapping of
+  indices in the namespace file has thrown away the fact that the source was one
+  logical multi-line value, and a consumer reading the file back has no way to distinguish
+  that shape from a genuine numeric-map. `multiline` exists in §16.6 for the same reason
+  §19.1 refuses to write a literal LF between records: the flat format cannot represent a
+  sequence and a joined scalar the same way, so the scheme has to choose, and choosing
+  silently is worse than either.
 
 ### `namespace-document-trailing-comments-reach-the-output`
 
@@ -921,6 +1089,38 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
 - Clean behavior: the default filename is the whole concrete selector, so the two instances render at `a.0.properties` and `a.1.properties`.
 - Why the difference is intentional: the missing `a.` prefix is the Section 3.2 synthetic-root leak, and the fact that both instances land at all says nothing about whether 2.4.0 addressed the sequence facet at step 9 or reached these items by another path -- the surviving *content* would be identical either way for this data, so the tree comparison here settles filenames rather than addressing. The Section 15.1 step 9 discriminator (a sequence item is addressable through its ordering value) is invisible in the observable this verdict is scored against; it is asserted by the fixture's `expected/` bytes, not by whether the baseline reproduces them for the right reason.
 
+### `quoted-namespace-hyphen-key-is-shell001`
+
+- namespace2xml 2.4.0: **differs**. It exits 0 rather than the expected 1 and writes
+  `cfg.properties` (not `cfg.sh`) containing one line, `a-b="1"`, with the value spelled in
+  *double* quotes. Two divergences from what §19.2 requires: the key `a-b` is written to a
+  file at all — a hyphen is not part of the POSIX shell identifier grammar — and the file
+  written is the namespace-profile file, not the shell file, with double-quoting instead
+  of the single-quote escape §19.2 selects.
+- Contract: Section 19.2 shell-identifier rule and its blocking `SHELL001` diagnostic.
+  Section 22 fixes the cardinality of `SHELL001` at "once per projected key and output
+  instance". Section 3 does not enumerate this correction; it is a substantive rule of
+  §19.2 that 2.4.0 did not implement.
+- Legacy observation: 2.4.0 recognized `output=quotednamespace` as a synonym for the
+  namespace-profile output rather than as a distinct format with its own validation. It
+  wrote the `properties` extension, joined path parts with `.` rather than with `_`, and
+  never checked the resulting text against the POSIX shell identifier grammar
+  `[A-Za-z_][A-Za-z0-9_]*` — so an invalid identifier reached what the baseline believed
+  was a shell file that a POSIX shell in fact cannot source. The double-quoting choice
+  came from the same conflation: the baseline's namespace-value encoder emits a
+  quoted value here rather than the single-quoted shell escape §19.2 defines.
+- Clean behavior: §19.2 states that "keys must be valid shell identifiers after applying
+  root and delimiter: `[A-Za-z_][A-Za-z0-9_]*`. Invalid keys are `SHELL001`." The path `a-b`
+  contains a hyphen, which is not in the identifier alphabet, so exactly one `SHELL001`
+  is emitted at the path `a-b` and the destination `cfg.sh` under §22's cardinality. §21.2
+  aborts publication, so nothing is written and the run exits 1.
+- The difference is intentional: quoted-namespace output is defined as POSIX shell
+  assignment output, and the shell's identifier grammar is what makes such a file
+  `source`-able. An implementation that publishes an invalid identifier gives its caller a
+  file that cannot be read by the very consumer the format exists to serve, and that
+  publishes it under an extension (`properties`) that names a different consumer, so no
+  automated shell caller can tell it apart from a valid one until it is executed.
+
 ### `quoted-namespace-key-collision-is-blocking`
 
 - namespace2xml 2.4.0: **differs**.
@@ -934,6 +1134,38 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   `FLAT001` naming the view-relative path, and no file is written.
 - The difference is intentional: an output that loses a value is worse than an output that is
   refused, and the collision is a property of the projection rather than of the data.
+
+### `quoted-namespace-shell-quoting-preserves-hostile-values`
+
+- namespace2xml 2.4.0: **differs**. It exits 1 rather than the expected 0, writes no output,
+  and reports on standard output `Error reading input: Reference OutputRoot.b was not found
+  at OutputRoot.cfg.dollar [file: inputs/values.txt, line: 3]`. The whole run fails on one
+  value, `cfg.dollar=a\${b}c`, whose intent under §8.3 is a literal `${b}` that never
+  reaches reference resolution.
+- Contract: Section 8.3's value escape `\${` and Appendix A.3's ABNF, together with §19.2's
+  single-quote shell escape rule. Section 3.2 as a correction of behaviour "caused by
+  unhandled user-input exceptions".
+- Legacy observation: 2.4.0's namespace value lexer did not recognize `\${` as an escape.
+  The `\` was passed through as literal text and the `${b}` that followed it went to the
+  reference-recognition pass as a live reference. `b` was never defined at any input path,
+  so the reference machinery reported it as missing and blocked the run. Every other value
+  in this fixture would have exercised §19.2's shell quoting — the apostrophe, the
+  backtick, the double quote, the multiline `\n`, `hi!`, `a"b`, and so on — but the run
+  never reached the writer, because one earlier value in source order was rejected.
+- Clean behavior: §8.3 states that within an interpreted namespace-profile value "`\${`
+  emits literal `${`", and Appendix A.3's ABNF lists `\${` among the six recognized
+  `value-escape` alternatives. The value `a\${b}c` therefore reaches the common model as
+  the six-character string `a${b}c`, no reference is present at that path, and §19.2
+  emits it as `dollar='a${b}c'` — single-quoted, because "single-quote shell escaping ...
+  preserves spaces, `$`, backticks, double quotes, backslashes, exclamation marks, and
+  line breaks without expansion". The other seven values in the fixture cover every
+  hostile scalar §19.2 lists.
+- The difference is intentional: a shell template author writes `\${b}` to say "produce
+  the exact bytes `${b}` and do not consult the tool's reference machinery", and an
+  implementation that treats the sequence as a live reference has taken the escape
+  away from the very use case shell quoting exists for. The 3.0 rule fails no run at all
+  on this input; it emits a file the caller can `source` and get the seven hostile values
+  back byte-identical.
 
 ### `reference-typed-values-and-alias-addressing`
 
@@ -960,6 +1192,44 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   exists to document: the specification's alias index is what makes the same reference portable
   across formats, and a caller relying on it sees a run that produces nothing under the baseline
   rather than one that produces `app.properties`.
+
+### `root-wraps-uniformly-across-formats`
+
+- namespace2xml 2.4.0: **differs**. It exits 0 but produces a non-uniform mixture across
+  the six outputs the case exercises. `cfg.ini` writes `[x:y]` correctly and `cfg.xml`
+  writes `<x><y ... /></x>` correctly, but `cfg.json` is `{"name":"demo","port":8080}` and
+  `cfg.yaml` is `name: demo` / `port: 8080` — both with the `x.y` root wrap missing
+  entirely. `cfg.properties` is `x.y.name="demo"` with the value double-quoted rather than
+  bare, and **no `cfg.sh` file is produced at all**. On standard output the baseline logs
+  `Overriding output ... cfg.properties quotednamespace`, meaning it wrote the
+  quotednamespace projection over the namespace projection at the same filename.
+- Contract: Section 16.3 `root` uniformity across formats. Section 3.2 as a correction of
+  behaviour caused by "a synthetic internal root leaking into user-visible file names" —
+  the same class of defect makes the `.sh` extension go missing here.
+- Legacy observation: 2.4.0 applied `root` per-format rather than uniformly, and its
+  filename resolution treated `quotednamespace` and `namespace` as the same format for the
+  purpose of choosing the extension. The XML and INI writers implemented `root` because
+  their document models can wrap content in a labelled container without touching the
+  serialization of individual keys; the JSON and YAML writers were written before the
+  uniform-`root` rule was added and did not receive it. The quotednamespace output was
+  routed to `cfg.properties`, and its later contribution overrode the namespace output at
+  the same filename — which is what "Overriding output" means in the log — so the `.sh`
+  file was never opened and the namespace projection was replaced by a quoted-value
+  namespace file. Under the 3.0 rule these are independent output instances at independent
+  filenames, and none of them can override any of the others.
+- Clean behavior: §16.3 states that "the root path wraps the selected content uniformly"
+  and enumerates every format's rendering for `root=x.y`: "namespace output prefixes keys
+  with `x.y`; JSON emits `{"x":{"y":...}}`; YAML emits `x: { y: ... }` in normalized YAML
+  form; XML emits `<x><y>...</y></x>`; INI prefixes the section/key path with `x` and `y`."
+  §16.2's default-filename table gives each format its own extension, so six formats
+  produce six distinct destinations and no override occurs.
+- The difference is intentional: an author writing `root=x.y` is expressing one wrapping
+  choice for the whole invocation, and an implementation that applies it in three formats
+  and omits it in three has published outputs that no longer name the same logical
+  hierarchy. Downstream consumers that overlay the six files back on top of one another —
+  the whole reason cross-format conversion exists — will read four different roots. And a
+  writer that silently overwrites one destination with another at the same filename hides
+  a scheme mistake the caller could otherwise repair.
 
 ### `structured-bare-scalar-and-empty-documents`
 
@@ -1198,6 +1468,49 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   fixture cannot tell them apart from one divergent file. The fixture pins only that the bytes
   are wrong.
 
+### `xml-comments-are-invisible-to-alias-resolution`
+
+- namespace2xml 2.4.0: **differs**. It writes `r.xml` as
+  `<?xml version="1.0" encoding="utf-8"?>` on one line then `<r target="" use="" />` on
+  the next, and exits 0. Both scalar values (`value1` and its resolved reference) are
+  lost, and both elements are collapsed onto the root element as empty attributes. The
+  case expects the full three-child `<r>` with `<target>value1</target>`, the
+  `<!--annotation-->` comment retained as a node, and `<use>value1</use>` after reference
+  resolution.
+- Contract: Section 11.5 "XML comments are retained as ordered comment nodes"; Section 13.1
+  format-agnostic reference resolution, in which "XML comment content-token paths never
+  enter the simple alias index; comments have no scalar payload and are invisible to
+  format-agnostic reference resolution". Section 3.2 as a correction of insecure XML
+  handling only obliquely — the correction here is the neighbouring §11.5/§13.1 rule that
+  a comment is a document node, not a candidate for reference matching.
+- Legacy observation: 2.4.0's XML reader flattened every child element into an attribute
+  of the containing element, so the two `<target>` and `<use>` elements arrived at the
+  overlay as `@target=""` and `@use=""` with their text lost. Whatever the baseline did or
+  did not do with the intervening XML comment for alias resolution is invisible under this
+  reader shape, because there is no `<use>` element for a reference to survive into.
+- Clean behavior: the input's three ordered children are: `<target>value1</target>`, an
+  XML comment `<!--annotation-->`, and `<use>${r.target}</use>`. §11.5 keeps the comment
+  as a document node in its ordered position. §13.1 resolves the reference `${r.target}`
+  through the simple alias index; the comment content-token path never enters that
+  index, so it does not compete with `r.target` and the reference resolves unambiguously
+  to the string `value1`. §19.5 emits all three children in source order and the comment
+  survives as `<!--annotation-->`.
+- **The fixture's discrimination is weak in one direction.** An XML comment has no scalar
+  payload — §13.1 says so explicitly, "comments have no scalar payload and are invisible
+  to format-agnostic reference resolution" — and a wrong implementation that admitted
+  comments to the alias index would find no scalar to alias to at the comment path. So
+  either implementation resolves `${r.target}` to `value1` for this input; the case pins
+  the correct behaviour of the two clauses rather than trapping the specific defect of
+  admitting comments to the index. A separate fixture whose scheme creates a genuine
+  alias competition between an element name and a comment position would be needed to
+  trap it, and this preview does not carry one.
+- The difference is intentional: an XML comment is deliberately not a value, and using a
+  comment as a candidate for reference resolution would let a document author change what
+  a live value resolves to by adding or removing an annotation. The 3.0 reader also
+  preserves the child elements a legacy attribute-collapsing reader loses; the correction
+  makes the reference contract meaningful at all, because a run that lost its scalars
+  before the reference pass would fail the reference pass for entirely unrelated reasons.
+
 ### `xml-comments-are-ordered-content-nodes`
 
 - namespace2xml 2.4.0: **differs**.
@@ -1250,6 +1563,84 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   encoding this tool supports, and it is wrong here only because this particular file carries no
   UTF-16 byte-order mark and was therefore decoded as UTF-8. Both sources report, in the Section
   7.3 command-line order, so one run names every disagreeing file.
+
+### `xml-filemerge-replace-takes-whole-document`
+
+- namespace2xml 2.4.0: **differs**. It writes `out.xml` as
+  `<?xml version="1.0" encoding="utf-8"?>` on one line then `<doc r="3" s="4" />` on the
+  next, logs `Overriding output ... out.xml xml` on standard output, and exits 0. The case
+  expects `<doc><r>3</r><s>4</s></doc>` — the later contribution's whole document — with
+  one `WARN005` diagnostic reporting the destination collision. What the baseline emits
+  is neither the earlier plan nor the later plan: the two contributions have been
+  attribute-flattened onto one root element and the earlier document's `p` and `q` are
+  gone.
+- Contract: Section 16.11 `filemerge=replace` and Section 17.5 file-level collisions;
+  Section 3.2 correction against behaviour "caused by relying on `merge` to control
+  collisions between output instances; such schemes must use `filemerge`, while `merge`
+  remains recognized with input/common-model scope".
+- Legacy observation: 2.4.0 had no `filemerge` directive. The `b.filemerge=replace` line
+  was unrecognized and inert, so the two same-format contributions folded under the
+  baseline's default XML strategy — which flattens elements into attributes of one root,
+  the same defect visible in `xml-comments-are-invisible-to-alias-resolution` and
+  `contradictory-output-option-flags-are-scheme001`. The `Overriding output` log line is
+  the baseline's operational message for a destination collision; it names no code, no
+  phase, and no anchor and is written to standard output rather than a structured
+  diagnostic stream.
+- Clean behavior: §16.11 states that under `filemerge=replace` for same-format contributions
+  "the later same-format output contribution replaces the complete earlier visible document
+  model while retaining destination high-water state as specified in Section 17.5". §17.5
+  then says that "when the effective destination `filemerge` strategy is `replace`, the
+  later element's complete value — attributes, content tokens, comments, and children —
+  replaces the earlier element. Singleton/sequence classification and recursive child
+  merging are not applied to the replaced earlier element." The later contribution's
+  `<doc>` with `<r>` and `<s>` is therefore what `out.xml` contains; §22 emits one
+  `WARN005` for the folded contribution pair; the run succeeds with exit 0.
+- The difference is intentional: `filemerge` is the whole point of §3.2's correction
+  against "relying on `merge` to control collisions between output instances". Under
+  2.4.0's model, an author who wanted a later document to *replace* an earlier one at the
+  same destination had no directive to say so; the baseline chose a strategy for them,
+  and it chose a strategy that in this case corrupted both documents. The 3.0 rule gives
+  the author an explicit vocabulary — `deep`, `replace`, `append`, or `error` — and the
+  `WARN005` diagnostic tells them that a collision occurred and which way it was resolved.
+
+### `xml-input-merge-replace-takes-whole-element`
+
+- namespace2xml 2.4.0: **differs**. It writes `r.xml` as
+  `<?xml version="1.0" encoding="utf-8"?>` on one line, then `<r>` on the next, then a
+  single `<item child="" a="1" other="" b="2" />` collapsed onto one line, then `</r>`,
+  and exits 0. The case expects the later `<item>` — attributes `b="2"` and child
+  `<other>o1</other>` — to *replace* the earlier one outright. Two independent defects:
+  the two `<item>` elements are merged rather than the later one replacing the earlier,
+  and the child elements `<child>` and `<other>` have been attribute-flattened onto the
+  merged element as empty attributes with their text lost.
+- Contract: Section 17.4 XML `merge=replace` semantics; §3.2 correction against "relying
+  on `merge` to control collisions between output instances", where the neighbouring
+  half of the same correction is that input-scope `merge` remains recognized and must
+  apply to input-time element merging under §17.
+- Legacy observation: 2.4.0's `merge` directive was recognized but its input-time XML
+  behaviour did not implement `replace` at the element level. The two `<item>` occurrences
+  under `<r>` were folded by the same attribute-flattening path
+  `xml-comments-are-invisible-to-alias-resolution` documents: every child element became
+  an empty attribute on the containing element, and the two contributions' attributes
+  were unioned. The result is a single element carrying every original element's identity
+  as a same-named empty attribute, which is not any of the three well-defined merge
+  behaviours §17 lists (`deep`, `replace`, `append`) — it is the baseline's XML reader
+  and merger sharing a shape assumption the specification does not carry.
+- Clean behavior: §17.4 states that "when the effective destination `filemerge` strategy
+  is `replace`, the later element's complete value — attributes, content tokens, comments,
+  and children — replaces the earlier element. Singleton/sequence classification and
+  recursive child merging are not applied to the replaced earlier element." §16.10's
+  input-time `merge=replace` applies the same principle to two contributions at one input
+  path: "the later complete value replaces the earlier value. 'Value' here means payload,
+  container presence, children, and sequence projection". `r.item.merge=replace` therefore
+  discards `earlier.xml`'s `<item a="1"><child>c1</child></item>` outright, and the emitted
+  document is the later `<r><item b="2"><other>o1</other></item></r>` with indentation.
+- The difference is intentional: `replace` is the vocabulary an author uses to say "I want
+  the later document's `<item>` and none of the earlier one, at this exact path". An
+  implementation that merges the two attribute sets does not honour that intent, and one
+  that flattens child elements into attributes changes the shape of both contributions in
+  a way no `merge` value describes. The 3.0 rule leaves the semantics of the four `merge`
+  values in the author's hands rather than in the reader's.
 
 ### `xml-input-options-are-root-level-only`
 
@@ -1508,7 +1899,51 @@ each was measured by running the pinned 2.4.0 baseline against the case rather t
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs that crashed 2.4.0 (5)
+### `yaml-wildcard-template-in-a-native-key-is-declined`
+
+- namespace2xml 2.4.0: **differs**. It exits `0` and writes `a.yaml` containing four lines —
+  `- b: 1` / `  c: XXX` / `- b: 2` / `  c: XXX`. The case expects exit `70` and no output.
+- **The baseline output is correct, and this preview is the one that is wrong.** Those four
+  lines are Section 10.4's own worked example: the template `a.'*'.c=XXX` expanded against the
+  two sibling records under `a:`, each generated `c` merged into the record it belongs to. `a`
+  itself is absent from the document because the scheme sets `a.output=yaml`, which makes `a`
+  the output root rather than a key inside it. 2.4.0 implements the Section 10.4 enrichment on
+  this input; the 3.0 preview declines it. This is the only case in the corpus where the
+  baseline satisfies the specification and the clean implementation does not, and it is
+  recorded here rather than smoothed over because a differential lane that only ever flattered
+  the new implementation would not be evidence of anything.
+- Contract: Section 10.4, wildcard templates supplied as YAML. This is not a Section 3.1
+  preservation case or a Section 3.2 correction — it is a preview refusal, recorded in
+  `KNOWN-LIMITS.md` §1.1 for JSON and repeated for YAML: "**A wildcard in a key is declined**,
+  with exit `70` and no output, exactly as for JSON, and for the same §12.3 reason." The
+  missing machinery is §12.3's requirement that "template-bearing JSON or YAML branches are
+  extracted entry-by-entry", which the preview's structured reader cannot express because the
+  entry it emits carries an interpreted value.
+- Legacy observation: 2.4.0 extracted the wildcard entry from the mapping key `'*'` and expanded
+  it during its equivalent of the §12.4 fixed point, producing exactly the specified result. The
+  behaviour is not accidental for this shape of input; what 2.4.0 lacks is the surrounding
+  typed-payload and mapping-presence discipline that §10.4's "carrier ancestors created only to
+  contain an extracted template do not contribute mapping-presence marks" depends on, which is
+  why the capability is being rebuilt rather than ported.
+- Clean behavior once §10.4 lands: §10.4 states that "unescaped `*` and `*[identifier]` tokens
+  use the wildcard-template grammar" and that "wildcard template entries are extracted before
+  structural input merging and expanded during the fixed point in Section 12.4". The expected
+  document becomes the four lines above, and this fixture's `expected/` and
+  `expected-exit-code.txt` are rewritten to that at the same commit — which is the point of
+  pinning it now.
+- Why the fixture pins the refusal rather than the answer: `KNOWN-LIMITS.md` explains that "a
+  preview must never return either for work it did not do. It is a **refusal**, not a diagnostic
+  — the run decides no outcome at all, publishes nothing, and says on standard error which
+  capability it lacked." Exit `70` is deliberately outside the normative `0` and `1`. Pinning it
+  catches the two regressions that would otherwise be silent: a preview that starts guessing at
+  wildcard keys and emits plausible-but-unverified output, and a preview that returns `0` or `1`
+  for a capability it does not have.
+- The difference is **not** an improvement, and the migration notes should be read that way. For
+  this input a 2.x user gets the right file today and gets nothing from the preview. The
+  refusal is the honest interim behaviour, not the desired one, and closing it is a release
+  blocker for 3.0 final rather than a deferred nicety.
+
+## Inputs that crashed 2.4.0 (10)
 
 The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
 reports a diagnostic and exits deliberately.
@@ -1539,6 +1974,42 @@ reports a diagnostic and exits deliberately.
 - Legacy observation: the baseline terminates with an unhandled `System.AggregateException: One or more errors occurred. (Requested value 'mapping' was not found.)` and exits `-532462766`. The measurement records `exit -532462766 (expected 0); missing cfg.properties`.
 - Clean behavior: `type=mapping` is a recognized directive value under Section 16.6, so pipeline step 16 evaluates it, `cfg.m` renders as a mapping projection with numeric keys preserved and `key=name` then materializes records, `cfg.s` converts under `type=array`, and the whole run exits `0` writing the expected `cfg.properties`.
 - Why the difference is intentional: `type=mapping` is a value the 2.4.0 `type` directive did not accept -- the message text is that verbatim -- and the CLI has no handler for the `AggregateException` its enum parser wraps around `ArgumentException`. Section 3.2 lists "caused by unhandled user-input exceptions" among the behaviours the replacement must not preserve, so the correction is not merely to accept `type=mapping` but to report every recognizable scheme condition as a stable diagnostic with a code, a phase, and a specification anchor. The negative exit code and stack trace this fixture provokes are neither those things, and an automated caller cannot tell them apart from a runtime crash.
+
+### `type-mapping-suppresses-warn010-per-output-instance`
+
+- namespace2xml 2.4.0: **crashes**. It terminates with an unhandled
+  `System.AggregateException` wrapping `System.ArgumentException: Requested value 'mapping'
+  was not found.` — thrown from `Enum.Parse` inside
+  `Namespace2Xml.Formatters.Extensions.ParseValueType` — and exits 134 on Linux (the
+  runtime's SIGABRT convention). No output tree is written. The case expects exit 0, two
+  files, and no diagnostics.
+- Contract: Section 16.6 `type` recognized values (which lists `mapping` explicitly); §22's
+  requirement that every diagnostic carry a stable code, phase, and specification anchor;
+  Section 3.2 correction against behaviour "caused by unhandled user-input exceptions".
+- Legacy observation: `type=mapping` did not exist in 2.4.0. The baseline recognized only
+  a subset of the §16.6 vocabulary and reached its enum parser with the string `"mapping"`
+  unvalidated, so an ordinary `Enum.Parse` failure — the same one an unknown flag would
+  produce — became the process's termination reason. The CLI had no top-level handler for
+  the resulting `AggregateException`, so the exception propagated through the pipeline
+  entrypoint and the .NET runtime aborted the process. This is the same class of defect
+  as `xml-sequence-attribute-projection-is-type001` in this corpus, which crashes on the
+  string `"attribute"` for the same reason.
+- Clean behavior: §16.6 lists `mapping` among the recognized values and describes it as
+  "the explicit escape hatch for preserving numeric keys as mapping keys rather than
+  projecting them as an array". The `first` selector's `data.type=mapping` directive
+  therefore keeps `data.2=x` / `data.7=y` as-is, while `second`'s `data` — an inferred
+  sequence under §8.7 — renders with fresh dense indices `0` and `1`. Both writers produce
+  their expected files and exit 0. The fixture also covers §22's per-instance suppression
+  of `WARN010`: the mapping-inferred sequence at `first.data` is projected as a mapping in
+  its own output, so no `WARN010` fires for that instance, while `second.data`'s inferred
+  sequence remains sequential in its own output and does raise it — the observation the
+  fixture's title names.
+- The difference is intentional: an unrecognized scheme value that ought to raise `SCHEME001`
+  and abort planning cannot be allowed to abort the process, because an automated caller
+  reading the exit code and standard error cannot tell an unhandled-exception exit apart
+  from a runtime crash. §3.2 lists "caused by unhandled user-input exceptions" among the
+  behaviours the replacement must not preserve, and this crash is exactly the shape that
+  bullet names.
 
 ### `xml-element-only-children-keep-their-place`
 
@@ -1584,6 +2055,168 @@ reports a diagnostic and exits deliberately.
   reports a nonempty scalar value that names an illegal option/type combination cleanly and
   exits `1`; letting the enum parser propagate its `ArgumentException` all the way to the
   process boundary is the unhandled-exception class Section 3.2 removes.
+
+### `xml-sequence-attribute-projection-is-type001`
+
+- namespace2xml 2.4.0: **crashes**. It terminates with an unhandled
+  `System.ArgumentException: Requested value 'attribute' was not found.` from `Enum.Parse`
+  inside `Namespace2Xml.Formatters.Extensions.ParseValueType`, and exits 134 on Linux (the
+  runtime's SIGABRT convention). No output tree is written. The case expects exit 1 with
+  one `TYPE001` diagnostic naming the path `tag` and the destination `cfg.xml`.
+- Contract: Section 16.6 `type` recognized values (which lists `attribute` explicitly, but
+  did not in 2.4.0); §19.5's rule that `attribute` "is `TYPE001` because one XML attribute
+  cannot represent repeated values"; §22's requirement that every diagnostic carry a
+  stable code, phase, and specification anchor; §3.2 correction against behaviour "caused
+  by unhandled user-input exceptions".
+- Legacy observation: this is the same defect the `type-mapping-suppresses-warn010-per-output-instance`
+  fixture crashes on, with a different string. `type=attribute` was not a value 2.4.0's
+  enum parser recognized; the string reached `Enum.Parse` unvalidated and threw
+  `ArgumentException`, which the CLI did not catch. `type=attribute` **is** an XML-specific
+  value in 3.0, and it is legal on a scalar. What this case exercises is applying it to a
+  *sequence* — the JSON `["v1","v2"]` at `cfg.tag` — which §19.5 refuses with `TYPE001`.
+  The baseline never gets that far: the enum parser fails before the sequence is even
+  inspected, so the correction here is layered. The unhandled-exception defect must be
+  fixed first before the specific `TYPE001` refusal can be observed at all.
+- Clean behavior: §19.5 states that "at a sequence path ... `attribute` is `TYPE001`
+  because one XML attribute cannot represent repeated values". §22 counts `TYPE001` once
+  per path and applicable output instance, so exactly one diagnostic is emitted at path
+  `tag` for destination `cfg.xml` with anchor `§19.5`. §21.2's global validation gate
+  aborts publication, no `cfg.xml` is written, and the run exits 1.
+- The difference is intentional: an unrecognized scheme value that ought to raise
+  `SCHEME001`, and a legal scheme value applied to a shape it does not support that ought
+  to raise `TYPE001`, are both blocking scheme conditions the 3.0 tool must catch
+  structurally. Neither can be allowed to abort the process, because an automated caller
+  reading the exit code and standard error cannot tell an unhandled-exception exit apart
+  from a runtime crash, and the specific defect the fixture pins is invisible in a run
+  that never reaches the check.
+
+### `xml-sequence-projection-covers-mapping-children-scalars-records-and-root`
+
+- namespace2xml 2.4.0: **crashes**. It terminates with `System.Xml.XmlException: Name
+  cannot begin with the '0' character, hexadecimal value 0x30.` from
+  `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle`, and exits 134 on Linux (the
+  runtime's SIGABRT convention). A zero-length `main.xml` is left behind in the output
+  directory before the process aborts. The case expects exit 0 and two files, `main.xml`
+  and `servers.xml`, with the sequence contents of `cfg.port` and `cfg.server` rendered
+  as repeated sibling elements.
+- Contract: Section 19.5 XML sequence projection — "a sequence-valued mapping child
+  therefore renders as repeated sibling elements whose expanded name is the sequence path's
+  final element component"; §3.2 corrections against behaviour "caused by unhandled
+  user-input exceptions" and against outputs "opened before the complete output plan was
+  validated" (the zero-length file is a partial output that a §15.4 pre-publication check
+  would prevent).
+- Legacy observation: 2.4.0 had no §19.5 XML sequence projection. It walked the common
+  model naively into the XML writer, so a sequence node's numeric ordering-value children
+  reached `ToXmlValueSingle` as element name strings — the first is `0`, which is not a
+  legal XML NCName because NCNames may not begin with a digit. `XmlException` propagated
+  through the writer, and the file it had already opened for writing was left as an empty
+  file rather than deleted. The `servers.xml` output was never reached because the process
+  aborted on `main.xml`.
+- Clean behavior: §19.5 states that "a sequence-valued mapping child therefore renders as
+  repeated sibling elements whose expanded name is the sequence path's final element
+  component". `cfg.port` therefore renders as `<port>8080</port><port>8081</port>` under
+  `<cfg>`, and `cfg.server` — a sequence of records — renders as two repeated `<server>`
+  elements each containing `<name>` and `<host>`. §19.5's rule that "an output view whose
+  document root is itself a sequence requires `root` with at least two element
+  components" is what makes `servers.xml` legal: `cfg.server.root=servers.server` creates
+  the wrapping `<servers>` and names each item `<server>`.
+- The difference is intentional: the whole point of §19.5's sequence projection rule is
+  that XML has no anonymous sequence node, so a sequence must be expressed by *repetition*
+  of a named element rather than by naming each item after its ordering value. Writing the
+  index `0` as an element name is illegal XML and is refused by every conforming reader,
+  so an implementation that emits it produces a document nothing can consume. The 3.0
+  correction also fixes the partial-file symptom: no output is opened until §15.4's
+  validation phase completes, so a run that would have crashed never touches its
+  destination and its caller can rerun without cleaning up stale bytes.
+
+### `xml-singleton-promotion-does-not-retarget-references`
+
+- namespace2xml 2.4.0: **crashes**. It terminates with the same `System.Xml.XmlException:
+  Name cannot begin with the '0' character, hexadecimal value 0x30.` from
+  `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle` that
+  `xml-sequence-projection-covers-mapping-children-scalars-records-and-root` documents, and
+  exits 134 on Linux. A zero-length `r.xml` is left behind. The case expects exit 1 with
+  one `WARN004` naming the concatenation at `r.b` and one blocking `REFERENCE005` naming
+  the reference at `r.ref`.
+- Contract: Section 11.4 canonical XML addressing — "singleton-to-sequence promotion changes
+  the canonical child address. A singleton `<b>` is addressed as `a.b`; after the merged
+  model contains repeated `<b>` children, their canonical paths are `a.b.<ordering-value>`
+  and the former singleton path no longer names a scalar or element"; §13.3 "non-scalar
+  references"; §8.7 native implicit sequence concatenation. §3.2 corrections against
+  behaviour "caused by unhandled user-input exceptions" and against silent retargeting
+  of a promoted singleton.
+- Legacy observation: this is the same underlying defect that
+  `xml-sequence-projection-covers-mapping-children-scalars-records-and-root` crashes on.
+  The overlay of `base.xml` and `overlay.xml` produces three `<b>` children under `<r>`
+  — one contributing `ONE`, one `TWO`, one `THREE` — and 2.4.0's XML writer walked the
+  resulting sequence directly into `ToXmlValueSingle` with the first item's ordering
+  value `0` as the element name string. The reference `${r.b}` was never evaluated
+  because the process aborted before reference resolution ran; whatever 2.4.0 might have
+  done with the promoted-singleton reference is invisible under this crash.
+- Clean behavior: §11.4's "singleton-to-sequence promotion changes the canonical child
+  address" turns `r.b`'s three contributions into `r.b.0`, `r.b.1`, and `r.b.2`; the
+  path `r.b` no longer names a scalar or element. §8.7 emits one `WARN004` for the
+  implicit-sequence concatenation. §13.3 then resolves `${r.b}` and fails: the reference
+  addresses a former singleton whose canonical spelling is now a sequence, and §13.3
+  states that "mapping, sequence, XML element, comment, and other structured-node
+  references are unsupported and are blocking reference errors". One `REFERENCE005` is
+  emitted at path `r.ref` under §22's "once per reachable owning value" cardinality, and
+  the run exits 1 with no output tree.
+- The difference is intentional: an implementation that writes a sequence ordering value
+  as an XML element name produces illegal XML and cannot even reach the reference-
+  resolution defect this fixture pins. Once the sequence is spelled correctly with
+  repeated `<b>` elements at the parent's ordinary positions, the reference-resolution
+  rule §13.3 makes explicit — that a promoted singleton is no longer a scalar-payload
+  target — becomes the observable, and the case's `REFERENCE005` at `r.ref` fails
+  the run in the honest way §3.2 requires: with a diagnostic carrying a code, a phase,
+  and a specification anchor rather than with a process termination.
+
+### `xml-typed-components-recognized-and-json-yaml-marker-keys-stay-literal`
+
+- namespace2xml 2.4.0: **crashes**. It terminates with the same `System.Xml.XmlException:
+  Name cannot begin with the '0' character, hexadecimal value 0x30.` from
+  `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle` that the two neighbouring XML
+  crash fixtures document, and exits 134 on Linux. A zero-length `r.xml` is left behind.
+  The case expects exit 0, `r.xml` containing the merged `<r>` with both attributes
+  (`nsattr="ATTRVAL"` and `varattr="VAR_VAL"`) and three child elements (`<nsattr>`,
+  `<body>`, `<ref>` with the resolved reference `ATTRVAL`), and `lit.properties` containing
+  the escaped-marker key `\@key=literalval`.
+- Contract: Section 11.4 canonical XML addressing (typed marker components `@`, `#n`, and
+  `Q{...}` recognized in namespace input) and Section 8.2 marker recognition (an escaped
+  `\@` is an ordinary literal name part). Section 19.1 record-leading escape rules for
+  ordinary components with typed-marker text. §3.2 correction against behaviour "caused
+  by unhandled user-input exceptions".
+- Legacy observation: this is the same underlying defect the two preceding XML crash
+  fixtures document. 2.4.0's sequence path through the XML writer reached `ToXmlValueSingle`
+  with an integer element-name string and threw. The specific rules the case exists to pin —
+  that `r.@nsattr` and `r.varattr` (the CLI variable) are typed attribute components
+  reaching the XML writer as one attribute-name space, that `r.nsattr` (no `@`) is a
+  child element sharing the local name with the attribute rather than colliding with it
+  under the alias index, that `r.ref` resolves through the alias index to the attribute's
+  scalar `ATTRVAL`, and that on the JSON side `lit.@key` reaches the namespace writer as
+  the escaped literal `\@key` because the JSON reader does not build typed components —
+  are all invisible under this crash. The process aborted before any of the four values
+  reached a writer.
+- Clean behavior: §11.4's marker components govern the XML side. `r.@nsattr` and the CLI
+  variable `r.@varattr` are canonical attribute components under `<r>`; §11.4's
+  scalarization rule ("an attribute owns its string scalar at its attribute path") makes
+  them each scalar-payload-bearing at their attribute paths, so `${r.@nsattr}` resolves
+  canonically to `ATTRVAL`. `r.nsattr` (no `@`) is a child-element component sharing a
+  local name with the attribute; the two are distinct canonical paths but share a simple
+  alias, and the alias-competition rule §11.4 states — "an XML attribute and unqualified
+  child element both named `x` make `${a.x}` ambiguous; `${a.@x}` selects the attribute"
+  — is what makes this reference unambiguously canonical. `root=Q{}r` is the explicit
+  spelling that pins the child-element resolution rather than the alias — the acceptance
+  clause the fixture's title names. On the JSON side, §8.2's rule that "JSON and YAML
+  mapping keys are always one ordinary literal component and never acquire XML node kind
+  from marker-shaped text" makes `lit.@key` a literal name whose namespace-output
+  spelling under §19.1 is `\@key`.
+- The difference is intentional: an implementation that crashes on the sequence numeric
+  index cannot be run at all, so no other §11.4 or §8.2 rule is observable against it —
+  including the four independent rules this fixture pins together. Fixing the XML writer
+  to emit repeated named elements is necessary before the marker vocabulary this case
+  exercises can be evidenced. As with the two neighbouring crashes, §3.2 lists the
+  unhandled-exception class among the corrections and this case is the shape it names.
 
 ### `yaml-section-22-line-terminators`
 
@@ -1686,7 +2319,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (26)
+## Same observable result as 2.4.0 (27)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -1976,6 +2609,44 @@ those that name a shared reason are behaviour 3.0 preserved.
 - Clean behavior: `WILDCARD002` names `a.*` as the responsible rule, exit code 1, no output.
 - The observable agreement is therefore not evidence of compatibility on the rule the fixture
   pins.
+
+### `namespace-parse001-classification-and-literal-star`
+
+- namespace2xml 2.4.0: **agrees** on the observable — exit 1 and no output tree — but the
+  agreement is weak, and this fixture is written to say so plainly.
+- Contract: Section 8.1 record classification (rule 5, unclassified records) and Section 8.2
+  qualified-name grammar (unterminated `\u{HEX}` escape), together with Section 22's diagnostic
+  registry. Section 3.2 lists behaviour "caused by unhandled user-input exceptions" as one of
+  the corrections; this case pins the diagnostic version of that correction rather than the
+  raw refusal.
+- Legacy observation: 2.4.0 reads both failing files and reports each on standard output as
+  a free-form log line — `Error parsing input: unexpected '<newline>', file: inputs/malformed.txt,
+  line: 1, column: 13` for the record with no `=`, and `Error parsing input: unexpected '.', file:
+  inputs/bad-escape.txt, line: 1, column: 4` for the malformed `\u{D800}` escape. The exit
+  code is 1 and no output tree is written, which is what the case expects and what makes
+  the harness's tree/exit comparison green. But the two column numbers 13 and 4 do not match
+  the case's `column: 1` and `column: 5` (Appendix A.4 anchors the `\u{HEX}` column at the
+  opening `\`, not at the byte the parser first refused). Neither log line carries a
+  diagnostic code, a severity, a phase, or a specification anchor; both are printed to the
+  wrong stream; and 2.4.0 has no structured `--diagnostics-format json` mode a machine could
+  consume in place of the text. The Appendix C.6 harness compares only exit code and output
+  tree, so it sees none of that.
+- Clean behavior: §8.1 rule 5 states that "any remaining record without a separating `=` is
+  `PARSE001`" and §8.2 says "values above U+10FFFF, values in the surrogate range U+D800
+  through U+DFFF, empty digit strings, and malformed or unterminated forms are `PARSE001`".
+  Two `PARSE001` diagnostics are therefore emitted, one per failing source under §22's
+  "once per failing source" cardinality, each carrying the `phase`, `source`, `line`,
+  `column`, and `spec` anchor §22 requires. §15.4's blocking-error recovery aborts the run
+  and §21.2's validation gate publishes nothing.
+- The difference is intentional: an implementation whose diagnostics have no stable code and
+  no specification anchor cannot be consumed by an automated caller, and a text log stream
+  that mixes with informational output is byte-unstable across runs. `agrees` is honest for
+  the observable, and the honest reading is that both versions rejected the input rather
+  than that they agree about what is wrong with it or where it is wrong. This fixture pins
+  the correct behaviour and, in particular, that two malformed sources produce two diagnostics
+  under §22's once-per-failing-source cardinality — but it cannot, against this baseline,
+  evidence anything about diagnostic layout, because the baseline has nothing structured to
+  compare.
 
 ### `reference-alias-ambiguity-lists-candidates`
 

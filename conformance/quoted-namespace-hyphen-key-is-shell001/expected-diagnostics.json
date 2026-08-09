@@ -1,0 +1,3 @@
+[
+{"code":"SHELL001","severity":"error","phase":"planning","path":"a-b","destination":"cfg.sh","spec":"§19.2"}
+]

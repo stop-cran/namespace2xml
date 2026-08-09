@@ -83,10 +83,15 @@ $rendered = foreach ($number in ($items.Keys | Sort-Object { [int]$_ })) {
         fixtures   = @($fixtures)
     }
 
-    # Appendix C.5: an item a fixture cannot discharge names gates, and must argue the exemption.
+    # Appendix C.5: an item a fixture cannot discharge names gates instead.
     if ($gates.Count -gt 0) {
         $entry['gates'] = @($gates)
-        if ($fixtures.Count -eq 0) { $entry['whyNotAFixture'] = $whyNotAFixture }
+    }
+
+    # An item with no fixture argues why — whether it is discharged by gates or not discharged yet.
+    # Restricting this to gate-bearing items hid the uncovered ones, which are the ones worth seeing.
+    if ($fixtures.Count -eq 0 -and $whyNotAFixture) {
+        $entry['whyNotAFixture'] = $whyNotAFixture
     }
 
     $entry

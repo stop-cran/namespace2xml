@@ -133,9 +133,9 @@
         "The marker is an addressing annotation and not part of a component identity: a.Q{}b and a.b remain one overlay node, and no canonical path is ever spelled with an empty qualifier."
       ],
       "fixtures": [
+        "an-empty-qualifier-escapes-the-alias-ambiguity",
         "reference-alias-ambiguity-lists-candidates",
-        "reference-typed-values-and-alias-addressing",
-        "an-empty-qualifier-escapes-the-alias-ambiguity"
+        "reference-typed-values-and-alias-addressing"
       ]
     },
     {
@@ -164,7 +164,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "yaml-wildcard-template-in-a-native-key-is-declined"
+      ]
     },
     {
       "item": 13,
@@ -291,7 +293,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "root-wraps-uniformly-across-formats"
+      ]
     },
     {
       "item": 22,
@@ -379,13 +383,13 @@
         "A destination filemerge=replace discards the accumulated items at a sequence path below the declaration without lowering that path's high-water mark, and the accumulator absorbs that mark before allocating, so the replacing contribution's own implicit item allocates above every discarded value and later explicit items at the values the discarded items had used land beside it rather than patching it."
       ],
       "fixtures": [
-        "destination-fold-follows-wildcard-match-order",
         "a-cross-format-collision-replaces-the-earlier-plan",
-        "folded-implicit-items-rebase-above-the-destination-mark",
-        "filemerge-error-rejects-a-second-contribution",
-        "one-destination-folds-by-format-before-match-order",
         "a-refused-fold-is-reported-once-per-destination",
-        "a-replaced-destination-keeps-the-high-water-mark"
+        "a-replaced-destination-keeps-the-high-water-mark",
+        "destination-fold-follows-wildcard-match-order",
+        "filemerge-error-rejects-a-second-contribution",
+        "folded-implicit-items-rebase-above-the-destination-mark",
+        "one-destination-folds-by-format-before-match-order"
       ]
     },
     {
@@ -394,7 +398,10 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "quoted-namespace-hyphen-key-is-shell001",
+        "quoted-namespace-shell-quoting-preserves-hostile-values"
+      ]
     },
     {
       "item": 28,
@@ -402,7 +409,8 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [],
+      "whyNotAFixture": "No fixture can discharge this item and no gate does yet. The claim is about how the documented INI dialect behaves in parsers this project does not ship, so establishing it needs both a specification decision naming which parsers are normative and harness machinery to run them. KNOWN-LIMITS.md section 2.1 records it as the largest remaining gap in the corpus."
     },
     {
       "item": 29,
@@ -528,9 +536,9 @@
       ],
       "fixtures": [
         "yaml-indentation-block-scalars-and-quoting",
-        "yaml-scalars-survive-a-same-format-round-trip",
         "yaml-restricted-schema-and-scalar-kinds",
         "yaml-restricted-schema-refusals",
+        "yaml-scalars-survive-a-same-format-round-trip",
         "yaml-section-22-line-terminators"
       ]
     },
@@ -563,7 +571,10 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "contradictory-output-option-flags-are-scheme001",
+        "later-output-options-replace-earlier-set-completely"
+      ]
     },
     {
       "item": 41,
@@ -713,9 +724,9 @@
         "Section 22 counts PATH001 once per destination, and Section 16.2 appends no format extension to an explicit filename, so two formats sharing one rejected filename are one destination and one diagnostic."
       ],
       "fixtures": [
-        "filename-captures-are-opaque-segment-data",
+        "a-rejected-filename-is-reported-once-for-two-formats",
         "a-written-traversal-segment-is-rejected",
-        "a-rejected-filename-is-reported-once-for-two-formats"
+        "filename-captures-are-opaque-segment-data"
       ]
     },
     {
@@ -881,7 +892,11 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "xml-comments-are-invisible-to-alias-resolution",
+        "xml-filemerge-replace-takes-whole-document",
+        "xml-input-merge-replace-takes-whole-element"
+      ]
     },
     {
       "item": 64,
@@ -895,9 +910,9 @@
         "The cross-format high-water reset is not observable in any published output on any platform, because Section 5.4 renders namespace and INI with fresh dense indices and the structured formats carry no indices at all. It is pinned by DestinationFoldTests.ACrossFormatReplacementDiscardsTheDestinationHighWaterMark instead, which a per-path carry-forward implementation fails."
       ],
       "fixtures": [
-        "filename-captures-are-opaque-segment-data",
+        "cross-format-replacement-renumbers-the-destination-order",
         "destinations-differing-only-by-case-collide",
-        "cross-format-replacement-renumbers-the-destination-order"
+        "filename-captures-are-opaque-segment-data"
       ]
     },
     {
@@ -906,7 +921,10 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "a-literal-asterisk-in-an-ordinary-value-reaches-the-output",
+        "namespace-parse001-classification-and-literal-star"
+      ]
     },
     {
       "item": 66,
@@ -937,7 +955,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "type-mapping-suppresses-warn010-per-output-instance"
+      ]
     },
     {
       "item": 69,
@@ -958,7 +978,10 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "xml-sequence-attribute-projection-is-type001",
+        "xml-sequence-projection-covers-mapping-children-scalars-records-and-root"
+      ]
     },
     {
       "item": 71,
@@ -966,7 +989,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "xml-typed-components-recognized-and-json-yaml-marker-keys-stay-literal"
+      ]
     },
     {
       "item": 72,
@@ -1028,7 +1053,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "multiline-on-lone-scalar-empty-sequence-and-scalar-null-sequence"
+      ]
     },
     {
       "item": 77,
@@ -1046,7 +1073,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "xml-singleton-promotion-does-not-retarget-references"
+      ]
     },
     {
       "item": 79,
@@ -1054,7 +1083,9 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": []
+      "fixtures": [
+        "key-generates-a-string-name-and-moves-comments"
+      ]
     },
     {
       "item": 80,

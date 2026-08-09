@@ -211,6 +211,51 @@ public class TraceabilityTests
         return dot < 0 ? name : name[(dot + 1)..];
     }
 
+    /// <summary>
+    /// Appendix C.5: every acceptance item is discharged by a fixture or by a gate, and an item that
+    /// has neither must say so in the manifest.
+    /// <para>
+    /// <see cref="EveryRequiredItemHasAFixture"/> only inspects items already promoted to
+    /// <c>required</c>, so an item that is still <c>pending</c> could carry no evidence at all and no
+    /// test would notice. That is the state the corpus was in for most of its life, and it is
+    /// invisible precisely when it matters — while the corpus is being filled in. This gate makes the
+    /// uncovered set explicit: an item may be uncovered, but only out loud.
+    /// </para>
+    /// <para>
+    /// The check is two-way. Leaving an item uncovered without a reason fails, and so does writing a
+    /// reason for an item that has since been covered, so a stale exemption cannot outlive the gap it
+    /// described.
+    /// </para>
+    /// </summary>
+    [Test]
+    public void EveryItemIsDischargedByAFixtureAGateOrAnArgument()
+    {
+        foreach (var item in Items)
+        {
+            var number = item.GetProperty("item").GetInt32();
+            var covered = item.GetProperty("fixtures").GetArrayLength() > 0
+                || (item.TryGetProperty("gates", out var gates) && gates.GetArrayLength() > 0);
+
+            var argued = item.TryGetProperty("whyNotAFixture", out var why)
+                && !string.IsNullOrWhiteSpace(why.GetString());
+
+            if (!covered)
+            {
+                argued.ShouldBeTrue(
+                    $"acceptance item {number} names no fixture and no gate, and does not say why. "
+                    + "An item may be uncovered, but Appendix C.5 requires the gap to be argued in "
+                    + "the manifest so that it is visible rather than merely absent.");
+            }
+            else if (item.GetProperty("fixtures").GetArrayLength() > 0)
+            {
+                argued.ShouldBeFalse(
+                    $"acceptance item {number} names a fixture and still carries whyNotAFixture. "
+                    + "An exemption that outlives the gap it described is worse than none, because "
+                    + "it reports a hole that has been filled.");
+            }
+        }
+    }
+
     private static IEnumerable<JsonElement> Required() =>
         Items.Where(item => item.GetProperty("status").GetString() == "required");
 

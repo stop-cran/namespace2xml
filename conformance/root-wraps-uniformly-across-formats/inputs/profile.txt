@@ -1,0 +1,2 @@
+cfg.name=demo
+cfg.port=8080

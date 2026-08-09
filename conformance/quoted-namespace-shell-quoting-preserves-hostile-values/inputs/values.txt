@@ -1,0 +1,8 @@
+cfg.simple=hello world
+cfg.apost=can't
+cfg.dollar=a\${b}c
+cfg.backtick=a`b
+cfg.backslash=a\\b
+cfg.bang=hi!
+cfg.dquote=a"b
+cfg.newline=line1\nline2

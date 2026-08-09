@@ -1,0 +1,2 @@
+cfg.bare=star-*
+cfg.escaped=star-\*

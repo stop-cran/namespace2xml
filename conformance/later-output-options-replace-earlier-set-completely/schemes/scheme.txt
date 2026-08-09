@@ -1,0 +1,4 @@
+cfg.output=xml
+cfg.root=cfg
+cfg.xmloutputoptions=NoIndent,PreserveCData
+cfg.xmloutputoptions=NoDeclaration

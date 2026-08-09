@@ -1,0 +1,4 @@
+# comment on 42
+cfg.42.value=1
+# comment on other
+cfg.other.value=2

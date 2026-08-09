@@ -91,7 +91,12 @@ it.
 - **Anchors, aliases, tags and merge keys are refused rather than retained.** A comment attached to
   a construct that §10.2 declines never reaches the model, because the document does not.
 - **A wildcard in a key is declined**, with exit `70` and no output, exactly as for JSON, and for the
-  same §12.3 reason. `\*` for a literal asterisk works.
+  same §12.3 reason. `\*` for a literal asterisk works. **This one is a regression against 2.4.0.**
+  The differential lane measured 2.4.0 producing §10.4's worked example correctly for
+  `conformance/yaml-wildcard-template-in-a-native-key-is-declined`, so for that input a 2.x user
+  gets the right file today and gets nothing from this preview. It is the only case in the corpus
+  where the baseline satisfies the specification and this implementation does not. Closing it is a
+  blocker for 3.0 final rather than a deferred nicety.
 - **`substitute` is parsed and not applied**, again as for JSON and every other format.
 
 One §10.1 clause is under-determined and this preview chose a reading. §10.1 lists merge keys among

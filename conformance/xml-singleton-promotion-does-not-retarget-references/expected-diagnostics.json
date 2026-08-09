@@ -1,0 +1,4 @@
+[
+{"code":"WARN004","severity":"warning","phase":"input","path":"r.b","spec":"§8.7"},
+{"code":"REFERENCE005","severity":"error","phase":"planning","source":"inputs/base.xml","line":1,"column":19,"path":"r.ref","spec":"§13.3"}
+]

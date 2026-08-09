@@ -1,0 +1,6 @@
+cfg.output=xml
+cfg.root=cfg
+cfg.filename=main.xml
+cfg.server.output=xml
+cfg.server.root=servers.server
+cfg.server.filename=servers.xml

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cfg>
+  <port>8080</port>
+  <port>8081</port>
+  <server>
+    <name>a</name>
+    <host>h1</host>
+  </server>
+  <server>
+    <name>b</name>
+    <host>h2</host>
+  </server>
+</cfg>
