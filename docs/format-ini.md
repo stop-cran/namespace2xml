@@ -211,7 +211,8 @@ directive (§16.5) to project the sequence into a mapping of records first.
 For an output whose root is a bare scalar — `k=1` with scheme `k.output=ini` — the specification
 says INI "retains the final concrete selector part as a global key" (§19.6), so the file is
 `k=1`. Verified. What happens when `root` is added on top of that (`k.root=s`) is a **specification
-ambiguity** — see the open questions at the end. Do not rely on either reading.
+ambiguity** — see the open questions at the end, `KNOWN-LIMITS.md` §1.19, and
+[#54](https://github.com/stop-cran/namespace2xml/issues/54). Do not rely on either reading.
 
 ## Values
 
@@ -415,7 +416,8 @@ Two things the specification does not settle that a reader might reasonably ask:
    section." Read naturally, `k=1` with `k.output=ini` + `k.root=s` should emit `[s]` / `k=1`;
    read against §16.3, it should emit `s=1`. The tool emits `s=1`. Which reading is normative is
    not decidable from §19.6 alone. Do not rely on either behaviour for a bare-scalar root
-   combined with `root`.
+   combined with `root`. Filed as
+   [#54](https://github.com/stop-cran/namespace2xml/issues/54).
 2. **Sequences in INI beyond dense global keys.** §8.7 requires INI to "display fresh dense
    indices where its projection requires indices" but §19.6 does not describe sequence
    projection specifically. The current writer treats a numeric mapping key inside a container

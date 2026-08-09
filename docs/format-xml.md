@@ -425,8 +425,10 @@ Verified behaviour:
 
 `NewLineOnAttributes` is specified as placing each attribute *after the first* on its own line,
 indented two spaces beyond the owning start tag (§16.9). This build places *every* attribute on
-its own line, including the first. See the closing report for the disagreement, and
-`KNOWN-LIMITS.md` §1.18 for the tracked entry and why no default run is affected.
+its own line, including the first. The disagreement is filed as
+[#53](https://github.com/stop-cran/namespace2xml/issues/53) and tracked in `KNOWN-LIMITS.md` §1.18,
+which records why no default run is affected. No fixture exercises the flag, so do not rely on
+either spelling until the issue is settled.
 
 ## XML output
 

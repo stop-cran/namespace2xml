@@ -500,7 +500,42 @@ content back in this project's hands for a purely cosmetic, opt-in flag.
 No fixture covers the flag at all, which is why the divergence survived; that gap is the part worth
 closing first. The flag is not in the default `Indent,PreserveCData,Declaration`, so no default run
 is affected. Which side moves — the writer or the clause — is a decision for review rather than for
-whichever is cheaper, and is tracked as a bug against §16.9 until then.
+whichever is cheaper, and is tracked as
+[#53](https://github.com/stop-cran/namespace2xml/issues/53) until then.
+
+### 1.19 `root` on a bare-scalar INI output root has two readings
+
+§16.3 says the output selector prefix is removed and "the original selector name is not retained
+unless it is also present in the `root` value". §19.6 says that when the selected output root is a
+bare scalar, "INI retains the final concrete selector part as a global key" and that "`root` may
+place it in a section", with root parts being "section-path parts rather than part of the key text".
+
+For `k=1` with `k.output=ini` and `k.root=s`, the first clause gives `s=1` and the second gives
+`[s]` with `k=1`. This build emits `s=1`. **verified**
+
+It honours §19.6's retention only while `root` is absent — `k=1` alone emits `k=1` — and switches to
+§16.3's replacement as soon as `root` appears, which also makes the bare-scalar case behave
+differently from the ordinary one directly beside it: `a.k=1` with `a.root=x.y` emits `[x:y]` and
+`k=1`, keeping the key and treating root as a section path.
+
+The one fixture that combines INI with `root`, `ini-projection-and-section-order`, pins only the
+ordinary case, so nothing currently pins this one. Tracked as
+[#54](https://github.com/stop-cran/namespace2xml/issues/54); `docs/format-ini.md` documents the
+question rather than either answer.
+
+### 1.20 `WARN009` binds by existence, where §22 says effectiveness
+
+§22 gives the `WARN009` condition as a directive that "binds to no effective output or path"; §15.2
+gives it as one that "binds to no concrete output instance". §16.1 keeps an `output=ignore` instance
+in existence so a later declaration can restore it, so a directive landing on an ignored instance
+binds under §15.2 and does not bind under §22.
+
+This build emits no warning: the directive binds to the instance that exists. **verified**
+
+The behaviour predates the entry and was preserved rather than chosen. Both existing `WARN009`
+fixtures concern selectors that bind to nothing at all, which the two readings agree about, so
+nothing pins this case either way. Tracked as
+[#55](https://github.com/stop-cran/namespace2xml/issues/55).
 
 ## 2. Acceptance coverage
 
