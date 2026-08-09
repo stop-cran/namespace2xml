@@ -26,8 +26,14 @@ pretending to succeed.
 The tool currently transforms **every input format and every output format the specification
 defines**, end to end: namespace-profile, JSON, YAML and XML input, overlaying, references,
 templates, output planning, and publication of namespace, quoted-namespace, INI, JSON, YAML and XML
-destinations. One capability remains unbuilt — scheme files written in a structured format — and it
-is refused rather than approximated.
+destinations. **Three** capabilities remain unbuilt, and each is refused rather than approximated.
+One of the three — scheme files in a structured format — is further split by the table below,
+because §15 determines the JSON and YAML projection and never states the XML one.
+
+Two of them were missing from this list until they were found by auditing the refusal sites in the
+source against the list rather than the other way round. That is worth recording where it happened:
+a limits list assembled from what its authors remembered omitting is not a limits list, and the
+audit is now the way this table is maintained.
 
 | Area | State | Specification |
 |---|---|---|
@@ -44,20 +50,31 @@ is refused rather than approximated.
 | Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
 | Rendering: JSON, YAML | Implemented, except the §3.2 warning in §1.7 | §19.3–§19.4 |
 | Publication and the validation gate | Implemented | §21 |
-| References and value wildcards | Implemented, except the `REFERENCE005` case in §1.9 | §13 |
+| References and value wildcards | Implemented in input values, except the `REFERENCE005` case in §1.9 | §13 |
 | Templates and masks | Implemented for namespace input | §8.6, §12 |
 | Wildcard output selectors | Implemented | §14 |
 | Path-scoped view transformations: `type`, `key`, `substitute` | Implemented, with the gaps in §1.10–§1.12 | §16.5–§16.7 |
 | Ordered sequences from numeric paths | Implemented, except the §3.2 warning in §1.7 | §8.7, §5.4 |
 | Rendering: XML | Implemented | §19.5 |
-| **Scheme files** written as JSON, YAML or XML | Not yet — [#66](https://github.com/stop-cran/namespace2xml/issues/66) | §15 |
+| **Scheme files** written as JSON or YAML | Not yet — [#66](https://github.com/stop-cran/namespace2xml/issues/66) | §15 |
+| **Scheme files** written as XML | Undecided contract — [#72](https://github.com/stop-cran/namespace2xml/issues/72) | §15 |
+| **References in a scheme value** | Not yet — [#70](https://github.com/stop-cran/namespace2xml/issues/70) | §15.1 step 1 |
+| **A capture substituted into a directive value** other than `filename` | Not yet — [#71](https://github.com/stop-cran/namespace2xml/issues/71) | §12.1 |
 
-A preview binary returns exit status `70` when an invocation needs the `Not yet` row.
+A preview binary returns exit status `70` when an invocation needs one of the four rows above that
+is not marked `Implemented`.
 That status is deliberately outside the contract: `0` and `1` are normative, and a
 preview must never return either for work it did not do. It is a **refusal**, not a diagnostic — the
 run decides no outcome at all, publishes nothing, and says on standard error which capability it
 lacked. A step that could not do its job never passes its input through, because a plausible wrong
 file is worse than no file.
+
+A refusal must also name the capability the invocation actually needed. The `#71` refusal named the
+*directive* until this was audited, so `app.*.key=n*me` reported that "the Key directive is not
+implemented" — while `app.*.key=name` ran to completion in the same build. Telling an author to stop
+using a directive that works is worse than the silence the refusal replaced, and
+`TransformationTests.ARefusalNamesTheWildcardRatherThanTheDirectiveThatCarriesIt` now runs both
+declarations in one test so the two cannot drift apart again.
 
 ### 1.1 Reductions inside JSON input
 
@@ -222,9 +239,46 @@ already correct for the contract §15 pointed them at. A wrong diagnostic costs 
 The extension decides, not the content — a scheme written in namespace-profile syntax but saved as
 `scheme.json` is still declined, and one saved as `scheme.ini`, `scheme.sh` or with no extension at
 all is still read, exactly as §7.1 treats input files. Tracked as
-[#66](https://github.com/stop-cran/namespace2xml/issues/66), which also carries the question §15
-leaves open: whether a native sequence is a legal spelling for a directive that a profile writes as
-a comma-joined string.
+[#66](https://github.com/stop-cran/namespace2xml/issues/66).
+
+**The JSON and YAML halves are determined by the contract; the XML half is not.** §9.1 and §10.4
+each say how a native key becomes a name part, including that "unescaped `*` and `*[identifier]`
+tokens retain their wildcard-template meaning", and §15's own preamble settles the question this
+entry used to call open — "Every recognized directive requires a nonempty scalar value after format
+parsing. An empty value, null, **container value**, unknown directive value, or illegal option/type
+combination is `SCHEME001`" makes a native sequence `SCHEME001`, so `output: "json,yaml"` binds and
+`output: [json, yaml]` does not. §15 names XML scheme files exactly once, about secure parsing, and
+never says how an XML document projects to directive paths; that gap is
+[#72](https://github.com/stop-cran/namespace2xml/issues/72) and it is a specification decision rather
+than unwritten code.
+
+### 1.4.1 References in a scheme value
+
+§15.1 step 1 requires the scheme loader to "resolve references among scheme entries", and this
+preview does not. A directive whose value contains `${...}` ends the run with exit `70`.
+
+Compiling the text as written is the alternative and is worse: `filename=${cfg.root}` would name a
+file literally called `${cfg.root}`, which is a plausible file, a wrong file, and indistinguishable
+from a correct one.
+
+The feature is narrower than it looks. §15 says "The final qualified-name part identifies a
+directive" and makes an unknown directive a blocking error, so `base=data` in a scheme is already
+`SCHEME001` — **verified** — and a scheme reference can only target another *directive's* value, as
+in `cfg.filename=${cfg.root}.conf`. Tracked as
+[#70](https://github.com/stop-cran/namespace2xml/issues/70).
+
+### 1.4.2 A capture is substituted into `filename` alone
+
+§12.1 says "A scheme directive's value is decided the same way, from the captures its selector
+defines", which makes a `*` in **any** directive's value a positional capture substitution wherever
+the selector defines an unnamed capture. This preview performs that substitution for `filename`
+only; every other directive with a recognized `*` in its value is refused with exit `70`.
+
+The case §12.1 names explicitly is already correct: "in a scheme whose selector contains no wildcard,
+`*` in a `filename`, `root`, or `delimiter` value is literal text", and it compiles, because the
+value lexer decides whether a `*` is a token at all from the owning name's captures. **verified.**
+
+Tracked as [#71](https://github.com/stop-cran/namespace2xml/issues/71).
 
 ### 1.5 `--max-depth` has a hard safety ceiling of 4096
 

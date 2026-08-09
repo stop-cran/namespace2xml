@@ -829,11 +829,33 @@ public static class PlanningPhase
         {
             var entry = configuration.Deferred[0];
 
+            // An entry is deferred for one of two reasons, and the refusal must name the one that
+            // applies. Naming the directive would be a lie for either: 'key' is implemented, and
+            // 'cfg.*.key=name' runs to completion in this build.
+            //
+            // Section 15.1 step 1 refuses a reference-bearing value before the compiler sees it, so
+            // the reference arm is unreachable through the pipeline; it is written out rather than
+            // asserted because the reachability is a property of another component, and this step
+            // must not report a wildcard that is not there if that ever changes.
+            if (entry.Value.ContainsReference)
+            {
+                return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
+                    new UnsupportedCapability(
+                        "references in scheme values",
+                        $"'{entry.Declaration}' in {entry.Source} contains a reference, and step 1 "
+                        + "resolves references among scheme entries.",
+                        "\u00A715.1"));
+            }
+
             return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
                 new UnsupportedCapability(
-                    $"the {entry.Directive} directive",
-                    $"'{entry.Declaration}' in {entry.Source} needs it.",
-                    "\u00A716"));
+                    "a wildcard capture substituted into a directive value",
+                    $"'{entry.Declaration}' in {entry.Source} has a selector defining a capture and "
+                    + "a '*' in its value, which Section 12.1 makes a capture substitution. This "
+                    + $"build substitutes captures into 'filename' alone. The {entry.Directive} "
+                    + "directive itself is implemented, and the same declaration with no '*' in its "
+                    + "value runs.",
+                    "\u00A712.1"));
         }
 
         if (configuration.Transforms.IsEmpty)

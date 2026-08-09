@@ -311,6 +311,29 @@ public sealed class TransformationTests
     }
 
     /// <summary>
+    /// A refusal names the capability the invocation actually needs. This one is a Section 12.2
+    /// wildcard in a directive value; <c>key</c> itself is implemented, and the same declaration
+    /// with a literal value runs to completion. Naming the directive told an author to stop using
+    /// a directive that works.
+    /// </summary>
+    [Test]
+    public void ARefusalNamesTheWildcardRatherThanTheDirectiveThatCarriesIt()
+    {
+        var (refused, _) = Transform(
+            "app.a.name=x\napp.a.v=1\n", "app.output=namespace\napp.*.key=n*me\n");
+
+        refused.State.ShouldBe(PipelineRunState.Unsupported);
+        refused.Unsupported.ShouldNotBeNull().Capability
+            .ShouldBe("a wildcard capture substituted into a directive value");
+
+        var (accepted, sink) = Transform(
+            "app.a.name=x\napp.a.v=1\n", "app.output=json\napp.*.key=name\n");
+
+        accepted.State.ShouldBe(PipelineRunState.Finished);
+        sink.Written.ShouldContainKey("app.json");
+    }
+
+    /// <summary>
     /// Section 13.1: a reference "resolves only the scalar or null payload stored at that exact
     /// canonical path", and Section 13.2 gives a value that is exactly one reference the referent's
     /// own kind. The referring entry is still emitted at its own path.
