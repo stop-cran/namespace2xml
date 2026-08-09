@@ -19,6 +19,29 @@ parser (§7.1), and the record `{"app":{"port":8080}}` — its first non-space s
 or `!`, and it contains no separating `=` — falls through §8.1 classification to rule 5 and is
 `PARSE001` against §8.1. The reader never even reaches §9. Rename before feeding.
 
+## A scheme file may be written in JSON
+
+Section 15 lets a scheme file be authored in any supported input format, chosen by the same
+extension rule. A `.json` scheme is read as JSON and then projected to the directive stream a
+namespace-profile scheme spells directly: **a mapping that has properties is a path**, and is
+recursed into; **anything else is a declaration**, whose key is the directive name and whose scalar
+is its value. These two are the same scheme.
+
+```json
+{ "app": { "output": "json", "filename": "app.json" } }
+```
+
+```
+app.output=json
+app.filename=app.json
+```
+
+A directive's value must be a nonempty scalar after format parsing (§15). A sequence, an empty
+mapping, a `null` and an empty string are each a blocking `SCHEME001` naming that declaration's own
+line and column — so `"output": ["json", "yaml"]`, the natural JSON spelling of "both", is an error
+rather than silence. Declaration order within one scheme is the order the properties appear, which
+is what §15.2's later-wins rule ranges over.
+
 ## What JSON syntax is accepted
 
 Section 9.1 accepts:

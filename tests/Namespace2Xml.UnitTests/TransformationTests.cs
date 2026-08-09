@@ -283,12 +283,15 @@ public sealed class TransformationTests
     [Test]
     public void ACapabilityOutsideThisVersionDeclinesRatherThanGuessing()
     {
-        // Section 15 permits a structured scheme file; this build reads only the namespace-profile
-        // form and says so, rather than handing JSON to the Section 8.1 parser and reporting the
-        // wrong contract against a file that is already correct.
+        // Section 15 names XML among the formats a scheme file may use and never says what an XML
+        // scheme projects to. This build declines rather than picking one of the three available
+        // readings, and says so instead of handing the file to the Section 8.1 parser and
+        // reporting the wrong contract against a file that is already correct.
         var sink = new Sink();
-        var sources = new Sources(("in.txt", "app.name=example\n"), ("scheme.json", "{}\n"));
-        var result = Run(sink, sources, "-i", "in.txt", "-s", "scheme.json");
+        var sources = new Sources(
+            ("in.txt", "app.name=example\n"),
+            ("scheme.xml", "<app><output>namespace</output></app>\n"));
+        var result = Run(sink, sources, "-i", "in.txt", "-s", "scheme.xml");
 
         result.State.ShouldBe(PipelineRunState.Unsupported);
         result.ExitCode.ShouldBeNull();
@@ -394,22 +397,20 @@ public sealed class TransformationTests
         sink.Written["app.properties"].ShouldBe("name=x\n");
     }
 
-    [TestCase("scheme.json", TestName = "AJsonSchemeDeclines")]
-    [TestCase("scheme.yaml", TestName = "AYamlSchemeDeclines")]
-    [TestCase("scheme.yml", TestName = "AYmlSchemeDeclines")]
+    [TestCase("scheme.xml", TestName = "ALowercaseXmlSchemeDeclines")]
     [TestCase("scheme.XML", TestName = "AnUppercaseXmlSchemeDeclines")]
-    public void AStructuredSchemeFileDeclinesRatherThanBeingReadAsANamespaceProfile(string path)
+    public void AnXmlSchemeFileDeclinesRatherThanBeingReadAsANamespaceProfile(string path)
     {
         // Section 15: "Scheme files may use the same case-insensitive format extensions as input
-        // files for compatibility." This build reads only the namespace-profile form, so the
-        // question is which way it says so. Handing the file to the namespace parser reports
-        // PARSE001 against Section 8.1 -- naming a contract the file was never written to, and
-        // telling the author to add an '=' to syntax that is already correct for the contract
+        // files for compatibility." It names XML and never gives a projection rule for one, so the
+        // question is which way this build says so. Handing the file to the namespace parser
+        // reports PARSE001 against Section 8.1 -- naming a contract the file was never written to,
+        // and telling the author to add an '=' to syntax that is already correct for the contract
         // Section 15 points them at. A refusal names the capability instead.
         var sink = new Sink();
         var sources = new Sources(
             ("in.txt", "app.name=example\n"),
-            (path, "{\"app\":{\"output\":\"namespace\"}}\n"));
+            (path, "<app><output>namespace</output></app>\n"));
 
         var result = Run(sink, sources, "-i", "in.txt", "-s", path);
 
@@ -418,6 +419,27 @@ public sealed class TransformationTests
         result.Unsupported.ShouldNotBeNull().Spec.ShouldBe("\u00A715");
         Codes(result).ShouldNotContain("PARSE001");
         sink.Written.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 15 lets a scheme use any input format's extension, and a JSON or YAML one is read
+    /// rather than declined. Each spelling below is the same two directives, so the run finishes
+    /// and writes the file the scheme asked for.
+    /// </summary>
+    [TestCase("scheme.json", "{\"app\":{\"output\":\"namespace\"}}\n", TestName = "AJsonSchemeIsRead")]
+    [TestCase("scheme.yaml", "app:\n  output: namespace\n", TestName = "AYamlSchemeIsRead")]
+    [TestCase("scheme.yml", "app:\n  output: namespace\n", TestName = "AYmlSchemeIsRead")]
+    [TestCase("scheme.JSON", "{\"app\":{\"output\":\"namespace\"}}\n", TestName = "AnUppercaseJsonSchemeIsRead")]
+    public void AStructuredSchemeFileIsReadRatherThanDeclined(string path, string text)
+    {
+        var sink = new Sink();
+        var sources = new Sources(("in.txt", "app.name=example\n"), (path, text));
+
+        var result = Run(sink, sources, "-i", "in.txt", "-s", path);
+
+        result.State.ShouldBe(PipelineRunState.Finished);
+        result.ExitCode.ShouldBe(0);
+        sink.Written["app.properties"].ShouldBe("name=example\n");
     }
 
     /// <summary>

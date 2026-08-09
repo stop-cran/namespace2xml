@@ -1,0 +1,6 @@
+{
+  "app": {
+    "output": "json",
+    "filename": "app.json"
+  }
+}

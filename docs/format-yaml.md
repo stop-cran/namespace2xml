@@ -18,6 +18,36 @@ On the output side, `.yaml` is the extension the tool appends when a scheme decl
 `output=yaml` without an explicit `filename` (§7.1's format matrix; §16.1 and §16.2 for the
 appending rule).
 
+## A scheme file may be written in YAML
+
+Section 15 lets a scheme file be authored in any supported input format, chosen by the same
+extension rule, so a `.yaml` scheme is read by this reader. It is then projected to the directive
+stream a namespace-profile scheme spells directly: **a mapping that has properties is a path** and
+is recursed into; **anything else is a declaration**, whose key is the directive name and whose
+scalar is its value. These two are the same scheme.
+
+```yaml
+app:
+  '*':
+    output: json
+    filename: 'x-*.json'
+```
+
+```
+app.*.output=json
+app.*.filename=x-*.json
+```
+
+A `*` key keeps its §10.4 wildcard-template meaning inside a scheme, and its capture substitutes
+into `filename` exactly as it does from a profile — the example writes one file per child of `app`.
+Quote it: a bare `*` is a YAML alias-adjacent token in some writers, and `'*'` is unambiguous.
+
+A directive's value must be a nonempty scalar after format parsing (§15). A sequence, an empty
+mapping, a `null` and an empty string are each a blocking `SCHEME001` naming that declaration's own
+line and column — so `output: [json, yaml]`, the natural YAML spelling of "both", is an error rather
+than silence. Declaration order within one scheme is document order, which is what §15.2's
+later-wins rule ranges over.
+
 ## The reader: `RestrictedYaml1`
 
 The reader implements a normative subset of YAML defined in §10.1 and named `RestrictedYaml1`. It

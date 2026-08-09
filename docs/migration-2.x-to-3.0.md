@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (95)
+## Observable differences (98)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -43,6 +43,39 @@ implemented, its case says so plainly rather than letting the heading imply othe
   a correction of legacy behavior. It is a regression test against a defect introduced by the 3.0
   rewrite, which keyed instance options by each declaration's written selector and so reported
   `a.x.filename` as unbound. The baseline was right about this clause and the preview was not.
+
+### `a-container-value-in-a-structured-scheme-is-scheme001`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 15, Section 15.4, Section 22.
+- Legacy observation: the baseline exits 0, logs `Success! Exiting...`, and writes no file at all.
+  It read the YAML scheme — the two sibling fixtures show that it reads structured schemes
+  correctly — and then reported nothing about three directives it could not use. The run that asked
+  for an `app.json` and the run that asked for nothing are indistinguishable from its exit status
+  and its output tree.
+- Clean behavior: each of the three declarations earns its own `SCHEME001` naming its own line and
+  column, and the run exits 1 having published nothing.
+- The difference is intentional and is the point of the case. Silence about a directive whose value
+  cannot be used is the failure mode Section 15's value sentence exists to prevent: an author who
+  writes `output: [json, yaml]` because a sequence is the natural YAML spelling of a list gets no
+  output and no reason, and has nothing to search for. Exit 0 with an empty output tree is the worst
+  available answer, because every downstream check that looks at the status passes.
+
+### `a-json-scheme-nests-directive-paths`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 15 and Section 9.1. Section 24 for the difference that remains.
+- Legacy observation: the baseline exits 0 and writes `app.json` with the same eight lines, the same
+  nesting, the same key order and the same values — every character of the JSON structure agrees.
+  It differs only in the bytes between them: 2.4.0 writes CRLF and no trailing newline, where
+  Section 24 requires LF and a final newline. **2.4.0 reads JSON scheme files.** The preview that
+  refused one was a regression against it, which is what issue #66 records.
+- Clean behavior: the same projection, emitted under Section 24's byte contract.
+- The difference is intentional, and it is narrow on purpose. This fixture is worth having precisely
+  because the baseline agrees: it pins a compatibility claim rather than a change, and a future
+  implementation that decided a JSON scheme should mean something else would break a file that has
+  worked since 2.x. The `\r` and the missing final newline are Section 24's business and are
+  asserted in every fixture, not this one's subject.
 
 ### `a-later-output-declaration-restores-an-ignored-instance`
 
@@ -208,6 +241,21 @@ implemented, its case says so plainly rather than letting the heading imply othe
   is opened. The observable divergence is the exit code alone; nothing is compared under
   `expected/` because both runs leave the case's expected tree empty for different reasons — one
   by refusing to plan, one by never having a containment rule.
+
+### `a-yaml-scheme-key-carries-a-wildcard-template`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 15, Section 10.4, Section 12.1. Section 24 for the difference that remains.
+- Legacy observation: the baseline exits 0 and writes both `x-db.json` and `x-web.json` with the
+  correct payload in each — the same two file names, from the same expansion, with the capture
+  substituted the same way round. It differs only in Section 24's output bytes: CRLF and no trailing
+  newline. **2.4.0 reads YAML scheme files and treats a `*` key as a wildcard template**, which is
+  where the compatibility sentence in Section 10.4 comes from.
+- Clean behavior: the same expansion and the same substitution, emitted under Section 24.
+- The difference is intentional and confined to the byte layout. The value of this fixture is the
+  agreement: Section 10.4's "retain their wildcard-template meaning for compatibility" names a
+  behavior that exists in the field, and this case is the evidence that 3.0 kept it rather than
+  reasoning that it should.
 
 ### `an-empty-qualifier-escapes-the-alias-ambiguity`
 

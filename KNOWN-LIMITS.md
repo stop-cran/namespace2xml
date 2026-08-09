@@ -26,11 +26,11 @@ pretending to succeed.
 The tool currently transforms **every input format and every output format the specification
 defines**, end to end: namespace-profile, JSON, YAML and XML input, overlaying, references,
 templates, output planning, and publication of namespace, quoted-namespace, INI, JSON, YAML and XML
-destinations. **Three** capabilities remain unbuilt, and each is refused rather than approximated.
-One of the three — scheme files in a structured format — is further split by the table below,
-because §15 determines the JSON and YAML projection and never states the XML one.
+destinations. **Two** capabilities remain unbuilt, and each is refused rather than approximated.
+A third row below is refused for a different reason: §15 permits an XML scheme file and never says
+what one means, so there is nothing yet to build.
 
-Two of them were missing from this list until they were found by auditing the refusal sites in the
+Both of them were missing from this list until they were found by auditing the refusal sites in the
 source against the list rather than the other way round. That is worth recording where it happened:
 a limits list assembled from what its authors remembered omitting is not a limits list, and the
 audit is now the way this table is maintained.
@@ -43,7 +43,7 @@ audit is now the way this table is maintained.
 | JSON **input** | Implemented, with the reductions in §1.1 | §7.1, §9, §15.1 |
 | YAML **input** | Implemented, with the reductions in §1.2 | §7.1, §10, §15.1 |
 | XML **input** | Implemented, with the reductions in §1.3 | §7.1, §11, §15.1 |
-| Scheme parsing, `output`, `filename`, `root`, `delimiter`, `merge`, `filemerge` | Implemented, namespace-profile scheme files only | §16 |
+| Scheme parsing, `output`, `filename`, `root`, `delimiter`, `merge`, `filemerge` | Implemented | §16 |
 | Overlaying, precedence, mapping order after override | Implemented | §5, §10 |
 | Scalar inference and canonical numeric text | Implemented | §18 |
 | Output planning, destination paths, collision folding | Implemented | §17 |
@@ -56,12 +56,12 @@ audit is now the way this table is maintained.
 | Path-scoped view transformations: `type`, `key`, `substitute` | Implemented, with the gaps in §1.10–§1.12 | §16.5–§16.7 |
 | Ordered sequences from numeric paths | Implemented, except the §3.2 warning in §1.7 | §8.7, §5.4 |
 | Rendering: XML | Implemented | §19.5 |
-| **Scheme files** written as JSON or YAML | Not yet — [#66](https://github.com/stop-cran/namespace2xml/issues/66) | §15 |
+| **Scheme files** written as JSON or YAML | Implemented | §15, §9.1, §10.4 |
 | **Scheme files** written as XML | Undecided contract — [#72](https://github.com/stop-cran/namespace2xml/issues/72) | §15 |
 | **References in a scheme value** | Not yet — [#70](https://github.com/stop-cran/namespace2xml/issues/70) | §15.1 step 1 |
 | **A capture substituted into a directive value** other than `filename` | Not yet — [#71](https://github.com/stop-cran/namespace2xml/issues/71) | §12.1 |
 
-A preview binary returns exit status `70` when an invocation needs one of the four rows above that
+A preview binary returns exit status `70` when an invocation needs one of the three rows above that
 is not marked `Implemented`.
 That status is deliberately outside the contract: `0` and `1` are normative, and a
 preview must never return either for work it did not do. It is a **refusal**, not a diagnostic — the
@@ -223,34 +223,38 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
 - **Processing instructions are discarded**, with one `WARN006` per document that carried any.
   §11.8 places them outside the preservation contract.
 
-### 1.4 Scheme files must be namespace profiles
+### 1.4 XML scheme files are refused because the contract has not settled what one means
 
 §15 says "Scheme files may use the same case-insensitive format extensions as input files for
-compatibility", and that JSON, YAML and XML scheme files "use secure default parsing". This preview
-reads only the namespace-profile form, which the same section calls "the canonical and recommended
-representation".
+compatibility", and that JSON, YAML and XML scheme files "use secure default parsing". JSON and YAML
+scheme files are read: §9.1 and §10.4 each say how a native key becomes one literal name part, and
+that unescaped `*` and `*[identifier]` tokens keep their wildcard-template meaning inside it, so the
+projection is determined and `conformance/a-json-scheme-nests-directive-paths` and
+`conformance/a-yaml-scheme-key-carries-a-wildcard-template` pin it. §15's own preamble settles the
+question this entry used to call open — "Every recognized directive requires a nonempty scalar value
+after format parsing. An empty value, null, **container value**, unknown directive value, or illegal
+option/type combination is `SCHEME001`" — so `output: "json,yaml"` binds and `output: [json, yaml]`
+does not.
 
-A `-s` file whose name ends in `.json`, `.yaml`, `.yml` or `.xml` is therefore **declined**, with
-exit `70` and no output, naming §15. It is refused before it is read rather than handed to the
-namespace parser: parsing a JSON scheme as a namespace profile reports `PARSE001` against §8.1,
-which names a contract the file was never written to and asks its author to repair syntax that is
-already correct for the contract §15 pointed them at. A wrong diagnostic costs more than a refusal.
+A `-s` file whose name ends in `.xml` is **declined**, with exit `70` and no output. §15 names XML
+scheme files exactly once, about secure parsing, and never says how an XML document projects to
+directive paths: `<cfg output="namespace"/>` could declare `cfg.@output`, `cfg.output` or `output`,
+and §11.4's canonical `@` marker — the reading the rest of the document implies — would make every
+directive in every XML scheme an unrecognized name and the format unusable. That is a specification
+decision, not unwritten code, and it is
+[#72](https://github.com/stop-cran/namespace2xml/issues/72). Refusing is what a build should do while
+the question is open; guessing would pin the guess with fixtures.
 
 The extension decides, not the content — a scheme written in namespace-profile syntax but saved as
-`scheme.json` is still declined, and one saved as `scheme.ini`, `scheme.sh` or with no extension at
-all is still read, exactly as §7.1 treats input files. Tracked as
-[#66](https://github.com/stop-cran/namespace2xml/issues/66).
+`scheme.xml` is still declined, and one saved as `scheme.ini`, `scheme.sh` or with no extension at
+all is read as a namespace profile, exactly as §7.1 treats input files.
 
-**The JSON and YAML halves are determined by the contract; the XML half is not.** §9.1 and §10.4
-each say how a native key becomes a name part, including that "unescaped `*` and `*[identifier]`
-tokens retain their wildcard-template meaning", and §15's own preamble settles the question this
-entry used to call open — "Every recognized directive requires a nonempty scalar value after format
-parsing. An empty value, null, **container value**, unknown directive value, or illegal option/type
-combination is `SCHEME001`" makes a native sequence `SCHEME001`, so `output: "json,yaml"` binds and
-`output: [json, yaml]` does not. §15 names XML scheme files exactly once, about secure parsing, and
-never says how an XML document projects to directive paths; that gap is
-[#72](https://github.com/stop-cran/namespace2xml/issues/72) and it is a specification decision rather
-than unwritten code.
+**Structured scheme files were a regression, not a new feature.** 2.4.0 reads a JSON or YAML scheme,
+and the two fixtures above were **measured** against it: the baseline produces the same file names,
+the same nesting, the same key order and the same values, differing only in §24's output bytes.
+The preview that refused them was narrower than the tool it replaces, and
+[#66](https://github.com/stop-cran/namespace2xml/issues/66) records that. This is worth stating
+plainly because the refusal read as caution and was in fact a loss of function.
 
 ### 1.4.1 References in a scheme value
 

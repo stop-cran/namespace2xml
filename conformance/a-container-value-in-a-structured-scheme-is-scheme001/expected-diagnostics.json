@@ -1,0 +1,5 @@
+[
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/scheme.yaml","line":2,"column":11,"path":"app.output","declaration":"app.output","spec":"§15"},
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/scheme.yaml","line":3,"column":13,"path":"app.filename","declaration":"app.filename","spec":"§15"},
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/scheme.yaml","line":4,"column":9,"path":"app.root","declaration":"app.root","spec":"§15"}
+]

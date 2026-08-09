@@ -44,21 +44,22 @@ public static class SchemePhase
         ArgumentNullException.ThrowIfNull(diagnostics);
 
         // Section 15: "Scheme files may use the same case-insensitive format extensions as input
-        // files for compatibility. Their parsed content must project to qualified directive paths
-        // and scalar directive values." This build reads only the namespace-profile form, so a
-        // structured scheme file is declined here, before it is read. Handing it to the namespace
-        // parser instead would report Section 8.1 against a file Section 15 says may be JSON --
-        // naming the wrong contract, and telling the author to fix syntax that is already correct.
+        // files for compatibility." Sections 9.1 and 10.4 say how a JSON or YAML key projects to a
+        // name part, so those two are read. Section 15 names XML scheme files once, about secure
+        // parsing, and never says how an XML document projects to directive paths -- see issue #72.
+        // Guessing would pin a guess with fixtures; refusing says the contract has not decided.
         foreach (var path in command.Schemes)
         {
-            if (SourceLoader.StructuredFormat(path) is { } format)
+            if (SourceLoader.StructuredFormat(path) == "XML")
             {
                 return StepOutcome.Unsupported<ImmutableArray<SchemeEntry>>(
                     new UnsupportedCapability(
-                        "structured scheme files",
-                        $"'{path}' names the {format} format, and this build reads only "
-                        + "namespace-profile scheme files, which Section 15 calls the canonical "
-                        + "and recommended representation.",
+                        "XML scheme files",
+                        $"'{path}' names the XML format. Section 15 permits an XML scheme file and "
+                        + "never states how its elements and attributes project to qualified "
+                        + "directive paths, so this build refuses one rather than choose a "
+                        + "projection the contract has not settled. JSON and YAML scheme files "
+                        + "are read, and Section 15 calls the namespace-profile form canonical.",
                         "\u00A715"));
             }
         }
@@ -68,7 +69,12 @@ public static class SchemePhase
         for (var i = 0; i < command.Schemes.Length; i++)
         {
             var source = loader.LoadFile(
-                command.Schemes[i], i, DiagnosticPhase.Scheme, diagnostics);
+                command.Schemes[i],
+                i,
+                DiagnosticPhase.Scheme,
+                diagnostics,
+                InputOptions.Default,
+                structured: true);
 
             if (source is not null)
             {
@@ -89,11 +95,17 @@ public static class SchemePhase
             }
 
             entries.AddRange(
-                SchemeReader.Read(
-                    source.Records,
-                    source.Ordinal,
-                    source.Origin.Identity,
-                    diagnostics).Entries);
+                source.Document is { } document
+                    ? StructuredSchemeReader.Read(
+                        document,
+                        source.Ordinal,
+                        source.Origin.Identity,
+                        diagnostics).Entries
+                    : SchemeReader.Read(
+                        source.Records,
+                        source.Ordinal,
+                        source.Origin.Identity,
+                        diagnostics).Entries);
         }
 
         var parsed = entries.ToImmutable();

@@ -1,0 +1,4 @@
+app:
+  '*':
+    output: json
+    filename: 'x-*.json'

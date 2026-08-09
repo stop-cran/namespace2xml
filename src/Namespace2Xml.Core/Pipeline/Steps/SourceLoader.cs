@@ -130,9 +130,10 @@ public sealed class SourceLoader
     /// <param name="diagnostics">The buffer its diagnostics accumulate in.</param>
     /// <param name="structured">
     /// Whether Section 7.1's extension table applies. Section 15 lets a scheme file carry a
-    /// structured extension too, but this build reads only the namespace-profile form and
-    /// <c>SchemePhase</c> declines a structured scheme before reaching here, so no caller passes
-    /// <see langword="true"/> for a scheme.
+    /// structured extension too, and <c>SchemePhase</c> passes <see langword="true"/> for a scheme:
+    /// a <c>.json</c> or <c>.yaml</c> scheme is parsed natively and projected by
+    /// <c>StructuredSchemeReader</c>. An <c>.xml</c> scheme never reaches here, because Section 15
+    /// states no projection for one.
     /// </param>
     /// <param name="options">The Section 16.8 input options the readers run under.</param>
     /// <returns>The loaded source, or <c>null</c> when it contributed nothing at all.</returns>

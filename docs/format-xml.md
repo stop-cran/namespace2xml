@@ -17,9 +17,10 @@ namespace-profile for compatibility. XML output is selected by an `output=xml` d
 default file name is `<selector>.xml` for a non-root selector and `output.xml` for the empty root
 (§16.2). An explicit `filename` is used verbatim without appending `.xml` (§3.1).
 
-Scheme files may also be authored as XML (§15). This preview does not yet accept XML scheme
-files — see the reduction in `KNOWN-LIMITS.md` — so the examples below use namespace-profile
-schemes.
+§15 says a scheme file may be authored in any supported input format, and names XML among them. It
+never says what an XML scheme projects to, so this preview refuses one rather than guessing — see
+`KNOWN-LIMITS.md` and [#72](https://github.com/stop-cran/namespace2xml/issues/72). JSON and YAML
+schemes **are** read; the examples below use namespace-profile schemes.
 
 ## The parser is locked down
 

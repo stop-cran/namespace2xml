@@ -36,6 +36,27 @@ independently.
 
 ### Added
 
+- **Scheme files written as JSON or YAML (§15) are read.** A structured scheme projects to the same
+  directive stream a namespace-profile scheme does: a mapping that has properties is a path and is
+  recursed, and **everything else is a declaration site**, so no value is silently walked past. A
+  `*` key keeps its §10.4 wildcard-template meaning, and captures substitute into `filename` as they
+  do from a profile. §15's value sentence is enforced at each declaration: a sequence, an empty
+  mapping, a null and an empty string are each a blocking `SCHEME001` naming that declaration's own
+  line and column.
+  **Closes [#66](https://github.com/stop-cran/namespace2xml/issues/66)**, and the close corrects
+  its framing. The issue was filed as a missing feature; measuring namespace2xml 2.4.0 showed it
+  **reads JSON and YAML schemes correctly today**, differing only in §24's output bytes. The
+  refusal was therefore a **regression**, and the exit-`70` message that called it unimplemented was
+  wrong about the baseline as well as about the contract. XML scheme files remain refused, now for
+  the honest reason: §15 names them once and never says what one projects to, tracked as
+  [#72](https://github.com/stop-cran/namespace2xml/issues/72).
+- `conformance/a-json-scheme-nests-directive-paths`,
+  `conformance/a-yaml-scheme-key-carries-a-wildcard-template` and
+  `conformance/a-container-value-in-a-structured-scheme-is-scheme001`. The first two are
+  **compatibility fixtures**: 2.4.0 agrees with them character for character inside the payload, so
+  they pin a claim rather than a change. The third is the divergence — 2.4.0 exits 0, logs
+  `Success!` and writes nothing at all when three directives carry unusable values, which is the
+  failure mode §15's value sentence exists to prevent.
 - **The `substitute` directive (§16.7) is implemented.** It was the larger of the two remaining
   exit-`70` refusals. `substitute` selects, at the node it matches, whether references and value
   wildcards are interpreted in an entry's **name**, its **value**, both, or neither, with the four
