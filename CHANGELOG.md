@@ -94,6 +94,11 @@ defines**, end to end. `3.0.0-preview.1` read namespace profiles only.
   fold is reported once per output instance rather than once per contribution.
 - An acceptance item that no fixture can express is now discharged by a **named gate** instead of
   being left uncovered; 85 of 86 items are covered, and the manifest says where the last one is.
+- **Release notes are the released version's own section**, prefixed with its contract revision and
+  a tag-pinned specification link. The workflow passed the entire changelog, which buried each
+  version under every earlier one and would have got worse with every release. The step runs before
+  the nuget.org push and fails if the section is missing, so a changelog omission stops the release
+  instead of leaving a published package with nothing to explain it.
 
 ### Removed
 
