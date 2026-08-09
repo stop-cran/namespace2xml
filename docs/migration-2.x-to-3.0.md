@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (89)
+## Observable differences (90)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1424,6 +1424,33 @@ implemented, its case says so plainly rather than letting the heading imply othe
   which this case did not set out to test. Like its companion case, this is a regression test
   against a defect introduced by the 3.0 rewrite rather than a correction of legacy behavior.
 
+### `xml-a-2-x-style-attribute-override-adds-a-sibling-element`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.4 canonical XML addressing; Section 8.2 alias-index scope; Section 5.2
+  mapping order after override; Section 19.5 XML rendering.
+- Legacy observation: 2.4.0 exits `0` and writes
+  `<r>\n  <a keep="" x="dev" />\n</r>`. Two independent things happen in that one file. The
+  profile line `r.a.x=dev` **overrode the XML attribute** — 2.4.0 had no address for an
+  attribute distinct from a child element, so `a.x` named the attribute and replaced it. At the
+  same time the element child `<keep>1</keep>` was collapsed into an empty attribute `keep=""`
+  and its text was lost, which is the scalar-children-become-attributes defect the neighbouring
+  XML cases document. The baseline therefore gets the override the user intended and destroys
+  the rest of the document doing it.
+- Clean behavior: Section 11.4 gives an attribute the canonical address `@x`, and the last
+  paragraph of that section makes an unmarked `x` the same component as `Q{}x` — the child
+  element. Section 8.2 scopes the simple alias index to references (Section 13.1) and scheme
+  paths (Section 15.2) and **not** to data contributions, so `r.a.x=dev` does not resolve
+  through it. The contribution names the child element, the attribute `@x` keeps its value
+  `base`, and the two coexist. Section 5.2 places the new `x` after `keep`, because `keep`
+  carries the earlier position mark. `<keep>1</keep>` keeps its text.
+- The difference is intentional, and it is the one migration hazard in this area that is
+  **silent**: the run exits `0` with an empty diagnostic stream, and a 2.x profile that
+  specialized an attribute this way now produces a document with both the original attribute
+  and a new sibling element. Nothing reports it, because nothing is wrong — the contribution
+  addressed exactly what Section 11.4 says it addresses. The remedy is the canonical spelling,
+  pinned by `xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address`.
+
 ### `xml-a-reference-does-not-import-a-spelling`
 
 - namespace2xml 2.4.0: **differs**.
@@ -1977,7 +2004,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   refusal is the honest interim behaviour, not the desired one, and closing it is a release
   blocker for 3.0 final rather than a deferred nicety.
 
-## Inputs that crashed 2.4.0 (10)
+## Inputs that crashed 2.4.0 (11)
 
 The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
 reports a diagnostic and exits deliberately.
@@ -2044,6 +2071,31 @@ reports a diagnostic and exits deliberately.
   from a runtime crash. §3.2 lists "caused by unhandled user-input exceptions" among the
   behaviours the replacement must not preserve, and this crash is exactly the shape that
   bullet names.
+
+### `xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address`
+
+- namespace2xml 2.4.0: **crashes**. It terminates with
+  `System.Xml.XmlException: Name cannot begin with the '@' character, hexadecimal value 0x40.`
+  from `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle`, and exits 134 on Linux. A
+  zero-length `r.xml` is left behind. The case expects exit `0` and `r.xml` containing
+  `<a x="dev">` with its `<keep>1</keep>` child intact.
+- Contract: Section 11.4 canonical XML addressing (`@x` names the attribute); Section 5.2
+  mapping order after override; Section 19.5 XML rendering.
+- Legacy observation: 2.4.0 had no typed-component vocabulary, so `@x` was taken as an ordinary
+  name part and reached the XML writer as an element name. `XmlConvert.VerifyNCName` rejects a
+  name beginning with `@` and the process aborted before any value was written. The rule this
+  case exists to pin — that a profile can override an attribute **that came from an XML input**
+  by naming it canonically, leaving the element's children untouched — is invisible under that
+  crash, because the baseline has no spelling for it at all.
+- Clean behavior: Section 11.4's `@x` names the attribute component outright. The contribution
+  overrides the attribute value read from `main.xml`, and the element child `<keep>1</keep>` is
+  untouched, because a contribution to `r.a.@x` is not a contribution to `r.a.keep`. No
+  diagnostic is owed: this is an ordinary override at an ordinary path.
+- The difference is intentional: `@` is reserved by Section 11.4 as the attribute marker, and
+  Section 8.2 makes an escaped `\@` the way to write a literal. 2.4.0 reserved nothing and
+  crashed on the character. This is the counterpart of
+  `xml-a-2-x-style-attribute-override-adds-a-sibling-element`, which pins what the old spelling
+  does now; together they are the whole of the migration story for an attribute override.
 
 ### `xml-element-only-children-keep-their-place`
 

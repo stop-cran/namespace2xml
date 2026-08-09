@@ -554,6 +554,8 @@
         "Repeated same-name children become a Section 5.4 sequence with generated zero-based parts while a single child keeps its name, and mixed content addresses every position as a #n content token which a Section 11.5 comment occupies in its own right."
       ],
       "fixtures": [
+        "xml-a-2-x-style-attribute-override-adds-a-sibling-element",
+        "xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address",
         "xml-canonical-addresses"
       ]
     },

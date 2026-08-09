@@ -357,6 +357,13 @@ the alias index to references and scheme paths — but is a silent wrong result 
 profile. Both halves are tracked as
 [#56](https://github.com/stop-cran/namespace2xml/issues/56).
 
+The data half is now **pinned**, in both spellings, by
+`conformance/xml-a-2-x-style-attribute-override-adds-a-sibling-element` and
+`conformance/xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address`, so it
+reaches the generated migration guide rather than living only here. The first of those measured
+2.4.0 accepting `r.a.x=dev` against `<a x="base">` and overriding the attribute, which is what makes
+this a migration hazard and not merely a specification detail. Write `a.@x`.
+
 ### 1.11 A directive bound beneath a node that a later step-16 pass reshapes becomes inert
 
 §15.1 says "a transformation does not cause scheme matching to restart against newly created paths",
