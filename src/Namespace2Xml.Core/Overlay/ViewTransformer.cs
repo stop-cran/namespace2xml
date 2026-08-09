@@ -87,7 +87,7 @@ public static class ViewTransformer
         Live(table, bindings, bound);
         effective = table;
 
-        if (!Validate(prefix, table, paths, report))
+        if (!ValidateAliases(prefix, bindings, report) || !Validate(prefix, table, paths, report))
         {
             return view;
         }
@@ -200,13 +200,14 @@ public static class ViewTransformer
     }
 
     /// <summary>
-    /// Whether one rule's path matches one absolute path, under the Section 15.2 typed model.
+    /// Whether one rule's path matches one absolute path, under the Section 15.2 typed model and
+    /// the alias that section grants an unmarked component.
     /// </summary>
     /// <remarks>
-    /// Section 15.2 also grants an unmarked component the simple alias index, so that <c>a.x</c>
-    /// can name an attribute written <c>a.@x</c>. That is not implemented; see KNOWN-LIMITS. A
-    /// scheme path addresses an XML component canonically in this build, which is always
-    /// unambiguous and never silently selects the wrong one.
+    /// The concrete path is folded rather than the pattern, so <see cref="WildcardMatch"/> keeps
+    /// its literal typed semantics and its constrained-capture handling. Section 15.2 grants the
+    /// alias to <em>scheme paths</em> alone; Sections 8.6 and 12 say nothing of the kind, and
+    /// <see cref="WildcardMatch"/> is shared with both.
     /// </remarks>
     private static bool Matches(TransformRule rule, ImmutableArray<NamePart> absolute)
     {
@@ -216,13 +217,89 @@ public static class ViewTransformer
         }
 
         return pattern.Parts.Length == absolute.Length
-            && WildcardMatch.TryMatchPrefix(pattern.Parts, pattern.Parts.Length, absolute, out _);
+            && WildcardMatch.TryMatchPrefix(
+                pattern.Parts,
+                pattern.Parts.Length,
+                SchemeAlias.Align(pattern.Parts, pattern.Parts.Length, absolute),
+                out _);
     }
 
     /// <summary>
     /// Section 16.5: "An effective <c>type=array</c> and <c>key</c> at the same path is therefore an
     /// illegal option combination and raises <c>SCHEME001</c>."
     /// </summary>
+    /// <summary>
+    /// Section 15.2 <c>SCHEME002</c>: "if ordinary and XML components make that alias ambiguous at
+    /// a matched location, selector expansion at pipeline step 13 emits blocking <c>SCHEME002</c>
+    /// and lists the canonical alternatives".
+    /// </summary>
+    /// <param name="prefix">The absolute path the view is rooted at.</param>
+    /// <param name="bindings">Every rule-to-path binding the walk made, in walk order.</param>
+    /// <param name="report">Receives the diagnostic and the ordering key it is buffered under.</param>
+    /// <returns><see langword="false"/> when a directive is ambiguous.</returns>
+    /// <remarks>
+    /// <para>
+    /// A rule reaching two distinct canonical paths that fold to one aliased path <em>is</em> the
+    /// ambiguity: the fold is what let a single written component reach both, and a rule whose fold
+    /// changed nothing cannot collide with itself, because Section 19.1's spelling is injective.
+    /// Detecting it from the bindings rather than from the tree therefore needs no second walk and
+    /// cannot report where no directive was written.
+    /// </para>
+    /// <para>
+    /// The cardinality is "once per expanded declaration", and
+    /// <see cref="Pipeline.DiagnosticBuffer"/> is what enforces it: it keys an entry on the code
+    /// and the cardinality key, so the several locations one wildcard rule is ambiguous at collapse
+    /// to the earliest of them. A second guard here would be dead code. The alternatives are sorted
+    /// so the message does not depend on which of them the walk reached first.
+    /// </para>
+    /// </remarks>
+    private static bool ValidateAliases(
+        ImmutableArray<NamePart> prefix,
+        List<(TransformRule Rule, ImmutableArray<NamePart> Relative)> bindings,
+        Action<DiagnosticOccurrence, StableOrderingKey> report)
+    {
+        var reached = new Dictionary<(StableOrderingKey Order, string Aliased), string>();
+        var legal = true;
+
+        foreach (var (rule, relative) in bindings)
+        {
+            if (rule.Path is not { } pattern)
+            {
+                continue;
+            }
+
+            var absolute = prefix.AddRange(relative);
+            var canonical = CanonicalPath.Of(absolute) ?? string.Empty;
+            var aliased = CanonicalPath.Of(
+                SchemeAlias.Align(pattern.Parts, pattern.Parts.Length, absolute)) ?? string.Empty;
+
+            if (!reached.TryAdd((rule.Order, aliased), canonical))
+            {
+                var alternatives = new[] { reached[(rule.Order, aliased)], canonical };
+                Array.Sort(alternatives, StringComparer.Ordinal);
+
+                report(
+                    DiagnosticCodes.Scheme002(
+                        DiagnosticPhase.Planning,
+                        "\u00A715.2",
+                        $"'{rule.Declaration.Text}' reaches '{alternatives[0]}' and "
+                        + $"'{alternatives[1]}' through one simple alias, and Section 15.2 makes an "
+                        + "ambiguous alias an error rather than an order to choose between. Mark "
+                        + "the component to name one of them outright.",
+                        cardinalityKey: $"{rule.Declaration.Source}:{rule.Declaration.Line}",
+                        source: rule.Declaration.Source,
+                        line: rule.Declaration.Line,
+                        path: aliased,
+                        declaration: rule.Declaration.Text),
+                    rule.Order);
+
+                legal = false;
+            }
+        }
+
+        return legal;
+    }
+
     private static bool Validate(
         ImmutableArray<NamePart> prefix,
         Dictionary<string, EffectiveTransform> effective,

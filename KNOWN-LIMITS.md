@@ -255,7 +255,7 @@ If you have a real document deeper than 4096, that is a finding worth reporting 
 to convert the recursive phases to explicit traversal, and a real document is the evidence that
 justifies it.
 
-### 1.6 `Q{}local-name` narrows addressing in references, and not yet in scheme paths
+### 1.6 `Q{}local-name` narrows addressing per reference, and per component in a scheme path
 
 §11.4 says a `Q{}local` component and an unmarked `local` component **are the same component** and
 address the same overlay node, and that the marker "does not narrow the component — it narrows the
@@ -276,10 +276,11 @@ takes the whole reference off the index, including the unmarked final part. That
 says; if you wanted the marker to bind only to its own component, that is a specification amendment
 and not a defect here.
 
-The §15.2 half is still open, but vacuously: scheme paths do not consult the alias index at all, so
-a marker there has nothing to escape. See §1.10, which is the entry that has to close first, and
-[#56](https://github.com/stop-cran/namespace2xml/issues/56), which owns it. Issue #43 carries the
-reasoning that settled the §11.4 reading.
+**§15.2 is worded per *component*, and a scheme path behaves accordingly**: "an explicitly marked
+`Q{}`, `@`, or `#n` component selects only that XML component. An unmarked component uses the simple
+alias index." So `a.Q{}x.@y` aliases nowhere at `x` and binds the attribute at `@y`, where the same
+spelling as a reference would have been canonical throughout. The difference is in the two clauses,
+not in this build. **verified**
 
 ### 1.7 `WARN010` is not emitted
 
@@ -337,33 +338,43 @@ values. Closing it means giving a comment a content ordinal in the overlay, whic
 provenance change §1.7 and §1.8 need. Tracked as
 [#60](https://github.com/stop-cran/namespace2xml/issues/60).
 
-### 1.10 A scheme path addresses an XML component canonically, and `SCHEME002` is never raised
+### 1.10 A scheme path's alias covers `@` and `Q{uri}`, and not `#n`
 
 §15.2 says "an unmarked component uses the simple alias index for compatibility and convenience;
 if ordinary and XML components make that alias ambiguous at a matched location, selector expansion
-at pipeline step 13 emits blocking `SCHEME002`". This build matches a scheme path against the same
-typed component model the data uses and nothing else, so `a.x` in a scheme binds to the element `x`
-and never to the attribute written `a.@x`. `SCHEME002` consequently has no call site. **verified**
+at pipeline step 13 emits blocking `SCHEME002`". A scheme path now folds an attribute `@x` and a
+qualified element `Q{uri}x` to the unmarked spelling `x`, so a 2.x scheme that wrote `a.x.type=…`
+binds to the attribute written `a.@x`, and `SCHEME002` has a call site. A marked component still
+selects one component outright: `a.@x` binds the attribute only, and `a.Q{}x` the element only.
+**verified**
 
-This is the §15.2 half of the same unimplemented alias index as §1.6, and it fails in the safer
-direction *on this surface*: the canonical spelling is always unambiguous, so a directive either
-binds to exactly what it names or binds to nothing and earns the `WARN009` from §15.2. What is lost
-is the compatibility affordance — a 2.x scheme that wrote `a.x` to mean an attribute silently stops
-binding, with a warning rather than a wrong target. Write `a.@x`.
+§13.1's other two rewrites — removing a `#n` wrapper before a child element, and removing a terminal
+text or CDATA `#n` — are **not** applied to a scheme path. They change a path's length, so a scheme
+component would have to match a variable number of concrete components, and §11.4 holds an element
+and its sole content token to be "two canonical addresses for one scalar identity, **not** two
+candidates in the simple-alias ambiguity index" — folding the terminal token would instead make
+every directive on a mixed-content element ambiguous with its own text and raise `SCHEME002` where
+the specification wants none. §11.4 also carries a non-normative open question about repeated
+children in mixed content, which is the same shape. A directive on a content token must therefore be
+written `a.#1`, which is unambiguous. **verified**
 
-The *data* surface beside it is no longer silent. A contribution written `a.x=v` against an
-attribute `@x` still creates an ordinary sibling — §8.2 scopes the alias index to references and
-scheme paths, so the model is correct — but since contract revision r39 it emits `WARN011` naming
-both components and the canonical spelling that would have overridden. Both halves are tracked as
-[#56](https://github.com/stop-cran/namespace2xml/issues/56); only the scheme half remains.
+The alias applies to `type`, `key`, `ignore`, `multiline` and the other path-scoped directives bound
+at step 16. Wildcard **output selector** expansion at step 13 still addresses the concrete name graph
+literally, so `output` and `filename` selectors do not reach an attribute through an unmarked
+component. An output selector names a subtree root and an attribute is a leaf, so nothing is lost
+that a canonical spelling could not say; it is recorded here because §15.2 does not draw that line
+itself.
 
-The data half is **pinned**, in every spelling, by
+The *data* surface beside it is a separate rule and is unchanged: §8.2 scopes the alias index to
+references and scheme paths, so a contribution written `a.x=v` against an attribute `@x` still
+creates an ordinary sibling rather than overriding. Since contract revision r39 it emits `WARN011`
+naming both components and the canonical spelling that would have overridden, and it is pinned by
 `conformance/xml-a-2-x-style-attribute-override-adds-a-sibling-element`,
 `conformance/xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address` and
-`conformance/xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component`, so it reaches the
-generated migration guide rather than living only here. The first of those measured 2.4.0 accepting
-`r.a.x=dev` against `<a x="base">` and overriding the attribute, which is what makes this a
-migration hazard and not merely a specification detail. Write `a.@x`.
+`conformance/xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component`. The first of those
+measured 2.4.0 accepting `r.a.x=dev` against `<a x="base">` and overriding the attribute, which is
+what makes this a migration hazard and not merely a specification detail. Write `a.@x`.
+[#56](https://github.com/stop-cran/namespace2xml/issues/56) owns both halves.
 
 ### 1.11 A directive bound beneath a node that a later step-16 pass reshapes becomes inert
 

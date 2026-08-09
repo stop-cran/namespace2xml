@@ -36,6 +36,21 @@ independently.
 
 ### Added
 
+- **§15.2's simple alias now applies to scheme paths, and `SCHEME002` has a call site.** A directive
+  written `a.x.type=…` binds an attribute written `a.@x` or a qualified element `a.Q{uri}x`, which is
+  the 2.x spelling the clause grants "for compatibility and convenience" — measured: 2.4.0 does
+  reach an attribute that way. A marked component still selects one outright, so `a.@x` binds the
+  attribute alone and `a.Q{}x` the element alone. Where an unmarked component reaches both, the run
+  is refused with `SCHEME002` naming the two canonical alternatives rather than picking one.
+  **Caused by [#56](https://github.com/stop-cran/namespace2xml/issues/56)**, and no contract change
+  was needed: §15.2 has said this since r1 and the implementation had not caught up.
+- `conformance/scheme-an-unmarked-directive-reaches-an-attribute-through-the-simple-alias` and
+  `conformance/scheme-an-ambiguous-simple-alias-is-blocking` pin the alias, both marked escapes, and
+  the blocking ambiguity. Their differential verdicts are measured: the first **crashes** 2.4.0 on
+  the `Q{}` line, and the second is where 2.4.0 is at its worst — given
+  `<r><a x="1"><x>2</x></a><b x="3"><x>4</x></b></r>` and one ambiguous wildcard directive it exits
+  `0` and writes `<a x="" /><b x="" />`, destroying both attributes' values, both child elements and
+  both elements' text without a word. That silent loss is what makes the refusal worth the friction.
 - `conformance/xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component` pins `WARN011`'s
   positive case and **both** of its withholdings in one invocation, so a future implementation
   cannot satisfy the warning by emitting it everywhere. Its differential verdict is measured:

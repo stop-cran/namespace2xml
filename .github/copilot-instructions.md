@@ -539,6 +539,41 @@ Assert the same specified outcome over a dozen different names in one test. Ever
 specification's answer, so nothing pins a coincidence, and the mutant dies on the first name whose
 hash order disagrees. `AliasedComponentWarningTests` does this.
 
+### §5.2 compares the position mark *before* the component kind
+
+The kind order — ordinary, qualified element, typed attribute, typed content — is a **tie-breaker**
+that only runs when two siblings carry equal position marks. So an "is sorted, not merely walked"
+test needs an input where the walk genuinely disagrees with the specified order, and XML will not
+give you one for a kind tie: an element's attributes are read before its children, so in
+`<a b="1"><p:b>2</p:b></a>` the attribute already holds the earlier mark and walk order coincides
+with ordinal order by accident. Deleting the sort left that test green.
+
+Author the input as a **profile**, declaring the components in the order that makes the walk
+disagree — `r.a.Q{urn:p}b=2` before `r.a.@b=1`. Then walk order is `Q{urn:p}b, @b`, ordinal order is
+`@b, Q{urn:p}b` (`@` is 0x40, `Q` is 0x51), and the mutant dies.
+
+### The conformance comparer never compares `message`, so prose needs a unit test
+
+§6.4.3 makes `message` "human-readable prose … never compared". Anything a diagnostic says only in
+its message — which alternatives it lists, and in which order — is therefore invisible to the entire
+corpus, and a mutation to it survives every fixture. That is not a corpus gap to be fixed by adding
+a fixture; it is a deliberate boundary. Pin it with a unit test that reads `Diagnostic.Message`.
+
+### A `count`-bounded loop mutation is inert when the test passes `count == pattern.Length`
+
+Mutating `for (var i = 0; i < count && …)` to `i < pattern.Length` changes nothing for a caller that
+passes the two equal, which the production call site does. A test written against that call site
+therefore cannot kill it. Exercise the helper directly with a pattern **longer** than `count`.
+
+### `DID NOT COMPILE` can mean the mutation was over-applied
+
+`String.Replace` replaces **every** occurrence. An anchor like
+`cardinalityKey: $"{rule.Declaration.Source}:{rule.Declaration.Line}"` appears at every diagnostic
+call site in a file, so a mutation meant for one of them lands on all of them and fails to build on
+the ones where the new identifier is out of scope — reported at lines you did not intend to touch.
+Widen the anchor to several lines, or replace a single occurrence by index and assert on the
+surrounding text that it is the one you meant.
+
 ### On Unix a leading dot is the Hidden attribute, and `Get-ChildItem` drops it
 
 `Get-ChildItem` omits hidden entries unless `-Force` is passed, and on Unix .NET reports the Hidden

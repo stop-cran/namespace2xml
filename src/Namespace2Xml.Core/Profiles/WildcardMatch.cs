@@ -61,7 +61,9 @@ public sealed record WildcardCaptures(
 /// qualified element matches a qualified element with an equal URI, and so on. Section 15.2 grants
 /// unmarked components an alias index that also selects XML-typed components, but it grants it to
 /// <em>scheme paths</em>; Sections 8.6 and 12 describe patterns over input data and say nothing of
-/// the kind, so the Appendix A.2 typed model applies literally here. See KNOWN-LIMITS.
+/// the kind, so the Appendix A.2 typed model applies literally here. A scheme path reaches the
+/// alias by folding the <em>concrete</em> path before calling in — see
+/// <c>Namespace2Xml.Overlay.SchemeAlias</c> — which keeps that grant out of this class entirely.
 /// </para>
 /// </remarks>
 public static class WildcardMatch
