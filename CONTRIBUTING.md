@@ -376,8 +376,8 @@ reports.
 > **Version**
 > ```
 > name: namespace2xml
-> version: 3.0.0-preview.1
-> contract-bundle: r2+0654ebfa8b7a
+> version: 3.0.0-preview.2
+> contract-bundle: r37+2d644be6926e
 > ```
 >
 > **Observed** *(verified-in-session)*
@@ -393,7 +393,7 @@ reports.
 >
 > **Repro** *(verified-in-session)*
 > Added as `conformance/json-diagnostics-suppresses-operational-messages/`, which fails on
-> `contract-bundle r2+0654ebfa8b7a`.
+> `contract-bundle r37+2d644be6926e`.
 >
 > **Duplicate check:** `gh issue list --search "diagnostics-format json stderr"` — no matches.
 
@@ -408,8 +408,8 @@ rather than presented as the reporter's opinion.
 > **Version**
 > ```
 > name: namespace2xml
-> version: 3.0.0-preview.1
-> contract-bundle: r2+0654ebfa8b7a
+> version: 3.0.0-preview.2
+> contract-bundle: r37+2d644be6926e
 > ```
 >
 > **Observed** *(verified-in-session)*

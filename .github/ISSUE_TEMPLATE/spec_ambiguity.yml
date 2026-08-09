@@ -21,7 +21,7 @@ body:
     attributes:
       label: Version
       description: The `contract-bundle` line from `namespace2xml --version`.
-      placeholder: "contract-bundle: r2+0654ebfa8b7a"
+      placeholder: "contract-bundle: r37+2d644be6926e"
     validations:
       required: true
 

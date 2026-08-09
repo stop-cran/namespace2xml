@@ -134,6 +134,26 @@ jobs:
           set -euo pipefail
           prerelease=""
           case "$version" in *-*) prerelease="--prerelease";; esac
+          # The whole changelog as release notes buries this version under every earlier one.
+          # Take the section between this version's heading and the next top-level heading, and
+          # fail rather than publish empty notes -- a release whose notes silently vanished is
+          # worse than one that did not happen.
+          awk -v v="## [$version]" '
+            index($0, v) == 1 { inside = 1; next }
+            inside && /^## / { exit }
+            inside { print }
+          ' CHANGELOG.md > /tmp/notes.md
+          if [ ! -s /tmp/notes.md ]; then
+            echo "::error::CHANGELOG.md has no section for $version; refusing to publish empty release notes."
+            exit 1
+          fi
+          {
+            echo "Contract bundle: \`$(grep -oP '(?<="revision": ")[^"]+' spec/contract-bundle.json)\`"
+            echo
+            echo "Specification: https://github.com/stop-cran/namespace2xml/blob/$GITHUB_REF_NAME/docs/specification.md"
+            echo
+            cat /tmp/notes.md
+          } > /tmp/release-notes.md
           gh release create "$GITHUB_REF_NAME" artifacts/*.nupkg artifacts/*.snupkg \
             --title "namespace2xml $version" \
-            --notes-file CHANGELOG.md $prerelease
+            --notes-file /tmp/release-notes.md $prerelease
