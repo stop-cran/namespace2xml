@@ -689,11 +689,18 @@ $text = ($files | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join 
 }
 ```
 
-As of the M3 exit, ten codes are uncalled: `SCHEME002`, `REFERENCE002`–`REFERENCE005`, `XML002`,
-`COLLISION001`, `WARN005`, `WARN007` and `WARN010`. Every one belongs to an area `KNOWN-LIMITS.md`
-lists as not yet implemented, so that list is the expected baseline rather than a defect list. Check
-new entries against it, and check `COLLISION001` and `WARN005` at M4 — `filemerge` collision folding
-is claimed as implemented, so those two are the pair most likely to be genuinely missing next.
+As of the M3 exit, ten codes were uncalled: `SCHEME002`, `REFERENCE002`–`REFERENCE005`, `XML002`,
+`COLLISION001`, `WARN005`, `WARN007` and `WARN010`.
+
+**Re-measured at the M9 entry: two remain, `SCHEME002` and `WARN010`.** The other eight acquired
+call sites during M4–M8. Both survivors are documented — `KNOWN-LIMITS.md` §1.10 for `SCHEME002`
+(scheme paths do not consult the simple alias index, so the ambiguity it reports cannot arise) and
+§1.7 for `WARN010` (the numeric-mapping-as-sequence inference is implemented; the §3.3 compatibility
+warning for it is not). So the list remains an expected baseline rather than a defect list, but it
+is a much shorter one, and any *third* entry appearing is a finding.
+
+Re-run the audit whenever a milestone claims a diagnostic is covered, and update this paragraph
+rather than trusting it — it was stale by eight codes before anyone checked.
 
 ### A shape-mark test only bites when the new key is later than the mark it must tie with
 

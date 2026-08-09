@@ -1,6 +1,6 @@
 # Known limits
 
-**As of `3.0.0-preview.1`, contract bundle `r34+85cadfb66bb5`. Dated 2026-08.**
+**As of `3.0.0-preview.1`, contract bundle `r37+2d644be6926e`. Dated 2026-08.**
 
 This file exists because a project that claims completeness cannot receive feedback: every gap reads
 as user error, and the reporter concludes they are holding it wrong. During the preview this list is
@@ -268,23 +268,6 @@ The §15.2 half is still open, but vacuously: scheme paths do not consult the al
 a marker there has nothing to escape. See §1.10, which is the entry that has to close first. Issue
 #43 carries the reasoning that settled the §11.4 reading.
 
-### 1.9 A canonical reference to an XML comment position reports `REFERENCE002`, not `REFERENCE005`
-
-§13.1 says "a canonical reference directly addressing an XML comment path fails as a non-scalar
-reference", which §22 codes as `REFERENCE005`. This build reports `REFERENCE002`, the missing
-reference, for that case. **verified**
-
-The cause is upstream of §13. `XmlInputReader` gives a comment an ordering value and nothing else —
-`BoundComment(Text, Placement, Order)` carries no content ordinal — so at resolution time the model
-cannot tell `${a.#0}` naming a comment from `${a.#0}` naming nothing at all. Both are a `#n` path
-with no payload, and the more conservative of the two codes is the one that is always true.
-
-Both are blocking errors at the same severity with the same exit code, so a correct run is
-unaffected and an incorrect one still fails. What is lost is the message quality: a user who wrote
-`${a.#0}` meaning the comment is told the path does not exist rather than that comments are not
-values. Closing it means giving a comment a content ordinal in the overlay, which is the same
-provenance change §1.7 and §1.8 need.
-
 ### 1.7 `WARN010` is not emitted
 
 Section 3.2 requires "exactly one compatibility warning for each source contribution, canonical
@@ -319,6 +302,23 @@ ordered against the whole rather than against each part.
 Full fidelity means retaining each source's contribution at a path instead of the folded result,
 which is the same change §1.7 needs. No case in the corpus distinguishes the two orderings today;
 this entry exists so that one that does is read as a known gap rather than as a surprise.
+
+### 1.9 A canonical reference to an XML comment position reports `REFERENCE002`, not `REFERENCE005`
+
+§13.1 says "a canonical reference directly addressing an XML comment path fails as a non-scalar
+reference", which §22 codes as `REFERENCE005`. This build reports `REFERENCE002`, the missing
+reference, for that case. **verified**
+
+The cause is upstream of §13. `XmlInputReader` gives a comment an ordering value and nothing else —
+`BoundComment(Text, Placement, Order)` carries no content ordinal — so at resolution time the model
+cannot tell `${a.#0}` naming a comment from `${a.#0}` naming nothing at all. Both are a `#n` path
+with no payload, and the more conservative of the two codes is the one that is always true.
+
+Both are blocking errors at the same severity with the same exit code, so a correct run is
+unaffected and an incorrect one still fails. What is lost is the message quality: a user who wrote
+`${a.#0}` meaning the comment is told the path does not exist rather than that comments are not
+values. Closing it means giving a comment a content ordinal in the overlay, which is the same
+provenance change §1.7 and §1.8 need.
 
 ### 1.10 A scheme path addresses an XML component canonically, and `SCHEME002` is never raised
 
@@ -477,6 +477,31 @@ It is recorded rather than acted on, because refusing U+FFFD in a variable would
 text and there is no other signal to test. A revisit is warranted only if someone reaches it in
 practice.
 
+### 1.18 `NewLineOnAttributes` also breaks before the *first* attribute
+
+§16.9 says `NewLineOnAttributes` "places each attribute after the first on its own line, indented
+two spaces beyond the owning start tag". This build places *every* attribute on its own line,
+including the first, so the start tag ends at `<e` and `a="1"` begins on the next line. **verified**
+
+```text
+# r.e.@a=1, r.e.@b=2 with xmloutputoptions=Indent,NewLineOnAttributes
+
+# specified            # emitted
+<e a="1"               <e
+  b="2" />               a="1"
+                         b="2" />
+```
+
+The cause is that `XmlSerializer` sets `XmlWriterSettings.NewLineOnAttributes`, and .NET's writer
+breaks before the first attribute too. Obeying §16.9 literally means not using that setting and
+hand-writing start tags, which puts attribute escaping, namespace declaration placement and mixed
+content back in this project's hands for a purely cosmetic, opt-in flag.
+
+No fixture covers the flag at all, which is why the divergence survived; that gap is the part worth
+closing first. The flag is not in the default `Indent,PreserveCData,Declaration`, so no default run
+is affected. Which side moves — the writer or the clause — is a decision for review rather than for
+whichever is cheaper, and is tracked as a bug against §16.9 until then.
+
 ## 2. Acceptance coverage
 
 `conformance/assertions.json` records all 86 acceptance requirements from specification §26, each
@@ -622,6 +647,11 @@ unmeasured.
   is incomplete until the corpus is.
 - There is no cookbook, and there probably should be. If you built something with this tool and had
   to work it out yourself, that is a **usage gap** report and it is the most valuable kind.
+
+The five per-format guides — `docs/format-namespace.md`, `format-json.md`, `format-yaml.md`,
+`format-xml.md` and `format-ini.md` — are written and cite the clause behind each rule. Where a
+guide and this file disagree about what the build does, this file is the one kept current against
+the corpus; report the difference.
 
 ## 6. Things that are deliberately not going to change
 

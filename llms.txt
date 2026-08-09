@@ -28,6 +28,17 @@
 - [docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md): every intentional behaviour change from 2.4.0.
 - [KNOWN-LIMITS.md](KNOWN-LIMITS.md): what is deliberately not covered yet.
 
+## Formats
+
+One guide per supported format. Each cites the specification clause behind every rule, and says so
+explicitly where the specification does not settle a question.
+
+- [docs/format-namespace.md](docs/format-namespace.md): the namespace profile — syntax, escapes, comments, references, wildcards.
+- [docs/format-json.md](docs/format-json.md): JSON input and output — scalar kinds, strict parsing refusals, the numeric-map trap.
+- [docs/format-yaml.md](docs/format-yaml.md): YAML input and output — the normative `RestrictedYaml1` subset and what it refuses.
+- [docs/format-xml.md](docs/format-xml.md): XML input and output — typed components, attributes, CDATA, comments, namespaces.
+- [docs/format-ini.md](docs/format-ini.md): INI output only — the two-level `PortableIni1` projection and its escapes.
+
 ## Verification
 
 - [conformance/](conformance/): the portable conformance corpus, which is the independent oracle. Layout is specification Appendix C.
