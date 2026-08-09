@@ -9,6 +9,12 @@ long, and that is correct. It shrinks as milestones land.
 If something you need is here, **say so** — an entry on this list is a statement of current state,
 not a refusal. Adding your case to the relevant thread is what moves it.
 
+Every entry that owes a resolution **names the issue that owns it**, so that this file is a map of
+current behaviour and the tracker is where the work is argued. Two kinds of entry name no issue and
+that is not an oversight: one documenting a choice the specification explicitly permits (§1.5), and
+one stating the boundary of what a piece of evidence proves (§4.1). Anything with no user-visible
+symptom — a corpus gap, an internal to-do — is not written here at all; it lives only as an issue.
+
 ---
 
 ## 1. Implementation completeness
@@ -36,7 +42,7 @@ in a structured format — and both are refused rather than approximated.
 | Scalar inference and canonical numeric text | Implemented | §18 |
 | Output planning, destination paths, collision folding | Implemented | §17 |
 | Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
-| Rendering: JSON, YAML | Implemented, with the reductions in §1.2 | §19.3–§19.4 |
+| Rendering: JSON, YAML | Implemented, except the §3.2 warning in §1.7 | §19.3–§19.4 |
 | Publication and the validation gate | Implemented | §21 |
 | References and value wildcards | Implemented, except the `REFERENCE005` case in §1.9 | §13 |
 | Templates and masks | Implemented for namespace input | §8.6, §12 |
@@ -44,8 +50,8 @@ in a structured format — and both are refused rather than approximated.
 | Path-scoped view transformations: `type`, `key` | Implemented, with the gaps in §1.10–§1.12 | §16.5, §16.6 |
 | Ordered sequences from numeric paths | Implemented, except the §3.2 warning in §1.7 | §8.7, §5.4 |
 | Rendering: XML | Implemented, with the divergence in §1.18 | §19.5 |
-| `substitute` | Not yet | §16.7 |
-| **Scheme files** written as JSON, YAML or XML | Not yet | §15 |
+| `substitute` | Not yet — [#65](https://github.com/stop-cran/namespace2xml/issues/65) | §16.7 |
+| **Scheme files** written as JSON, YAML or XML | Not yet — [#66](https://github.com/stop-cran/namespace2xml/issues/66) | §15 |
 
 A preview binary returns exit status `70` when an invocation needs one of the two `Not yet` rows.
 That status is deliberately outside the contract: `0` and `1` are normative, and a
@@ -57,7 +63,7 @@ file is worse than no file.
 ### 1.1 Reductions inside JSON input
 
 JSON input is complete for §9 syntax, the §18 typed-scalar rules and the §15.1 projection, and these
-three cases are declined or unfinished within it.
+two cases are declined or unfinished within it.
 
 - **A wildcard in a native key is declined**, with exit `70` and no output. `{"*": 1}` has no
   representation in the overlay this preview builds, so it is refused rather than guessed at. `\*`
@@ -65,21 +71,17 @@ three cases are declined or unfinished within it.
   implemented for namespace-profile rules; what is missing is §12.3's requirement that
   "template-bearing JSON or YAML branches are extracted entry-by-entry", because the entry a
   structured reader emits carries an interpreted value and cannot express a typed payload, an empty
-  container, or a sequence ordering value beneath a wildcard key. Acceptance item 12 covers it.
+  container, or a sequence ordering value beneath a wildcard key. Acceptance item 12 covers it. This
+  is the same defect as the YAML half in §1.2 and shares its issue,
+  [#57](https://github.com/stop-cran/namespace2xml/issues/57) — but note that only the YAML half is
+  a regression against 2.4.0, because 2.4.0 had no JSON input at all.
 - **`substitute` is refused, not ignored.** This is not specific to JSON — no format applies it,
   because the machinery §13.4 describes does not exist. A scheme that sets `substitute` in any of
   its forms ends the run with exit `70` and a message naming the directive and the file it came
-  from, rather than accepting it and quietly doing nothing.
-- **§4.4's *scalar-versus-container* contest has no end-to-end coverage.** An empty container is
-  recorded as a shape contribution and its precedence is proved by unit test, but neither
-  implemented output format has to choose between a scalar and a container — §19.1 and §19.6 both
-  emit a scalar and its descendants together — so no conformance fixture can yet observe *that*
-  contest. This closes when JSON or YAML rendering lands. The neighbouring *mapping-versus-sequence*
-  contest is covered: a flat output does spell exactly one container shape, and
-  `conformance/namespace-shape-conflict-precedence` pins both directions of the §17.1 precedence
-  rule and the `TYPE002` warning that reports the omitted shape.
+  from, rather than accepting it and quietly doing nothing. Tracked as
+  [#65](https://github.com/stop-cran/namespace2xml/issues/65).
 
-A reference nested inside a native sequence is a fourth case, but it cannot be reached: any
+A reference nested inside a native sequence is a third case, but it cannot be reached: any
 unresolved value declines the whole invocation under §13, so no path exists today by which the
 overlay is consulted. It is recorded in the source at `StructuredProfileReader.BuildSequence` as a
 prerequisite for §15.1 step 15 rather than as a limit you can encounter.
@@ -98,7 +100,8 @@ it.
   `conformance/yaml-wildcard-template-in-a-native-key-is-declined`, so for that input a 2.x user
   gets the right file today and gets nothing from this preview. It is the only case in the corpus
   where the baseline satisfies the specification and this implementation does not. Closing it is a
-  blocker for 3.0 final rather than a deferred nicety.
+  blocker for 3.0 final rather than a deferred nicety, and is tracked as
+  [#57](https://github.com/stop-cran/namespace2xml/issues/57).
 - **`substitute` is refused with exit `70`**, again as for JSON and every other format.
 
 One §10.1 clause is under-determined and this preview chose a reading. §10.1 lists merge keys among
@@ -226,7 +229,10 @@ already correct for the contract §15 pointed them at. A wrong diagnostic costs 
 
 The extension decides, not the content — a scheme written in namespace-profile syntax but saved as
 `scheme.json` is still declined, and one saved as `scheme.ini`, `scheme.sh` or with no extension at
-all is still read, exactly as §7.1 treats input files.
+all is still read, exactly as §7.1 treats input files. Tracked as
+[#66](https://github.com/stop-cran/namespace2xml/issues/66), which also carries the question §15
+leaves open: whether a native sequence is a legal spelling for a directive that a profile writes as
+a comma-joined string.
 
 ### 1.5 `--max-depth` has a hard safety ceiling of 4096
 
@@ -292,7 +298,8 @@ whose keys are data.
 
 Emitting it needs per-source provenance the overlay does not retain: a node records the latest
 contribution to each of its marks, not the set of sources that contributed, and "one per source
-contribution" is a count over that set.
+contribution" is a count over that set. Tracked as
+[#58](https://github.com/stop-cran/namespace2xml/issues/58).
 
 ### 1.8 A wildcard contribution merges as one earlier-or-later value, not interleaved
 
@@ -308,7 +315,9 @@ ordered against the whole rather than against each part.
 
 Full fidelity means retaining each source's contribution at a path instead of the folded result,
 which is the same change §1.7 needs. No case in the corpus distinguishes the two orderings today;
-this entry exists so that one that does is read as a known gap rather than as a surprise.
+this entry exists so that one that does is read as a known gap rather than as a surprise. Tracked as
+[#59](https://github.com/stop-cran/namespace2xml/issues/59), which asks for that case to be
+constructed before either fix, since it may show the shape is unreachable.
 
 ### 1.9 A canonical reference to an XML comment position reports `REFERENCE002`, not `REFERENCE005`
 
@@ -325,7 +334,8 @@ Both are blocking errors at the same severity with the same exit code, so a corr
 unaffected and an incorrect one still fails. What is lost is the message quality: a user who wrote
 `${a.#0}` meaning the comment is told the path does not exist rather than that comments are not
 values. Closing it means giving a comment a content ordinal in the overlay, which is the same
-provenance change §1.7 and §1.8 need.
+provenance change §1.7 and §1.8 need. Tracked as
+[#60](https://github.com/stop-cran/namespace2xml/issues/60).
 
 ### 1.10 A scheme path addresses an XML component canonically, and `SCHEME002` is never raised
 
@@ -363,7 +373,9 @@ as bound, because it did bind.
 "inert and emits the unbound-directive warning" — and says nothing about the conversion cases. The
 behaviour here is inertness without the warning. Order the directives so that a reshaping `type` or
 `key` at an ancestor is the last thing that happens to a subtree, and treat a directive under one as
-having no effect.
+having no effect. Tracked as
+[#49](https://github.com/stop-cran/namespace2xml/issues/49), which asks §15.1 to say what the
+outcome should be.
 
 ### 1.12 `key` does not merge with an independent sequence already at the node
 
@@ -375,7 +387,9 @@ sequence, and any sequence projection that was already there is discarded. **ver
 The case needs a node carrying both an ordered mapping and an explicit independent sequence, which
 §4.4 already resolves in favour of one of them for every format this build writes, so no corpus
 fixture reaches it. It is recorded because the specification names a merge strategy there, and a
-future format that renders both projections would make the difference visible.
+future format that renders both projections would make the difference visible. Tracked as
+[#61](https://github.com/stop-cran/namespace2xml/issues/61), which asks first whether the shape is
+reachable at all — if it is not, amending §16.5 may be the honest resolution.
 
 ### 1.13 A destination high-water mark is lost when `replace` removes the path entirely
 
@@ -395,7 +409,7 @@ Materialising an empty node to hold the orphaned mark was tried and rejected: it
 has just removed back into the overlay tree, where wildcards, references and selectors find it again,
 which trades a remote divergence for a common one. Closing this properly means carrying the map
 beside the tree and re-addressing it through selector-prefix removal, `root`, `key` and `type`, as
-§17.5 describes.
+§17.5 describes. Tracked as [#62](https://github.com/stop-cran/namespace2xml/issues/62).
 
 ### 1.14 A JSON or YAML key collision has no diagnostic
 
@@ -463,6 +477,7 @@ Both readings are the plain sense of their own clause, so there is nothing the i
 settle by itself. The candidate resolutions are to give §10.1 an association rule matching §8.5, or
 to restate §20's trichotomy as format-independent and amend §8.5 to match. Choosing between them
 with no use to point at would be guessing, so this is recorded and left for the preview to settle.
+Tracked as [#63](https://github.com/stop-cran/namespace2xml/issues/63).
 
 ### 1.17 An unpaired surrogate cannot reach an output, and `-v` loses one silently
 
@@ -488,7 +503,10 @@ by starting the apphost directly with a UTF-16 argument list, which rules out th
 
 It is recorded rather than acted on, because refusing U+FFFD in a variable would reject legitimate
 text and there is no other signal to test. A revisit is warranted only if someone reaches it in
-practice.
+practice. Tracked as [#64](https://github.com/stop-cran/namespace2xml/issues/64), which asks §16.9
+for the qualifier it is missing rather than asking the writer to change — the escape this build
+emits is the right behaviour, it is simply an implementation decision on a default path that the
+contract does not state.
 
 ### 1.18 `NewLineOnAttributes` also breaks before the *first* attribute
 
@@ -584,7 +602,9 @@ needs harness machinery that invokes an external parser, and a decision about wh
 normative — plausibly Python's `configparser`, `ini4j`, and whatever the Windows profile API
 accepts, each under both `QuoteValues` settings and both `EscapeMultiline` settings, since those
 options are exactly where dialects disagree. Choosing that list is a specification question, not
-an implementation one.
+an implementation one, and §19.6 makes it normative by referring to it, so it has to be written
+down before any harness is built. Tracked as
+[#67](https://github.com/stop-cran/namespace2xml/issues/67).
 
 Until then, treat `PortableIni1` output as specified-and-self-consistent rather than as verified
 interoperable. Item 28 stays `pending` and is the largest single gap in the corpus.
