@@ -137,14 +137,28 @@ public static class SchemePhase
 
     /// <summary>Section 15.1 step 3: compile <c>substitute</c> path patterns.</summary>
     /// <param name="entries">Step 2's product.</param>
-    /// <returns>The same entries, once every <c>substitute</c> directive is known to be absent.</returns>
-    public static StepOutcome<ImmutableArray<SchemeEntry>> CompileSubstitutePatterns(
-        ImmutableArray<SchemeEntry> entries) =>
-        Decline(
-            entries,
-            directive => directive is SchemeDirective.Substitute,
-            "the substitute directive",
-            "\u00A715.1");
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <returns>The same entries, paired with the Section 16.7 mode every input entry reads.</returns>
+    /// <remarks>
+    /// The patterns are compiled here, three steps before the inputs they govern are parsed,
+    /// because step 6 lexes a value according to them: whether a <c>${</c> begins a reference at
+    /// all is decided before the value is read, not corrected afterwards. Section 15.1 lists
+    /// <c>substitute</c> and literal input <c>merge</c> as "the explicit earlier-phase exceptions"
+    /// to scheme paths addressing step 11's stable paths for exactly this reason.
+    /// </remarks>
+    public static StepOutcome<(ImmutableArray<SchemeEntry> Entries, SubstituteModeMap Substitutes)>
+        CompileSubstitutePatterns(
+            ImmutableArray<SchemeEntry> entries,
+            DiagnosticBuffer diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        var substitutes = SchemeCompiler.CompileSubstitutes(entries, diagnostics);
+
+        return diagnostics.HasBlockingError
+            ? StepOutcome.Failed<(ImmutableArray<SchemeEntry>, SubstituteModeMap)>()
+            : StepOutcome.Produced((entries, substitutes));
+    }
 
     /// <summary>Section 15.1 step 4: compile literal-path input <c>merge</c> directives.</summary>
     /// <param name="entries">Step 3's product.</param>
@@ -161,26 +175,5 @@ public static class SchemePhase
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<SchemeConfiguration>()
             : StepOutcome.Produced(configuration);
-    }
-
-    private static StepOutcome<ImmutableArray<SchemeEntry>> Decline(
-        ImmutableArray<SchemeEntry> entries,
-        Func<SchemeDirective, bool> unsupported,
-        string capability,
-        string spec)
-    {
-        foreach (var entry in entries)
-        {
-            if (unsupported(entry.Directive))
-            {
-                return StepOutcome.Unsupported<ImmutableArray<SchemeEntry>>(
-                    new UnsupportedCapability(
-                        capability,
-                        $"'{entry.Declaration}' in {entry.Source} needs it.",
-                        spec));
-            }
-        }
-
-        return StepOutcome.Produced(entries);
     }
 }

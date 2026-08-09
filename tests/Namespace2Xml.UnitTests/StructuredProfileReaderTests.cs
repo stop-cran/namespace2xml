@@ -43,6 +43,7 @@ public class StructuredProfileReaderTests
             root.ShouldNotBeNull(),
             sourceOrdinal: 1,
             ProfileSource.OfFile("d.json"),
+            SubstituteModeMap.Default,
             diagnostics,
             out unsupported);
     }
@@ -231,9 +232,9 @@ public class StructuredProfileReaderTests
             StableOrderingKey.FromSource(1, 1));
 
         var first = StructuredProfileReader.Read(
-            root.ShouldNotBeNull(), 1, ProfileSource.OfFile("d.json"), diagnostics, out _);
+            root.ShouldNotBeNull(), 1, ProfileSource.OfFile("d.json"), SubstituteModeMap.Default, diagnostics, out _);
         var second = StructuredProfileReader.Read(
-            root, 2, ProfileSource.OfFile("d.json"), diagnostics, out _);
+            root, 2, ProfileSource.OfFile("d.json"), SubstituteModeMap.Default, diagnostics, out _);
 
         Child(second.Overlay, "a").Marks.Position
             .ShouldBeGreaterThan(Child(first.Overlay, "a").Marks.Position);

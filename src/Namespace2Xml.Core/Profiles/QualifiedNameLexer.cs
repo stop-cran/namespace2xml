@@ -199,6 +199,74 @@ public static class QualifiedNameLexer
             : WildcardSyntax.Explicit;
     }
 
+    /// <summary>
+    /// Rewrites every wildcard token in a name as the literal text that spells it.
+    /// </summary>
+    /// <param name="name">The lexed name.</param>
+    /// <returns>The same name with no wildcard tokens left.</returns>
+    /// <remarks>
+    /// <para>
+    /// This is what Section 16.7's "names interpreted: no" means in a lexer that always lexes
+    /// wildcards. Merely declining to treat the entry as a template would leave a
+    /// <see cref="WildcardToken"/> in a concrete path, where Section 21's encoding would spell it
+    /// <c>*</c> and every later matcher would read it back as a pattern — so the name would still
+    /// be interpreted, just later and by something else.
+    /// </para>
+    /// <para>
+    /// The explicit form keeps its brackets. Section 12.1 says so for the mirror-image case in a
+    /// value, where <c>*[identifier]</c> in a non-recognizing context "is literal text along with
+    /// its brackets", and a name and a value that disagreed about what the same token spells could
+    /// not round-trip through Section 21.
+    /// </para>
+    /// </remarks>
+    public static QualifiedName Literalize(QualifiedName name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        if (!ContainsWildcard(name))
+        {
+            return name;
+        }
+
+        var parts = ImmutableArray.CreateBuilder<NamePart>(name.Parts.Length);
+
+        foreach (var part in name.Parts)
+        {
+            parts.Add(LiteralizePart(part));
+        }
+
+        return new QualifiedName(parts.ToImmutable());
+    }
+
+    private static NamePart LiteralizePart(NamePart part) => part switch
+    {
+        OrdinaryPart ordinary => new OrdinaryPart(LiteralizeTokens(ordinary.Tokens))
+        {
+            IsExplicitlyCanonical = ordinary.IsExplicitlyCanonical,
+        },
+        QualifiedElementPart qualified =>
+            new QualifiedElementPart(qualified.Uri, LiteralizeTokens(qualified.Local)),
+        AttributePart attribute =>
+            new AttributePart((XmlNameComponent)LiteralizePart(attribute.Name)),
+        _ => part,
+    };
+
+    private static ImmutableArray<NameToken> LiteralizeTokens(ImmutableArray<NameToken> tokens)
+    {
+        var result = ImmutableArray.CreateBuilder<NameToken>(tokens.Length);
+
+        foreach (var token in tokens)
+        {
+            result.Add(
+                token is WildcardToken wildcard
+                    ? new LiteralToken(
+                        wildcard.CaptureId is null ? "*" : $"*[{wildcard.CaptureId}]")
+                    : token);
+        }
+
+        return result.ToImmutable();
+    }
+
     private static IEnumerable<WildcardToken> PartWildcards(NamePart part) => part switch
     {
         OrdinaryPart ordinary => ordinary.Tokens.OfType<WildcardToken>(),

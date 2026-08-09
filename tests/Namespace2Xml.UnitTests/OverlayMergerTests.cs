@@ -38,6 +38,7 @@ public class OverlayMergerTests
             ],
             ordinal,
             ProfileSource.OfFile($"p{ordinal}.txt"),
+            SubstituteModeMap.Default,
             new DiagnosticBuffer())
         .Overlay;
 

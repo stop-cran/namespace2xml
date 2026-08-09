@@ -399,8 +399,7 @@ Verified.
 
 References use the qualified-name grammar of §8.2 and are recognized by §8.4; a YAML string
 matched by `substitute=Key` or `substitute=None` is preserved as-is with no transducer decoding
-applied (§13.4), but this preview does not yet apply `substitute` — see `KNOWN-LIMITS.md` §1.1.
-Every reference in a YAML string today is interpreted.
+applied (§13.4). A YAML string matched by neither has every reference in it interpreted.
 
 ## Traps
 

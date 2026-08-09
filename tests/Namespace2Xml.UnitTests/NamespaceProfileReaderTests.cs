@@ -27,7 +27,7 @@ public class NamespaceProfileReaderTests
     ];
 
     private static ProfileContribution Read(string document, DiagnosticBuffer diagnostics) =>
-        NamespaceProfileReader.Read(Records(document), 3, ProfileSource.OfFile("p.txt"), diagnostics);
+        NamespaceProfileReader.Read(Records(document), 3, ProfileSource.OfFile("p.txt"), SubstituteModeMap.Default, diagnostics);
 
     private static ProfileContribution Read(string document) =>
         Read(document, new DiagnosticBuffer());
@@ -389,8 +389,8 @@ public class NamespaceProfileReaderTests
     {
         var buffer = new DiagnosticBuffer();
 
-        NamespaceProfileReader.Read(Records("bad"), 5, ProfileSource.OfFile("late.txt"), buffer);
-        NamespaceProfileReader.Read(Records("bad"), 2, ProfileSource.OfFile("early.txt"), buffer);
+        NamespaceProfileReader.Read(Records("bad"), 5, ProfileSource.OfFile("late.txt"), SubstituteModeMap.Default, buffer);
+        NamespaceProfileReader.Read(Records("bad"), 2, ProfileSource.OfFile("early.txt"), SubstituteModeMap.Default, buffer);
 
         buffer.Drain().Select(diagnostic => diagnostic.Source)
             .ShouldBe(["early.txt", "late.txt"]);
@@ -407,8 +407,8 @@ public class NamespaceProfileReaderTests
         var late = ImmutableArray.Create(NamespaceRecordClassifier.Classify("bad", 9));
         var early = ImmutableArray.Create(NamespaceRecordClassifier.Classify("a=${x", 2));
 
-        NamespaceProfileReader.Read(late, 1, ProfileSource.OfFile("p.txt"), buffer);
-        NamespaceProfileReader.Read(early, 1, ProfileSource.OfFile("p.txt"), buffer);
+        NamespaceProfileReader.Read(late, 1, ProfileSource.OfFile("p.txt"), SubstituteModeMap.Default, buffer);
+        NamespaceProfileReader.Read(early, 1, ProfileSource.OfFile("p.txt"), SubstituteModeMap.Default, buffer);
 
         buffer.Drain().Select(diagnostic => diagnostic.Line).ShouldBe([2, 9]);
     }
@@ -429,7 +429,7 @@ public class NamespaceProfileReaderTests
             NamespaceRecordClassifier.Classify("bad", 2),
             NamespaceRecordClassifier.Classify("worse", 9));
 
-        NamespaceProfileReader.Read(records, 1, ProfileSource.OfFile("p.txt"), buffer);
+        NamespaceProfileReader.Read(records, 1, ProfileSource.OfFile("p.txt"), SubstituteModeMap.Default, buffer);
 
         var diagnostic = buffer.Drain().ShouldHaveSingleItem();
         diagnostic.Code.ShouldBe("PARSE001");
@@ -443,8 +443,8 @@ public class NamespaceProfileReaderTests
         var buffer = new DiagnosticBuffer();
         var records = ImmutableArray.Create(NamespaceRecordClassifier.Classify("bad", 1));
 
-        NamespaceProfileReader.Read(records, 1, ProfileSource.OfFile("first.txt"), buffer);
-        NamespaceProfileReader.Read(records, 2, ProfileSource.OfFile("second.txt"), buffer);
+        NamespaceProfileReader.Read(records, 1, ProfileSource.OfFile("first.txt"), SubstituteModeMap.Default, buffer);
+        NamespaceProfileReader.Read(records, 2, ProfileSource.OfFile("second.txt"), SubstituteModeMap.Default, buffer);
 
         buffer.Drain().Select(diagnostic => diagnostic.Source)
             .ShouldBe(["first.txt", "second.txt"]);

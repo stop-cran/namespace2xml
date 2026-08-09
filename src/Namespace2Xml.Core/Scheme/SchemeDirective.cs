@@ -74,9 +74,15 @@ public enum SchemeAlias
 
     /// <summary>
     /// Section 15.3's legacy <c>type</c> values <c>xmlns</c> and <c>xmlnssuffix</c>, "treated as
-    /// no-ops". It is the one alias category that names a directive's value rather than its name.
+    /// no-ops". It names a directive's value rather than its name.
     /// </summary>
     LegacyTypeValue,
+
+    /// <summary>
+    /// Section 15.3's <c>keyOnly</c> for Section 16.7 substitute mode <c>Key</c>. Like
+    /// <see cref="LegacyTypeValue"/> it names a directive's value rather than its name.
+    /// </summary>
+    KeyOnly,
 }
 
 /// <summary>Recognizes a Section 15 directive name.</summary>
@@ -135,10 +141,11 @@ public static class SchemeDirectives
         SchemeAlias.NamespaceDelimiter => "namespacedelimiter",
         SchemeAlias.XmlOptions => "xmloptions",
         SchemeAlias.LegacyTypeValue => "xmlns/xmlnssuffix",
+        SchemeAlias.KeyOnly => "keyOnly",
         _ => throw new ArgumentOutOfRangeException(
             nameof(alias),
             alias,
-            "Section 15.3 lists two directive aliases, and neither is this one."),
+            "Section 15.3 lists four alias categories, and none of them is this one."),
     };
 
     /// <summary>The directive an alias is deprecated in favour of.</summary>
@@ -148,9 +155,10 @@ public static class SchemeDirectives
         SchemeAlias.NamespaceDelimiter => "delimiter",
         SchemeAlias.XmlOptions => "xmloutputoptions",
         SchemeAlias.LegacyTypeValue => "nothing, because they are no-ops",
+        SchemeAlias.KeyOnly => "substitute mode 'Key'",
         _ => throw new ArgumentOutOfRangeException(
             nameof(alias),
             alias,
-            "Section 15.3 lists two directive aliases, and neither is this one."),
+            "Section 15.3 lists four alias categories, and none of them is this one."),
     };
 }

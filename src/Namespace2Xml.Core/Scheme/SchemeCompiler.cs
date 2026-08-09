@@ -318,6 +318,12 @@ public static class SchemeCompiler
                     // were parsed. Nothing later configures an output instance from one.
                     break;
 
+                case SchemeDirective.Substitute:
+                    // Section 15.1 step 3 already compiled these, before the input values they
+                    // govern were lexed at step 6. Nothing later configures an output instance
+                    // from one, and reaching the default arm would refuse the whole run.
+                    break;
+
                 default:
                     deferred.Add(entry);
                     break;
@@ -1036,6 +1042,72 @@ public static class SchemeCompiler
         }
 
         return strategy;
+    }
+
+    /// <summary>
+    /// Section 15.1 step 3: compiles the <c>substitute</c> directives into their path patterns.
+    /// </summary>
+    /// <param name="entries">Step 2's product, in source order.</param>
+    /// <param name="diagnostics">The scheme phase's buffer.</param>
+    /// <returns>The effective Section 16.7 mode for every declared path.</returns>
+    /// <remarks>
+    /// This runs before <see cref="Compile(ImmutableArray{SchemeEntry}, DiagnosticBuffer)"/>, so the
+    /// wildcard and reference values that method defers have not been separated out yet and are
+    /// rejected here instead. Section 15.1 permits a name wildcard in the pattern, which is why the
+    /// path is not checked the way an input <c>merge</c> path is; a wildcard in the <em>value</em>
+    /// is a different thing, and Section 16.7 spells the value as one of four names.
+    /// </remarks>
+    public static SubstituteModeMap CompileSubstitutes(
+        ImmutableArray<SchemeEntry> entries,
+        DiagnosticBuffer diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        var declarations = ImmutableArray.CreateBuilder<(QualifiedName? Pattern, SubstituteMode Mode)>();
+
+        foreach (var entry in entries)
+        {
+            if (entry.Directive != SchemeDirective.Substitute)
+            {
+                continue;
+            }
+
+            var written = entry.Value.LiteralText?.Trim();
+
+            if (written is null
+                || !IsName(written)
+                || !SubstituteModes.TryRecognize(written, out var mode, out var alias))
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.7",
+                    $"'{entry.Value.LiteralText ?? entry.Declaration}' is not one of 'All', "
+                    + "'Key', 'Value', or 'None'.");
+                continue;
+            }
+
+            if (alias == SchemeAlias.KeyOnly)
+            {
+                // Section 15.3 accepts the alias with "one warning per scheme", and the registry
+                // keys WARN002 by alias category and scheme rather than by occurrence.
+                diagnostics.Add(new BufferedDiagnostic(
+                    DiagnosticCodes.Warn002(
+                        DiagnosticPhase.Scheme,
+                        "\u00A715.3",
+                        $"'{SchemeDirectives.Spelling(SchemeAlias.KeyOnly)}' is a deprecated alias "
+                        + $"for {SchemeDirectives.Replacement(SchemeAlias.KeyOnly)}.",
+                        cardinalityKey: $"{entry.Source}:{SchemeAlias.KeyOnly}",
+                        source: entry.Source,
+                        line: entry.Line,
+                        declaration: entry.Declaration),
+                    entry.Order));
+            }
+
+            declarations.Add((entry.Selector, mode));
+        }
+
+        return SubstituteModeMap.Create(declarations.ToImmutable());
     }
 
     private static void CompileInputMerge(

@@ -26,8 +26,8 @@ pretending to succeed.
 The tool currently transforms **every input format and every output format the specification
 defines**, end to end: namespace-profile, JSON, YAML and XML input, overlaying, references,
 templates, output planning, and publication of namespace, quoted-namespace, INI, JSON, YAML and XML
-destinations. Two capabilities remain unbuilt — the `substitute` directive and scheme files written
-in a structured format — and both are refused rather than approximated.
+destinations. One capability remains unbuilt — scheme files written in a structured format — and it
+is refused rather than approximated.
 
 | Area | State | Specification |
 |---|---|---|
@@ -47,13 +47,12 @@ in a structured format — and both are refused rather than approximated.
 | References and value wildcards | Implemented, except the `REFERENCE005` case in §1.9 | §13 |
 | Templates and masks | Implemented for namespace input | §8.6, §12 |
 | Wildcard output selectors | Implemented | §14 |
-| Path-scoped view transformations: `type`, `key` | Implemented, with the gaps in §1.10–§1.12 | §16.5, §16.6 |
+| Path-scoped view transformations: `type`, `key`, `substitute` | Implemented, with the gaps in §1.10–§1.12 | §16.5–§16.7 |
 | Ordered sequences from numeric paths | Implemented, except the §3.2 warning in §1.7 | §8.7, §5.4 |
 | Rendering: XML | Implemented | §19.5 |
-| `substitute` | Not yet — [#65](https://github.com/stop-cran/namespace2xml/issues/65) | §16.7 |
 | **Scheme files** written as JSON, YAML or XML | Not yet — [#66](https://github.com/stop-cran/namespace2xml/issues/66) | §15 |
 
-A preview binary returns exit status `70` when an invocation needs one of the two `Not yet` rows.
+A preview binary returns exit status `70` when an invocation needs the `Not yet` row.
 That status is deliberately outside the contract: `0` and `1` are normative, and a
 preview must never return either for work it did not do. It is a **refusal**, not a diagnostic — the
 run decides no outcome at all, publishes nothing, and says on standard error which capability it
@@ -62,8 +61,8 @@ file is worse than no file.
 
 ### 1.1 Reductions inside JSON input
 
-JSON input is complete for §9 syntax, the §18 typed-scalar rules and the §15.1 projection, and these
-two cases are declined or unfinished within it.
+JSON input is complete for §9 syntax, the §18 typed-scalar rules and the §15.1 projection, and this
+one case is declined within it.
 
 - **A wildcard in a native key is declined**, with exit `70` and no output. `{"*": 1}` has no
   representation in the overlay this preview builds, so it is refused rather than guessed at. `\*`
@@ -75,13 +74,8 @@ two cases are declined or unfinished within it.
   is the same defect as the YAML half in §1.2 and shares its issue,
   [#57](https://github.com/stop-cran/namespace2xml/issues/57) — but note that only the YAML half is
   a regression against 2.4.0, because 2.4.0 had no JSON input at all.
-- **`substitute` is refused, not ignored.** This is not specific to JSON — no format applies it,
-  because the machinery §13.4 describes does not exist. A scheme that sets `substitute` in any of
-  its forms ends the run with exit `70` and a message naming the directive and the file it came
-  from, rather than accepting it and quietly doing nothing. Tracked as
-  [#65](https://github.com/stop-cran/namespace2xml/issues/65).
 
-A reference nested inside a native sequence is a third case, but it cannot be reached: any
+A reference nested inside a native sequence is a second case, but it cannot be reached: any
 unresolved value declines the whole invocation under §13, so no path exists today by which the
 overlay is consulted. It is recorded in the source at `StructuredProfileReader.BuildSequence` as a
 prerequisite for §15.1 step 15 rather than as a limit you can encounter.
@@ -102,7 +96,6 @@ it.
   where the baseline satisfies the specification and this implementation does not. Closing it is a
   blocker for 3.0 final rather than a deferred nicety, and is tracked as
   [#57](https://github.com/stop-cran/namespace2xml/issues/57).
-- **`substitute` is refused with exit `70`**, again as for JSON and every other format.
 
 One §10.1 clause is under-determined and this preview chose a reading. §10.1 lists merge keys among
 the constructs `RestrictedYaml1` excludes without saying whether an unsupported merge key is an
@@ -212,7 +205,6 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   `b.#0`.
 - **Processing instructions are discarded**, with one `WARN006` per document that carried any.
   §11.8 places them outside the preservation contract.
-- **`substitute` is refused with exit `70`**, as for every other format.
 
 ### 1.4 Scheme files must be namespace profiles
 

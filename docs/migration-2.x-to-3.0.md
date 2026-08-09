@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (92)
+## Observable differences (95)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1329,6 +1329,61 @@ implemented, its case says so plainly rather than letting the heading imply othe
   `root` value.
 - The difference is intentional: a structured format can spell a scalar document, so requiring a
   key would invent a name the source never had.
+
+### `substitute-key-preserves-a-native-string-exactly`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 13.4 and 8.3; Appendix A.5. Section 3.2 as a correction.
+- Legacy observation: the baseline exits 0 and writes `cfg.json` with `"kept": "a\\*b"` and
+  `"decoded": "a\\*b"` — the same text for both members, with the backslash retained in each. It
+  therefore agrees with the case about the matched member and differs about the unmatched one.
+  2.4.0 had no separate escape pass for a string a native reader had already decoded, so there was
+  nothing for `substitute=Key` to suppress and nothing to apply to `decoded` either.
+- Clean behavior: Section 8.3's second table is a real pass with two escapes, `\*` and `\${`, and
+  Section 13.4 makes `Key` and `None` the way to switch it off. `kept` is preserved and `decoded` is
+  decoded.
+- The difference is intentional: without the pass there is no way to write a literal `${` into a
+  JSON-sourced value that reaches a namespace destination, and without the Section 13.4 exemption
+  there is no way to keep a backslash that a JSON document meant literally. The sibling fixture
+  `native-strings-do-not-get-a-second-escape-pass` records the same baseline gap from the other
+  direction.
+
+### `substitute-keyonly-is-a-deprecated-alias`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 15.3, 16.7, and 19.1; Section 6.4 for the diagnostic stream.
+- Legacy observation: the baseline exits 0 and writes `cfg.properties` containing `raw=${lit}`. It
+  accepted `keyOnly` and applied it — the reference was left uninterpreted — and said nothing about
+  the spelling. 2.4.0 had no diagnostic stream and no deprecation vocabulary, so an author using a
+  legacy spelling had no way to learn it was legacy.
+- Clean behavior: the alias is still accepted, so no existing scheme breaks, and `WARN002` names the
+  spelling and its replacement once per scheme. The value is emitted as `\${lit}` under Section
+  19.1's total encoding.
+- The difference is intentional in both parts. Section 3.1 keeps "deprecated aliases listed in this
+  specification" working, and Section 6.4 exists so that a run can tell an author what it silently
+  tolerated. A deprecation nobody is told about cannot be acted on before the release that removes
+  it.
+
+### `substitute-none-disables-interpretation-at-the-matched-node`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 16.7, 13.4, and 19.1; Section 3.3's normalized same-format round trip.
+- Legacy observation: the baseline exits 0 and writes `cfg.properties` containing `raw=${lit}`,
+  `deep.raw=X`, and `*.gen=g`. Every semantic decision agrees with the case: the matched value was
+  left uninterpreted, the unmatched descendant resolved its reference, and the wildcard-shaped name
+  became a literal node. What differs is the encoding of the two lines that carry a metacharacter.
+  2.4.0 emitted `${lit}` and `*.gen` unescaped, so its own output no longer reads back as the data
+  it was written from: reading `cfg.properties` again would find a reference at `raw` and a wildcard
+  template at `*.gen`.
+- Clean behavior: Section 19.1 makes namespace name encoding total and injective and gives values
+  the inverse of the value lexer, so the same two lines emit `\${lit}` and `\*.gen`.
+- The difference is intentional, and it is the Section 3.3 round-trip guarantee rather than anything
+  in Section 16.7. A tool whose disabled-substitution output re-enables substitution when read back
+  cannot be used to stage a value through an intermediate file, which is the main reason to disable
+  substitution in the first place.
+- That the scoping and name-literalization decisions this case turns on match 2.4.0 is worth
+  recording: Section 16.7 states neither, and the baseline is the only other artifact that had to
+  answer both.
 
 ### `type-array-with-key-is-an-illegal-combination`
 

@@ -32,6 +32,7 @@ public static class InputPhase
     /// <param name="loader">The shared source loader.</param>
     /// <param name="budget">The invocation's global budget, already charged for scheme sources.</param>
     /// <param name="options">Step 2's product: the Section 16.8 input options.</param>
+    /// <param name="substitutes">Step 3's product: the Section 16.7 mode at each declared path.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>Every admitted input contribution, in Section 7.3 stream order.</returns>
     public static StepOutcome<ImmutableArray<InputContribution>> ParseInputs(
@@ -39,12 +40,14 @@ public static class InputPhase
         SourceLoader loader,
         GlobalBudget budget,
         InputOptions options,
+        SubstituteModeMap substitutes,
         DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(loader);
         ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(substitutes);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
         foreach (var input in command.Inputs)
@@ -108,6 +111,7 @@ public static class InputPhase
                     reconciled.GetValueOrDefault(source.Ordinal, document),
                     source.Ordinal,
                     source.Origin,
+                    substitutes,
                     diagnostics,
                     out var unsupported);
 
@@ -124,7 +128,11 @@ public static class InputPhase
                 new InputContribution(
                     source.Origin,
                     NamespaceProfileReader.Read(
-                        source.Records, source.Ordinal, source.Origin, diagnostics)));
+                        source.Records,
+                        source.Ordinal,
+                        source.Origin,
+                        substitutes,
+                        diagnostics)));
         }
 
         return diagnostics.HasBlockingError

@@ -281,9 +281,14 @@ public sealed class TransformationTests
     // ---- Section 15.1 refusal ----------------------------------------------------------------
 
     [Test]
-    public void AFormatOutsideThisVersionDeclinesRatherThanGuessing()
+    public void ACapabilityOutsideThisVersionDeclinesRatherThanGuessing()
     {
-        var (result, sink) = Transform("app.name=example\n", "app.substitute=All\n");
+        // Section 15 permits a structured scheme file; this build reads only the namespace-profile
+        // form and says so, rather than handing JSON to the Section 8.1 parser and reporting the
+        // wrong contract against a file that is already correct.
+        var sink = new Sink();
+        var sources = new Sources(("in.txt", "app.name=example\n"), ("scheme.json", "{}\n"));
+        var result = Run(sink, sources, "-i", "in.txt", "-s", "scheme.json");
 
         result.State.ShouldBe(PipelineRunState.Unsupported);
         result.ExitCode.ShouldBeNull();
@@ -296,9 +301,10 @@ public sealed class TransformationTests
     {
         // A partial run is the failure this gate exists to prevent: publishing `app.properties`
         // and silently dropping the refused work would leave a plausible tree that asserts less
-        // than the scheme asked for.
+        // than the scheme asked for. The refused directive is declined at step 16, after the
+        // instance it shares a scheme with has already been planned.
         var (result, sink) = Transform(
-            "app.name=example\n", "app.output=namespace\napp.substitute=All\n");
+            "app.name=example\n", "app.output=namespace\napp.*.key=n*me\n");
 
         result.State.ShouldBe(PipelineRunState.Unsupported);
         sink.Written.ShouldBeEmpty();

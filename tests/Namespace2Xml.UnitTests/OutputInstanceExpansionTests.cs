@@ -39,7 +39,7 @@ public class OutputInstanceExpansionTests
 
     private static OverlayNode Model(string document) =>
         NamespaceProfileReader.Read(
-            Records(document), 1, ProfileSource.OfFile("p.txt"), new DiagnosticBuffer())
+            Records(document), 1, ProfileSource.OfFile("p.txt"), SubstituteModeMap.Default, new DiagnosticBuffer())
         .Overlay;
 
     private ImmutableArray<OutputInstance> Expand(string scheme, string data)

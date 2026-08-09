@@ -83,14 +83,17 @@ public static class NamespaceProfileReader
     /// <param name="records">The Section 8.1 classified records, in source order.</param>
     /// <param name="sourceOrdinal">The Section 4.7 CLI source ordinal.</param>
     /// <param name="source">The source diagnostics report this contribution against.</param>
+    /// <param name="substitutes">Step 3's product: the Section 16.7 mode at each declared path.</param>
     /// <param name="diagnostics">The buffer this source's diagnostics accumulate in.</param>
     public static ProfileContribution Read(
         ImmutableArray<NamespaceRecord> records,
         long sourceOrdinal,
         ProfileSource source,
+        SubstituteModeMap substitutes,
         DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(substitutes);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
         var overlay = OverlayNode.Intermediate(StableOrderingKey.FromSource(sourceOrdinal, 0));
@@ -131,7 +134,7 @@ public static class NamespaceProfileReader
 
                 case NamespaceRecordKind.Entry:
                     overlay = ReadEntry(
-                        record, key, source, diagnostics, overlay, templates, pending);
+                        record, key, source, substitutes, diagnostics, overlay, templates, pending);
                     break;
 
                 default:
@@ -207,6 +210,7 @@ public static class NamespaceProfileReader
         NamespaceRecord record,
         StableOrderingKey key,
         ProfileSource source,
+        SubstituteModeMap substitutes,
         DiagnosticBuffer diagnostics,
         OverlayNode overlay,
         ImmutableArray<ProfileEntry>.Builder templates,
@@ -226,11 +230,25 @@ public static class NamespaceProfileReader
             return overlay;
         }
 
+        // Section 15.1 step 6 resolves the mode against "an entry's declared pre-expansion path",
+        // which is this name as written — before any template it may be expands.
+        var mode = substitutes.IsEmpty
+            ? SubstituteMode.All
+            : substitutes.For(lexedName.Name);
+
+        var name = mode.InterpretsNames()
+            ? lexedName.Name
+            : QualifiedNameLexer.Literalize(lexedName.Name);
+
         // Section 12.1 decides wildcard recognition "before the value is lexed, from the owning
         // name's captures": in an entry whose name defines none, 'pattern=*.txt' is literal text.
+        // Under a mode that does not interpret names there are no captures to define, so the two
+        // halves of Section 16.7's table meet here rather than needing to be kept in step.
         var lexedValue = ValueLexer.Lex(
             record.Value!,
-            ValueSyntax.Profile(QualifiedNameLexer.CaptureForm(lexedName.Name)));
+            mode.InterpretsValues()
+                ? ValueSyntax.Profile(QualifiedNameLexer.CaptureForm(name))
+                : ValueSyntax.ProfileUninterpreted);
 
         if (lexedValue.Value is null)
         {
@@ -253,11 +271,13 @@ public static class NamespaceProfileReader
         pending.Clear();
 
         var entry = new ProfileEntry(
-            lexedName.Name, lexedValue.Value, key, record.Line, comments);
+            name, lexedValue.Value, key, record.Line, comments);
 
         // Section 15.1 step 7: a wildcard name makes this a template rather than a contribution. It
         // is extracted here and evaluated at step 10, so it never reaches the concrete overlay.
-        if (QualifiedNameLexer.ContainsWildcard(lexedName.Name))
+        // Literalize has already removed the tokens under a mode that does not interpret names, so
+        // such an entry is concrete here without a second mode test.
+        if (QualifiedNameLexer.ContainsWildcard(name))
         {
             templates.Add(entry);
             return overlay;
@@ -280,7 +300,7 @@ public static class NamespaceProfileReader
 
             return Graft(
                 overlay,
-                lexedName.Name.Parts,
+                name.Parts,
                 0,
                 ScalarPayload.Unresolved(lexedValue.Value, origin),
                 key,
@@ -289,7 +309,7 @@ public static class NamespaceProfileReader
 
         return Graft(
             overlay,
-            lexedName.Name.Parts,
+            name.Parts,
             0,
             ScalarPayload.Untyped(lexedValue.Value.LiteralText!),
             key,

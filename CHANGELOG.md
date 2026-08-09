@@ -36,6 +36,35 @@ independently.
 
 ### Added
 
+- **The `substitute` directive (§16.7) is implemented.** It was the larger of the two remaining
+  exit-`70` refusals. `substitute` selects, at the node it matches, whether references and value
+  wildcards are interpreted in an entry's **name**, its **value**, both, or neither, with the four
+  modes `All`, `Key`, `Value` and `None`; the deprecated 2.x spelling `keyOnly` is accepted as `Key`
+  and reported once per scheme as `WARN002`. §13.4's exemption comes with it: a native JSON, YAML or
+  XML string matched by `Key` or `None` is preserved exactly after native decoding, with no
+  Appendix A.5 transducer pass — implemented by not lexing the native string at all, because a lex
+  with interpretation merely switched off still consumes `\*` and `\${`.
+  **Closes [#65](https://github.com/stop-cran/namespace2xml/issues/65)**, whose framing was wrong on
+  two counts and is corrected in the close: `substitute` does not rewrite values, it withholds
+  interpretation from them, and the ordering it called unsettled is fixed by §15.1 step 6.
+- `conformance/substitute-none-disables-interpretation-at-the-matched-node`,
+  `conformance/substitute-key-preserves-a-native-string-exactly` and
+  `conformance/substitute-keyonly-is-a-deprecated-alias` pin the three discriminations a plausible
+  wrong implementation fails: that the directive scopes to the node it matches rather than the
+  subtree beneath it, that the name and value columns of §16.7's table are independent, and that the
+  deprecated alias is honoured *and* reported. All three verdicts are measured: 2.4.0 **differs** on
+  each, agreeing on every semantic decision and diverging only in §19.1 output encoding — plus, in
+  the `Key` case, by never having run §8.3's native-string transducer at all.
+- **A pattern in a `substitute` directive matches a template by its spelling.** A declared path that
+  is itself a template carries a wildcard token, and the ordinary matcher requires the concrete side
+  of a match to be literal text, so before this no `substitute` pattern could reach a template — and
+  the name column of §16.7's table, whose only reachable subjects are names with something to
+  interpret, was dead. A wildcard-bearing declared path is now literalized before matching, so a
+  wildcard component contributes the characters that wrote it. This is what 2.x did, measured:
+  `QualifiedNameMatchDictionary.TryMatch` string-matched the component's rendered text. Legacy's
+  reverse branch, which let a concrete `a.x.b` govern a declared `a.*.b`, is deliberately **not**
+  carried: §15.1 step 6 speaks of the declared pre-expansion path.
+
 - **§15.2's simple alias now applies to scheme paths, and `SCHEME002` has a call site.** A directive
   written `a.x.type=…` binds an attribute written `a.@x` or a qualified element `a.Q{uri}x`, which is
   the 2.x spelling the clause grants "for compatibility and convenience" — measured: 2.4.0 does

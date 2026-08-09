@@ -261,6 +261,9 @@
       "status": "pending",
       "assertions": [],
       "fixtures": [
+        "substitute-key-preserves-a-native-string-exactly",
+        "substitute-keyonly-is-a-deprecated-alias",
+        "substitute-none-disables-interpretation-at-the-matched-node",
         "type-ignore-removes-a-subtree-and-strands-its-directives"
       ]
     },

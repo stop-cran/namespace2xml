@@ -31,6 +31,7 @@ public class ExclusionMaskTests
             ],
             ordinal,
             ProfileSource.OfFile($"p{ordinal}.txt"),
+            SubstituteModeMap.Default,
             new DiagnosticBuffer());
 
     /// <summary>Reads one document and applies the masks it declares to its own contributions.</summary>
@@ -243,6 +244,7 @@ public class ExclusionMaskTests
             root.ShouldNotBeNull(),
             sourceOrdinal: 1,
             ProfileSource.OfFile("d.json"),
+            SubstituteModeMap.Default,
             diagnostics,
             out var unsupported);
 

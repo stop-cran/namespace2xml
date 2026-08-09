@@ -28,6 +28,7 @@ public static class StructuredProfileReader
     /// <param name="root">The document's root node.</param>
     /// <param name="sourceOrdinal">The Section 4.7 CLI source ordinal.</param>
     /// <param name="source">The source diagnostics report this contribution against.</param>
+    /// <param name="substitutes">Step 3's product: the Section 16.7 mode at each declared path.</param>
     /// <param name="diagnostics">The buffer this source's diagnostics accumulate in.</param>
     /// <param name="unsupported">
     /// The first construct this preview declines, or <see langword="null"/> when it declined none.
@@ -36,14 +37,16 @@ public static class StructuredProfileReader
         StructuredNode root,
         long sourceOrdinal,
         ProfileSource source,
+        SubstituteModeMap substitutes,
         DiagnosticBuffer diagnostics,
         out UnsupportedCapability? unsupported)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(substitutes);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        var projection = new Projection(sourceOrdinal, source, diagnostics);
+        var projection = new Projection(sourceOrdinal, source, substitutes, diagnostics);
         var overlay = projection.Build(root, []);
 
         unsupported = projection.Refusal;
@@ -52,13 +55,28 @@ public static class StructuredProfileReader
     }
 
     private sealed class Projection(
-        long sourceOrdinal, ProfileSource source, DiagnosticBuffer diagnostics)
+        long sourceOrdinal,
+        ProfileSource source,
+        SubstituteModeMap substitutes,
+        DiagnosticBuffer diagnostics)
     {
         private long ordinal;
 
 
         public UnsupportedCapability? Refusal { get; private set; }
 
+        /// <summary>The Section 16.7 mode governing a native value at one path.</summary>
+        /// <param name="path">The value's declared path, from the document root.</param>
+        /// <remarks>
+        /// Section 15.1 step 6 matches a pattern against "an entry's declared pre-expansion path".
+        /// A native document's root scalar has no path at all, and Appendix A.2 spells a name as
+        /// "one or more components", so no path-scoped pattern can name it; a directive written
+        /// with no path still governs it, and <see cref="SubstituteModeMap"/> answers that.
+        /// </remarks>
+        private SubstituteMode Mode(ImmutableArray<NamePart> path) =>
+            substitutes.IsEmpty
+                ? SubstituteMode.All
+                : substitutes.For(path.IsDefaultOrEmpty ? null : new QualifiedName(path));
         public OverlayNode Build(StructuredNode node, ImmutableArray<NamePart> path)
         {
             var key = StableOrderingKey.FromSource(sourceOrdinal, ++ordinal);
@@ -201,6 +219,19 @@ public static class StructuredProfileReader
             if (scalar.Payload is { } typed)
             {
                 return OverlayNode.OfPayload(typed, key);
+            }
+
+            // Section 13.4: "Native JSON, YAML, and XML strings matched by Key or None are
+            // preserved exactly after native format decoding; no transformer escape decoding is
+            // applied." The value is therefore not lexed at all under those modes — not lexed
+            // with interpretation switched off, which would still consume the Appendix A.5
+            // escapes and turn a literal '\*' into '*'.
+            if (!Mode(path).InterpretsValues())
+            {
+                var preserved = ScalarPayload.OfString(scalar.NativeString!);
+
+                return OverlayNode.OfPayload(
+                    scalar.IsCdata ? preserved.AsCdata() : preserved, key);
             }
 
             // Section 12.1 reads a value's wildcard form from its owning name's captures. This

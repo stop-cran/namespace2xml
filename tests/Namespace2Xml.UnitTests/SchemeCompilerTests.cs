@@ -458,14 +458,38 @@ public class SchemeCompilerTests
     }
 
     /// <summary>
-    /// A directive this build does not compile is carried rather than dropped, so the driver can
-    /// refuse the run. Silently ignoring configuration the user wrote is the failure mode this
+    /// A directive value this build does not compile is carried rather than dropped, so the driver
+    /// can refuse the run. Silently ignoring configuration the user wrote is the failure mode this
     /// list exists to prevent.
     /// </summary>
     [Test]
     public void AnUncompiledDirectiveIsCarried() =>
-        Compile("a.substitute=x").Deferred.ShouldHaveSingleItem()
-            .Directive.ShouldBe(SchemeDirective.Substitute);
+        Compile("a.*.key=n*me").Deferred.ShouldHaveSingleItem()
+            .Directive.ShouldBe(SchemeDirective.Key);
+
+    /// <summary>
+    /// Every member of <see cref="SchemeDirective"/> has a compiler arm, so no well-formed
+    /// directive reaches the deferral list and refuses a run that Section 16 defines completely.
+    /// A directive added to the enum without an arm makes this red.
+    /// </summary>
+    [TestCase("a.output=namespace")]
+    [TestCase("a.filename=f")]
+    [TestCase("a.root=r")]
+    [TestCase("a.delimiter=:")]
+    [TestCase("a.key=name")]
+    [TestCase("a.type=array")]
+    [TestCase("a.substitute=None")]
+    [TestCase("a.xmlinputoptions=attributes")]
+    [TestCase("a.xmloutputoptions=indent")]
+    [TestCase("a.jsoninputoptions=arrayasobject")]
+    [TestCase("a.jsonoutputoptions=indent")]
+    [TestCase("a.yamlinputoptions=arrayasobject")]
+    [TestCase("a.yamloutputoptions=indent")]
+    [TestCase("a.inioutputoptions=preservesections")]
+    [TestCase("a.merge=append")]
+    [TestCase("a.filemerge=append")]
+    public void EveryDirectiveHasACompilerArm(string declaration) =>
+        Compile(declaration).Deferred.ShouldBeEmpty();
 
     // ---- Sections 16.5 and 16.6: path-scoped transformations ---------------------------------------
 

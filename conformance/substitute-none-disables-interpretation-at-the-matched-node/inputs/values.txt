@@ -1,0 +1,4 @@
+lit=X
+cfg.raw=${lit}
+cfg.deep.raw=${lit}
+cfg.*.gen=g

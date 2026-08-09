@@ -659,7 +659,7 @@ public sealed class WildcardTemplateTests
             .Select((line, index) => NamespaceRecordClassifier.Classify(line, index + 1))
             .ToImmutableArray();
 
-        var contribution = NamespaceProfileReader.Read(records, 1, source, diagnostics);
+        var contribution = NamespaceProfileReader.Read(records, 1, source, SubstituteModeMap.Default, diagnostics);
 
         var rules = contribution.Templates
             .Select(template => new WildcardRule(

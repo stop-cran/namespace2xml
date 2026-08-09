@@ -42,6 +42,7 @@ public sealed class AliasedComponentWarningTests
             ],
             ordinal,
             ProfileSource.OfFile($"p{ordinal}.txt"),
+            SubstituteModeMap.Default,
             new DiagnosticBuffer())
         .Overlay;
 

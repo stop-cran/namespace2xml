@@ -131,18 +131,24 @@ public static class Transformation
         var substitutes = run.Run(
             PipelineStep.CompileSubstitutePatterns,
             options,
-            (both, _) => SchemePhase.CompileSubstitutePatterns(both.Entries));
+            (both, diagnostics) =>
+                SchemePhase.CompileSubstitutePatterns(both.Entries, diagnostics));
 
         var configuration = run.Run(
             PipelineStep.CompileInputMerges,
             substitutes,
-            SchemePhase.CompileInputMerges);
+            (both, diagnostics) => SchemePhase.CompileInputMerges(both.Entries, diagnostics));
 
         var inputs = run.Run(
             PipelineStep.ParseInputs,
-            PipelineRun.Both(start, options),
+            PipelineRun.Both(PipelineRun.Both(start, options), substitutes),
             (both, diagnostics) => InputPhase.ParseInputs(
-                both.First, loader, budget, both.Second.Options, diagnostics));
+                both.First.First,
+                loader,
+                budget,
+                both.First.Second.Options,
+                both.Second.Substitutes,
+                diagnostics));
 
         // Steps 6 and 7 are performed by the reader as it parses: it lexes every value and returns
         // templates and masks separately from concrete contributions. They are still run as steps
