@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (90)
+## Observable differences (91)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -526,6 +526,33 @@ implemented, its case says so plainly rather than letting the heading imply othe
   property of the host filesystem cannot participate in the byte-identical determinism Section 3
   promises across platforms.
 
+### `empty-container-versus-scalar-picks-the-later-shape`
+
+- namespace2xml 2.4.0: **differs**. It picks the *same* shape at every node — `emptywins.x` renders
+  as `{}` and `scalarwins.x` as `1` in both formats — and then diverges twice: `cfg.json` ends at
+  `}` with no final newline, and neither loss is reported. `cfg.yaml` matches. Exit 0. **verified**
+  — measured against the Appendix C.6 pinned 2.4.0 package.
+- Contract: Section 4.4's exclusive-shape contest for an empty container; Section 19.3; Section
+  19.4; Section 24's trailing newline.
+- Legacy observation: 2.4.0 emitted JSON and YAML, and its last-contribution-wins behaviour happened
+  to agree with Section 4.4 on this input. What it did not do is tell anyone. A node that carried
+  both a scalar and an empty mapping silently kept one and dropped the other, and an empty mapping
+  is exactly the shape where that is hardest to notice: the winner has no content, so the file gives
+  a reader nothing to compare against what they wrote. It also ended `cfg.json` without a final
+  newline, and wrote `Environment.NewLine` rather than LF, so the same input produced different
+  bytes on Windows and on Linux.
+- Clean behavior: Section 4.4 ranks the latest scalar/null contribution against the latest container
+  contribution and renders the later one, and "empty mappings therefore participate in precedence
+  even though they have no children". `emptywins.x` receives the scalar first and the empty mapping
+  second, so the empty mapping wins; `scalarwins.x` receives them the other way round, so the scalar
+  wins. Step 4 requires the losing shape to produce "one shape-conflict warning", counted per path
+  and output instance, so each of the two paths warns once for `cfg.json` and once for `cfg.yaml` —
+  four `TYPE002` in total. Section 24 ends a text output with exactly one LF on every platform.
+- The difference is intentional: an agreement that is never stated is not a guarantee. 2.4.0 chose a
+  shape by an emergent property of its overlay rather than by a stated rule, so a user had no way to
+  know the choice was made at all, let alone to predict it. The warning is the correction here, not
+  the shape.
+
 ### `filemerge-error-rejects-a-second-contribution`
 
 - namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `out.properties` (the harness
@@ -629,8 +656,12 @@ implemented, its case says so plainly rather than letting the heading imply othe
 
 - namespace2xml 2.4.0: **differs**.
 - Contract: Section 4.4; Section 19.3; Section 19.4.
-- Legacy observation: JSON and YAML output did not exist, so a path carrying both a scalar and a
-  descendant had no defined structured rendering and no warning.
+- Legacy observation: 2.4.0 emitted both JSON and YAML, and its last-contribution-wins behaviour
+  happened to agree with Section 4.4 on this input: `mapwins.x` came out as an object containing
+  `z` and `scalarwins.x` as `1`, in both files. Two things were missing rather than wrong. Neither
+  omission was reported, so a user could not tell that a shape had been dropped; and `cfg.json`
+  ended at `}` with no final newline, while `cfg.yaml` had one. 2.4.0 also wrote
+  `Environment.NewLine`, so the same input produced different bytes on Windows and on Linux.
 - Clean behavior: Section 4.4 makes JSON and YAML exclusive-shape destinations. Its own example
   says a namespace emitting both `a.x=1` and `a.x.z=3` renders `x` as an object containing
   `z`, omits the scalar, and warns; reversing source order makes the later scalar win. Each loss
@@ -656,7 +687,13 @@ implemented, its case says so plainly rather than letting the heading imply othe
 
 - namespace2xml 2.4.0: **differs**.
 - Contract: Section 16.9; Section 19.3; Section 24.
-- Legacy observation: there was no JSON output and therefore no layout or escaping options.
+- Legacy observation: 2.4.0 emitted JSON, but had no output options at all. All three destinations
+  came out byte-identical in layout — indented at two spaces, non-escaped — so `compact.json` and
+  `escaped.json` were indistinguishable from `indented.json` apart from their extra key. Both
+  `jsonoutputoptions` lines were unrecognized scheme directives, and an unrecognized directive was
+  ignored rather than reported, so a user asking for compact or escaped output received neither and
+  was told nothing. Every file also ended without a final newline and used `Environment.NewLine`
+  for its breaks.
 - Clean behavior: Section 19.3 "uses indented output by default", which Section 16.9 fixes at two
   ASCII spaces per nesting level. `Compact` emits no insignificant spaces or line breaks.
   `EscapeNonAscii` emits every scalar above U+007F as an uppercase hexadecimal `\uXXXX`

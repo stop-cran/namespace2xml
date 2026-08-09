@@ -1,0 +1,6 @@
+{
+  "cfg": {
+    "emptywins": { "x": 1 },
+    "scalarwins": { "x": {} }
+  }
+}

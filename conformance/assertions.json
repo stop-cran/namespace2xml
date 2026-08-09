@@ -473,9 +473,11 @@
       "assertions": [
         "JSON and YAML are Section 4.4 exclusive-shape destinations: the payload competes with the container, the later contribution wins, and the omitted facet is one `TYPE002` counted once per path and output instance.",
         "The flat formats emit both projections without a shape warning, so the same overlay renders differently by format rather than being rejected.",
-        "XML remains uncovered until the XML writer ships."
+        "An empty mapping participates in the Section 4.4 contest without children, so it wins over an earlier scalar and loses to a later one, and the loss warns in both directions.",
+        "XML is not yet pinned for this item."
       ],
       "fixtures": [
+        "empty-container-versus-scalar-picks-the-later-shape",
         "json-and-yaml-render-one-exclusive-shape"
       ]
     },

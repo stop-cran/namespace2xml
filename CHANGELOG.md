@@ -27,11 +27,30 @@ independently.
 
 ### Added
 
+- `conformance/empty-container-versus-scalar-picks-the-later-shape` pins §4.4's exclusive-shape
+  contest for an **empty** container in both source orders, for a JSON and a YAML destination.
+  **Caused by [#68](https://github.com/stop-cran/namespace2xml/issues/68)**. The corpus previously
+  pinned only the non-empty form, and the empty case is the one where a wrong answer is hardest to
+  see: the winning shape carries no content, so nothing in the file distinguishes a correct empty
+  mapping from a dropped one.
 - `conformance/xml-newline-on-attributes` pins the §16.9 attribute layout, which **no fixture
   exercised at all** — the corpus gap that let the divergence survive, and the half of #53 worth
   closing first. Its differential verdict is measured, not assumed: 2.4.0 **crashes** on
   `cfg.e.@a=1` with an unhandled `XmlException`, after opening the destination, leaving a zero-byte
   file behind.
+
+### Fixed
+
+- Two conformance cases carried a **fabricated** legacy observation, and both were published in the
+  generated `docs/migration-2.x-to-3.0.md`: `json-and-yaml-render-one-exclusive-shape` said "JSON
+  and YAML output did not exist" in 2.4.0, and `json-output-options-and-escaping` said "there was no
+  JSON output". 2.4.0 emits both formats. Measured against the pinned package, its actual
+  shortcomings are different and more interesting — it made the same §4.4 shape choices *silently*,
+  ignored every `jsonoutputoptions` flag without reporting the unrecognized directive, ended JSON
+  files without a final newline, and wrote `Environment.NewLine` rather than LF. Both observations
+  are replaced with what was measured. The verdicts themselves were correct, so the differential
+  lane stayed green: it checks the verdict, and cannot check the prose.
+
 
 ### Changed
 

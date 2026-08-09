@@ -1,0 +1,6 @@
+[
+{"code":"TYPE002","severity":"warning","phase":"planning","path":"emptywins.x","destination":"cfg.json"},
+{"code":"TYPE002","severity":"warning","phase":"planning","path":"scalarwins.x","destination":"cfg.json"},
+{"code":"TYPE002","severity":"warning","phase":"planning","path":"emptywins.x","destination":"cfg.yaml"},
+{"code":"TYPE002","severity":"warning","phase":"planning","path":"scalarwins.x","destination":"cfg.yaml"}
+]
