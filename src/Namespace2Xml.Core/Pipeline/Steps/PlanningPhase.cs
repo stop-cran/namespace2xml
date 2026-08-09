@@ -134,10 +134,369 @@ public static class PlanningPhase
             }
         }
 
+        if (diagnostics.HasBlockingError)
+        {
+            return StepOutcome.Failed<ImmutableArray<OutputInstance>>();
+        }
+
+        var concrete = Consolidate(expanded);
+        concrete = RebindInstanceOptions(concrete, configuration.InstanceOptions, diagnostics);
+
+        // Section 16.1 compiles 'output=ignore' to an empty format set, and Section 14.2 says a
+        // selector whose winning declaration is 'output=ignore' "creates no output instance". The
+        // instance the directive stream binds to still existed until here — Section 15.2 lets an
+        // exact-selector 'filename' bind to a wildcard-created 'ignore' instance without warning —
+        // so the suppression happens after 'RebindInstanceOptions' rather than inside 'Consolidate'.
+        concrete = [.. concrete.Where(instance => !instance.Formats.IsEmpty)];
+
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<ImmutableArray<OutputInstance>>()
-            : StepOutcome.Produced(Consolidate(expanded));
+            : StepOutcome.Produced(concrete);
     }
+
+    /// <summary>
+    /// Section 15.2's cross-selector override stream, applied against the concrete instances
+    /// wildcard expansion has produced.
+    /// </summary>
+    /// <param name="instances">One instance per concrete literalized selector, after consolidation.</param>
+    /// <param name="options">The winning per-instance-scoped directive declarations, in source order.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <returns>The instances with each per-instance option re-resolved.</returns>
+    /// <remarks>
+    /// <para>
+    /// Section 15.2: "exact and wildcard declarations that literalize to the same concrete selector
+    /// participate in one source-ordered override stream", and "pattern specificity does not alter
+    /// precedence". For each concrete instance <c>K</c> and each per-instance-scoped directive, the
+    /// winning declaration is the one whose written selector literalizes to <c>K</c> with the
+    /// greatest source order. The compiler's per-selector winners are one input to that stream —
+    /// the one an exact-selector directive at <c>K</c> contributes — but a wildcard directive at
+    /// <c>a.*</c> also contributes when <c>K</c> is <c>a.x</c>, and it can override the exact one
+    /// or lose to it depending only on their relative source positions.
+    /// </para>
+    /// <para>
+    /// A winner that fails to bind against any concrete instance is Section 15.2's "otherwise
+    /// inert" declaration: it earns a <c>WARN009</c>. The warning is deferred here because the
+    /// concrete instances the wildcards produce do not exist earlier: an exact
+    /// <c>a.x.filename=...</c> paired with a wildcard <c>a.*.output=namespace</c> is not unbound —
+    /// it binds to the concrete <c>a.x</c> instance the wildcard creates — and the compiler cannot
+    /// see that.
+    /// </para>
+    /// </remarks>
+    private static ImmutableArray<OutputInstance> RebindInstanceOptions(
+        ImmutableArray<OutputInstance> instances,
+        ImmutableArray<InstanceOptionWinner> options,
+        DiagnosticBuffer diagnostics)
+    {
+        if (options.IsDefaultOrEmpty)
+        {
+            return instances;
+        }
+
+        var bound = new HashSet<long>();
+        var rebuilt = ImmutableArray.CreateBuilder<OutputInstance>(instances.Length);
+
+        foreach (var instance in instances)
+        {
+            rebuilt.Add(ApplyInstanceOptions(instance, options, bound, diagnostics));
+        }
+
+        foreach (var winner in options)
+        {
+            if (bound.Contains(winner.Order))
+            {
+                continue;
+            }
+
+            // Section 15.2: a selector-qualified per-instance directive "that binds to no concrete
+            // output instance emits one scheme warning and is otherwise inert". Section 22 counts
+            // WARN009 once per declaration, so the key is the declaration's source and line.
+            var entry = winner.Entry;
+
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Warn009(
+                    DiagnosticPhase.Planning,
+                    "\u00A715.2",
+                    $"'{entry.Declaration}' binds to no output instance, because no 'output' "
+                    + "declaration created one whose concrete selector its written selector "
+                    + "literalizes to.",
+                    cardinalityKey: $"{entry.Source}:{entry.Line}",
+                    source: entry.Source,
+                    line: entry.Line,
+                    path: CanonicalPath.Of(entry.Selector),
+                    declaration: entry.Declaration),
+                entry.Order));
+        }
+
+        return rebuilt.ToImmutable();
+    }
+
+    /// <summary>
+    /// Re-resolves one concrete instance's per-instance options against Section 15.2's override
+    /// stream, and records every winner that bound to it.
+    /// </summary>
+    /// <param name="instance">The concrete instance.</param>
+    /// <param name="options">Every winning per-instance-scoped declaration.</param>
+    /// <param name="bound">The set of winners that have bound to some concrete instance so far.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <returns>The instance with its per-instance settings re-resolved.</returns>
+    private static OutputInstance ApplyInstanceOptions(
+        OutputInstance instance,
+        ImmutableArray<InstanceOptionWinner> options,
+        HashSet<long> bound,
+        DiagnosticBuffer diagnostics)
+    {
+        InstanceOptionWinner? filename = null;
+        WildcardCaptures filenameCaptures = WildcardCaptures.Empty;
+        InstanceOptionWinner? root = null;
+        InstanceOptionWinner? delimiter = null;
+        InstanceOptionWinner? iniOptions = null;
+        InstanceOptionWinner? jsonOptions = null;
+        InstanceOptionWinner? yamlOptions = null;
+        InstanceOptionWinner? xmlOptions = null;
+        InstanceOptionWinner? fileMerge = null;
+
+        foreach (var winner in options)
+        {
+            if (!TryLiteralize(winner.Selector, instance.Selector, out var captures))
+            {
+                continue;
+            }
+
+            bound.Add(winner.Order);
+
+            switch (winner.Directive)
+            {
+                case SchemeDirective.Filename:
+                    if (Later(filename, winner))
+                    {
+                        filename = winner;
+                        filenameCaptures = captures;
+                    }
+
+                    break;
+
+                case SchemeDirective.Root:
+                    if (Later(root, winner))
+                    {
+                        root = winner;
+                    }
+
+                    break;
+
+                case SchemeDirective.Delimiter:
+                    if (Later(delimiter, winner))
+                    {
+                        delimiter = winner;
+                    }
+
+                    break;
+
+                case SchemeDirective.IniOutputOptions:
+                    if (Later(iniOptions, winner))
+                    {
+                        iniOptions = winner;
+                    }
+
+                    break;
+
+                case SchemeDirective.JsonOutputOptions:
+                    if (Later(jsonOptions, winner))
+                    {
+                        jsonOptions = winner;
+                    }
+
+                    break;
+
+                case SchemeDirective.YamlOutputOptions:
+                    if (Later(yamlOptions, winner))
+                    {
+                        yamlOptions = winner;
+                    }
+
+                    break;
+
+                case SchemeDirective.XmlOutputOptions:
+                    if (Later(xmlOptions, winner))
+                    {
+                        xmlOptions = winner;
+                    }
+
+                    break;
+
+                case SchemeDirective.FileMerge:
+                    if (Later(fileMerge, winner))
+                    {
+                        fileMerge = winner;
+                    }
+
+                    break;
+
+                default:
+                    // Section 15.2's per-instance override stream carries only the directives the
+                    // compiler puts on 'InstanceOptions'. An unrecognized one is a defect in the
+                    // compiler, not a user-caused condition, and Section 6.3 forbids it reaching
+                    // the stream as a runtime exception, but reaching this branch at all would
+                    // already be a violation of that contract.
+                    throw new InvalidOperationException(
+                        $"'InstanceOptions' carries the unexpected directive '{winner.Directive}'.");
+            }
+        }
+
+        var updated = instance;
+
+        if (filename is { } filenameWinner)
+        {
+            if (SchemeCompiler.CompileInstanceOption(filenameWinner, updated.Formats, diagnostics)
+                is InterpretedValue template)
+            {
+                updated = updated with
+                {
+                    FilenameTemplate = template,
+                    Captures = filenameCaptures,
+                    FilenameDeclaration = SiteOf(filenameWinner.Entry),
+                };
+            }
+        }
+
+        if (root is { } rootWinner)
+        {
+            if (SchemeCompiler.CompileInstanceOption(rootWinner, updated.Formats, diagnostics)
+                is QualifiedName name)
+            {
+                updated = updated with { Root = name };
+            }
+        }
+
+        if (delimiter is { } delimiterWinner)
+        {
+            if (SchemeCompiler.CompileInstanceOption(delimiterWinner, updated.Formats, diagnostics)
+                is string text)
+            {
+                updated = updated with { Delimiter = text };
+            }
+        }
+
+        if (iniOptions is { } iniWinner)
+        {
+            if (SchemeCompiler.CompileInstanceOption(iniWinner, updated.Formats, diagnostics)
+                is IniOutputOptions value)
+            {
+                updated = updated with
+                {
+                    IniOptions = value,
+                    IniOptionsDeclaration = SiteOf(iniWinner.Entry),
+                };
+            }
+        }
+
+        if (jsonOptions is { } jsonWinner)
+        {
+            if (SchemeCompiler.CompileInstanceOption(jsonWinner, updated.Formats, diagnostics)
+                is JsonOutputOptions value)
+            {
+                updated = updated with
+                {
+                    JsonOptions = value,
+                    JsonOptionsDeclaration = SiteOf(jsonWinner.Entry),
+                };
+            }
+        }
+
+        if (yamlOptions is { } yamlWinner)
+        {
+            if (SchemeCompiler.CompileInstanceOption(yamlWinner, updated.Formats, diagnostics)
+                is YamlOutputOptions value)
+            {
+                updated = updated with
+                {
+                    YamlOptions = value,
+                    YamlOptionsDeclaration = SiteOf(yamlWinner.Entry),
+                };
+            }
+        }
+
+        if (xmlOptions is { } xmlWinner)
+        {
+            if (SchemeCompiler.CompileInstanceOption(xmlWinner, updated.Formats, diagnostics)
+                is XmlOutputOptions value)
+            {
+                updated = updated with
+                {
+                    XmlOptions = value,
+                    XmlOptionsDeclaration = SiteOf(xmlWinner.Entry),
+                };
+            }
+        }
+
+        if (fileMerge is { } mergeWinner)
+        {
+            if (SchemeCompiler.CompileInstanceOption(mergeWinner, updated.Formats, diagnostics)
+                is MergeStrategy value)
+            {
+                updated = updated with
+                {
+                    FileMerge = value,
+                    FileMergeDeclaration = SiteOf(mergeWinner.Entry),
+                };
+            }
+        }
+
+        return updated;
+    }
+
+    /// <summary>
+    /// Whether one written selector literalizes to a concrete selector, per Section 15.2.
+    /// </summary>
+    /// <param name="written">The declaration's written selector, possibly a wildcard.</param>
+    /// <param name="concrete">The concrete instance's literalized selector.</param>
+    /// <param name="captures">
+    /// The wildcard captures the match bound, empty for an exact match. A wildcard
+    /// <c>filename</c>'s template is Section 16.2-substituted with these rather than with the
+    /// concrete instance's own captures, which came from a different wildcard's expansion.
+    /// </param>
+    /// <returns>Whether <paramref name="written"/> literalizes to <paramref name="concrete"/>.</returns>
+    /// <remarks>
+    /// Section 15.2 speaks of "exact and wildcard declarations that literalize to the same concrete
+    /// selector", so the match is exact equality when the written selector contains no wildcard
+    /// and a full wildcard match otherwise. A prefix match would confuse the negative case Section
+    /// 15.2 spells out: "a directive for selector <c>a</c> does not implicitly configure an
+    /// independently created <c>a.x</c> output instance".
+    /// </remarks>
+    private static bool TryLiteralize(
+        SelectorKey written, SelectorKey concrete, out WildcardCaptures captures)
+    {
+        captures = WildcardCaptures.Empty;
+
+        if (written.Name is not { } writtenName)
+        {
+            return concrete.Name is null;
+        }
+
+        if (concrete.Name is not { } concreteName)
+        {
+            return false;
+        }
+
+        if (WildcardMatch.LastWildcardPart(writtenName) < 0)
+        {
+            return writtenName.Equals(concreteName);
+        }
+
+        return WildcardMatch.TryMatch(writtenName, concreteName, out captures);
+    }
+
+    /// <summary>Whether the new winner would beat the currently held one by source order.</summary>
+    /// <param name="held">The held winner, or null when none has bound yet.</param>
+    /// <param name="candidate">The new winner.</param>
+    /// <returns>Whether the candidate is later in source order than the held winner.</returns>
+    private static bool Later(InstanceOptionWinner? held, InstanceOptionWinner candidate) =>
+        held is null || candidate.Order > held.Order;
+
+    /// <summary>Packages an entry's site for the diagnostic members Section 22 fixes.</summary>
+    /// <param name="entry">The winning entry.</param>
+    /// <returns>The declaration site.</returns>
+    private static DeclarationSite SiteOf(SchemeEntry entry) =>
+        new(entry.Declaration, entry.Source, entry.Line);
 
     /// <summary>
     /// Section 15.2: "exact and wildcard declarations that literalize to the same concrete selector
@@ -212,16 +571,10 @@ public static class PlanningPhase
             };
         }
 
-        // Section 16.1 compiles 'output=ignore' to an empty format set, and Section 14.2 says a
-        // selector whose winning declaration is 'output=ignore' "creates no output instance". The
-        // suppression happens here rather than at compile time because only the folded stream knows
-        // which declaration won.
-        return
-        [
-            .. order
-                .Select(selector => streams[selector])
-                .Where(instance => !instance.Formats.IsEmpty),
-        ];
+        // Section 16.1 filters ignored instances after Section 15.2's cross-selector override
+        // stream has rebound directives, because until then an exact-selector 'filename' can bind
+        // to a wildcard-created ignore instance without warning.
+        return [.. order.Select(selector => streams[selector])];
     }
 
     private static bool Expand(

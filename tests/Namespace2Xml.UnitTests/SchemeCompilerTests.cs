@@ -155,17 +155,23 @@ public class SchemeCompilerTests
     }
 
     /// <summary>
-    /// Section 15.2: "A selector-qualified 'filename', 'root', 'delimiter', output-options,
-    /// 'filemerge', or output-view transformation that binds to no concrete output instance emits
-    /// one scheme warning and is otherwise inert."
+    /// Section 15.2's "binds to no concrete output instance" warning is emitted after wildcard
+    /// expansion, not at compile time, so an exact-selector directive at a selector no
+    /// <c>output</c> declaration created does not warn here.
     /// </summary>
+    /// <remarks>
+    /// The compile step keeps the directive as a per-selector winner and defers the binding
+    /// decision. A wildcard <c>output</c> declaration and an exact-selector directive can meet
+    /// on a concrete instance whose selector neither wrote, and only pipeline step 13 can see it.
+    /// The corresponding planning-phase behavior is verified in
+    /// <see cref="OutputInstanceExpansionTests"/>.
+    /// </remarks>
     [Test]
-    public void ADirectiveBindingToNoInstanceWarns()
+    public void ADirectiveThatCompilesToANoInstanceSelectorDoesNotWarnAtCompileTime()
     {
-        var diagnostic = Only("a.filename=x.txt");
+        Compile("a.filename=x.txt");
 
-        diagnostic.Code.ShouldBe("WARN009");
-        diagnostic.Declaration.ShouldBe("a.filename");
+        diagnostics.Drain().ShouldBeEmpty();
     }
 
     /// <summary>

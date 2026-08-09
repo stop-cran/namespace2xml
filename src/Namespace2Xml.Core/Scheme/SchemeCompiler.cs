@@ -174,6 +174,28 @@ public sealed record TransformRule(
     DeclarationSite Declaration);
 
 /// <summary>
+/// One winning output-instance-scoped directive declaration, kept for Section 15.2's cross-selector
+/// "one source-ordered override stream" resolution at pipeline step 13.
+/// </summary>
+/// <param name="Selector">The written selector, possibly a wildcard.</param>
+/// <param name="Directive">The directive kind.</param>
+/// <param name="Order">The declaration's source order, which Section 15.2 orders precedence by.</param>
+/// <param name="Entry">The raw entry, retained for its value and its declaration site.</param>
+/// <remarks>
+/// Section 15.2 puts "exact and wildcard declarations that literalize to the same concrete
+/// selector" in one override stream, so the winning declaration at (<c>a.x</c>, <c>filename</c>)
+/// competes for the concrete instance <c>a.x</c> produced from the wildcard
+/// <c>a.*.output=namespace</c>. That cross-selector comparison cannot be made in this phase — the
+/// concrete selectors do not exist until step 13 expands wildcards — so this record carries the
+/// per-directive winners forward for Section 14.1's expansion pass to bind against.
+/// </remarks>
+public sealed record InstanceOptionWinner(
+    SelectorKey Selector,
+    SchemeDirective Directive,
+    long Order,
+    SchemeEntry Entry);
+
+/// <summary>
 /// The compiled scheme: Section 15.1 steps 2 through 4, for the directives this build implements.
 /// </summary>
 /// <param name="Outputs">The concrete output instances, in declaration order.</param>
@@ -183,11 +205,19 @@ public sealed record TransformRule(
 /// Recognized directives this build does not compile. They are carried rather than dropped so the
 /// driver can refuse the run instead of silently ignoring configuration the user wrote.
 /// </param>
+/// <param name="InstanceOptions">
+/// The winning per-instance-scoped directive declarations, keyed by (selector, directive) and kept
+/// in source order for Section 15.2's cross-selector override stream. The compiler binds a winner
+/// to the output instance carrying its <em>exact</em> selector; pipeline step 13 additionally binds
+/// each winner to every concrete instance whose selector its written selector literalizes to,
+/// which is where the wildcard-plus-exact override in Section 15.2's fourth bullet becomes visible.
+/// </param>
 public sealed record SchemeConfiguration(
     ImmutableArray<OutputInstance> Outputs,
     ImmutableArray<InputMerge> InputMerges,
     ImmutableArray<TransformRule> Transforms,
-    ImmutableArray<SchemeEntry> Deferred);
+    ImmutableArray<SchemeEntry> Deferred,
+    ImmutableArray<InstanceOptionWinner> InstanceOptions);
 
 /// <summary>
 /// Compiles Section 15 directives into the configuration the pipeline reads.
@@ -298,8 +328,29 @@ public static class SchemeCompiler
             BuildInstances(winners, diagnostics),
             CompileInputMerges(mergeWinners, diagnostics),
             transforms.ToImmutable(),
-            deferred.ToImmutable());
+            deferred.ToImmutable(),
+            CollectInstanceOptions(winners));
     }
+
+    /// <summary>
+    /// Every winning per-instance-scoped directive declaration, in source order.
+    /// </summary>
+    /// <param name="winners">The compiled winners, keyed by (selector, directive).</param>
+    /// <remarks>
+    /// The <c>output</c> declarations that create instances are excluded — they are what pipeline
+    /// step 13 expands, not what it binds against. Every other member of the Section 15.2
+    /// output-instance-scoped set is included so the expansion pass can bind exact and wildcard
+    /// declarations to the same concrete instance under one source-ordered override stream.
+    /// </remarks>
+    private static ImmutableArray<InstanceOptionWinner> CollectInstanceOptions(
+        Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners) =>
+        [
+            .. winners
+                .Where(pair => pair.Key.Directive != SchemeDirective.Output)
+                .OrderBy(pair => pair.Value.Order)
+                .Select(pair => new InstanceOptionWinner(
+                    pair.Key.Selector, pair.Key.Directive, pair.Value.Order, pair.Value.Entry)),
+        ];
 
     /// <summary>Sections 16.5 and 16.6, compiled into one source-ordered rule.</summary>
     private static void CompileTransform(
@@ -418,43 +469,49 @@ public static class SchemeCompiler
                     winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)));
         }
 
-        WarnUnbound(winners, instances, diagnostics);
+        // Section 15.2's cross-selector "one source-ordered override stream" and its Section 22
+        // warning for unbound directives are pipeline-step-13 concerns: they need the concrete
+        // literalized selectors that only wildcard expansion produces. Each winner is carried on
+        // <see cref="SchemeConfiguration.InstanceOptions"/> so that pass can re-resolve them.
 
         return instances.ToImmutable();
     }
 
     /// <summary>
-    /// Section 15.2: a selector-qualified directive "that binds to no concrete output instance emits
-    /// one scheme warning and is otherwise inert".
+    /// Compiles one winning per-instance-scoped directive against a concrete output instance's
+    /// formats, and returns the typed value. A rejection emits <c>SCHEME001</c> and yields nothing.
     /// </summary>
-    private static void WarnUnbound(
-        Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
-        ImmutableArray<OutputInstance>.Builder instances,
-        DiagnosticBuffer diagnostics)
-    {
-        var bound = instances.Select(instance => instance.Selector).ToHashSet();
-
-        foreach (var (_, winner) in winners
-            .Where(pair => pair.Key.Directive != SchemeDirective.Output
-                && !bound.Contains(pair.Key.Selector))
-            .OrderBy(pair => pair.Value.Order))
+    /// <param name="winner">The winning declaration.</param>
+    /// <param name="formats">The concrete output instance's formats.</param>
+    /// <param name="diagnostics">The buffer diagnostics accumulate in.</param>
+    /// <returns>The typed value, discriminated by <see cref="InstanceOptionWinner.Directive"/>.</returns>
+    /// <remarks>
+    /// Pipeline step 13 calls this once per concrete instance and winning directive after Section
+    /// 15.2's cross-selector override stream has picked a winner. Section 16.4 makes delimiter
+    /// validation depend on the formats a concrete instance renders — a delimiter legal for INI is
+    /// not necessarily legal for namespace — so the compilation cannot happen at scheme-compile
+    /// time for a directive that a wildcard <c>output</c> expansion eventually binds to a
+    /// concrete instance whose formats live on a different declaration.
+    /// </remarks>
+    internal static object? CompileInstanceOption(
+        InstanceOptionWinner winner,
+        ImmutableArray<OutputFormat> formats,
+        DiagnosticBuffer diagnostics) => winner.Directive switch
         {
-            var entry = winner.Entry;
-
-            diagnostics.Add(new BufferedDiagnostic(
-                DiagnosticCodes.Warn009(
-                    DiagnosticPhase.Scheme,
-                    "\u00A715.2",
-                    $"'{entry.Declaration}' binds to no output instance, because no 'output' "
-                    + "declaration created one for that selector.",
-                    cardinalityKey: $"{entry.Source}:{entry.Line}",
-                    source: entry.Source,
-                    line: entry.Line,
-                    path: CanonicalPath.Of(entry.Selector),
-                    declaration: entry.Declaration),
-                entry.Order));
-        }
-    }
+            SchemeDirective.Filename => CompileFilename(winner.Entry, diagnostics),
+            SchemeDirective.Root => CompileRoot(winner.Entry, diagnostics),
+            SchemeDirective.Delimiter => CompileDelimiterValue(winner.Entry, formats, diagnostics),
+            SchemeDirective.IniOutputOptions => CompileIniOptions(winner.Entry, diagnostics),
+            SchemeDirective.JsonOutputOptions => CompileJsonOptions(winner.Entry, diagnostics),
+            SchemeDirective.YamlOutputOptions => CompileYamlOptions(winner.Entry, diagnostics),
+            SchemeDirective.XmlOutputOptions => CompileXmlOptions(winner.Entry, diagnostics),
+            SchemeDirective.FileMerge => CompileStrategy(winner.Entry, diagnostics),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(winner),
+                winner.Directive,
+                "Section 15.2's per-instance override stream carries only the directives listed on "
+                + "'SchemeConfiguration.InstanceOptions'."),
+        };
 
     private static T? Compile<T>(
         Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
@@ -616,19 +673,32 @@ public static class SchemeCompiler
         Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
         SelectorKey selector,
         ImmutableArray<OutputFormat> formats,
+        DiagnosticBuffer diagnostics) =>
+        winners.TryGetValue((selector, SchemeDirective.Delimiter), out var winner)
+            ? CompileDelimiterValue(winner.Entry, formats, diagnostics)
+            : null;
+
+    /// <summary>
+    /// Section 16.4, given a specific delimiter declaration and the formats it applies against.
+    /// </summary>
+    /// <param name="entry">The winning delimiter declaration.</param>
+    /// <param name="formats">The concrete instance's formats.</param>
+    /// <param name="diagnostics">The buffer diagnostics accumulate in.</param>
+    /// <remarks>
+    /// Section 16.4 states its restrictions "for namespace output", and quoted-namespace and INI
+    /// output "instead apply their own validation and escaping after joining". Applying the
+    /// namespace rule to an instance that renders neither would reject a legal configuration.
+    /// A wildcard <c>output</c> declaration and an exact-selector <c>delimiter</c> declaration can
+    /// meet on a concrete instance whose formats live on the <em>output</em> declaration, so the
+    /// validation is deliberately extracted from the winners-lookup helper.
+    /// </remarks>
+    private static string? CompileDelimiterValue(
+        SchemeEntry entry,
+        ImmutableArray<OutputFormat> formats,
         DiagnosticBuffer diagnostics)
     {
-        if (!winners.TryGetValue((selector, SchemeDirective.Delimiter), out var winner))
-        {
-            return null;
-        }
-
-        var entry = winner.Entry;
         var delimiter = entry.Value.LiteralText!;
 
-        // Section 16.4 states its restrictions "for namespace output", and quoted-namespace and INI
-        // output "instead apply their own validation and escaping after joining". Applying the
-        // namespace rule to an instance that renders neither would reject a legal configuration.
         if (!formats.Contains(OutputFormat.Namespace))
         {
             return delimiter;

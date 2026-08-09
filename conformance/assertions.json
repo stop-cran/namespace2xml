@@ -271,7 +271,8 @@
       "status": "pending",
       "assertions": [],
       "fixtures": [
-        "key-directive-precedence-follows-source-order"
+        "key-directive-precedence-follows-source-order",
+        "wildcard-then-specific-and-specific-then-wildcard-follow-source-order"
       ]
     },
     {
@@ -521,6 +522,7 @@
         "Expansion walks only the items under the selector's literal prefix, and charges the shared candidate-check limit once per eligible pair, so a selector cannot expand over an unbounded number of items."
       ],
       "fixtures": [
+        "a-concrete-filename-binds-to-the-instance-a-wildcard-created",
         "selector-candidates-consume-the-wildcard-limit"
       ]
     },
@@ -707,6 +709,7 @@
         "A later non-ignore output declaration restores an instance an earlier ignore suppressed, which is the restoration column of the Section 15.2 ignore-mechanism table."
       ],
       "fixtures": [
+        "a-concrete-filename-binds-to-the-instance-a-wildcard-created",
         "a-later-output-declaration-restores-an-ignored-instance",
         "a-refused-transform-is-reported-in-every-overlapping-instance"
       ]

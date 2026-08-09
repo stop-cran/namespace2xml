@@ -1,0 +1,6 @@
+a.*.output=namespace
+a.*.root=W
+a.x.root=X
+b.*.output=namespace
+b.p.root=P
+b.*.root=Z

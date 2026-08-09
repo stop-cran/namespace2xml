@@ -63,6 +63,12 @@ public class OutputInstanceExpansionTests
     private static string[] Selectors(ImmutableArray<OutputInstance> instances) =>
         [.. instances.Select(instance => instance.Selector.ToString())];
 
+    private static string RootText(ImmutableArray<OutputInstance> instances, string selector) =>
+        ((OrdinaryPart)instances
+            .Single(instance => instance.Selector.ToString() == selector)
+            .Root!.Parts[0])
+        .LiteralText!;
+
     /// <summary>
     /// Section 14.1: expansion "stops at the last wildcard-containing selector part", so a pattern
     /// whose wildcard is not final still enumerates only as deep as that part.
@@ -306,6 +312,173 @@ public class OutputInstanceExpansionTests
 
         outcome.Unsupported.ShouldBeNull();
         Selectors(outcome.Value).ShouldBe(["a"]);
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 15.2: "A selector-qualified 'filename', 'root', 'delimiter', output-options,
+    /// 'filemerge', or output-view transformation that binds to no concrete output instance emits
+    /// one scheme warning and is otherwise inert." The warning is deferred to expansion because a
+    /// concrete instance whose selector no <c>output</c> declaration wrote can still exist —
+    /// a wildcard <c>output</c> creates it — and the compile step cannot see that.
+    /// </summary>
+    [Test]
+    public void ADirectiveBindingToNoInstanceWarnsAtExpansion()
+    {
+        Expand("a.filename=x.txt", string.Empty);
+
+        var reported = diagnostics.Drain().ShouldHaveSingleItem();
+
+        reported.Code.ShouldBe("WARN009");
+        reported.Spec.ShouldBe("\u00A715.2");
+        reported.Phase.ShouldBe(DiagnosticPhase.Planning);
+        reported.Declaration.ShouldBe("a.filename");
+    }
+
+    /// <summary>
+    /// Section 15.2: an <c>output=ignore</c> declaration creates the concrete instance a
+    /// per-instance directive binds to. Section 16.1 allows a later non-ignore <c>output</c> to
+    /// restore it, and letting the exact-selector <c>filename</c> warn here would be a warning
+    /// about the ignore, not about a binding failure — Section 22 lists those as distinct
+    /// conditions and warns each in its own place.
+    /// </summary>
+    [Test]
+    public void ADirectiveOnAnIgnoreInstanceDoesNotWarnAtExpansion()
+    {
+        Expand("a.output=ignore\na.filename=x.txt", "a.k=1");
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 15.2: a wildcard <c>output=ignore</c> creates concrete ignored instances that a
+    /// later exact-selector directive still binds to. Section 16.1 lets a later non-ignore
+    /// <c>output</c> restore any one of them, so the binding is meaningful even before restoration.
+    /// </summary>
+    [Test]
+    public void ADirectiveOnAWildcardIgnoreInstanceDoesNotWarnAtExpansion()
+    {
+        Expand("a.*.output=ignore\na.x.filename=custom.conf", "a.x.k=1\na.y.k=2");
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 15.2: "exact and wildcard declarations that literalize to the same concrete
+    /// selector participate in one source-ordered override stream". The exact <c>a.x.filename</c>
+    /// binds to the concrete <c>a.x</c> instance produced from <c>a.*.output=namespace</c>, and no
+    /// warning is emitted for either declaration.
+    /// </summary>
+    [Test]
+    public void AConcreteFilenameBindsToAWildcardInstance()
+    {
+        var instances = Expand(
+            "a.*.output=namespace\na.x.filename=custom.conf", "a.x.k=1\na.y.k=2");
+
+        Selectors(instances).ShouldBe(["a.x", "a.y"]);
+        instances.Single(instance => instance.Selector.ToString() == "a.x")
+            .Filename.ShouldBe("custom.conf");
+        instances.Single(instance => instance.Selector.ToString() == "a.y")
+            .Filename.ShouldBeNull();
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 15.2: "Pattern specificity does not alter precedence." The exact <c>a.x.root</c>
+    /// declaration wins for <c>a.x</c> because it is written later than the wildcard's <c>root</c>,
+    /// not because it is more specific.
+    /// </summary>
+    [Test]
+    public void AnExactDirectiveAfterAWildcardWinsBySourceOrder()
+    {
+        var instances = Expand(
+            "a.*.output=namespace\na.*.root=W\na.x.root=X", "a.x.k=1\na.y.k=2");
+
+        RootText(instances, "a.x").ShouldBe("X");
+        RootText(instances, "a.y").ShouldBe("W");
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 15.2: the wildcard direction of the same override stream. The exact <c>b.p.root</c>
+    /// is written first and the wildcard <c>b.*.root</c> written after, so the wildcard wins for
+    /// <c>b.p</c> even though it is less specific.
+    /// </summary>
+    [Test]
+    public void AWildcardDirectiveAfterAnExactWinsBySourceOrder()
+    {
+        var instances = Expand(
+            "b.*.output=namespace\nb.p.root=P\nb.*.root=Z", "b.p.k=1\nb.q.k=2");
+
+        RootText(instances, "b.p").ShouldBe("Z");
+        RootText(instances, "b.q").ShouldBe("Z");
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 15.2: "a directive for selector 'a' does not implicitly configure an independently
+    /// created 'a.x' output instance". Matching is exact equality against the literalized concrete
+    /// selector, not a prefix relation: an exact-selector <c>a.filename</c> does not bind to the
+    /// concrete <c>a.x</c> instance a separate <c>a.x.output</c> declaration created.
+    /// </summary>
+    [Test]
+    public void AnExactDirectiveDoesNotBindToADeeperInstance()
+    {
+        Expand("a.output=namespace\na.x.output=namespace\na.filename=x.conf", "a.k=1\na.x.k=2");
+
+        // The 'a.filename' does bind to the concrete 'a' instance, so no WARN009 is emitted at
+        // all: what fails to bind here is one directive to one instance, not a directive to every
+        // instance in scope.
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 15.2: prefix matching would confuse this case. An <c>a.x.filename</c> at a selector
+    /// no <c>output</c> declaration created must warn, because <c>a.x</c> does not literalize to
+    /// <c>a</c> — the wildcard-free written selector matches only itself.
+    /// </summary>
+    [Test]
+    public void ADeeperDirectiveDoesNotBindToAShallowerInstance()
+    {
+        Expand("a.output=namespace\na.x.filename=custom.conf", "a.k=1");
+
+        var reported = diagnostics.Drain().ShouldHaveSingleItem();
+
+        reported.Code.ShouldBe("WARN009");
+        reported.Spec.ShouldBe("\u00A715.2");
+        reported.Declaration.ShouldBe("a.x.filename");
+    }
+
+    /// <summary>
+    /// Section 15.2's cross-selector override stream also carries <c>filemerge</c>, so the
+    /// specificity-independent source order applies to it the same way it does to <c>root</c>.
+    /// </summary>
+    [Test]
+    public void FileMergeAlsoFollowsTheCrossSelectorSourceOrder()
+    {
+        var instances = Expand(
+            "a.*.output=namespace\na.*.filemerge=error\na.x.filemerge=replace", "a.x.k=1\na.y.k=2");
+
+        instances.Single(instance => instance.Selector.ToString() == "a.x")
+            .FileMerge.ShouldBe(MergeStrategy.Replace);
+        instances.Single(instance => instance.Selector.ToString() == "a.y")
+            .FileMerge.ShouldBe(MergeStrategy.Error);
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 16.2 substitutes captures from the same selector expansion that produced the
+    /// literalized concrete selector, not from the <c>output</c>'s captures. A wildcard
+    /// <c>filename</c> that binds to a concrete instance created by a different wildcard uses the
+    /// captures its own written selector matched against that concrete selector.
+    /// </summary>
+    [Test]
+    public void AWildcardFilenameUsesItsOwnCaptureWhenBoundAcrossWildcards()
+    {
+        var instances = Expand(
+            "a.*.output=namespace\na.*.filename=cfg/*.conf", "a.x=1\na.y=2");
+
+        instances.Select(instance => instance.Filename).ShouldBe(["cfg/x.conf", "cfg/y.conf"]);
         diagnostics.Drain().ShouldBeEmpty();
     }
 }

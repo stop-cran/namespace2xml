@@ -19,13 +19,30 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (87)
+## Observable differences (89)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
 Nearly all are corrections, and every case says which contract it is correcting. A difference
 is not automatically an improvement, though: where this preview declines a capability 2.4.0
 implemented, its case says so plainly rather than letting the heading imply otherwise.
+
+### `a-concrete-filename-binds-to-the-instance-a-wildcard-created`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against a synthetic internal root leaking into user-visible file
+  names. The Section 15.2 binding rule under test is not a Section 3 divergence.
+- Legacy observation: the baseline writes `custom.conf` containing `k=1` and `y.properties`
+  containing `k=2`, exits `0`, and writes nothing to standard error beyond the banner. The
+  measurement records this as `missing a.y.properties; extra y.properties`.
+- Clean behavior: identical except that the defaulted filename is composed from the whole concrete
+  selector under Section 16.2, so `a.y` writes to `a.y.properties`.
+- What the agreement means here, unusually: the baseline binds the exact `filename` to the instance
+  the wildcard created, which is precisely the Section 15.2 rule this case exists to pin. The
+  divergence is confined to the defaulted name of the *other* instance. This case is therefore not
+  a correction of legacy behavior. It is a regression test against a defect introduced by the 3.0
+  rewrite, which keyed instance options by each declaration's written selector and so reported
+  `a.x.filename` as unbound. The baseline was right about this clause and the preview was not.
 
 ### `a-later-output-declaration-restores-an-ignored-instance`
 
@@ -1389,6 +1406,23 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: the legacy behavior left the result of a two-template profile
   dependent on read order, which Section 12.4's fixed point replaces with an order-independent
   answer.
+
+### `wildcard-then-specific-and-specific-then-wildcard-follow-source-order`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction against a synthetic internal root leaking into user-visible file
+  names. The Section 15.2 ordering rule under test is not a Section 3 divergence.
+- Legacy observation: the baseline writes four files whose contents are `X.k=1`, `W.k=2`, `Z.k=3`
+  and `Z.k=4` -- byte-identical to what this case expects -- but names them `x.properties`,
+  `y.properties`, `p.properties` and `q.properties`. It exits `0` with nothing on standard error
+  beyond the banner. The measurement records four missing and four extra paths.
+- Clean behavior: identical payloads, with each defaulted filename composed from the whole concrete
+  selector under Section 16.2.
+- What the agreement means here, unusually: every payload matches, in both directions, including the
+  specific-then-wildcard direction that discriminates source order from pattern specificity. The
+  baseline implements this clause correctly. The divergence is confined to the defaulted file names,
+  which this case did not set out to test. Like its companion case, this is a regression test
+  against a defect introduced by the 3.0 rewrite rather than a correction of legacy behavior.
 
 ### `xml-a-reference-does-not-import-a-spelling`
 
