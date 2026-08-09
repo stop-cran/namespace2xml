@@ -24,7 +24,7 @@
 ## Usage
 
 - [README.md](README.md): installation and a first example.
-- [docs/usage-methodology.md](docs/usage-methodology.md): when to use this tool, how to layer overlays, and known anti-patterns.
+- [docs/usage-methodology.md](docs/usage-methodology.md): when to use this tool, how to layer overlays, how to specialize an existing document with a cross-format override, and known anti-patterns.
 - [docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md): every intentional behaviour change from 2.4.0.
 - [KNOWN-LIMITS.md](KNOWN-LIMITS.md): what is deliberately not covered yet.
 

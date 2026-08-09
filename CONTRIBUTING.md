@@ -449,6 +449,14 @@ the same gap.
   in overlay order; it works until it doesn't, and then it is a rewrite rather than a fix.
 - **Scheme files are contracts, not configuration.** Version them, review them, and change them under
   C1 like anything else.
+- **Specializing a document you did not write is the strongest case, and the sharpest.** Render it to
+  `namespace` output first and read the model, because the paths are frequently not what the source
+  looked like — an indented XML file is mixed content, and an XML attribute is `@name`. An override
+  written against the obvious path lands beside the value it meant to replace, silently.
+- **Pin the behaviour you depend on, and write the expected file by hand.** A handful of small
+  input/expected pairs regenerated in CI tells you at upgrade time which assumption moved. Captured
+  output records what the tool did and will keep agreeing with it after it starts doing the wrong
+  thing.
 - **Determinism is a feature to exploit.** Byte-identical output means generated artifacts can be
   committed and diffed in review, which turns configuration drift into a pull request comment. That
   is worth designing a pipeline around.

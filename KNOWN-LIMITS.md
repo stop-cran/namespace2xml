@@ -17,10 +17,11 @@ The 3.0 rewrite lands in milestones that follow the specification's own pipeline
 has not landed is **not implemented**, and the tool exits with a non-normative status rather than
 pretending to succeed.
 
-The tool currently transforms the **flat family and the structured document formats** end to end:
-namespace-profile, JSON, YAML and XML input, overlaying, output planning, and publication of
-namespace, quoted-namespace, INI, JSON and YAML destinations. XML *output* is the one renderer that
-has not landed. Everything below that line is refused, not approximated.
+The tool currently transforms **every input format and every output format the specification
+defines**, end to end: namespace-profile, JSON, YAML and XML input, overlaying, references,
+templates, output planning, and publication of namespace, quoted-namespace, INI, JSON, YAML and XML
+destinations. Two capabilities remain unbuilt — the `substitute` directive and scheme files written
+in a structured format — and both are refused rather than approximated.
 
 | Area | State | Specification |
 |---|---|---|
@@ -30,7 +31,7 @@ has not landed. Everything below that line is refused, not approximated.
 | JSON **input** | Implemented, with the reductions in §1.1 | §7.1, §9, §15.1 |
 | YAML **input** | Implemented, with the reductions in §1.2 | §7.1, §10, §15.1 |
 | XML **input** | Implemented, with the reductions in §1.3 | §7.1, §11, §15.1 |
-| Scheme parsing, `output`, `filename`, `root`, `delimiter` | Implemented, namespace-profile scheme files only | §16 |
+| Scheme parsing, `output`, `filename`, `root`, `delimiter`, `merge`, `filemerge` | Implemented, namespace-profile scheme files only | §16 |
 | Overlaying, precedence, mapping order after override | Implemented | §5, §10 |
 | Scalar inference and canonical numeric text | Implemented | §18 |
 | Output planning, destination paths, collision folding | Implemented | §17 |
@@ -40,14 +41,14 @@ has not landed. Everything below that line is refused, not approximated.
 | References and value wildcards | Implemented, except the `REFERENCE005` case in §1.9 | §13 |
 | Templates and masks | Implemented for namespace input | §8.6, §12 |
 | Wildcard output selectors | Implemented | §14 |
-| Path-scoped view transformations: `type`, `key`, `multiline` | Implemented, with the gaps in §1.10–§1.12 | §16.5, §16.6 |
-| `substitute` | Not yet | §16.7 |
+| Path-scoped view transformations: `type`, `key` | Implemented, with the gaps in §1.10–§1.12 | §16.5, §16.6 |
 | Ordered sequences from numeric paths | Implemented, except the §3.2 warning in §1.7 | §8.7, §5.4 |
-| Rendering: XML | Not yet | §19.5 |
+| Rendering: XML | Implemented, with the divergence in §1.18 | §19.5 |
+| `substitute` | Not yet | §16.7 |
 | **Scheme files** written as JSON, YAML or XML | Not yet | §15 |
 
-A preview binary returns exit status `70` when an invocation needs something in the second half of
-that table. That status is deliberately outside the contract: `0` and `1` are normative, and a
+A preview binary returns exit status `70` when an invocation needs one of the two `Not yet` rows.
+That status is deliberately outside the contract: `0` and `1` are normative, and a
 preview must never return either for work it did not do. It is a **refusal**, not a diagnostic — the
 run decides no outcome at all, publishes nothing, and says on standard error which capability it
 lacked. A step that could not do its job never passes its input through, because a plausible wrong
@@ -65,9 +66,10 @@ three cases are declined or unfinished within it.
   "template-bearing JSON or YAML branches are extracted entry-by-entry", because the entry a
   structured reader emits carries an interpreted value and cannot express a typed payload, an empty
   container, or a sequence ordering value beneath a wildcard key. Acceptance item 12 covers it.
-- **`substitute=Key` and `substitute=None` are parsed and not applied.** This is not specific to
-  JSON — no format applies them yet, because the machinery §13.4 describes does not exist. A scheme
-  that sets `substitute` is accepted and has no effect on any input.
+- **`substitute` is refused, not ignored.** This is not specific to JSON — no format applies it,
+  because the machinery §13.4 describes does not exist. A scheme that sets `substitute` in any of
+  its forms ends the run with exit `70` and a message naming the directive and the file it came
+  from, rather than accepting it and quietly doing nothing.
 - **§4.4's *scalar-versus-container* contest has no end-to-end coverage.** An empty container is
   recorded as a shape contribution and its precedence is proved by unit test, but neither
   implemented output format has to choose between a scalar and a container — §19.1 and §19.6 both
@@ -97,7 +99,7 @@ it.
   gets the right file today and gets nothing from this preview. It is the only case in the corpus
   where the baseline satisfies the specification and this implementation does not. Closing it is a
   blocker for 3.0 final rather than a deferred nicety.
-- **`substitute` is parsed and not applied**, again as for JSON and every other format.
+- **`substitute` is refused with exit `70`**, again as for JSON and every other format.
 
 One §10.1 clause is under-determined and this preview chose a reading. §10.1 lists merge keys among
 the constructs `RestrictedYaml1` excludes without saying whether an unsupported merge key is an
@@ -128,7 +130,11 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   mixed content**: `<a>\n  <b>1</b>\n</a>` addresses as `a.#0`, `a.#1.b` and `a.#2`, not as `a.b`.
   That is not a defect — it is what retaining every text node means — but it is the reason
   `xmlinputoptions=NormalizeFormattingWhitespace` exists, and pointing this tool at XML a human
-  wrote without it will surprise you. The fixture `xml-canonical-addresses` pins both spellings.
+  wrote without it will surprise you. It surprises overrides too: a profile line written against
+  `a.b` lands beside the real element rather than on it, silently, which is
+  [#40](https://github.com/stop-cran/namespace2xml/issues/40) and is worked through in
+  [docs/usage-methodology.md](docs/usage-methodology.md) §3. The fixture `xml-canonical-addresses`
+  pins both spellings.
 - **A promoted sequence item's place in the serialized XML stream is not pinned.** §11.4 evaluates
   mixedness and repeated-child classification "across all input contributions to that element", and
   this tool does: a mixed contribution re-addresses an element-only contribution's children as
@@ -203,7 +209,7 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   `b.#0`.
 - **Processing instructions are discarded**, with one `WARN006` per document that carried any.
   §11.8 places them outside the preservation contract.
-- **`substitute` is parsed and not applied**, as for every other format.
+- **`substitute` is refused with exit `70`**, as for every other format.
 
 ### 1.4 Scheme files must be namespace profiles
 
@@ -265,8 +271,9 @@ says; if you wanted the marker to bind only to its own component, that is a spec
 and not a defect here.
 
 The §15.2 half is still open, but vacuously: scheme paths do not consult the alias index at all, so
-a marker there has nothing to escape. See §1.10, which is the entry that has to close first. Issue
-#43 carries the reasoning that settled the §11.4 reading.
+a marker there has nothing to escape. See §1.10, which is the entry that has to close first, and
+[#56](https://github.com/stop-cran/namespace2xml/issues/56), which owns it. Issue #43 carries the
+reasoning that settled the §11.4 reading.
 
 ### 1.7 `WARN010` is not emitted
 
@@ -329,10 +336,16 @@ typed component model the data uses and nothing else, so `a.x` in a scheme binds
 and never to the attribute written `a.@x`. `SCHEME002` consequently has no call site. **verified**
 
 This is the §15.2 half of the same unimplemented alias index as §1.6, and it fails in the safer
-direction: the canonical spelling is always unambiguous, so a directive either binds to exactly what
-it names or binds to nothing and earns the `WARN009` from §15.2. What is lost is the compatibility
-affordance — a 2.x scheme that wrote `a.x` to mean an attribute silently stops binding, with a
-warning rather than a wrong target. Write `a.@x`.
+direction *on this surface*: the canonical spelling is always unambiguous, so a directive either
+binds to exactly what it names or binds to nothing and earns the `WARN009` from §15.2. What is lost
+is the compatibility affordance — a 2.x scheme that wrote `a.x` to mean an attribute silently stops
+binding, with a warning rather than a wrong target. Write `a.@x`.
+
+The *data* surface beside it is not so kind. A contribution written `a.x=v` against an attribute
+`@x` creates an ordinary sibling and warns about nothing, which is specified behaviour — §8.2 scopes
+the alias index to references and scheme paths — but is a silent wrong result for a migrating 2.x
+profile. Both halves are tracked as
+[#56](https://github.com/stop-cran/namespace2xml/issues/56).
 
 ### 1.11 A directive bound beneath a node that a later step-16 pass reshapes becomes inert
 
@@ -676,8 +689,9 @@ unmeasured.
 
 ## 5. Documentation gaps
 
-- `docs/usage-methodology.md` is an outline. The layering guidance is sound; the worked pipelines are
-  not written yet.
+- `docs/usage-methodology.md` now carries the layering guidance, a worked cross-format
+  specialization pipeline, and the fixture discipline. What is still thin is breadth: one worked
+  pipeline is not a cookbook, and the multi-output cases are unwritten.
 - `docs/migration-2.x-to-3.0.md` is assembled from each fixture's `legacy.md` as fixtures land, so it
   is incomplete until the corpus is.
 - There is no cookbook, and there probably should be. If you built something with this tool and had

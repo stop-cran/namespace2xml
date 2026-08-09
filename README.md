@@ -134,7 +134,7 @@ Start at [AGENTS.md](AGENTS.md). The machine-readable index is [llms.txt](llms.t
 |---|---|
 | [docs/specification.md](docs/specification.md) | **The contract.** Normative and self-contained. |
 | [docs/diagnostics.md](docs/diagnostics.md) | Every diagnostic code, its meaning and its anchor. |
-| [docs/usage-methodology.md](docs/usage-methodology.md) | When to use this tool, how to layer, what not to do. |
+| [docs/usage-methodology.md](docs/usage-methodology.md) | When to use this tool, how to layer, how to specialize a document you did not write, what not to do. |
 | [docs/format-namespace.md](docs/format-namespace.md) | The namespace profile: syntax, escapes, comments, references. |
 | [docs/format-json.md](docs/format-json.md) | JSON input and output, scalar kinds, the numeric-map trap. |
 | [docs/format-yaml.md](docs/format-yaml.md) | YAML input and output, the `RestrictedYaml1` subset. |
