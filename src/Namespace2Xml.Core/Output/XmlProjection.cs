@@ -129,7 +129,8 @@ public sealed class XmlProjection
         {
             return RootRequired(
                 $"the selected view has {children.Count} top-level members and XML has one "
-                + "document element");
+                + "document element",
+                FormattingWhitespaceHint(children));
         }
 
         var (name, child) = children[0];
@@ -653,14 +654,53 @@ public sealed class XmlProjection
             DestinationOrder: destination?.Order));
     }
 
-    private XElement? RootRequired(string because)
+    private XElement? RootRequired(string because) => RootRequired(because, string.Empty);
+
+    private XElement? RootRequired(string because, string hint)
     {
         // Section 14.1: "XML requires 'root' to provide a document element and otherwise raises
         // TYPE001."
-        Report($"{because}, so Section 14.1 requires an explicit 'root'.", []);
+        Report($"{because}, so Section 14.1 requires an explicit 'root'.{hint}", []);
 
         return null;
     }
+
+    /// <summary>
+    /// Names Section 11.7's opt-in when the surplus members are formatting indentation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An ordinary indented XML file has whitespace-only text between every pair of element
+    /// children, and the Section 11.7 default keeps all of it. Its document element therefore
+    /// arrives here with several top-level members rather than one, and the accurate count in the
+    /// message reads as a fact about the user's data instead of a fact about a whitespace mode
+    /// they never chose. Section 11.7's mode is the remedy and this is where it is needed, so the
+    /// message names it; Section 6.4.3 makes <c>message</c> prose that is never compared, which is
+    /// what allows a diagnostic to become more helpful without a contract change.
+    /// </para>
+    /// <para>
+    /// The hint is attached only when a content component actually holds whitespace-only text, so
+    /// a genuinely multi-rooted view — the case the clause is really about — is not told to go and
+    /// change a whitespace setting that would not help it.
+    /// </para>
+    /// </remarks>
+    /// <param name="children">The view's top-level members.</param>
+    /// <returns>The sentence to append, or an empty string.</returns>
+    private static string FormattingWhitespaceHint(
+        List<KeyValuePair<NamePart, OverlayNode>> children) =>
+        children.Any(IsFormattingIndentation)
+            ? " Whitespace-only text between element children is retained as a content component"
+              + " by the default 'xmlinputoptions=PreserveWhitespace'; Section 11.7's"
+              + " 'NormalizeFormattingWhitespace' discards it as formatting indentation, which"
+              + " also makes the surrounding elements addressable by name."
+            : string.Empty;
+
+    private static bool IsFormattingIndentation(KeyValuePair<NamePart, OverlayNode> child) =>
+        child.Key is ContentPart
+        && child.Value.Payload is { Spelling: XmlContentSpelling.Text } payload
+        && payload.Kind is ScalarKind.String or ScalarKind.UntypedString
+        && payload.Text.Length > 0
+        && payload.Text.All(char.IsWhiteSpace);
 
     private bool Refuse(ImmutableArray<NamePart> path, string because)
     {

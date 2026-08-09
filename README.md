@@ -99,6 +99,36 @@ Layer by lifetime — base, then environment, then instance, then secrets — no
 [docs/usage-methodology.md](docs/usage-methodology.md) for why, and for the anti-patterns that
 follow from getting it backwards.
 
+### Reading XML that was formatted for humans
+
+Indented XML holds whitespace-only text between element children, and the default
+`xmlinputoptions=PreserveWhitespace` keeps every text node. Those become content components, so
+
+```xml
+<r>
+  <b>1</b>
+</r>
+```
+
+is the model `r.#0`, `r.#1.b`, `r.#2` — and **not** `r.b`. Nothing warns about this: an override
+written `r.b=2` becomes a new node beside `r.#1.b` rather than a replacement of it, and the run
+still exits `0`.
+
+When the input was formatted for a human to read, ask for the compatibility mode:
+
+```
+xmlinputoptions=NormalizeFormattingWhitespace
+```
+
+It discards whitespace-only text between element children, which makes those elements addressable
+by name, and warns once per document (`WARN007`) because specification Section 11.7 says discarding
+that text weakens the same-format round-trip guarantee. That trade is the reason it is opt-in:
+preserving every byte is what makes an unmodified round trip byte-identical, and only you know
+whether the file you are reading is data or layout.
+
+[docs/format-xml.md](docs/format-xml.md) covers the whitespace modes in full, and
+[docs/usage-methodology.md](docs/usage-methodology.md) works through the override that this defeats.
+
 ---
 
 ## For automation and AI agents

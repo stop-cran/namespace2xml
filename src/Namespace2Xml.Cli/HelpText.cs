@@ -63,6 +63,28 @@ internal static class HelpText
           cannot walk is what keeps a too-deep request a readable error rather than a
           process crash carrying no diagnostic at all.
 
+        READING XML THAT WAS FORMATTED FOR HUMANS
+          Indented XML holds whitespace-only text between element children, and the default
+          'xmlinputoptions=PreserveWhitespace' keeps every text node. Those become content
+          components, so this input
+
+            <r>
+              <b>1</b>
+            </r>
+
+          is the model r.#0, r.#1.b, r.#2 — and NOT r.b. Nothing warns about this: an
+          override written r.b=2 is a new node beside r.#1.b rather than a replacement of
+          it, and the run still exits 0.
+
+          When the input was formatted for a human to read, ask for the compatibility mode:
+
+            xmlinputoptions=NormalizeFormattingWhitespace
+
+          It discards whitespace-only text between element children, which makes those
+          elements addressable by name. It warns once per document (WARN007) because
+          section 11.7 says discarding that text weakens the same-format round-trip
+          guarantee. See docs/format-xml.md and docs/usage-methodology.md.
+
         EXIT CODES
           0  Success, including success with warnings.
           1  Invalid CLI, input, scheme, reference, rendering, path or publication failure.

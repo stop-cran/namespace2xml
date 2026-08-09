@@ -13,7 +13,20 @@ independently.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- The `TYPE001` raised when an XML view has several top-level members now names
+  `xmlinputoptions=NormalizeFormattingWhitespace` when the surplus members are formatting
+  indentation, instead of reporting a root count that is true but unactionable. The hint is
+  withheld from a genuinely multi-rooted view, where that mode would not help. §6.4.3 makes
+  `message` prose that is never compared, so this needs no contract revision.
+  **Caused by [#40](https://github.com/stop-cran/namespace2xml/issues/40)**, and it is the most
+  likely explanation of [#24](https://github.com/stop-cran/namespace2xml/issues/24).
+- `--help` and `README.md` gained a section on reading XML that was formatted for humans. The
+  whitespace modes were already documented in `docs/format-xml.md`,
+  `docs/usage-methodology.md` and `KNOWN-LIMITS.md`, and absent from the two surfaces a reader
+  meets first — which is what made an ordinary indented file a silent trap rather than a
+  documented trade.
 
 ## [3.0.0-preview.2] - 2026-08-09
 
