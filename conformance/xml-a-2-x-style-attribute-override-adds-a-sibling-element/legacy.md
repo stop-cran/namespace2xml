@@ -1,8 +1,8 @@
 # Legacy differential
 
 - namespace2xml 2.4.0: **differs**.
-- Contract: Section 11.4 canonical XML addressing; Section 8.2 alias-index scope; Section 5.2
-  mapping order after override; Section 19.5 XML rendering.
+- Contract: Section 11.4 canonical XML addressing and its `WARN011` clause; Section 8.2
+  alias-index scope; Section 5.2 mapping order after override; Section 19.5 XML rendering.
 - Legacy observation: 2.4.0 exits `0` and writes
   `<r>\n  <a keep="" x="dev" />\n</r>`. Two independent things happen in that one file. The
   profile line `r.a.x=dev` **overrode the XML attribute** — 2.4.0 had no address for an
@@ -18,9 +18,12 @@
   through it. The contribution names the child element, the attribute `@x` keeps its value
   `base`, and the two coexist. Section 5.2 places the new `x` after `keep`, because `keep`
   carries the earlier position mark. `<keep>1</keep>` keeps its text.
-- The difference is intentional, and it is the one migration hazard in this area that is
-  **silent**: the run exits `0` with an empty diagnostic stream, and a 2.x profile that
-  specialized an attribute this way now produces a document with both the original attribute
-  and a new sibling element. Nothing reports it, because nothing is wrong — the contribution
-  addressed exactly what Section 11.4 says it addresses. The remedy is the canonical spelling,
-  pinned by `xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address`.
+- The difference is intentional, and it used to be the one migration hazard in this area that
+  was **silent**: the run exited `0` with an empty diagnostic stream, and a 2.x profile that
+  specialized an attribute this way produced a document carrying both the original attribute and
+  a new sibling element with nothing to say so. Section 11.4 now reports it. The contribution
+  still addresses exactly what that section says it addresses — the model is unchanged, and the
+  expected output above is the same document as before — but `WARN011` names the canonical
+  component the contribution did not override, so the reader learns the difference from the run
+  rather than from the file. The remedy is the canonical spelling, pinned by
+  `xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address`.

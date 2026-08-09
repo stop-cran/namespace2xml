@@ -15,7 +15,16 @@ independently.
 
 ### Contract
 
-- `contract-bundle` `r38+8c8759be955a`.
+- `contract-bundle` `r39+183f72734b48`.
+- §11.4 gains `WARN011`: a later unmarked component that is the simple alias of an XML component
+  already at the node adds an ordinary sibling rather than overriding, and now says so. The model is
+  unchanged — §8.2 scopes the alias index to references and scheme paths, deliberately — so this is
+  an addition to the diagnostic surface, not to the transformation. **Caused by
+  [#56](https://github.com/stop-cran/namespace2xml/issues/56)**, and the amendment rather than a fix
+  is the decision: `a.x=v` against `<a x="base"/>` **overrode the attribute in 2.4.0**, measured,
+  so a migrating profile gets a wrong target where it used to get the right one. The warning is
+  withheld when both components arrive in one contribution — nothing was migrated there — and when
+  the later one is written `Q{}x`, which §11.4 already has bypass the alias index outright.
 - §16.9 now says `NewLineOnAttributes` "places every attribute on its own line, including the
   first", where it previously said "each attribute after the first". **Caused by
   [#53](https://github.com/stop-cran/namespace2xml/issues/53)**, which measured the divergence and
@@ -27,6 +36,10 @@ independently.
 
 ### Added
 
+- `conformance/xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component` pins `WARN011`'s
+  positive case and **both** of its withholdings in one invocation, so a future implementation
+  cannot satisfy the warning by emitting it everywhere. Its differential verdict is measured:
+  2.4.0 **crashes** on the `Q{}` line, having no such production at all.
 - `conformance/empty-container-versus-scalar-picks-the-later-shape` pins §4.4's exclusive-shape
   contest for an **empty** container in both source orders, for a JSON and a YAML destination.
   **Caused by [#68](https://github.com/stop-cran/namespace2xml/issues/68)**. The corpus previously

@@ -153,6 +153,10 @@ public static partial class DiagnosticCodes
             "once per source contribution, canonical mapping path, and output instance",
             "Native JSON/YAML numeric mapping remains inferred as sequence in an output view",
             ["source", "path", "destination"]),
+        new DiagnosticCodeInfo("WARN011", DiagnosticSeverity.Warning,
+            "once per canonical path",
+            "Later unmarked contribution aliases an existing XML component instead of overriding it",
+            ["source", "path"]),
     ];
 
     /// <summary><c>CLI001</c> (error) — Invalid command line or option value.</summary>
@@ -808,4 +812,22 @@ public static partial class DiagnosticCodes
         string? destination = null) =>
         Create("WARN010", DiagnosticSeverity.Warning, phase, spec, message,
             cardinalityKey, source: source, path: path, destination: destination);
+
+    /// <summary><c>WARN011</c> (warning) — Later unmarked contribution aliases an existing XML component instead of overriding it.</summary>
+    /// <param name="phase">Emission phase of this occurrence.</param>
+    /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
+    /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
+    /// <param name="cardinalityKey">Identity of the canonical path this is emitted once per.</param>
+    /// <param name="source">Section 6.4.3 <c>source</c> member.</param>
+    /// <param name="path">Section 6.4.3 <c>path</c> member.</param>
+    /// <remarks>Cardinality: once per canonical path.</remarks>
+    public static DiagnosticOccurrence Warn011(
+        DiagnosticPhase phase,
+        string spec,
+        string message,
+        string cardinalityKey,
+        string? source = null,
+        string? path = null) =>
+        Create("WARN011", DiagnosticSeverity.Warning, phase, spec, message,
+            cardinalityKey, source: source, path: path);
 }

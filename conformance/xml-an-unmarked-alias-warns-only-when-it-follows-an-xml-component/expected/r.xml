@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<r>
+  <both x="1">
+    <x>2</x>
+  </both>
+  <attr y="base">
+    <y>dev</y>
+  </attr>
+  <canon z="base">
+    <z>dev</z>
+  </canon>
+</r>

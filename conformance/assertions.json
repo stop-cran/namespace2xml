@@ -553,11 +553,13 @@
       "status": "required",
       "assertions": [
         "Section 11.4 addresses an attribute as @name and a namespace-qualified name as Q{uri}local resolved from the URI rather than the prefix, and an element owning both text and attributes exposes the text at its own element path with the attributes beneath it.",
-        "Repeated same-name children become a Section 5.4 sequence with generated zero-based parts while a single child keeps its name, and mixed content addresses every position as a #n content token which a Section 11.5 comment occupies in its own right."
+        "Repeated same-name children become a Section 5.4 sequence with generated zero-based parts while a single child keeps its name, and mixed content addresses every position as a #n content token which a Section 11.5 comment occupies in its own right.",
+        "Section 11.4 emits WARN011 when a later contribution writes an unmarked component whose simple alias is an XML component already at the node, reporting the sibling it added and the canonical address that would have overridden instead, and withholds it both when the two components arrive in one contribution and when the later one is spelled Q{}local."
       ],
       "fixtures": [
         "xml-a-2-x-style-attribute-override-adds-a-sibling-element",
         "xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address",
+        "xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component",
         "xml-canonical-addresses"
       ]
     },

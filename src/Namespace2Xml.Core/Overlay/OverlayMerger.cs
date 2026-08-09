@@ -209,11 +209,14 @@ public sealed class OverlayMerger
 
         foreach (var (name, child) in later.Children)
         {
-            children = children.SetItem(
-                name,
-                children.TryGetValue(name, out var existing)
-                    ? MergeNode(existing, child, path.Add(name))
-                    : child);
+            if (children.TryGetValue(name, out var existing))
+            {
+                children = children.SetItem(name, MergeNode(existing, child, path.Add(name)));
+                continue;
+            }
+
+            ReportAliasedComponent(path, name, earlier.Children, child.Marks.Latest);
+            children = children.SetItem(name, child);
         }
 
         var (sequence, highWater) = MergeSequence(
@@ -633,6 +636,107 @@ public sealed class OverlayMerger
                 destination: context.Scope),
             key));
     }
+
+    /// <summary>
+    /// Section 11.4 <c>WARN011</c>: a later unmarked component that is the simple alias of an XML
+    /// component already present at the node "adds a second, ordinary component; it does not
+    /// override the existing one".
+    /// </summary>
+    /// <param name="path">The node's path, from the overlay root.</param>
+    /// <param name="name">The component the later contribution is adding.</param>
+    /// <param name="existing">The children already merged at the node.</param>
+    /// <param name="key">The added component's ordering key.</param>
+    /// <remarks>
+    /// <para>
+    /// Only step 8 reports it. A step 18 destination fold merges two views that both already
+    /// passed through here, so the pair it sees is the pair this run has reported once already.
+    /// Dropping the phase test leaves the whole corpus green, because the fold's second report
+    /// carries the same code and the same canonical path and the once-per-path cardinality
+    /// discards it; the test states the scoping rather than defending an observed defect.
+    /// </para>
+    /// <para>
+    /// A <c>Q{}x</c> component is excluded because Section 11.4 has it "bypass that index and name
+    /// one canonical component outright" — the contribution has said which of the two it means,
+    /// and it means the element. The name is reached only on the branch where no child of that
+    /// exact name exists, which is also why an ordinary component has no alias of its own here:
+    /// an ordinary component aliases to itself, and a self-match would be the merge branch.
+    /// </para>
+    /// </remarks>
+    private void ReportAliasedComponent(
+        ImmutableArray<NamePart> path,
+        NamePart name,
+        ImmutableDictionary<NamePart, OverlayNode> existing,
+        StableOrderingKey key)
+    {
+        if (context.Phase != DiagnosticPhase.Input
+            || name is not OrdinaryPart { IsExplicitlyCanonical: false } ordinary)
+        {
+            return;
+        }
+
+        NamePart? canonical = null;
+
+        foreach (var candidate in existing.Keys)
+        {
+            // More than one XML component can alias to one name, so the report names the
+            // Section 24 smallest rather than whichever the hash order offered first.
+            if (SimpleAliasOf(candidate) == ordinary
+                && (canonical is null || NamePartOrder.Instance.Compare(candidate, canonical) < 0))
+            {
+                canonical = candidate;
+            }
+        }
+
+        if (canonical is null)
+        {
+            return;
+        }
+
+        var added = PathText(path.Add(name));
+        var overridden = PathText(path.Add(canonical));
+
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Warn011(
+                DiagnosticPhase.Input,
+                "\u00A711.4",
+                $"'{added}' adds an ordinary component beside '{overridden}', which already "
+                + "exists here. Section 11.4 makes an attribute and an element of the same name "
+                + "different components, so this contribution does not override that one: write "
+                + $"'{overridden}' to override it.",
+                cardinalityKey: CardinalityKey(added),
+                path: added),
+            key));
+    }
+
+    /// <summary>
+    /// The Section 13.1 simple alias of one XML component, or <see langword="null"/> when the
+    /// component is not one that aliases to a different name.
+    /// </summary>
+    /// <param name="part">The canonical component.</param>
+    /// <returns>The ordinary component it aliases to, or null.</returns>
+    /// <remarks>
+    /// Section 13.1 "replaces every <c>Q{uri}local</c> or <c>@Q{uri}local</c> part with
+    /// <c>local</c>" and "replaces every <c>@local</c> part with <c>local</c>". A content token is
+    /// excluded: Section 13.1 removes the part rather than renaming it, so it aliases to its
+    /// owning element's path and never competes for a name at this node.
+    /// </remarks>
+    private static OrdinaryPart? SimpleAliasOf(NamePart part) => part switch
+    {
+        AttributePart attribute => Unqualified(attribute.Name),
+        QualifiedElementPart qualified => new OrdinaryPart(qualified.Local),
+        _ => null,
+    };
+
+    /// <summary>The ordinary spelling of an XML name component.</summary>
+    /// <param name="component">The component.</param>
+    /// <returns>The component itself when it is already ordinary, otherwise its local name.</returns>
+    private static OrdinaryPart Unqualified(XmlNameComponent component) => component switch
+    {
+        QualifiedElementPart qualified => new OrdinaryPart(qualified.Local),
+        OrdinaryPart ordinary => ordinary,
+        _ => throw new InvalidOperationException(
+            $"'{component}' is not an Appendix A.2 xml-name-component."),
+    };
 
     private void ReportImplicitConcatenation(
         ImmutableArray<NamePart> path, StableOrderingKey key)

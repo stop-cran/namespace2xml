@@ -351,18 +351,19 @@ binds to exactly what it names or binds to nothing and earns the `WARN009` from 
 is the compatibility affordance — a 2.x scheme that wrote `a.x` to mean an attribute silently stops
 binding, with a warning rather than a wrong target. Write `a.@x`.
 
-The *data* surface beside it is not so kind. A contribution written `a.x=v` against an attribute
-`@x` creates an ordinary sibling and warns about nothing, which is specified behaviour — §8.2 scopes
-the alias index to references and scheme paths — but is a silent wrong result for a migrating 2.x
-profile. Both halves are tracked as
-[#56](https://github.com/stop-cran/namespace2xml/issues/56).
+The *data* surface beside it is no longer silent. A contribution written `a.x=v` against an
+attribute `@x` still creates an ordinary sibling — §8.2 scopes the alias index to references and
+scheme paths, so the model is correct — but since contract revision r39 it emits `WARN011` naming
+both components and the canonical spelling that would have overridden. Both halves are tracked as
+[#56](https://github.com/stop-cran/namespace2xml/issues/56); only the scheme half remains.
 
-The data half is now **pinned**, in both spellings, by
-`conformance/xml-a-2-x-style-attribute-override-adds-a-sibling-element` and
-`conformance/xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address`, so it
-reaches the generated migration guide rather than living only here. The first of those measured
-2.4.0 accepting `r.a.x=dev` against `<a x="base">` and overriding the attribute, which is what makes
-this a migration hazard and not merely a specification detail. Write `a.@x`.
+The data half is **pinned**, in every spelling, by
+`conformance/xml-a-2-x-style-attribute-override-adds-a-sibling-element`,
+`conformance/xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address` and
+`conformance/xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component`, so it reaches the
+generated migration guide rather than living only here. The first of those measured 2.4.0 accepting
+`r.a.x=dev` against `<a x="base">` and overriding the attribute, which is what makes this a
+migration hazard and not merely a specification detail. Write `a.@x`.
 
 ### 1.11 A directive bound beneath a node that a later step-16 pass reshapes becomes inert
 

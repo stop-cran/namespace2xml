@@ -506,6 +506,39 @@ Join the lines explicitly:
 $from = @('        if (State == Aborted)', '        {', '            return;', '        }') -join "`n"
 ```
 
+### `@(@('from','to'))` collapses, and a one-edit mutation then edits single characters
+
+PowerShell's array subexpression **enumerates** an inner array, so `@( @('a','b') )` is a flat
+two-element array of strings, not a one-element array of pairs. A harness that stores
+`edits = @(@($from, $to))` and reads `$edit[0]` / `$edit[1]` therefore indexes into the *strings*
+and mutates one character into another. Mutations with two or more edits keep their nesting and
+behave, so the defect hits exactly the simplest entries and looks like three unrelated problems:
+
+- a replacement of a character by itself → a genuine no-op → **all tests green → a survivor that
+  is not one**, which is the worst outcome the harness can produce;
+- `MUTATION TEXT NOT FOUND for … : c` — a one-character needle;
+- every `Q` in the file replaced by `u`, reported as `DID NOT COMPILE` with errors on three lines
+  you did not touch.
+
+Write `@(, @($from, $to))`. Independently, assert the edit changed something — that guard alone
+catches every variant of this:
+
+```powershell
+if ($text -eq $original) { throw "NO-OP mutation: $($m.name)" }
+```
+
+### A hash-trie enumeration order agrees with the specified order often enough to hide a tiebreak
+
+`ImmutableDictionary` enumerates by hash, so a determinism tiebreak over its keys — "report the
+smallest sibling under §5.2" — has a fair chance of agreeing with insertion-independent hash order
+for any *one* key set. Deleting the tiebreak then leaves the test green, and it is the third kind of
+false survivor: the fixture is invariant under the mutation. Reversing the source order does not
+help, because the trie is not insertion-ordered.
+
+Assert the same specified outcome over a dozen different names in one test. Every case is the
+specification's answer, so nothing pins a coincidence, and the mutant dies on the first name whose
+hash order disagrees. `AliasedComponentWarningTests` does this.
+
 ### On Unix a leading dot is the Hidden attribute, and `Get-ChildItem` drops it
 
 `Get-ChildItem` omits hidden entries unless `-Force` is passed, and on Unix .NET reports the Hidden

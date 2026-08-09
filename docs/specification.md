@@ -1070,6 +1070,8 @@ a.#2.b
 
 Attribute and child-element names therefore never collide.
 
+Because they never collide, a later contribution that writes an unmarked component where an earlier contribution already placed an XML component of the same simple alias adds a second, ordinary component; it does not override the existing one. That is the typed model working as specified, and it is also the shape Sections 13.1 and 15.2 call ambiguous. Each such component emits `WARN011` naming the canonical component already present, because an override that silently became a sibling is indistinguishable in the merged model from a sibling that was intended. The warning reports and never changes that model: writing the contribution canonically — `@x` for the attribute, `Q{}x` for the element — is what expresses the override. Components arriving together in one contribution never warn, since a single XML document may legitimately carry an attribute and a child element of the same name.
+
 For element-only repeated children:
 
 ```xml
@@ -2619,6 +2621,7 @@ The normative diagnostic registry is:
 | `WARN008` | warning | Output plan contains no destinations | once per invocation |
 | `WARN009` | warning | Scheme directive binds to no effective output/path or wildcard output creates no instance | once per declaration or expanded directive |
 | `WARN010` | warning | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | once per source contribution, canonical mapping path, and output instance |
+| `WARN011` | warning | Later unmarked contribution aliases an existing XML component instead of overriding it | once per canonical path |
 
 `TYPE001` includes a bare scalar selected for a structured output without a configured `root`. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions. Ordering-value overflow and every configured resource-bound violation are `LIMIT001`; malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`.
 
@@ -3281,6 +3284,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Validated output plan contains no destinations | `WARN008` |
 | Directive binds to no effective output/path or wildcard output creates no concrete instance | `WARN009` |
 | JSON/YAML numeric mapping remains inferred as a sequence | `WARN010` |
+| Later unmarked contribution adds an ordinary component aliasing an existing XML component | `WARN011` |
 
 `COLLISION001` has severity error and cardinality once per rejected destination contribution after the first. It is compatibility-stable with the Section 22 registry.
 

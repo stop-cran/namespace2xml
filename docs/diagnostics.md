@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r38+8c8759be955a`.** 34 codes.
+**Contract bundle `r39+183f72734b48`.** 35 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -57,6 +57,7 @@ by preference.
 | `WARN008` | warning | once per invocation | Output plan contains no destinations | — |
 | `WARN009` | warning | once per declaration or expanded directive | Scheme directive binds to no effective output/path or wildcard output creates no instance | `source`, `line`, `column`, `path`, `declaration` |
 | `WARN010` | warning | once per source contribution, canonical mapping path, and output instance | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | `source`, `path`, `destination` |
+| `WARN011` | warning | once per canonical path | Later unmarked contribution aliases an existing XML component instead of overriding it | `source`, `path` |
 
 ## Conditions in detail
 
@@ -265,6 +266,12 @@ Each code below lists the situations the specification maps to it (Appendix B).
 *warning, once per source contribution, canonical mapping path, and output instance.*
 
 - JSON/YAML numeric mapping remains inferred as a sequence
+
+### `WARN011` — Later unmarked contribution aliases an existing XML component instead of overriding it
+
+*warning, once per canonical path.*
+
+- Later unmarked contribution adds an ordinary component aliasing an existing XML component
 
 ## Disagreeing with a diagnostic
 
