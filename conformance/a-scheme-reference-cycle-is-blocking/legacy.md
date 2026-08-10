@@ -64,8 +64,10 @@ reference reads the winner and resolves. That is a Section 15.2 property and bel
 - namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `a.properties`,
   `b.properties` and `c.properties` — the three default destinations — with the expected content
   in each.
-- Contract: Section 13.1 makes a reference cycle a blocking error. Section 3.2's "silently ignored
-  directive" family covers the resulting defect.
+- Contract: Section 13.1 makes a reference cycle a blocking error. Section 3.2 lists the cause
+  directly: legacy behavior "caused by discarding a scheme directive whose value could not be
+  resolved, so that an unresolvable or cyclic reference silently selects the default destination
+  instead of failing" is not preserved.
 - Legacy observation: 2.4.0 has no cycle detection among scheme entries. It resolves what it can
   and discards what it cannot, so all three cyclic `filename` directives are dropped and each
   selector falls back to its default destination. The failure is indistinguishable from the

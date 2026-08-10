@@ -84,8 +84,11 @@ The error paths are `a-missing-scheme-reference-is-blocking` and
   case's `dir%2Fleaf.conf` is missing. `pre-dir/leaf.conf` is a file under a `pre-dir` directory
   where the case expects a file named `pre-dir%2Fleaf.conf` in the output root.
 - Contract: Section 16.2 requires the text a reference contributes to be opaque segment data, so
-  only separators written in the scheme create directory hierarchy. Section 3.2's "wrong output
-  destination" family covers the resulting defect.
+  only separators written in the scheme create directory hierarchy. Section 3.2 lists the cause
+  directly: legacy behavior "caused by treating the text a resolved scheme reference contributes as
+  scheme-written path, so that a separator held by the referenced directive creates directory
+  hierarchy and can compose a destination another output instance has already claimed" is not
+  preserved.
 - Legacy observation: 2.4.0 does resolve scheme references, and resolves them to the Section 15.2
   winner and across forward declarations — the `d`/`e` rows agree exactly. What it does not do is
   keep the resolved text distinguishable from written text: it splices the referent's characters

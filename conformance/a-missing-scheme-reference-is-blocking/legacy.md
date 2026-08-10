@@ -53,8 +53,9 @@ Section 22's diagnostic schema makes the field optional.
 - namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `a.properties` and
   `b.properties` — the two default destinations — with the expected content in each.
 - Contract: Section 13.1 makes a missing reference a blocking error, and Section 15.1 step 1
-  resolves scheme references. Section 3.2's "silently ignored directive" family covers the
-  resulting defect.
+  resolves scheme references. Section 3.2 lists the cause directly: legacy behavior "caused by
+  discarding a scheme directive whose value could not be resolved, so that an unresolvable or
+  cyclic reference silently selects the default destination instead of failing" is not preserved.
 - Legacy observation: 2.4.0 resolves what it can and discards what it cannot. An unresolvable
   `filename` is not reported and not retained; the selector simply falls back to the default
   destination, which is the selector's own name with the format's extension. A typo in a reference

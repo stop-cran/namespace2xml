@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r39+183f72734b48`.**
+**Contract bundle `r40+1a91651b823f`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -165,8 +165,9 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `a.properties` and
   `b.properties` — the two default destinations — with the expected content in each.
 - Contract: Section 13.1 makes a missing reference a blocking error, and Section 15.1 step 1
-  resolves scheme references. Section 3.2's "silently ignored directive" family covers the
-  resulting defect.
+  resolves scheme references. Section 3.2 lists the cause directly: legacy behavior "caused by
+  discarding a scheme directive whose value could not be resolved, so that an unresolvable or
+  cyclic reference silently selects the default destination instead of failing" is not preserved.
 - Legacy observation: 2.4.0 resolves what it can and discards what it cannot. An unresolvable
   `filename` is not reported and not retained; the selector simply falls back to the default
   destination, which is the selector's own name with the format's extension. A typo in a reference
@@ -330,8 +331,10 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `a.properties`,
   `b.properties` and `c.properties` — the three default destinations — with the expected content
   in each.
-- Contract: Section 13.1 makes a reference cycle a blocking error. Section 3.2's "silently ignored
-  directive" family covers the resulting defect.
+- Contract: Section 13.1 makes a reference cycle a blocking error. Section 3.2 lists the cause
+  directly: legacy behavior "caused by discarding a scheme directive whose value could not be
+  resolved, so that an unresolvable or cyclic reference silently selects the default destination
+  instead of failing" is not preserved.
 - Legacy observation: 2.4.0 has no cycle detection among scheme entries. It resolves what it can
   and discards what it cannot, so all three cyclic `filename` directives are dropped and each
   selector falls back to its default destination. The failure is indistinguishable from the
@@ -453,8 +456,8 @@ implemented, its case says so plainly rather than letting the heading imply othe
   output root itself. The process exit code is `-532462766` (`0xE0434352`, an unhandled managed
   exception).
 - Contract: Section 15 requires every recognized directive to carry a nonempty scalar value.
-  Section 3.2's "unhandled exception where a diagnostic is required" family covers the resulting
-  defect.
+  Section 3.2 does not preserve legacy behavior "caused by unhandled user-input exceptions", which
+  is what an empty value produces here.
 - Legacy observation: 2.4.0 accepts the empty value, composes a destination from it, and arrives
   at a path equal to the output directory. Opening a directory as a file is what fails, so the
   message the author sees names a permissions problem at a path they did not write, and the stack
@@ -1585,8 +1588,11 @@ implemented, its case says so plainly rather than letting the heading imply othe
   case's `dir%2Fleaf.conf` is missing. `pre-dir/leaf.conf` is a file under a `pre-dir` directory
   where the case expects a file named `pre-dir%2Fleaf.conf` in the output root.
 - Contract: Section 16.2 requires the text a reference contributes to be opaque segment data, so
-  only separators written in the scheme create directory hierarchy. Section 3.2's "wrong output
-  destination" family covers the resulting defect.
+  only separators written in the scheme create directory hierarchy. Section 3.2 lists the cause
+  directly: legacy behavior "caused by treating the text a resolved scheme reference contributes as
+  scheme-written path, so that a separator held by the referenced directive creates directory
+  hierarchy and can compose a destination another output instance has already claimed" is not
+  preserved.
 - Legacy observation: 2.4.0 does resolve scheme references, and resolves them to the Section 15.2
   winner and across forward declarations — the `d`/`e` rows agree exactly. What it does not do is
   keep the resolved text distinguishable from written text: it splices the referent's characters

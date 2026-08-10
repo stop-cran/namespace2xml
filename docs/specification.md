@@ -67,6 +67,8 @@ The replacement must not preserve legacy behavior that was:
 - caused by raw appending of independently serialized YAML documents;
 - caused by output files being opened before the complete output plan was validated;
 - caused by a synthetic internal root leaking into user-visible file names;
+- caused by treating the text a resolved scheme reference contributes as scheme-written path, so that a separator held by the referenced directive creates directory hierarchy and can compose a destination another output instance has already claimed;
+- caused by discarding a scheme directive whose value could not be resolved, so that an unresolvable or cyclic reference silently selects the default destination instead of failing;
 - caused by silent loss of multiline values in JSON or XML;
 - caused by unhandled user-input exceptions;
 - caused by insecure XML document-type or external-entity processing;

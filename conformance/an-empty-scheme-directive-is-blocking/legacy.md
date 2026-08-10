@@ -66,8 +66,8 @@ clause read the other way: `scheme-reference-filename-separators-are-encoded-dat
   output root itself. The process exit code is `-532462766` (`0xE0434352`, an unhandled managed
   exception).
 - Contract: Section 15 requires every recognized directive to carry a nonempty scalar value.
-  Section 3.2's "unhandled exception where a diagnostic is required" family covers the resulting
-  defect.
+  Section 3.2 does not preserve legacy behavior "caused by unhandled user-input exceptions", which
+  is what an empty value produces here.
 - Legacy observation: 2.4.0 accepts the empty value, composes a destination from it, and arrives
   at a path equal to the output directory. Opening a directory as a file is what fails, so the
   message the author sees names a permissions problem at a path they did not write, and the stack

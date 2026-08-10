@@ -15,7 +15,22 @@ independently.
 
 ### Contract
 
-- `contract-bundle` `r39+183f72734b48`.
+- `contract-bundle` `r40+1a91651b823f`.
+- §3.2 gains two causes of legacy behavior that is deliberately not preserved, both found by
+  measuring 2.4.0 while implementing
+  [#70](https://github.com/stop-cran/namespace2xml/issues/70) rather than by reading its source.
+  Neither was covered by an existing bullet, and both are the kind of divergence a migrating scheme
+  meets silently:
+  - text a resolved scheme reference contributes being treated as scheme-written path, "so that a
+    separator held by the referenced directive creates directory hierarchy and can compose a
+    destination another output instance has already claimed". In 2.4.0 a `filename` referencing
+    another selector's `dir/leaf.conf` writes into a `dir` directory, and where the two selectors
+    then collide the baseline **appends** one output to the other — two selectors merged into one
+    file, exit 0, no diagnostic. §16.2 already required the opposite; §3.2 now names the cause so
+    that the divergence is triageable from the compatibility policy alone.
+  - a scheme directive being discarded when its value could not be resolved, "so that an
+    unresolvable or cyclic reference silently selects the default destination instead of failing".
+    A typo in a scheme reference changes where output is written and reports success.
 - §11.4 gains `WARN011`: a later unmarked component that is the simple alias of an XML component
   already at the node adds an ordinary sibling rather than overriding, and now says so. The model is
   unchanged — §8.2 scopes the alias index to references and scheme paths, deliberately — so this is
