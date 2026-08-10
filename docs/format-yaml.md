@@ -254,10 +254,10 @@ container projection to render as a mapping whose keys are the canonical decimal
 gaps and nonzero bases preserved. Verified against `{'2': first, '7': second}` at
 `cfg.items.type=mapping`: the output is a two-key mapping, not a two-item sequence.
 
-The step-11 inference should also emit `WARN010` once per source contribution, canonical mapping
-path, and output instance (§3.3). This preview does not emit it; see `KNOWN-LIMITS.md` §1.7. Read
-the absence of a diagnostic on a numeric JSON or YAML mapping as "not checked" rather than "no
-compatibility risk", and reach for `type=mapping` on any numeric mapping whose keys are data.
+The step-11 inference also emits `WARN010` once per source contribution, canonical mapping path,
+and output instance (§3.3). Suppression is per output instance rather than per node, so a model
+rendered to two destinations can keep the keys in the one that declares `type=mapping` and still be
+warned about the other.
 
 ## Merge
 
@@ -468,9 +468,9 @@ the equivalent top-of-YAML comment survives. §20 and §8.5 give the two differe
 
 **A numeric-key YAML mapping renders as a sequence unless `type=mapping` says otherwise.**
 §8.7 makes this a normative deliberate normalization, and it is how cross-file sequence
-patching works — but the compatibility warning §3.3 promises for it is not emitted yet
-(`KNOWN-LIMITS.md` §1.7). If your intent is a mapping keyed on decimal strings, force it with
-`type=mapping`; do not rely on a warning to notice.
+patching works. §3.3's compatibility warning fires for it, naming each contributing document. If
+your intent is a mapping keyed on decimal strings, force it with `type=mapping` rather than leaving
+the warning in the stream.
 
 **A value ending in a blank line is written double-quoted, not as a block scalar.** §19.4 says
 the writer "uses literal block scalars for multiline values", but §24 requires a text output to

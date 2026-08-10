@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Namespace2Xml.Overlay;
 
 /// <summary>
@@ -40,6 +42,9 @@ public readonly record struct NodeMarks
     /// The Section 11.4 content-token ordering value, or <see langword="null"/> when the node did
     /// not come from an XML parent.
     /// </param>
+    /// <param name="nativeMappings">
+    /// The native JSON/YAML mapping contributions at this node, ascending by key.
+    /// </param>
     private NodeMarks(
         StableOrderingKey position,
         bool addressedDirectly,
@@ -48,7 +53,8 @@ public readonly record struct NodeMarks
         StableOrderingKey? sequenceShape,
         StableOrderingKey? ownMappingShape,
         StableOrderingKey? ownSequenceShape,
-        long? contentToken)
+        long? contentToken,
+        ImmutableArray<NativeMappingOrigin> nativeMappings)
     {
         Position = position;
         AddressedDirectly = addressedDirectly;
@@ -58,7 +64,23 @@ public readonly record struct NodeMarks
         OwnMappingShape = ownMappingShape;
         OwnSequenceShape = ownSequenceShape;
         ContentToken = contentToken;
+        natives = nativeMappings;
     }
+
+    private readonly ImmutableArray<NativeMappingOrigin> natives;
+
+    /// <summary>
+    /// The Section 3.2 native JSON/YAML mapping contributions at this node, ascending by key, or
+    /// empty when no native mapping supplied it.
+    /// </summary>
+    /// <remarks>
+    /// Empty for every node an XML or namespace source built, and empty for a native sequence.
+    /// A node holding one of these is a mapping some JSON or YAML document wrote as an object;
+    /// whether that still matters is decided per output instance by <see cref="RendersAsSequence"/>,
+    /// which is the only thing Section 3.2 asks about it.
+    /// </remarks>
+    public ImmutableArray<NativeMappingOrigin> NativeMappings =>
+        natives.IsDefault ? [] : natives;
 
     /// <summary>
     /// The Section 11.4 content-token ordering value this node's XML parent assigned it, or
@@ -216,22 +238,26 @@ public readonly record struct NodeMarks
     /// </summary>
     public static NodeMarks At(StableOrderingKey position) =>
         new(position, addressedDirectly: false, payloadMark: null, mappingShape: null,
-            sequenceShape: null, ownMappingShape: null, ownSequenceShape: null, contentToken: null);
+            sequenceShape: null, ownMappingShape: null, ownSequenceShape: null, contentToken: null,
+            nativeMappings: []);
 
     /// <summary>Marks for a node whose first contribution is a payload.</summary>
     public static NodeMarks ForPayload(StableOrderingKey position) =>
         new(position, addressedDirectly: true, payloadMark: position, mappingShape: null,
-            sequenceShape: null, ownMappingShape: null, ownSequenceShape: null, contentToken: null);
+            sequenceShape: null, ownMappingShape: null, ownSequenceShape: null, contentToken: null,
+            nativeMappings: []);
 
     /// <summary>Marks for a node whose first contribution requires mapping shape.</summary>
     public static NodeMarks ForMapping(StableOrderingKey position) =>
         new(position, addressedDirectly: true, payloadMark: null, mappingShape: position,
-            sequenceShape: null, ownMappingShape: position, ownSequenceShape: null, contentToken: null);
+            sequenceShape: null, ownMappingShape: position, ownSequenceShape: null, contentToken: null,
+            nativeMappings: []);
 
     /// <summary>Marks for a node whose first contribution requires sequence shape.</summary>
     public static NodeMarks ForSequence(StableOrderingKey position) =>
         new(position, addressedDirectly: true, payloadMark: null, mappingShape: null,
-            sequenceShape: position, ownMappingShape: null, ownSequenceShape: position, contentToken: null);
+            sequenceShape: position, ownMappingShape: null, ownSequenceShape: position, contentToken: null,
+            nativeMappings: []);
 
     /// <summary>
     /// Records a contribution that addresses this node itself, advancing the position mark.
@@ -245,7 +271,8 @@ public readonly record struct NodeMarks
             SequenceShape,
             OwnMappingShape,
             OwnSequenceShape,
-            ContentToken);
+            ContentToken,
+            natives);
 
     /// <summary>
     /// Records a contribution that requires mapping shape at this node itself, advancing both the
@@ -260,7 +287,8 @@ public readonly record struct NodeMarks
             SequenceShape,
             Later(OwnMappingShape, position),
             OwnSequenceShape,
-            ContentToken);
+            ContentToken,
+            natives);
 
     /// <summary>
     /// Records a contribution that requires sequence shape at this node itself, advancing both the
@@ -275,7 +303,8 @@ public readonly record struct NodeMarks
             Later(SequenceShape, position),
             OwnMappingShape,
             Later(OwnSequenceShape, position),
-            ContentToken);
+            ContentToken,
+            natives);
 
     /// <summary>
     /// Records a strictly deeper descendant, which refreshes the mapping shape-mark and leaves the
@@ -286,7 +315,7 @@ public readonly record struct NodeMarks
     /// </remarks>
     public NodeMarks WithDescendant(StableOrderingKey position) =>
         new(Position, AddressedDirectly, PayloadMark, Later(MappingShape, position), SequenceShape,
-            OwnMappingShape, OwnSequenceShape, ContentToken);
+            OwnMappingShape, OwnSequenceShape, ContentToken, natives);
 
     /// <summary>
     /// Records a sequence item, which refreshes the sequence shape-mark and leaves the position
@@ -300,7 +329,7 @@ public readonly record struct NodeMarks
     /// </remarks>
     public NodeMarks WithSequenceItem(StableOrderingKey position) =>
         new(Position, AddressedDirectly, PayloadMark, MappingShape, Later(SequenceShape, position),
-            OwnMappingShape, OwnSequenceShape, ContentToken);
+            OwnMappingShape, OwnSequenceShape, ContentToken, natives);
 
     /// <summary>
     /// The marks after Section 8.7 inference, which "replaces that contribution's mapping
@@ -323,7 +352,7 @@ public readonly record struct NodeMarks
     public NodeMarks AsInferredSequence() =>
         new(Position, AddressedDirectly, PayloadMark, mappingShape: null, sequenceShape: ContainerShape,
             ownMappingShape: null, ownSequenceShape: Later(OwnMappingShape, OwnSequenceShape),
-            contentToken: ContentToken);
+            contentToken: ContentToken, nativeMappings: natives);
 
     /// <summary>
     /// The marks after Section 16.6 <c>type=mapping</c> converts a winning sequence projection, the
@@ -338,7 +367,7 @@ public readonly record struct NodeMarks
     public NodeMarks AsForcedMapping() =>
         new(Position, AddressedDirectly, PayloadMark, mappingShape: ContainerShape, sequenceShape: null,
             ownMappingShape: Later(OwnMappingShape, OwnSequenceShape), ownSequenceShape: null,
-            contentToken: ContentToken);
+            contentToken: ContentToken, nativeMappings: natives);
 
     /// <summary>
     /// The marks of a node's independent payload and sequence facets, with its mapping projection
@@ -348,10 +377,16 @@ public readonly record struct NodeMarks
     /// Section 16.5 splits one child into a record and a <c>value</c> field. The two halves must
     /// not both claim the mapping shape-mark: the record holds the mapping fields, so the
     /// <c>value</c> field holds what is left, which by construction has no children.
+    /// <para>
+    /// The native-mapping provenance goes with the mapping shape-mark for the same reason. The
+    /// <c>value</c> field is a scalar that no document ever wrote as an object, so Section 3.2 has
+    /// nothing to warn about there, and leaving the origins on both halves would warn twice for one
+    /// mapping if the record half later became a sequence.
+    /// </para>
     /// </remarks>
     public NodeMarks WithoutMapping() =>
         new(Position, AddressedDirectly, PayloadMark, mappingShape: null, SequenceShape,
-            ownMappingShape: null, OwnSequenceShape, ContentToken);
+            ownMappingShape: null, OwnSequenceShape, ContentToken, nativeMappings: []);
 
     /// <summary>
     /// The marks after Section 8.6 permanent masking, recomputed from the contributions that
@@ -387,7 +422,8 @@ public readonly record struct NodeMarks
             Later(OwnSequenceShape, sequenceFromItems),
             OwnMappingShape,
             OwnSequenceShape,
-            ContentToken);
+            ContentToken,
+            natives);
 
     /// <summary>
     /// The marks of a node whose complete value one later contribution has replaced.
@@ -417,7 +453,8 @@ public readonly record struct NodeMarks
             replacement.SequenceShape,
             replacement.OwnMappingShape,
             replacement.OwnSequenceShape,
-            replacement.ContentToken ?? ContentToken);
+            replacement.ContentToken ?? ContentToken,
+            replacement.natives);
 
     /// <summary>
     /// The marks of a node that carries both of two nodes' contributions, taking the later of each
@@ -449,7 +486,8 @@ public readonly record struct NodeMarks
             Later(SequenceShape, other.SequenceShape),
             Later(OwnMappingShape, other.OwnMappingShape),
             Later(OwnSequenceShape, other.OwnSequenceShape),
-            CombineToken(this, other));
+            CombineToken(this, other),
+            UnionNatives(natives, other.natives));
 
     /// <summary>These marks with a Section 11.4 content-token ordering value recorded.</summary>
     /// <param name="contentToken">The value the node's XML parent assigned it.</param>
@@ -462,7 +500,74 @@ public readonly record struct NodeMarks
             SequenceShape,
             OwnMappingShape,
             OwnSequenceShape,
-            contentToken);
+            contentToken,
+            natives);
+
+    /// <summary>
+    /// These marks with one Section 3.2 native JSON/YAML mapping contribution recorded.
+    /// </summary>
+    /// <param name="key">The contribution's Section 4.7 ordering key.</param>
+    /// <param name="source">How diagnostics name the document that wrote it.</param>
+    /// <remarks>
+    /// Recorded for every nonempty native mapping and not only for a numeric-keyed one, because
+    /// Section 8.7 infers "over the merged model": <c>{"a":{"0":"x"}}</c> in one document and
+    /// <c>{"a":{"b":"y"}}</c> in another produce a node no single document could classify, and a
+    /// mask may later remove the child that made it unclassifiable. Deciding at read time would
+    /// ask a question the reader cannot answer yet, and would answer it wrongly in exactly the
+    /// cases the warning exists for.
+    /// </remarks>
+    public NodeMarks WithNativeMapping(StableOrderingKey key, string source) =>
+        new(
+            Position,
+            AddressedDirectly,
+            PayloadMark,
+            MappingShape,
+            SequenceShape,
+            OwnMappingShape,
+            OwnSequenceShape,
+            ContentToken,
+            UnionNatives(natives, [new NativeMappingOrigin(key, source)]));
+
+    /// <summary>
+    /// The union of two native-mapping origin sets, ascending by key and free of duplicates.
+    /// </summary>
+    /// <param name="left">One set.</param>
+    /// <param name="right">The other set.</param>
+    /// <remarks>
+    /// Sorted because Section 24 orders the resulting warnings by their source ordering key, and a
+    /// set assembled in merge order would present them in the order the tree happened to be walked.
+    /// Deduplicated by key because a merge may combine a node with contributions it already holds,
+    /// and Section 22 owes one warning per source contribution rather than one per merge that
+    /// carried it.
+    /// </remarks>
+    private static ImmutableArray<NativeMappingOrigin> UnionNatives(
+        ImmutableArray<NativeMappingOrigin> left,
+        ImmutableArray<NativeMappingOrigin> right)
+    {
+        if (right.IsDefaultOrEmpty)
+        {
+            return left.IsDefault ? [] : left;
+        }
+
+        if (left.IsDefaultOrEmpty)
+        {
+            return right;
+        }
+
+        var merged = new SortedDictionary<StableOrderingKey, NativeMappingOrigin>();
+
+        foreach (var origin in left)
+        {
+            merged[origin.Key] = origin;
+        }
+
+        foreach (var origin in right)
+        {
+            merged[origin.Key] = origin;
+        }
+
+        return [.. merged.Values];
+    }
 
     private static StableOrderingKey CombinePosition(NodeMarks left, NodeMarks right) =>
         (left.AddressedDirectly, right.AddressedDirectly) switch

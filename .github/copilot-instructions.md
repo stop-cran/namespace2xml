@@ -760,12 +760,12 @@ $text = ($files | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join 
 As of the M3 exit, ten codes were uncalled: `SCHEME002`, `REFERENCE002`–`REFERENCE005`, `XML002`,
 `COLLISION001`, `WARN005`, `WARN007` and `WARN010`.
 
-**Re-measured at the M9 entry: two remain, `SCHEME002` and `WARN010`.** The other eight acquired
-call sites during M4–M8. Both survivors are documented — `KNOWN-LIMITS.md` §1.10 for `SCHEME002`
-(scheme paths do not consult the simple alias index, so the ambiguity it reports cannot arise) and
-§1.7 for `WARN010` (the numeric-mapping-as-sequence inference is implemented; the §3.3 compatibility
-warning for it is not). So the list remains an expected baseline rather than a defect list, but it
-is a much shorter one, and any *third* entry appearing is a finding.
+**Re-measured after `WARN010` landed in M9: zero remain.** `SCHEME002` acquired a call site in
+`ViewTransformer` during M4–M8 and `WARN010` in `PlanningPhase` during M9; both were verified by
+running them, not by reading the audit. The paragraph above claimed two survivors at the M9 entry
+and was already wrong about one of them, which is the same staleness it warns about — it had been
+wrong by eight codes once before. Every registry code now has a call site, so **any** entry the
+audit reports from here is a finding rather than an expected baseline.
 
 Re-run the audit whenever a milestone claims a diagnostic is covered, and update this paragraph
 rather than trusting it — it was stale by eight codes before anyone checked.

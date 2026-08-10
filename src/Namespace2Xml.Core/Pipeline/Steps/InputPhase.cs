@@ -113,7 +113,8 @@ public static class InputPhase
                     source.Origin,
                     substitutes,
                     diagnostics,
-                    out var unsupported);
+                    out var unsupported,
+                    nativeMappings: source.Format is "JSON" or "YAML");
 
                 if (unsupported is not null)
                 {

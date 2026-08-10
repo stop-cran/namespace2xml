@@ -242,9 +242,10 @@ renders as
 
 — the JSON *object* is now a JSON *array*, densified in the output, because §8.7 makes canonical
 numeric mapping keys sequence ordering values by construction. `WARN010` is meant to warn about
-this once per source contribution, canonical mapping path, and output instance (§3.3, §22). This
-preview does not emit `WARN010` yet — `KNOWN-LIMITS.md` §1.7 lists it — so **on this build, the
-absence of a warning here means "not checked", not "no compatibility risk"**.
+this once per source contribution, canonical mapping path, and output instance (§3.3, §22), and
+it does. Every JSON or YAML document that wrote keys into the mapping is named separately, so a
+model assembled from several files says which one to edit. A namespace-format contribution to the
+same path raises nothing, because a numeric path segment makes no shape claim to contradict.
 
 To keep the mapping as a mapping, declare `type=mapping` on the path:
 
@@ -382,8 +383,8 @@ member appears in source order.
 mapping with all-canonical-numeric-decimal keys is projected as a sequence unless a `type=mapping`
 directive is in scope. That is not a lexical normalisation — it changes the JSON shape from
 object to array — and is why §3.3 promises a `WARN010` at output planning to make the change
-visible. On this preview, the change happens silently (`KNOWN-LIMITS.md` §1.7); reach for
-`type=mapping` whenever a JSON numeric mapping is data rather than an index.
+visible. The warning is emitted; reach for `type=mapping` whenever a JSON numeric mapping is data
+rather than an index.
 
 ## Traps
 
@@ -403,9 +404,9 @@ ordinary deep-merge.** §9.3 governs one JSON object literal; §17 governs contr
 overlay. They point in opposite directions, and the diagnostic language reflects it.
 
 **A JSON mapping whose keys happen to be `"0"`, `"1"`, `"2"` becomes a JSON array on output.**
-This is §8.7's numeric-map inference, and it is what §3.3's `WARN010` was written to warn about.
-The warning is not yet emitted (`KNOWN-LIMITS.md` §1.7), so `type=mapping` is currently your only
-signal to the reader that a numeric mapping is data.
+This is §8.7's numeric-map inference, and it is what §3.3's `WARN010` warns about. The warning
+names the document that wrote the keys, not just the path, and `type=mapping` both keeps the keys
+and silences it for the output instance that carries the directive.
 
 **A shape conflict drops one side of the JSON node.** `a.x=1` and `a.x.z=3` in the
 overlay both survive, but JSON as an exclusive-shape destination renders one and warns with

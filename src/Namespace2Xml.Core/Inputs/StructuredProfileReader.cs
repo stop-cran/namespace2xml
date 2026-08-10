@@ -33,20 +33,26 @@ public static class StructuredProfileReader
     /// <param name="unsupported">
     /// The first construct this preview declines, or <see langword="null"/> when it declined none.
     /// </param>
+    /// <param name="nativeMappings">
+    /// Whether this format's mappings are the Section 3.2 <c>WARN010</c> kind, which is JSON and
+    /// YAML but not XML.
+    /// </param>
     public static ProfileContribution Read(
         StructuredNode root,
         long sourceOrdinal,
         ProfileSource source,
         SubstituteModeMap substitutes,
         DiagnosticBuffer diagnostics,
-        out UnsupportedCapability? unsupported)
+        out UnsupportedCapability? unsupported,
+        bool nativeMappings = false)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(substitutes);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        var projection = new Projection(sourceOrdinal, source, substitutes, diagnostics);
+        var projection = new Projection(
+            sourceOrdinal, source, substitutes, diagnostics, nativeMappings);
         var overlay = projection.Build(root, []);
 
         unsupported = projection.Refusal;
@@ -58,7 +64,8 @@ public static class StructuredProfileReader
         long sourceOrdinal,
         ProfileSource source,
         SubstituteModeMap substitutes,
-        DiagnosticBuffer diagnostics)
+        DiagnosticBuffer diagnostics,
+        bool nativeMappings)
     {
         private readonly ImmutableArray<ProfileEntry>.Builder templates =
             ImmutableArray.CreateBuilder<ProfileEntry>();
@@ -149,6 +156,16 @@ public static class StructuredProfileReader
                 : mapping.Properties.IsEmpty
                     ? OverlayNode.Intermediate(key).WithExplicitMapping(key)
                     : OverlayNode.Intermediate(key);
+
+            // Section 3.2 owes WARN010 to the source that wrote a mapping Section 8.7 later infers
+            // as a sequence, so a nonempty native mapping records who wrote it. An empty one is
+            // excluded because Section 8.7 says "a surviving empty mapping remains a mapping" and
+            // so can never earn the warning; a Section 11.4 element scalar is excluded because it
+            // is a scalar rather than a mapping the author wrote as an object.
+            if (nativeMappings && mapping.Scalar is null && !mapping.Properties.IsEmpty)
+            {
+                result = result.WithNativeMapping(key, source.Identity);
+            }
 
             foreach (var property in mapping.Properties)
             {

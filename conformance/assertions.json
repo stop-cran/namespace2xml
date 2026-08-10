@@ -140,9 +140,11 @@
         "A value mixing literals and references, or more than one reference, is a string, and its concatenation is not re-inferred.",
         "A reference containing an unescaped Q{} component is canonical and bypasses the simple alias index, so Q{}x selects the child element where the unmarked spelling is ambiguous with an attribute of the same name.",
         "Section 13.1 decides canonical addressing per reference rather than per component, so a marker on any component takes the whole reference off the index.",
-        "The marker is an addressing annotation and not part of a component identity: a.Q{}b and a.b remain one overlay node, and no canonical path is ever spelled with an empty qualifier."
+        "The marker is an addressing annotation and not part of a component identity: a.Q{}b and a.b remain one overlay node, and no canonical path is ever spelled with an empty qualifier.",
+        "A canonical reference addressing an XML comment position is the non-scalar REFERENCE005, and is distinguished from a content position naming nothing, which is the missing REFERENCE002."
       ],
       "fixtures": [
+        "a-reference-to-an-xml-comment-is-not-a-value",
         "an-empty-qualifier-escapes-the-alias-ambiguity",
         "reference-alias-ambiguity-lists-candidates",
         "reference-typed-values-and-alias-addressing"
@@ -1004,11 +1006,18 @@
     {
       "item": 68,
       "text": "Output-instance-scoped `WARN010` suppression by `type=mapping` and stable diagnostic stream/code behavior.",
-      "milestone": "unassigned",
-      "status": "pending",
-      "assertions": [],
+      "milestone": "m9",
+      "status": "required",
+      "assertions": [
+        "A native JSON or YAML mapping whose keys are all canonically numeric raises WARN010 when the output instance renders it as a sequence.",
+        "The warning is scoped to the output instance: the same node projected as a mapping by type=mapping in one output raises nothing there, while another output that leaves it inferred still raises it.",
+        "One warning is raised per source contribution, so every document that wrote keys into the inferred mapping is named individually.",
+        "A native sequence raises nothing, because no inference occurred at a node written as a sequence.",
+        "A namespace-format contribution to the same inferred sequence raises nothing, because a numeric path segment makes no shape claim to contradict."
+      ],
       "fixtures": [
-        "type-mapping-suppresses-warn010-per-output-instance"
+        "type-mapping-suppresses-warn010-per-output-instance",
+        "warn010-fires-once-per-native-source-contribution"
       ]
     },
     {

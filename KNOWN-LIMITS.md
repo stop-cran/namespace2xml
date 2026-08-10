@@ -48,13 +48,13 @@ audit is now the way this table is maintained.
 | Scalar inference and canonical numeric text | Implemented | §18 |
 | Output planning, destination paths, collision folding | Implemented | §17 |
 | Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
-| Rendering: JSON, YAML | Implemented, except the §3.2 warning in §1.7 | §19.3–§19.4 |
+| Rendering: JSON, YAML | Implemented | §19.3–§19.4 |
 | Publication and the validation gate | Implemented | §21 |
 | References and value wildcards | Implemented in input values, except the `REFERENCE005` case in §1.9 | §13 |
 | Templates and masks | Implemented for namespace input | §8.6, §12 |
 | Wildcard output selectors | Implemented | §14 |
 | Path-scoped view transformations: `type`, `key`, `substitute` | Implemented, with the gaps in §1.10–§1.12 | §16.5–§16.7 |
-| Ordered sequences from numeric paths | Implemented, except the §3.2 warning in §1.7 | §8.7, §5.4 |
+| Ordered sequences from numeric paths | Implemented | §8.7, §5.4 |
 | Rendering: XML | Implemented | §19.5 |
 | **Scheme files** written as JSON or YAML | Implemented | §15, §9.1, §10.4 |
 | **Scheme files** written as XML | Undecided contract — [#72](https://github.com/stop-cran/namespace2xml/issues/72) | §15 |
@@ -360,25 +360,32 @@ alias index." So `a.Q{}x.@y` aliases nowhere at `x` and binds the attribute at `
 spelling as a reference would have been canonical throughout. The difference is in the two clauses,
 not in this build. **verified**
 
-### 1.7 `WARN010` is not emitted
+### 1.7 *(resolved)* `WARN010` is not emitted
 
 Section 3.2 requires "exactly one compatibility warning for each source contribution, canonical
 mapping path, and output instance where a JSON or YAML mapping inferred at step 11 remains projected
-as a sequence". The inference itself is implemented; `WARN010` is not emitted for it.
-`{"a":{"2":"x","7":"y"}}` renders as the dense sequence §8.7 specifies, with an empty diagnostic
-stream where one warning per contributing source is owed.
+as a sequence". `v3.0.0-preview.1` and `v3.0.0-preview.2` implemented the inference and not the
+warning: `{"a":{"2":"x","7":"y"}}` rendered as the dense sequence §8.7 specifies, with an empty
+diagnostic stream where one warning per contributing source was owed.
 
-This is not silent success in disguise. The exception §3.2 grants is `type=mapping`, which this
-build now implements — see the `type-mapping-keeps-numeric-keys-and-array-discards-names` fixture —
-so a run that would earn the warning does have a way to act on it. What is missing is the prompt to
-do so. Until then, read the absence of a diagnostic on a numeric JSON or YAML mapping as "not
-checked" rather than "no compatibility risk", and reach for `type=mapping` on any numeric mapping
-whose keys are data.
+The warning is now emitted, with the cardinality §22 states. Every document that wrote keys into an
+inferred mapping is named individually, because a single warning at the path would tell an operator
+that some document had lost its keys without saying which one to edit. Two exclusions fall out of
+the same rule and are pinned: a native sequence raises nothing, having had no inference applied to
+it, and a namespace-format contribution to the same node raises nothing, because a numeric path
+segment makes no shape claim to contradict. `type=mapping` suppresses the warning per output
+instance rather than per node, so a model rendered twice can keep the keys in one output and be
+warned about the other. `conformance/warn010-fires-once-per-native-source-contribution` and
+`conformance/type-mapping-suppresses-warn010-per-output-instance` pin those five properties, and
+acceptance item 68 is now `required`. [#58](https://github.com/stop-cran/namespace2xml/issues/58).
 
-Emitting it needs per-source provenance the overlay does not retain: a node records the latest
-contribution to each of its marks, not the set of sources that contributed, and "one per source
-contribution" is a count over that set. Tracked as
-[#58](https://github.com/stop-cran/namespace2xml/issues/58).
+The previous text explained the gap by "per-source provenance the overlay does not retain", and
+said §1.8 needed the same change. Both halves were wrong in a way worth recording. The warning does
+not need the general provenance §1.8 wants — it needs one specific fact, "a native JSON or YAML
+document wrote a mapping here", which is decided at read time and can be carried on the node as a
+set. Diagnosing a missing feature by naming the largest change that would supply it is how a
+tractable item comes to look like a blocked one; the estimate outlived the two releases that shipped
+without the warning.
 
 ### 1.8 A wildcard contribution merges as one earlier-or-later value, not interleaved
 
@@ -392,29 +399,38 @@ straddle it — an earlier source and a later source both wrote the path, and th
 between them — one binary split cannot express the true interleaving, and the generated value is
 ordered against the whole rather than against each part.
 
-Full fidelity means retaining each source's contribution at a path instead of the folded result,
-which is the same change §1.7 needs. No case in the corpus distinguishes the two orderings today;
+Full fidelity means retaining each source's contribution at a path instead of the folded result.
+§1.7 previously claimed to need the same change and did not; that estimate was wrong and this one
+is unverified. No case in the corpus distinguishes the two orderings today;
 this entry exists so that one that does is read as a known gap rather than as a surprise. Tracked as
 [#59](https://github.com/stop-cran/namespace2xml/issues/59), which asks for that case to be
 constructed before either fix, since it may show the shape is unreachable.
 
-### 1.9 A canonical reference to an XML comment position reports `REFERENCE002`, not `REFERENCE005`
+### 1.9 *(resolved)* A canonical reference to an XML comment position
 
 §13.1 says "a canonical reference directly addressing an XML comment path fails as a non-scalar
-reference", which §22 codes as `REFERENCE005`. This build reports `REFERENCE002`, the missing
-reference, for that case. **verified**
+reference", which §22 codes as `REFERENCE005`.
 
-The cause is upstream of §13. `XmlInputReader` gives a comment an ordering value and nothing else —
-`BoundComment(Text, Placement, Order)` carries no content ordinal — so at resolution time the model
-cannot tell `${a.#0}` naming a comment from `${a.#0}` naming nothing at all. Both are a `#n` path
-with no payload, and the more conservative of the two codes is the one that is always true.
+**`v3.0.0-preview.2` shipped this entry claiming, as `verified`, that the build reported
+`REFERENCE002` instead. That claim was false when it was published.** It was written against an
+earlier build and was not revisited when the cause was removed. It also misattributed the cause:
+it named `BoundComment`, which carries §4.5 bound comments for non-XML formats and is not on this
+path at all. An XML comment is a `ContentPart` child holding a `ScalarPayload` whose
+`IsValue` is false, and it has been addressable since comments became ordered content nodes.
 
-Both are blocking errors at the same severity with the same exit code, so a correct run is
-unaffected and an incorrect one still fails. What is lost is the message quality: a user who wrote
-`${a.#0}` meaning the comment is told the path does not exist rather than that comments are not
-values. Closing it means giving a comment a content ordinal in the overlay, which is the same
-provenance change §1.7 and §1.8 need. Tracked as
+`ReferenceResolver` distinguishes the two: a node whose payload is not a value is `REFERENCE005`,
+and a `#n` naming nothing is `REFERENCE002`. `conformance/a-reference-to-an-xml-comment-is-not-a-value`
+pins both against one node, one digit apart, so the codes cannot converge again unnoticed. The
+message now names the comment rather than describing it as a structured node.
 [#60](https://github.com/stop-cran/namespace2xml/issues/60).
+
+This entry is kept rather than deleted because a published limit that was never true is worth more
+as a correction than as an absence. A reader who acted on preview.2's text — writing off
+`REFERENCE002` on a `#n` path as the known conflation, when it meant the path was genuinely
+absent — was misled, and deleting the entry would leave them no way to find that out. The process
+failure is the one this file is most exposed to: `KNOWN-LIMITS.md` records what is *not* verified,
+so nothing in the verification loop re-checks its claims, and an entry can outlive its defect
+silently. Removing a limit is part of the fix, not paperwork after it.
 
 ### 1.10 A scheme path's alias covers `@` and `Q{uri}`, and not `#n`
 

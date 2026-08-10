@@ -686,9 +686,9 @@ whether you have opted in by mistake.
 child element `x`, `${a.x}` is `REFERENCE004`, not one of the two candidates. The tool refuses
 to pick a winner, because the alias is a convenience for the unambiguous case and no other
 answer would be predictable. Write `${a.@x}` or `${a.Q{}x}`. The equivalent scheme-selector
-diagnostic, `SCHEME002`, is not yet emitted in this build (`KNOWN-LIMITS.md` §1.10), so an
-ambiguous unmarked *scheme* selector currently resolves to the element component rather than
-warning. Prefer the marked form in schemes where the ambiguity is possible.
+diagnostic, `SCHEME002`, is emitted for the same shape: `a.x.type=string` against an element and
+an attribute both named `x` is an error, not a resolution to the element. Its message names both
+canonical paths it reached, so the fix is a marked component rather than a guess.
 
 **Singleton-to-sequence promotion re-addresses the singleton.** A single `<b>` addresses as
 `a.b`; the moment a second `<b>` arrives — anywhere across contributions — the addresses

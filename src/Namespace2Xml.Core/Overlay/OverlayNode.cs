@@ -222,6 +222,19 @@ public sealed class OverlayNode
         new(Marks.WithMapping(position), Payload, true, HasExplicitSequence, Children, Sequence,
             Comments, SequenceHighWater);
 
+    /// <summary>Records that a native JSON or YAML document wrote this node as a mapping.</summary>
+    /// <param name="position">The contribution's Section 4.7 ordering key.</param>
+    /// <param name="source">How diagnostics name the document.</param>
+    /// <remarks>
+    /// Section 3.2 alone reads this. It is not a shape contribution and deliberately does not call
+    /// <see cref="WithExplicitMapping"/>: a mapping that has children already records its shape
+    /// through them, and claiming the shape again here would give an empty-mapping mark to every
+    /// nonempty native object and change the Section 4.4 contest this change is not about.
+    /// </remarks>
+    public OverlayNode WithNativeMapping(StableOrderingKey position, string source) =>
+        new(Marks.WithNativeMapping(position, source), Payload, HasExplicitMapping,
+            HasExplicitSequence, Children, Sequence, Comments, SequenceHighWater);
+
     /// <summary>Records an explicit sequence-presence contribution at this node.</summary>
     /// <param name="position">The contribution's position mark.</param>
     /// <remarks>

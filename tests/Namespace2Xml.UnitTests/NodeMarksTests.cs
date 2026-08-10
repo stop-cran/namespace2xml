@@ -1,3 +1,4 @@
+using System.Linq;
 using Namespace2Xml.Overlay;
 using NUnit.Framework;
 using Shouldly;
@@ -323,5 +324,93 @@ public sealed class NodeMarksTests
         var backward = NodeMarks.ForSequence(Middle).WithMapping(Early).WithDescendant(Late);
 
         forward.ShouldBe(backward);
+    }
+
+    /// <summary>
+    /// Section 22 owes one <c>WARN010</c> per source contribution, so two documents writing the
+    /// same node are two origins rather than one.
+    /// </summary>
+    [Test]
+    public void EachNativeMappingContributionIsRetainedSeparately()
+    {
+        var marks = NodeMarks.ForMapping(Early)
+            .WithNativeMapping(Early, "one.json")
+            .WithNativeMapping(Late, "two.json");
+
+        marks.NativeMappings.Select(origin => origin.Source)
+            .ShouldBe(["one.json", "two.json"]);
+    }
+
+    /// <summary>
+    /// Section 24 fixes the order of the resulting diagnostics, so the origins cannot be presented
+    /// in the order the tree happened to be walked.
+    /// </summary>
+    [Test]
+    public void NativeMappingOriginsAreOrderedByTheirOrderingKeyRatherThanByArrival()
+    {
+        var marks = NodeMarks.ForMapping(Early)
+            .WithNativeMapping(Late, "late.json")
+            .WithNativeMapping(Early, "early.json")
+            .WithNativeMapping(Middle, "middle.json");
+
+        marks.NativeMappings.Select(origin => origin.Key)
+            .ShouldBe([Early, Middle, Late]);
+    }
+
+    /// <summary>
+    /// One warning is owed per source contribution, not one per merge that carried it, so a
+    /// contribution combined into a node twice remains one origin.
+    /// </summary>
+    [Test]
+    public void ARepeatedNativeMappingContributionIsNotCountedTwice()
+    {
+        var marks = NodeMarks.ForMapping(Early)
+            .WithNativeMapping(Early, "one.json")
+            .WithNativeMapping(Early, "one.json");
+
+        marks.NativeMappings.Length.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// Combining two nodes must not lose either side's contributions, because a warning names the
+    /// document that wrote the keys and both documents did.
+    /// </summary>
+    [Test]
+    public void CombiningTwoNodesUnionsTheirNativeMappingOrigins()
+    {
+        var left = NodeMarks.ForMapping(Early).WithNativeMapping(Early, "one.json");
+        var right = NodeMarks.ForMapping(Late).WithNativeMapping(Late, "two.json");
+
+        left.Combine(right).NativeMappings.Select(origin => origin.Source)
+            .ShouldBe(["one.json", "two.json"]);
+    }
+
+    /// <summary>
+    /// Section 8.7 infers a sequence from a node that still carries its native mapping origins, so
+    /// erasing the mapping shape must not erase the record of who wrote it.
+    /// </summary>
+    [Test]
+    public void InferringASequenceKeepsTheNativeMappingOrigins()
+    {
+        var marks = NodeMarks.ForMapping(Early)
+            .WithNativeMapping(Early, "one.json")
+            .AsInferredSequence();
+
+        marks.RendersAsSequence.ShouldBeTrue();
+        marks.NativeMappings.Length.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// A mask that removes the mapping removes the contribution that produced it, so there is no
+    /// longer a source whose keys the output could discard.
+    /// </summary>
+    [Test]
+    public void RemovingTheMappingClearsTheNativeMappingOrigins()
+    {
+        var marks = NodeMarks.ForMapping(Early)
+            .WithNativeMapping(Early, "one.json")
+            .WithoutMapping();
+
+        marks.NativeMappings.ShouldBeEmpty();
     }
 }

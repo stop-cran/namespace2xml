@@ -82,6 +82,47 @@ independently.
 
 ### Added
 
+- **`WARN010` is emitted (§3.2, §8.7, §22).** A JSON or YAML mapping whose keys are all canonically
+  numeric is projected as a sequence, and that projection is now reported at the cardinality §22
+  states: **once per source contribution, canonical mapping path, and output instance.** Both
+  qualifiers earn their place. Naming the source means each document that wrote keys into the
+  mapping is listed, because a single warning at the path would tell an operator that *some* file
+  had lost its keys without saying which one to edit — and in the output those files are
+  indistinguishable, each having contributed one array element. Scoping to the output instance
+  means `type=mapping` silences the warning only where it applies, so a model rendered to two
+  destinations keeps the keys in one and is still warned about the other.
+  Two exclusions follow from the same rule and are pinned: a native sequence raises nothing, having
+  had no inference applied to it, and a namespace-format contribution to the same node raises
+  nothing, because a numeric path segment makes no shape claim to contradict.
+  **Caused by [#58](https://github.com/stop-cran/namespace2xml/issues/58)**; `KNOWN-LIMITS.md` §1.7
+  is resolved and acceptance item 68 is now `required`, with five assertions and two fixtures.
+
+  This was the last registry code without a call site. The audit that tracks them was itself stale:
+  it named `SCHEME002` as the other survivor, and `SCHEME002` had acquired a call site during
+  M4–M8 — verified here by running it, not by re-reading the audit. Every code in
+  `spec/diagnostics.registry.json` is now reachable, so any future audit hit is a defect rather
+  than an expected baseline.
+
+  `KNOWN-LIMITS.md` §1.7 had explained the gap as needing "per-source provenance the overlay does
+  not retain", and said §1.8 needed the same change. Both halves were wrong, and the estimate
+  outlived the two previews that shipped without the warning. The warning needs one fact — "a
+  native JSON or YAML document wrote a mapping here" — decided at read time and carried on the node
+  as a set; it does not need the general per-contribution model §1.8 wants. §1.8's cross-reference
+  is corrected and its own estimate is now marked unverified.
+
+  - **Removed**: `KNOWN-LIMITS.md` §1.7 as a live limit, and the five places in `docs/format-json.md`,
+    `docs/format-yaml.md` and `docs/format-xml.md` that told readers a warning was not emitted.
+    `docs/format-xml.md` was also telling readers that an ambiguous unmarked scheme selector
+    "resolves to the element component rather than warning", which had stopped being true.
+
+- **A conformance fixture's expected diagnostic stream had been captured rather than authored.**
+  `type-mapping-suppresses-warn010-per-output-instance` claimed acceptance item 68 while asserting
+  an *empty* stream, and its own `legacy.md` prose said, correctly, that the un-suppressed instance
+  "does raise it". The empty file recorded the tool's silence at the time it was written. It is
+  replaced with the stream §22 requires. This is the failure mode `AGENTS.md` names as the easiest
+  to commit quietly, and it is worth recording that it was committed: a fixture can assert less
+  than its title, its requirement claim and its own prose all say it does, and nothing fails.
+
 - **A scheme directive's value may contain references (§15.1 step 1).**
   A directive can be assembled from another directive's value, as in
   `cfg.filename=${cfg.root}-final.conf`. Resolution reads the §15.2 winner rather than the nearest

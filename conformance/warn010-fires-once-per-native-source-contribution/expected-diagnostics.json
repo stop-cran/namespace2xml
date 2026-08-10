@@ -1,0 +1,4 @@
+[
+{"code":"WARN010","severity":"warning","phase":"planning","source":"inputs/one.json","path":"cfg.a","destination":"cfg.json","spec":"§8.7"},
+{"code":"WARN010","severity":"warning","phase":"planning","source":"inputs/two.json","path":"cfg.a","destination":"cfg.json","spec":"§8.7"}
+]

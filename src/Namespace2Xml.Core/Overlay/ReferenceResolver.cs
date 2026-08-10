@@ -433,8 +433,21 @@ public sealed class ReferenceResolver
         // references are unsupported and are blocking reference errors", and Section 13.1 says a
         // canonical reference addressing a comment "fails as a non-scalar reference". A comment
         // holds characters but is not a value, so it lands here rather than in the missing case.
-        if (node?.Payload is { IsValue: false } || (node is not null
-            && (node.HasExplicitMapping || node.HasExplicitSequence)))
+        // It names itself, because "structured node" would describe a comment only by the class
+        // Section 13.3 files it under, and the author who wrote the path meant the comment.
+        if (node?.Payload is { IsValue: false })
+        {
+            Report(
+                DiagnosticCodes.Reference005,
+                "\u00A713.3",
+                path,
+                $"the reference '{CanonicalPath.Of(name)}' names an XML comment, and Section 13.1 "
+                + "makes comments invisible to reference resolution because they hold characters "
+                + "rather than a value.");
+            return;
+        }
+
+        if (node is not null && (node.HasExplicitMapping || node.HasExplicitSequence))
         {
             Report(
                 DiagnosticCodes.Reference005,

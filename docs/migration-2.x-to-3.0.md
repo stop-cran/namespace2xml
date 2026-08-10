@@ -2989,7 +2989,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (29)
+## Same observable result as 2.4.0 (31)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -3011,6 +3011,32 @@ those that name a shared reason are behaviour 3.0 preserved.
   `filemerge` and no stated model for a cross-format collision at one destination, so how it
   arrived at the same bytes cannot be read off the observable, and this case is not the one that
   would find out.
+
+### `a-reference-to-an-xml-comment-is-not-a-value`
+
+- namespace2xml 2.4.0: **agrees** on the observable.
+- Contract: Section 13.1 comment invisibility and `REFERENCE002`; Section 13.3 non-scalar
+  references and `REFERENCE005`; Section 11.5 comment retention; Section 26 item 9.
+- Legacy observation: the baseline exits `1` with no output tree, reporting
+  `Reference OutputRoot.r.a.#1 was not found` and `Reference OutputRoot.r.a.#9 was not found`.
+  Both references are "not found", and for the baseline that is literally true: 2.4.0 dropped XML
+  comments at read time, so `<a>t<!-- note --></a>` reduced to the scalar `r.a=t` and neither `#1`
+  nor `#9` addressed anything. The measurement records no divergence in the observable.
+- Clean behavior: Section 11.5 retains the comment as an ordered content node, so `r.a.#1` names
+  something. Section 13.1 says comments "have no scalar payload and are invisible to
+  format-agnostic reference resolution" and that "a canonical reference directly addressing an XML
+  comment path fails as a non-scalar reference", which Section 22 codes as `REFERENCE005` against
+  Section 13.3. `r.a.#9` addresses nothing at all, which Section 13.1 makes the missing-reference
+  `REFERENCE002`. Section 24 orders the two by source position, so `REFERENCE005` precedes
+  `REFERENCE002`.
+- Why the observable agreement is compatible-looking but not sufficient: the exit code and the
+  empty output tree are the same, so a verdict scored on those alone cannot see the difference.
+  What differs is what the two runs *know*. The baseline gives one answer because it had discarded
+  the comment; this build gives two answers because it kept it. The pair of references in this case
+  is deliberately identical in shape — same node, same `#n` spelling, one digit apart — so the only
+  thing that can separate the codes is whether the model still holds the comment. A build that
+  reported `REFERENCE002` for both would satisfy the exit code, the output tree and the legacy
+  verdict, and would be wrong.
 
 ### `a-wildcard-in-a-native-json-key-is-a-template`
 
@@ -3510,6 +3536,34 @@ those that name a shared reason are behaviour 3.0 preserved.
   with no output. Nothing observable in the tree or exit code distinguishes reporting one cycle
   from reporting two; the discrimination lives in `expected-diagnostics.json`, which the verdict
   does not score.
+
+### `warn010-fires-once-per-native-source-contribution`
+
+- namespace2xml 2.4.0: **agrees**. It writes the same `cfg.json` and exits 0. The verdict is
+  about the output tree and the exit code, and on both this case is indistinguishable between
+  the baseline and the replacement.
+- Contract: Section 8.7 numeric-mapping inference; Section 22's `WARN010` row, whose cardinality
+  is "once per source contribution, canonical mapping path, and output instance"; Section 3.2's
+  requirement that a silent shape change be reported rather than preserved silently.
+- Legacy observation: 2.4.0 performed the same inference and said nothing about it. Two JSON
+  documents each wrote `cfg.a` as a mapping — `{"0": "x"}` and `{"1": "y"}` — and both got a
+  JSON array back, with the keys they had written gone from the result. The baseline had no
+  diagnostic for this and no way to ask for one; the only evidence that a shape had changed was
+  a reader noticing it in the output.
+- Clean behavior: the tree is identical, and that is the point of the case. What the replacement
+  adds is on standard error: one `WARN010` per *source contribution*, so `inputs/one.json` and
+  `inputs/two.json` are each named. A single warning at `cfg.a` would tell an operator that some
+  document had its keys discarded without saying which to go and edit, and the two documents here
+  are indistinguishable in the output — both contribute one element to the same array.
+  The case also pins two exclusions the cardinality implies but does not spell out:
+  `inputs/three.properties` contributes `cfg.a.2=z` to the same inferred sequence and raises
+  nothing, because namespace syntax makes no shape claim for a numeric path segment to
+  contradict; and `cfg.b` is a native JSON array, which is a sequence because it was written as
+  one, so no inference occurred at it.
+- The difference is intentional: the exit code stays 0 and the tree is unchanged, because
+  Section 8.7 inference is the specified behavior and `WARN010` is a warning about it, not a
+  rejection of it. A migrating user sees the same files and gains the ability to find out, from
+  a stable machine-readable code, which of their documents will lose keys on the way through.
 
 ### `wildcard-cascade-crosses-the-iteration-bound`
 

@@ -981,6 +981,8 @@ public static class PlanningPhase
                     view.FormatOrdinal,
                     view.Instance.WildcardMatchOrder,
                     view.Instance.Selector.ToString())));
+
+            WarnInferredNumericMappings(view, path, diagnostics);
         }
 
         var contributions = bound.ToImmutable();
@@ -1016,6 +1018,86 @@ public static class PlanningPhase
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<ImmutableArray<DestinationContribution>>()
             : StepOutcome.Produced(contributions);
+    }
+
+    /// <summary>
+    /// Section 3.2 <c>WARN010</c>: "exactly one compatibility warning for each source contribution,
+    /// canonical mapping path, and output instance where a JSON or YAML mapping inferred at step 11
+    /// remains projected as a sequence".
+    /// </summary>
+    /// <param name="view">The output instance, after step 16 has applied its transformations.</param>
+    /// <param name="destination">The instance's canonical destination path.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <remarks>
+    /// <para>
+    /// Reported here rather than at step 11 because Section 3.2 scopes it to an output instance and
+    /// grants one exception: <c>type=mapping</c>, which Section 16.6 applies at step 16 and which
+    /// turns the node back into a mapping. Inference is global and the exception is per instance,
+    /// so a run may owe the warning for one output and not for another, and step 11 cannot know
+    /// which. Waiting until the instance has both its transformations and its destination is what
+    /// makes the two agree.
+    /// </para>
+    /// <para>
+    /// The test is <see cref="NodeMarks.RendersAsSequence"/> and not a recorded "was inferred" flag.
+    /// A node carrying native-mapping provenance was written as an object by some document; if it
+    /// renders as a sequence now, Section 8.7 inference is the only thing that can have done that,
+    /// and if it renders as a mapping there is nothing to warn about however it got there. One
+    /// derived test therefore covers the plain case and every suppression, including ones no
+    /// directive spells today.
+    /// </para>
+    /// </remarks>
+    private static void WarnInferredNumericMappings(
+        OutputView view,
+        DestinationPath destination,
+        DiagnosticBuffer diagnostics)
+    {
+        Walk(view.View, view.Instance.Selector.Name?.Parts ?? []);
+
+        void Walk(OverlayNode node, ImmutableArray<NamePart> path)
+        {
+            if (node.Marks.RendersAsSequence)
+            {
+                foreach (var origin in node.Marks.NativeMappings)
+                {
+                    Report(origin, path);
+                }
+            }
+
+            foreach (var (name, child) in node.OrderedChildren)
+            {
+                Walk(child, path.Add(name));
+            }
+
+            foreach (var (value, item) in node.OrderedSequence)
+            {
+                Walk(item.Node, path.Add(OrderingValues.ToNamePart(value)));
+            }
+        }
+
+        void Report(NativeMappingOrigin origin, ImmutableArray<NamePart> path)
+        {
+            var canonical = CanonicalPath.Of(path);
+
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Warn010(
+                    DiagnosticPhase.Planning,
+                    "\u00A78.7",
+                    $"'{origin.Source}' writes '{canonical}' as a mapping whose keys are all "
+                    + "canonically numeric, and Section 8.7 infers such a mapping as a sequence, so "
+                    + $"'{destination.Canonical}' renders it as one. Declare "
+                    + $"'{canonical}.type=mapping' to keep the keys.",
+                    cardinalityKey: string.Join(
+                        '\u001F',
+                        origin.Source,
+                        canonical,
+                        view.Instance.Selector.ToString(),
+                        view.FormatOrdinal.ToString(
+                            System.Globalization.CultureInfo.InvariantCulture)),
+                    source: origin.Source,
+                    path: canonical,
+                    destination: destination.Canonical),
+                origin.Key));
+        }
     }
 
     /// <summary>Section 15.1 step 18: fold same-format collisions and cross-format overrides.</summary>

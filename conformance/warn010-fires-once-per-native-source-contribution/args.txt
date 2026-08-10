@@ -1,0 +1,6 @@
+-i
+inputs/one.json
+inputs/two.json
+inputs/three.properties
+-s
+schemes/scheme.txt
