@@ -1,0 +1,4 @@
+[
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/scheme.txt","line":2,"column":1,"path":"a.filename","declaration":"a.filename","spec":"§15","message":"'filename' has an empty value, and Section 15 requires every directive to carry a nonempty scalar one."},
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/scheme.txt","line":3,"column":1,"path":"a.delimiter","declaration":"a.delimiter","spec":"§15","message":"'delimiter' has an empty value, and Section 15 requires every directive to carry a nonempty scalar one."}
+]

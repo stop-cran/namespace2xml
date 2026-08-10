@@ -26,11 +26,11 @@ pretending to succeed.
 The tool currently transforms **every input format and every output format the specification
 defines**, end to end: namespace-profile, JSON, YAML and XML input, overlaying, references,
 templates, output planning, and publication of namespace, quoted-namespace, INI, JSON, YAML and XML
-destinations. **Two** capabilities remain unbuilt, and each is refused rather than approximated.
-A third row below is refused for a different reason: §15 permits an XML scheme file and never says
+destinations. **One** capability remains partly unbuilt, and it is refused rather than approximated.
+A second row below is refused for a different reason: §15 permits an XML scheme file and never says
 what one means, so there is nothing yet to build.
 
-Both of them were missing from this list until they were found by auditing the refusal sites in the
+Those rows were missing from this list until they were found by auditing the refusal sites in the
 source against the list rather than the other way round. That is worth recording where it happened:
 a limits list assembled from what its authors remembered omitting is not a limits list, and the
 audit is now the way this table is maintained.
@@ -58,7 +58,7 @@ audit is now the way this table is maintained.
 | Rendering: XML | Implemented | §19.5 |
 | **Scheme files** written as JSON or YAML | Implemented | §15, §9.1, §10.4 |
 | **Scheme files** written as XML | Undecided contract — [#72](https://github.com/stop-cran/namespace2xml/issues/72) | §15 |
-| **References in a scheme value** | Not yet — [#70](https://github.com/stop-cran/namespace2xml/issues/70) | §15.1 step 1 |
+| **References in a scheme value** | Implemented | §15.1 step 1 |
 | **A capture substituted into a directive value** | Implemented, except the `type` residue in §1.4.2 | §12.1 |
 
 A preview binary returns exit status `70` when an invocation needs a capability one of the rows above
@@ -277,21 +277,6 @@ the same nesting, the same key order and the same values, differing only in §24
 The preview that refused them was narrower than the tool it replaces, and
 [#66](https://github.com/stop-cran/namespace2xml/issues/66) records that. This is worth stating
 plainly because the refusal read as caution and was in fact a loss of function.
-
-### 1.4.1 References in a scheme value
-
-§15.1 step 1 requires the scheme loader to "resolve references among scheme entries", and this
-preview does not. A directive whose value contains `${...}` ends the run with exit `70`.
-
-Compiling the text as written is the alternative and is worse: `filename=${cfg.root}` would name a
-file literally called `${cfg.root}`, which is a plausible file, a wrong file, and indistinguishable
-from a correct one.
-
-The feature is narrower than it looks. §15 says "The final qualified-name part identifies a
-directive" and makes an unknown directive a blocking error, so `base=data` in a scheme is already
-`SCHEME001` — **verified** — and a scheme reference can only target another *directive's* value, as
-in `cfg.filename=${cfg.root}.conf`. Tracked as
-[#70](https://github.com/stop-cran/namespace2xml/issues/70).
 
 ### 1.4.2 A capture in a `type` value is refused rather than substituted
 

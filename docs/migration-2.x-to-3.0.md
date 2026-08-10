@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (107)
+## Observable differences (111)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -159,6 +159,24 @@ implemented, its case says so plainly rather than letting the heading imply othe
   glob, or an `strftime`-adjacent format string every time somebody quotes one, and the
   difference between `*` and `\*` in the emitted file is precisely what such a value cannot
   survive.
+
+### `a-missing-scheme-reference-is-blocking`
+
+- namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `a.properties` and
+  `b.properties` — the two default destinations — with the expected content in each.
+- Contract: Section 13.1 makes a missing reference a blocking error, and Section 15.1 step 1
+  resolves scheme references. Section 3.2's "silently ignored directive" family covers the
+  resulting defect.
+- Legacy observation: 2.4.0 resolves what it can and discards what it cannot. An unresolvable
+  `filename` is not reported and not retained; the selector simply falls back to the default
+  destination, which is the selector's own name with the format's extension. A typo in a reference
+  therefore changes where output is written, with nothing on standard error to say so, and the run
+  reports success.
+- Clean behavior: the reference is reported with the path that could not be resolved and the
+  reason, and nothing is written.
+- The difference is intentional: silently substituting a different destination for the one the
+  scheme asked for is the failure mode this tool is least able to tolerate, because the output
+  looks correct and lands in the wrong place.
 
 ### `a-native-template-value-substitutes-its-own-capture`
 
@@ -307,6 +325,23 @@ implemented, its case says so plainly rather than letting the heading imply othe
   discrimination above the baseline lands on is not something this fixture is designed to
   identify.
 
+### `a-scheme-reference-cycle-is-blocking`
+
+- namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes `a.properties`,
+  `b.properties` and `c.properties` — the three default destinations — with the expected content
+  in each.
+- Contract: Section 13.1 makes a reference cycle a blocking error. Section 3.2's "silently ignored
+  directive" family covers the resulting defect.
+- Legacy observation: 2.4.0 has no cycle detection among scheme entries. It resolves what it can
+  and discards what it cannot, so all three cyclic `filename` directives are dropped and each
+  selector falls back to its default destination. The failure is indistinguishable from the
+  missing-reference one — see `a-missing-scheme-reference-is-blocking` — because the baseline's
+  recovery is the same in both cases: forget the directive.
+- Clean behavior: each canonically distinct cycle is reported once, at its canonically first
+  member, with the whole chain rendered so that the author can see what closes the ring.
+- The difference is intentional: a cycle means the author asked for something that has no answer,
+  and producing output from a silently discarded directive hides that.
+
 ### `a-transform-that-makes-a-bare-scalar-still-has-a-key`
 
 - namespace2xml 2.4.0: **differs**.
@@ -409,6 +444,26 @@ implemented, its case says so plainly rather than letting the heading imply othe
   were literal text — either way, no correct file can result, and the run fails. This is the whole
   point of the addressing amendment: without a way to name one canonical component in prose, the
   ambiguity Section 13.1 describes has no in-band answer at all.
+
+### `an-empty-scheme-directive-is-blocking`
+
+- namespace2xml 2.4.0: **differs**. The baseline crashes with an unhandled
+  `System.UnauthorizedAccessException` — "Access to the path
+  '…\\<output root>' is denied" — after logging that it is writing an output whose name is the
+  output root itself. The process exit code is `-532462766` (`0xE0434352`, an unhandled managed
+  exception).
+- Contract: Section 15 requires every recognized directive to carry a nonempty scalar value.
+  Section 3.2's "unhandled exception where a diagnostic is required" family covers the resulting
+  defect.
+- Legacy observation: 2.4.0 accepts the empty value, composes a destination from it, and arrives
+  at a path equal to the output directory. Opening a directory as a file is what fails, so the
+  message the author sees names a permissions problem at a path they did not write, and the stack
+  trace is the tool's own. On a platform or configuration where that open *succeeded* the outcome
+  would be worse than a crash.
+- Clean behavior: the empty value is reported where it was written, with the directive named and
+  the clause cited, before any destination is composed.
+- The difference is intentional: an author who wrote an empty directive made a mistake that is
+  cheap to name and expensive to diagnose from its consequences.
 
 ### `an-override-moves-its-key-and-keeps-both-comments`
 
@@ -1520,6 +1575,33 @@ implemented, its case says so plainly rather than letting the heading imply othe
   is what 2.4.0 effectively did by having no second component to pick — and the document lost data
   that no diagnostic mentioned. An error the author can fix in one keystroke is a better trade than
   a file that is quietly wrong.
+
+### `scheme-reference-filename-separators-are-encoded-data`
+
+- namespace2xml 2.4.0: **differs**. The baseline exits 0 and writes four files where the case
+  expects five. `second` and `second-copy.conf` match. `dir/leaf.conf` is written twice — the
+  baseline logs "Writing output …dir/leaf.conf" for `c` and then "Appending output …dir/leaf.conf"
+  for `b` — so it holds `name=beta` followed by `name=gamma` instead of `name=gamma` alone, and the
+  case's `dir%2Fleaf.conf` is missing. `pre-dir/leaf.conf` is a file under a `pre-dir` directory
+  where the case expects a file named `pre-dir%2Fleaf.conf` in the output root.
+- Contract: Section 16.2 requires the text a reference contributes to be opaque segment data, so
+  only separators written in the scheme create directory hierarchy. Section 3.2's "wrong output
+  destination" family covers the resulting defect.
+- Legacy observation: 2.4.0 does resolve scheme references, and resolves them to the Section 15.2
+  winner and across forward declarations — the `d`/`e` rows agree exactly. What it does not do is
+  keep the resolved text distinguishable from written text: it splices the referent's characters
+  into the template and then splits, so a `/` that arrived through `${c.filename}` becomes a
+  directory separator. That has two visible consequences here. `b` and `c` compose the *same*
+  destination, which the baseline resolves by appending `c`'s content to the file `b` already
+  wrote, silently merging two unrelated selectors into one file. And `pre-${b.filename}` creates a
+  `pre-dir` directory that no scheme text asked for.
+- Clean behavior: step 1 records what each reference contributed, step 1 of Section 16.2 splits
+  only the written path, and step 5 encodes the referenced separators. The three destinations stay
+  distinct, so the Section 16.2 collision question never arises.
+- The difference is intentional: a referenced directive's value is data as far as path
+  construction is concerned, and the baseline's behaviour makes the destination of one selector
+  depend on characters held by another. The append is the more serious half — it is silent, and it
+  produces a file whose content belongs to two selectors at once.
 
 ### `structured-bare-scalar-and-empty-documents`
 

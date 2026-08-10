@@ -1,0 +1,5 @@
+a.name=alpha
+b.name=beta
+c.name=gamma
+d.name=delta
+e.name=epsilon

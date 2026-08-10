@@ -114,6 +114,10 @@ public static class SchemeDirectives
             ["filemerge"] = (SchemeDirective.FileMerge, SchemeAlias.None),
         };
 
+    private static readonly Dictionary<SchemeDirective, string> Canonical =
+        Names.Where(entry => entry.Value.Alias == SchemeAlias.None)
+            .ToDictionary(entry => entry.Value.Directive, entry => entry.Key);
+
     /// <summary>Recognizes one directive name.</summary>
     /// <param name="name">The final qualified-name part, already unescaped.</param>
     /// <param name="directive">The directive the name identifies.</param>
@@ -133,6 +137,24 @@ public static class SchemeDirectives
         alias = SchemeAlias.None;
         return false;
     }
+
+    /// <summary>Section 15's spelling of a directive, for a canonical directive path.</summary>
+    /// <param name="directive">The directive.</param>
+    /// <returns>The lowercase name Section 15's bullet list gives it.</returns>
+    /// <remarks>
+    /// Section 15 matches a directive name ASCII case-insensitively, so a written name is not a
+    /// canonical one and two references that name one setting must spell it identically. The list
+    /// is inverted from <see cref="Names"/> rather than restated so that a directive added to one
+    /// cannot be missing from the other; the aliases are excluded because Section 15.3 deprecates
+    /// them, and a canonical spelling that is deprecated would be a contradiction.
+    /// </remarks>
+    public static string CanonicalSpelling(SchemeDirective directive) =>
+        Canonical.TryGetValue(directive, out var name)
+            ? name
+            : throw new ArgumentOutOfRangeException(
+                nameof(directive),
+                directive,
+                "Section 15 lists every recognized directive, and none of them is this one.");
 
     /// <summary>The specification's spelling of an alias, for the deprecation warning.</summary>
     /// <param name="alias">The alias category.</param>

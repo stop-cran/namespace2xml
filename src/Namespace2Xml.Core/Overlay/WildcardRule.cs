@@ -105,6 +105,10 @@ public static class WildcardSubstitution
                     text.Append(captures.Named[id]);
                     break;
 
+                case ResolvedReferenceToken opaque:
+                    text.Append(opaque.Text);
+                    break;
+
                 default:
                     throw new InvalidOperationException(
                         "a reference has no text until Section 15.1 step 15 resolves it; call "

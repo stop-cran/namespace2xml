@@ -47,6 +47,25 @@ public class DestinationPathTests
         return path!;
     }
 
+    /// <summary>
+    /// Composes a template built from tokens rather than from written text, which is the only way to
+    /// place a <see cref="ResolvedReferenceToken"/> in one: Section 15.1 step 1 produces it, and the
+    /// lexer never can.
+    /// </summary>
+    /// <param name="tokens">The template's tokens.</param>
+    /// <returns>The composed destination.</returns>
+    private static DestinationPath Compose(ValueToken[] tokens)
+    {
+        DestinationPathComposer.TryCompose(
+            new InterpretedValue([.. tokens]),
+            Captures([]),
+            out var path,
+            out var violation).ShouldBeTrue();
+        violation.ShouldBeNull();
+
+        return path!;
+    }
+
     private static string Rejects(string written, params string[] captures)
     {
         DestinationPathComposer.TryCompose(
@@ -336,6 +355,80 @@ public class DestinationPathTests
     [Test]
     public void ARootedCaptureDoesNotMakeThePathRooted() =>
         Compose("out/*", "/etc").Canonical.ShouldBe("out/%2Fetc");
+
+    // ---- Section 16.2: what a resolved reference contributes ------------------------------------
+
+    /// <summary>
+    /// Section 16.2: "Scheme references are resolved before capture substitution, but their
+    /// resulting text is opaque segment data: <c>/</c> or <c>\</c> supplied by a reference is
+    /// encoded and never creates a directory."
+    /// </summary>
+    /// <remarks>
+    /// Section 15.1 step 1 resolves the reference long before composition runs, so the only thing
+    /// that can carry this rule that far is the token type. Splicing the referent's text in as an
+    /// ordinary literal reads identically to text the scheme author wrote, and a referent holding
+    /// <c>a/b</c> would then quietly start writing into a subdirectory.
+    /// </remarks>
+    [TestCase("/", "out/p%2Fq.conf")]
+    [TestCase("\\", "out/p%5Cq.conf")]
+    public void ASeparatorSuppliedByAReferenceIsEncodedRatherThanSplit(
+        string separator, string expected) =>
+        Compose(
+            [
+                new LiteralValueToken("out/"),
+                new ResolvedReferenceToken($"p{separator}q"),
+                new LiteralValueToken(".conf"),
+            ]).Canonical.ShouldBe(expected);
+
+    /// <summary>
+    /// The distinction is between written and referenced text, not between the strings themselves:
+    /// the same <c>dir/name</c> is hierarchy when the scheme wrote it and one encoded segment when a
+    /// reference supplied it.
+    /// </summary>
+    [Test]
+    public void TheSameSeparatorSplitsWrittenAndEncodesReferenced()
+    {
+        Compose("dir/name.conf").Canonical.ShouldBe("dir/name.conf");
+        Compose([new ResolvedReferenceToken("dir/name.conf")]).Canonical
+            .ShouldBe("dir%2Fname.conf");
+    }
+
+    /// <summary>
+    /// Because every separator a reference supplies is encoded, its text can never be split into a
+    /// segment equal to <c>..</c>, so a referent holding a traversal sequence lands inside the
+    /// output root as one ordinary file name.
+    /// </summary>
+    [Test]
+    public void AReferenceHoldingATraversalSequenceCannotEscape() =>
+        Compose([new ResolvedReferenceToken("../../etc/passwd")]).Canonical
+            .ShouldBe("..%2F..%2Fetc%2Fpasswd");
+
+    /// <summary>
+    /// Step 4's dot-segment condition is about a <i>statically written</i> segment, and referenced
+    /// text is not written, so a whole segment a reference supplied is renamed by step 7 exactly as
+    /// a captured one is rather than rejected.
+    /// </summary>
+    [TestCase(".", "out/%5F%2E/x")]
+    [TestCase("..", "out/%5F%2E%2E/x")]
+    public void AReferencedDotSegmentIsRenamedRatherThanRejected(string text, string expected) =>
+        Compose(
+            [
+                new LiteralValueToken("out/"),
+                new ResolvedReferenceToken(text),
+                new LiteralValueToken("/x"),
+            ]).Canonical.ShouldBe(expected);
+
+    /// <summary>
+    /// Section 21.1's rejected forms are properties of the scheme-written path, and a resolved
+    /// reference contributes data rather than written path, so a referent naming a drive or a root
+    /// composes to an ordinary segment instead of escaping the output root.
+    /// </summary>
+    [TestCase("C:", "C%3A/x")]
+    [TestCase("/etc", "%2Fetc/x")]
+    public void AReferencedDriveOrRootFormIsEncodedRatherThanRejected(
+        string text, string expected) =>
+        Compose([new ResolvedReferenceToken(text), new LiteralValueToken("/x")])
+            .Canonical.ShouldBe(expected);
 
     /// <summary>
     /// Section 12.1's legacy clamp is a property of the whole value: "if a legacy value contains

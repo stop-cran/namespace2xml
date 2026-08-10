@@ -35,6 +35,23 @@ public sealed record ValueWildcardToken(string? CaptureId) : ValueToken;
 public sealed record ReferenceToken(QualifiedName Name) : ValueToken;
 
 /// <summary>
+/// Text a resolved reference contributed, kept distinct from text the author wrote.
+/// </summary>
+/// <param name="Text">The referent's resolved text. Never empty.</param>
+/// <remarks>
+/// Section 15.1 step 1 resolves references among scheme entries, and Section 16.2 says what the
+/// result is: "Scheme references are resolved before capture substitution, but their resulting text
+/// is opaque segment data: <c>/</c> or <c>\</c> supplied by a reference is encoded and never creates
+/// a directory." Splicing the referent's text in as an ordinary literal would lose exactly that
+/// distinction, and a <c>root</c> holding <c>a/b</c> would silently start writing into a
+/// subdirectory — the traversal the same clause forbids a capture. The token therefore survives
+/// resolution so that the one consumer to which the difference matters can still see it; every
+/// other reader takes the text through <see cref="InterpretedValue.LiteralText"/>, because for
+/// every other directive it is simply settled text.
+/// </remarks>
+public sealed record ResolvedReferenceToken(string Text) : ValueToken;
+
+/// <summary>
 /// An interpreted value: the token sequence Appendix A.3 produces.
 /// </summary>
 public sealed record InterpretedValue
@@ -52,14 +69,26 @@ public sealed record InterpretedValue
     public ImmutableArray<ValueToken> Tokens { get; }
 
     /// <summary>
-    /// The value's text when it contains no wildcard and no reference, otherwise
+    /// The value's text when it contains no wildcard and no unresolved reference, otherwise
     /// <see langword="null"/>. An empty value has empty text.
     /// </summary>
+    /// <remarks>
+    /// A <see cref="ResolvedReferenceToken"/> is settled text and folds in here, because the one
+    /// consumer that must not treat it as written text asks for the tokens instead.
+    /// </remarks>
     public string? LiteralText => Tokens switch
     {
         [] => string.Empty,
         [LiteralValueToken literal] => literal.Text,
-        _ => null,
+        [ResolvedReferenceToken resolved] => resolved.Text,
+        _ => Tokens.All(token => token is LiteralValueToken or ResolvedReferenceToken)
+            ? string.Concat(Tokens.Select(token => token switch
+            {
+                LiteralValueToken literal => literal.Text,
+                ResolvedReferenceToken resolved => resolved.Text,
+                _ => string.Empty,
+            }))
+            : null,
     };
 
     /// <summary>Whether the value contains a reference.</summary>

@@ -172,10 +172,15 @@ public static class DestinationPathComposer
                     literal = false;
                     break;
 
+                case ResolvedReferenceToken opaque:
+                    text.Append(opaque.Text);
+                    literal = false;
+                    break;
+
                 default:
                     throw new InvalidOperationException(
-                        "Section 15.1 step 1 defers a 'filename' carrying a reference, so no "
-                        + "reference reaches Section 16.2 composition.");
+                        "Section 15.1 step 1 resolves every reference in a scheme value, so an "
+                        + "unresolved reference cannot reach Section 16.2 composition.");
             }
         }
 
@@ -185,8 +190,10 @@ public static class DestinationPathComposer
     }
 
     /// <summary>
-    /// The scheme-written path with every capture replaced by <see cref="CaptureMark"/>, which is
-    /// what Section 21.1's rooted and drive-relative tests are about.
+    /// The scheme-written path with every capture and every resolved reference replaced by
+    /// <see cref="CaptureMark"/>, which is what Section 21.1's rooted and drive-relative tests are
+    /// about. Text a reference supplied is data, so a referent holding <c>/etc</c> or <c>C:</c>
+    /// does not make the path rooted any more than a capture holding it does.
     /// </summary>
     private static string Skeleton(InterpretedValue template)
     {

@@ -1,0 +1,4 @@
+[
+{"code":"REFERENCE003","severity":"error","phase":"scheme","source":"schemes/scheme.txt","line":4,"path":"a.filename","spec":"§13.1","message":"the scheme reference chain a.filename -> b.filename -> a.filename is a cycle, so no directive in it can be resolved."},
+{"code":"REFERENCE003","severity":"error","phase":"scheme","source":"schemes/scheme.txt","line":6,"path":"c.filename","spec":"§13.1","message":"the scheme reference chain c.filename -> c.filename is a cycle, so no directive in it can be resolved."}
+]

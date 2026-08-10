@@ -110,25 +110,15 @@ public static class SchemePhase
 
         var parsed = entries.ToImmutable();
 
-        // Section 15.1 step 1 also resolves references among scheme entries. A value that contains
-        // one is therefore not a value this step may hand on unresolved: doing so would make
-        // 'filename=${a}' name a file literally called '${a}'.
-        foreach (var entry in parsed)
-        {
-            if (entry.Value.ContainsReference)
-            {
-                return StepOutcome.Unsupported<ImmutableArray<SchemeEntry>>(
-                    new UnsupportedCapability(
-                        "references in scheme values",
-                        $"'{entry.Declaration}' in {entry.Source} contains a reference, and step 1 "
-                        + "resolves references among scheme entries.",
-                        "\u00A715.1"));
-            }
-        }
+        // Section 15.1 step 1 also resolves references among scheme entries, before step 2 compiles
+        // a single directive value. Handing one on unresolved would make 'filename=${a}' name a
+        // file literally called '${a}', which is a plausible file, a wrong file, and
+        // indistinguishable from a correct one.
+        var resolved = SchemeReferenceResolver.Resolve(parsed, budget, diagnostics);
 
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<ImmutableArray<SchemeEntry>>()
-            : StepOutcome.Produced(parsed);
+            : StepOutcome.Produced(resolved);
     }
 
     /// <summary>Section 15.1 step 2: compile root-level input options.</summary>

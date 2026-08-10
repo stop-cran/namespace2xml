@@ -837,21 +837,23 @@ public static class PlanningPhase
         {
             var entry = configuration.Deferred[0];
 
-            // An entry is deferred for one of two reasons, and the refusal must name the one that
-            // applies. Naming the directive would be a lie for either: 'key' is implemented, and
+            // An entry is deferred for one reason now that Section 15.1 step 1 resolves references:
+            // a Section 12.1 capture substitution in a directive value this build does not yet
+            // substitute into. Naming the directive would be a lie — 'key' is implemented, and
             // 'cfg.*.key=name' runs to completion in this build.
             //
-            // Section 15.1 step 1 refuses a reference-bearing value before the compiler sees it, so
-            // the reference arm is unreachable through the pipeline; it is written out rather than
-            // asserted because the reachability is a property of another component, and this step
-            // must not report a wildcard that is not there if that ever changes.
+            // A reference-bearing value can still reach the compiler's deferral list, because a
+            // reference that fails to resolve leaves its value unresolved and Section 15.4 lets the
+            // phase finish its independent checks first. It cannot reach *here*, because the scheme
+            // phase aborts on that blocking diagnostic. The arm is written out rather than asserted
+            // because the reachability is a property of another component.
             if (entry.Value.ContainsReference)
             {
                 return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
                     new UnsupportedCapability(
                         "references in scheme values",
-                        $"'{entry.Declaration}' in {entry.Source} contains a reference, and step 1 "
-                        + "resolves references among scheme entries.",
+                        $"'{entry.Declaration}' in {entry.Source} contains a reference that step 1 "
+                        + "did not resolve.",
                         "\u00A715.1"));
             }
 

@@ -1,0 +1,4 @@
+[
+{"code":"REFERENCE002","severity":"error","phase":"scheme","source":"schemes/scheme.txt","line":3,"path":"a.filename","spec":"§15.1","message":"the reference 'a.delimiter' resolves to no scheme entry: no scheme entry declares it, and Section 15.1 step 1 says scheme references cannot target input data."},
+{"code":"REFERENCE002","severity":"error","phase":"scheme","source":"schemes/scheme.txt","line":4,"path":"b.filename","spec":"§15.1","message":"the reference 'b.name' resolves to no scheme entry: 'name' is not a recognized Section 15 directive."}
+]

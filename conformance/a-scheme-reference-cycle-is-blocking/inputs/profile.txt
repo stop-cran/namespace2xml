@@ -1,0 +1,3 @@
+a.name=x
+b.name=y
+c.name=z

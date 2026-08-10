@@ -36,6 +36,28 @@ independently.
 
 ### Added
 
+- **A scheme directive's value may contain references (§15.1 step 1).**
+  A directive can be assembled from another directive's value, as in
+  `cfg.filename=${cfg.root}-final.conf`. Resolution reads the §15.2 winner rather than the nearest
+  declaration above it, so a later override is what a reference sees, and forward references work.
+  A missing reference is `REFERENCE002`, a cycle is `REFERENCE003` reported once per canonically
+  distinct cycle, and the chain is bounded by `--max-reference-depth` (`LIMIT001`) — the same three
+  rules §13 states for input values, applied in the `scheme` phase. The feature is narrower than it
+  looks: §15's "the final qualified-name part identifies a directive" means a scheme reference can
+  only name another *directive*, so `${a.name}` is missing even when `a.name` is in the input.
+  **Caused by [#70](https://github.com/stop-cran/namespace2xml/issues/70)**; `KNOWN-LIMITS.md`
+  §1.4.1 is removed.
+
+  Implementing it surfaced a clause that a naive splice would have violated silently. §16.2 says a
+  reference's "resulting text is opaque segment data: `/` or `\` supplied by a reference is encoded
+  and never creates a directory", and resolving a reference into an ordinary literal destroys the
+  only thing that distinguishes referenced text from written text. 2.4.0 does exactly that — a
+  `filename` referencing another selector's `dir/leaf.conf` writes into a `dir` directory, and where
+  that collides with the referenced selector's own destination the baseline **appends one output to
+  the other**, merging two selectors into one file with no diagnostic. The resolved text now carries
+  its provenance to §16.2 composition, and the opacity survives a further reference to the value
+  that holds it.
+
 - **A wildcard token in a native JSON or YAML key is a wildcard template again (§10.4, §9.2).**
   A mapping key carrying an unescaped `*` or `*[identifier]` is extracted entry by entry before
   structural merging and expanded in the §12.4 fixed point, so `a: {'*': {c: XXX}}` enriches every
