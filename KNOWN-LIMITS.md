@@ -6,6 +6,9 @@ The published `3.0.0-preview.2` binary carries bundle `r37+2d644be6926e` and is 
 Where an entry is marked *(resolved)* the fix is on the branch and not in that binary, so a reader
 running the published preview still has the limit. Compare the `contract-bundle` line of
 `--version` against the revision above before concluding an entry does or does not apply to you.
+Those entries exist for that comparison alone: **when 3.0.0 ships, every *(resolved)* entry is
+deleted**, because a released binary that contains the fix leaves nothing for the entry to warn
+anyone about. Their arguments are already in `CHANGELOG.md`, where the history belongs.
 
 This file exists because a project that claims completeness cannot receive feedback: every gap reads
 as user error, and the reporter concludes they are holding it wrong. During the preview this list is
@@ -71,7 +74,7 @@ audit is now the way this table is maintained.
 | **Scheme files** written as JSON or YAML | Implemented | §15, §9.1, §10.4 |
 | **Scheme files** written as XML | Undecided contract — [#72](https://github.com/stop-cran/namespace2xml/issues/72) | §15 |
 | **References in a scheme value** | Implemented | §15.1 step 1 |
-| **A capture substituted into a directive value** | Implemented, except the `type` residue in §1.4.2 | §12.1 |
+| **A capture substituted into a directive value** | Implemented, except the `type` and `output` residues in §1.4.2 | §12.1 |
 
 A preview binary returns exit status `70` when an invocation needs a capability one of the rows above
 does not mark `Implemented`.
