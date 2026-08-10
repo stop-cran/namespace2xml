@@ -245,15 +245,14 @@ public static class PlanningPhase
         HashSet<long> bound,
         DiagnosticBuffer diagnostics)
     {
-        InstanceOptionWinner? filename = null;
-        WildcardCaptures filenameCaptures = WildcardCaptures.Empty;
-        InstanceOptionWinner? root = null;
-        InstanceOptionWinner? delimiter = null;
-        InstanceOptionWinner? iniOptions = null;
-        InstanceOptionWinner? jsonOptions = null;
-        InstanceOptionWinner? yamlOptions = null;
-        InstanceOptionWinner? xmlOptions = null;
-        InstanceOptionWinner? fileMerge = null;
+        (InstanceOptionWinner Winner, WildcardCaptures Captures)? filename = null;
+        (InstanceOptionWinner Winner, WildcardCaptures Captures)? root = null;
+        (InstanceOptionWinner Winner, WildcardCaptures Captures)? delimiter = null;
+        (InstanceOptionWinner Winner, WildcardCaptures Captures)? iniOptions = null;
+        (InstanceOptionWinner Winner, WildcardCaptures Captures)? jsonOptions = null;
+        (InstanceOptionWinner Winner, WildcardCaptures Captures)? yamlOptions = null;
+        (InstanceOptionWinner Winner, WildcardCaptures Captures)? xmlOptions = null;
+        (InstanceOptionWinner Winner, WildcardCaptures Captures)? fileMerge = null;
 
         foreach (var winner in options)
         {
@@ -269,8 +268,7 @@ public static class PlanningPhase
                 case SchemeDirective.Filename:
                     if (Later(filename, winner))
                     {
-                        filename = winner;
-                        filenameCaptures = captures;
+                        filename = (winner, captures);
                     }
 
                     break;
@@ -278,7 +276,7 @@ public static class PlanningPhase
                 case SchemeDirective.Root:
                     if (Later(root, winner))
                     {
-                        root = winner;
+                        root = (winner, captures);
                     }
 
                     break;
@@ -286,7 +284,7 @@ public static class PlanningPhase
                 case SchemeDirective.Delimiter:
                     if (Later(delimiter, winner))
                     {
-                        delimiter = winner;
+                        delimiter = (winner, captures);
                     }
 
                     break;
@@ -294,7 +292,7 @@ public static class PlanningPhase
                 case SchemeDirective.IniOutputOptions:
                     if (Later(iniOptions, winner))
                     {
-                        iniOptions = winner;
+                        iniOptions = (winner, captures);
                     }
 
                     break;
@@ -302,7 +300,7 @@ public static class PlanningPhase
                 case SchemeDirective.JsonOutputOptions:
                     if (Later(jsonOptions, winner))
                     {
-                        jsonOptions = winner;
+                        jsonOptions = (winner, captures);
                     }
 
                     break;
@@ -310,7 +308,7 @@ public static class PlanningPhase
                 case SchemeDirective.YamlOutputOptions:
                     if (Later(yamlOptions, winner))
                     {
-                        yamlOptions = winner;
+                        yamlOptions = (winner, captures);
                     }
 
                     break;
@@ -318,7 +316,7 @@ public static class PlanningPhase
                 case SchemeDirective.XmlOutputOptions:
                     if (Later(xmlOptions, winner))
                     {
-                        xmlOptions = winner;
+                        xmlOptions = (winner, captures);
                     }
 
                     break;
@@ -326,7 +324,7 @@ public static class PlanningPhase
                 case SchemeDirective.FileMerge:
                     if (Later(fileMerge, winner))
                     {
-                        fileMerge = winner;
+                        fileMerge = (winner, captures);
                     }
 
                     break;
@@ -346,21 +344,23 @@ public static class PlanningPhase
 
         if (filename is { } filenameWinner)
         {
-            if (SchemeCompiler.CompileInstanceOption(filenameWinner, updated.Formats, diagnostics)
+            if (SchemeCompiler.CompileInstanceOption(
+                    filenameWinner.Winner, updated.Formats, filenameWinner.Captures, diagnostics)
                 is InterpretedValue template)
             {
                 updated = updated with
                 {
                     FilenameTemplate = template,
-                    Captures = filenameCaptures,
-                    FilenameDeclaration = SiteOf(filenameWinner.Entry),
+                    Captures = filenameWinner.Captures,
+                    FilenameDeclaration = SiteOf(filenameWinner.Winner.Entry),
                 };
             }
         }
 
         if (root is { } rootWinner)
         {
-            if (SchemeCompiler.CompileInstanceOption(rootWinner, updated.Formats, diagnostics)
+            if (SchemeCompiler.CompileInstanceOption(
+                    rootWinner.Winner, updated.Formats, rootWinner.Captures, diagnostics)
                 is QualifiedName name)
             {
                 updated = updated with { Root = name };
@@ -369,7 +369,8 @@ public static class PlanningPhase
 
         if (delimiter is { } delimiterWinner)
         {
-            if (SchemeCompiler.CompileInstanceOption(delimiterWinner, updated.Formats, diagnostics)
+            if (SchemeCompiler.CompileInstanceOption(
+                    delimiterWinner.Winner, updated.Formats, delimiterWinner.Captures, diagnostics)
                 is string text)
             {
                 updated = updated with { Delimiter = text };
@@ -378,65 +379,70 @@ public static class PlanningPhase
 
         if (iniOptions is { } iniWinner)
         {
-            if (SchemeCompiler.CompileInstanceOption(iniWinner, updated.Formats, diagnostics)
+            if (SchemeCompiler.CompileInstanceOption(
+                    iniWinner.Winner, updated.Formats, iniWinner.Captures, diagnostics)
                 is IniOutputOptions value)
             {
                 updated = updated with
                 {
                     IniOptions = value,
-                    IniOptionsDeclaration = SiteOf(iniWinner.Entry),
+                    IniOptionsDeclaration = SiteOf(iniWinner.Winner.Entry),
                 };
             }
         }
 
         if (jsonOptions is { } jsonWinner)
         {
-            if (SchemeCompiler.CompileInstanceOption(jsonWinner, updated.Formats, diagnostics)
+            if (SchemeCompiler.CompileInstanceOption(
+                    jsonWinner.Winner, updated.Formats, jsonWinner.Captures, diagnostics)
                 is JsonOutputOptions value)
             {
                 updated = updated with
                 {
                     JsonOptions = value,
-                    JsonOptionsDeclaration = SiteOf(jsonWinner.Entry),
+                    JsonOptionsDeclaration = SiteOf(jsonWinner.Winner.Entry),
                 };
             }
         }
 
         if (yamlOptions is { } yamlWinner)
         {
-            if (SchemeCompiler.CompileInstanceOption(yamlWinner, updated.Formats, diagnostics)
+            if (SchemeCompiler.CompileInstanceOption(
+                    yamlWinner.Winner, updated.Formats, yamlWinner.Captures, diagnostics)
                 is YamlOutputOptions value)
             {
                 updated = updated with
                 {
                     YamlOptions = value,
-                    YamlOptionsDeclaration = SiteOf(yamlWinner.Entry),
+                    YamlOptionsDeclaration = SiteOf(yamlWinner.Winner.Entry),
                 };
             }
         }
 
         if (xmlOptions is { } xmlWinner)
         {
-            if (SchemeCompiler.CompileInstanceOption(xmlWinner, updated.Formats, diagnostics)
+            if (SchemeCompiler.CompileInstanceOption(
+                    xmlWinner.Winner, updated.Formats, xmlWinner.Captures, diagnostics)
                 is XmlOutputOptions value)
             {
                 updated = updated with
                 {
                     XmlOptions = value,
-                    XmlOptionsDeclaration = SiteOf(xmlWinner.Entry),
+                    XmlOptionsDeclaration = SiteOf(xmlWinner.Winner.Entry),
                 };
             }
         }
 
         if (fileMerge is { } mergeWinner)
         {
-            if (SchemeCompiler.CompileInstanceOption(mergeWinner, updated.Formats, diagnostics)
+            if (SchemeCompiler.CompileInstanceOption(
+                    mergeWinner.Winner, updated.Formats, mergeWinner.Captures, diagnostics)
                 is MergeStrategy value)
             {
                 updated = updated with
                 {
                     FileMerge = value,
-                    FileMergeDeclaration = SiteOf(mergeWinner.Entry),
+                    FileMergeDeclaration = SiteOf(mergeWinner.Winner.Entry),
                 };
             }
         }
@@ -486,11 +492,13 @@ public static class PlanningPhase
     }
 
     /// <summary>Whether the new winner would beat the currently held one by source order.</summary>
-    /// <param name="held">The held winner, or null when none has bound yet.</param>
+    /// <param name="held">The held winner and its captures, or null when none has bound yet.</param>
     /// <param name="candidate">The new winner.</param>
     /// <returns>Whether the candidate is later in source order than the held winner.</returns>
-    private static bool Later(InstanceOptionWinner? held, InstanceOptionWinner candidate) =>
-        held is null || candidate.Order > held.Order;
+    private static bool Later(
+        (InstanceOptionWinner Winner, WildcardCaptures Captures)? held,
+        InstanceOptionWinner candidate) =>
+        held is null || candidate.Order > held.Value.Winner.Order;
 
     /// <summary>Packages an entry's site for the diagnostic members Section 22 fixes.</summary>
     /// <param name="entry">The winning entry.</param>

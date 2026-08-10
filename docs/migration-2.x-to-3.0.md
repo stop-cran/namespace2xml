@@ -19,13 +19,37 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (98)
+## Observable differences (102)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
 Nearly all are corrections, and every case says which contract it is correcting. A difference
 is not automatically an improvement, though: where this preview declines a capability 2.4.0
 implemented, its case says so plainly rather than letting the heading imply otherwise.
+
+### `a-capture-repeats-for-a-shorter-name-and-is-ignored-when-unused`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 12.1 positional substitution, repeat-last, and ignore-unused; Section 16.2 explicit `filename`; Section 16.3 `root`; Section 26 item 6.
+- Legacy observation: the baseline exits `0` and writes `p.conf`, so it agrees on the ignore-unused rule and on the explicit filename. The file contains `x=1` — the `root` directive produced nothing at all. Its bytes are CRLF-terminated under the Section 24 divergence.
+- Clean behavior: `p.conf` containing `p-q-q.x=1`, LF-terminated.
+- Why the divergence is the specified one: Section 16.3 makes `root` wrap the selected content unconditionally, and Section 12.1 supplies the text it wraps with. Dropping the directive because its value needed substitution is the silent-discard outcome Section 6.3 rules out; the same scheme with a literal `root` is honoured by 2.4.0, so what the baseline loses is the substitution rather than the directive.
+
+### `a-capture-substitutes-into-a-key-field-name`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 12.1 capture substitution into a scheme directive value; Section 16.2 root-selector default file name; Section 16.5 `key`; Section 26 item 6.
+- Legacy observation: the baseline exits `0` and writes `OutputRoot.properties` containing `na.b.x=1`, `na.c.x=2`, `ni.d.x=3` — the input, unchanged. The wildcard `key` directive had no effect at all, and the root-selector default file name is `OutputRoot.properties` rather than `output.properties`. Its bytes are CRLF-terminated under the Section 24 divergence.
+- Clean behavior: `output.properties` containing the six lines of the two record sequences, LF-terminated.
+- Why the divergence is the specified one: Section 16.5 states plainly that "wildcard-qualified `key` directives are supported", and Section 16.2's table gives the root-selector default as `output.properties` for namespace output. The baseline's flat passthrough is not a different reading of the transformation — it is the transformation not happening, which leaves an author who wrote a `key` directive with no output difference and no diagnostic to explain it.
+
+### `a-capture-substitutes-into-root-and-delimiter`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 12.1 capture substitution into a scheme directive value; Section 16.2 default file names; Section 16.3 `root`; Section 16.4 `delimiter`; Section 26 item 6.
+- Legacy observation: the baseline exits `0` and writes two files whose *contents* agree with the expected tree — `rdb-db-x=1` and `rweb-web-x=2` — so 2.4.0 does substitute captures into `root` and `delimiter` here. It writes them to `db.properties` and `web.properties`, using only the last selector part as the default file name, and its bytes are CRLF-terminated under the Section 24 divergence the corpus records generally.
+- Clean behavior: the same two lines, at `a.db.properties` and `a.web.properties`, LF-terminated.
+- Why the divergence is the specified one: Section 16.2 defines the non-root default as `<selector>.properties` where `<selector>` "means the dot-joined concrete selector", and adds that it "is always one filename segment, and different selector-part sequences cannot collapse merely because a part contained a dot". Taking the last part alone is what makes `a.db` and `b.db` collide on `db.properties`, which is exactly the collapse that sentence forbids.
 
 ### `a-concrete-filename-binds-to-the-instance-a-wildcard-created`
 
@@ -256,6 +280,14 @@ implemented, its case says so plainly rather than letting the heading imply othe
   agreement: Section 10.4's "retain their wildcard-template meaning for compatibility" names a
   behavior that exists in the field, and this case is the evidence that 3.0 kept it rather than
   reasoning that it should.
+
+### `an-asterisk-in-a-directive-value-under-a-literal-selector-is-text`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 12.1 literal-text decision under a capture-free selector; Section 16.3 `root`; Section 16.4 delimiter escaping; Section 21 namespace name encoding; Section 26 item 6.
+- Legacy observation: the baseline exits `0` and writes `all.conf`, so it agrees on the explicit filename. The file contains `x=1` — neither the `root` nor the `delimiter` directive had any effect. Its bytes are CRLF-terminated under the Section 24 divergence.
+- Clean behavior: `all.conf` containing `r\u{2A}*x=1`, LF-terminated.
+- Why the divergence is the specified one: the two directives are unremarkable except for the asterisk in each value, and Section 12.1 makes that asterisk ordinary text here. Discarding both directives on account of it means the baseline treats a character the specification calls literal as a reason to ignore configuration, which is the silent-discard outcome Section 6.3 rules out. The escaped rendering is then forced: Section 16.4 escapes a delimiter occurrence inside a part unconditionally, and the delimiter is the same character.
 
 ### `an-empty-qualifier-escapes-the-alias-ambiguity`
 

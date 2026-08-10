@@ -59,10 +59,10 @@ audit is now the way this table is maintained.
 | **Scheme files** written as JSON or YAML | Implemented | §15, §9.1, §10.4 |
 | **Scheme files** written as XML | Undecided contract — [#72](https://github.com/stop-cran/namespace2xml/issues/72) | §15 |
 | **References in a scheme value** | Not yet — [#70](https://github.com/stop-cran/namespace2xml/issues/70) | §15.1 step 1 |
-| **A capture substituted into a directive value** other than `filename` | Not yet — [#71](https://github.com/stop-cran/namespace2xml/issues/71) | §12.1 |
+| **A capture substituted into a directive value** | Implemented, except the `type` residue in §1.4.2 | §12.1 |
 
-A preview binary returns exit status `70` when an invocation needs one of the three rows above that
-is not marked `Implemented`.
+A preview binary returns exit status `70` when an invocation needs a capability one of the rows above
+does not mark `Implemented`.
 That status is deliberately outside the contract: `0` and `1` are normative, and a
 preview must never return either for work it did not do. It is a **refusal**, not a diagnostic — the
 run decides no outcome at all, publishes nothing, and says on standard error which capability it
@@ -75,6 +75,15 @@ implemented" — while `app.*.key=name` ran to completion in the same build. Tel
 using a directive that works is worse than the silence the refusal replaced, and
 `TransformationTests.ARefusalNamesTheWildcardRatherThanTheDirectiveThatCarriesIt` now runs both
 declarations in one test so the two cannot drift apart again.
+
+That audit is also what shrank the refusal to the single row it now covers. Asking, for each
+directive in turn, what a correct build would do with a wildcard in its value turned three of the
+six into ordinary scheme errors that were already specified elsewhere: §16.8 and §16.10 forbid a
+wildcard *selector* on the input-option and `merge` directives outright, and §16.7 closes
+`substitute` to four keywords. Each of those now reports the rule it broke, at the line it was
+written on, instead of refusing the run — and one of them had been claiming in its refusal text
+that "the same declaration with no `*` in its value runs", which was false, because the wildcard
+selector was the actual defect.
 
 ### 1.1 Reductions inside JSON input
 
@@ -271,16 +280,37 @@ directive" and makes an unknown directive a blocking error, so `base=data` in a 
 in `cfg.filename=${cfg.root}.conf`. Tracked as
 [#70](https://github.com/stop-cran/namespace2xml/issues/70).
 
-### 1.4.2 A capture is substituted into `filename` alone
+### 1.4.2 A capture in a `type` value is refused rather than substituted
 
 §12.1 says "A scheme directive's value is decided the same way, from the captures its selector
 defines", which makes a `*` in **any** directive's value a positional capture substitution wherever
-the selector defines an unnamed capture. This preview performs that substitution for `filename`
-only; every other directive with a recognized `*` in its value is refused with exit `70`.
+the selector defines an unnamed capture. This build performs that substitution everywhere the
+captures are bound at the point the value is read: `filename`, `root`, `delimiter`, `output`,
+`filemerge` and the four output-option directives take them from the §14.1 expansion at pipeline
+step 13, and `key` takes them from its own per-path match at step 16. **verified.**
 
-The case §12.1 names explicitly is already correct: "in a scheme whose selector contains no wildcard,
-`*` in a `filename`, `root`, or `delimiter` value is literal text", and it compiles, because the
-value lexer decides whether a `*` is a token at all from the owning name's captures. **verified.**
+`type` is the one directive left. It is matched per path at step 16 exactly as `key` is, so its
+captures do exist — what keeps it out is §16.6, which closes its value to a keyword set, together
+with §22, which places the rejection of an unrecognized one in the **scheme** phase. Parsing the
+value late enough to substitute would move that diagnostic to another phase, changing an observable
+the contract fixes; and a capture can complete a type keyword only by accident. So
+`a.*.type=arr*y` is refused with exit `70` rather than guessed at. **verified.**
+
+No other directive reaches that refusal, and the reason is worth recording because it was not the
+reason expected. §15.1 compiles `merge`, `substitute` and the three input-option directives at steps
+2 through 4, before any selector has been expanded — but every one of them also rejects the
+declaration on its own terms, and does so for the *selector* rather than the value: §16.8 and §16.10
+forbid a wildcard-qualified input-option or `merge` path outright, and §16.7 closes `substitute` to
+`All`, `Key`, `Value`, and `None`. A precise scheme error naming the rule that was broken is worth
+more than a refusal to run, so those four are left to their own sections.
+
+The negative half of §12.1 — "in a scheme whose selector contains no wildcard, `*` in a `filename`,
+`root`, or `delimiter` value is literal text" — is covered by
+`conformance/an-asterisk-in-a-directive-value-under-a-literal-selector-is-text`. It was **not**
+correct before this was audited: the value lexer did decide the asterisk was text, and then §16.3's
+compiler re-lexed that text under the *name* grammar, where a bare `*` is a wildcard token, and
+rejected it as `SCHEME001`. A decision made once has to be carried, not remade by the next grammar
+to see the same characters.
 
 Tracked as [#71](https://github.com/stop-cran/namespace2xml/issues/71).
 

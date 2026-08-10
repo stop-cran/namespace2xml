@@ -241,12 +241,20 @@ public class SchemeCompilerTests
     }
 
     /// <summary>
-    /// A root wraps content in named levels, so a wildcard there names no level. Section 16.3 gives
-    /// the value the name grammar, in which a bare <c>*</c> is a wildcard rather than text.
+    /// Section 12.1: "in a scheme whose selector contains no wildcard, <c>*</c> in a
+    /// <c>filename</c>, <c>root</c>, or <c>delimiter</c> value is literal text". Section 16.3 gives
+    /// the value the name grammar, in which a bare <c>*</c> lexes as a wildcard token, so the
+    /// decision Section 12.1 already made has to be carried into the lexed name rather than left
+    /// for a later matcher to reinterpret.
     /// </summary>
     [Test]
-    public void AWildcardRootIsRejected() =>
-        Only("output=namespace\nroot=x.*").Code.ShouldBe("SCHEME001");
+    public void AnAsteriskInARootValueIsALiteralNamePart()
+    {
+        var root = One("output=namespace\nroot=x.*").Root.ShouldNotBeNull();
+
+        root.Parts.Length.ShouldBe(2);
+        ((OrdinaryPart)root.Parts[1]).LiteralText.ShouldBe("*");
+    }
 
     // ---- Section 16.4: delimiter -------------------------------------------------------------------
 
@@ -462,10 +470,15 @@ public class SchemeCompilerTests
     /// can refuse the run. Silently ignoring configuration the user wrote is the failure mode this
     /// list exists to prevent.
     /// </summary>
+    /// <remarks>
+    /// Section 12.1's substitution is performed for every directive whose captures are bound where
+    /// its value is read, so the residue is <c>type</c> alone — Section 16.6 closes its value to a
+    /// keyword set and Section 22 fixes the phase its rejection is reported in.
+    /// </remarks>
     [Test]
     public void AnUncompiledDirectiveIsCarried() =>
-        Compile("a.*.key=n*me").Deferred.ShouldHaveSingleItem()
-            .Directive.ShouldBe(SchemeDirective.Key);
+        Compile("a.*.type=arr*y").Deferred.ShouldHaveSingleItem()
+            .Directive.ShouldBe(SchemeDirective.Type);
 
     /// <summary>
     /// Every member of <see cref="SchemeDirective"/> has a compiler arm, so no well-formed
@@ -519,7 +532,7 @@ public class SchemeCompilerTests
         var rule = Compile("a.key=name").Transforms.ShouldHaveSingleItem();
 
         rule.Types.ShouldBeNull();
-        rule.KeyField.ShouldBe("name");
+        rule.KeyField.ShouldNotBeNull().LiteralText.ShouldBe("name");
     }
 
     /// <summary>

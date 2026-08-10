@@ -307,30 +307,81 @@ public sealed class TransformationTests
         // than the scheme asked for. The refused directive is declined at step 16, after the
         // instance it shares a scheme with has already been planned.
         var (result, sink) = Transform(
-            "app.name=example\n", "app.output=namespace\napp.*.key=n*me\n");
+            "app.name=example\n", "app.output=namespace\napp.*.type=arr*y\n");
 
         result.State.ShouldBe(PipelineRunState.Unsupported);
         sink.Written.ShouldBeEmpty();
     }
 
     /// <summary>
+    /// Section 12.1: "Legacy unnamed captures are substituted positionally", and a scheme
+    /// directive's value "is decided the same way, from the captures its selector defines". One
+    /// wildcard <c>key</c> rule therefore names a different field at every path it matches. The
+    /// expected projection is Section 16.5's own worked example, whose <c>a.key=name</c> this
+    /// reaches by substitution instead.
+    /// </summary>
+    [Test]
+    public void ACaptureIsSubstitutedIntoAKeyValue()
+    {
+        var (result, sink) = Transform(
+            "app.a.b.x=1\napp.a.c.x=2\n", "app.output=namespace\napp.*.key=n*me\n");
+
+        result.State.ShouldBe(PipelineRunState.Finished);
+        sink.Written["app.properties"]
+            .ShouldBe("a.0.name=b\na.0.x=1\na.1.name=c\na.1.x=2\n");
+    }
+
+    /// <summary>
+    /// Section 12.1 substitutes into every directive value whose captures are bound where the value
+    /// is read, not into <c>filename</c> alone. <c>root</c> and <c>delimiter</c> are the two the
+    /// clause names explicitly, and each concrete instance gets its own captures.
+    /// </summary>
+    [Test]
+    public void ACaptureIsSubstitutedIntoRootAndDelimiter()
+    {
+        var (result, sink) = Transform(
+            "app.db.x=1\napp.web.x=2\n",
+            "app.*.output=namespace\napp.*.root=r*\napp.*.delimiter=-*-\n");
+
+        result.State.ShouldBe(PipelineRunState.Finished);
+        sink.Written["app.db.properties"].ShouldBe("rdb-db-x=1\n");
+        sink.Written["app.web.properties"].ShouldBe("rweb-web-x=2\n");
+    }
+
+    /// <summary>
+    /// Section 12.1: "in a scheme whose selector contains no wildcard, <c>*</c> in a
+    /// <c>filename</c>, <c>root</c>, or <c>delimiter</c> value is literal text". The decision is
+    /// made before the value is lexed, so nothing here is a capture at all — and Section 21 then
+    /// escapes the literal asterisk it produced, unconditionally.
+    /// </summary>
+    [Test]
+    public void AnAsteriskUnderALiteralSelectorIsLiteralText()
+    {
+        var (result, sink) = Transform(
+            "app.x=1\n", "app.output=namespace\napp.root=r*\n");
+
+        result.State.ShouldBe(PipelineRunState.Finished);
+        sink.Written["app.properties"].ShouldBe("r\\*.x=1\n");
+    }
+
+    /// <summary>
     /// A refusal names the capability the invocation actually needs. This one is a Section 12.2
-    /// wildcard in a directive value; <c>key</c> itself is implemented, and the same declaration
-    /// with a literal value runs to completion. Naming the directive told an author to stop using
-    /// a directive that works.
+    /// wildcard in a <c>type</c> value, whose keyword set Section 16.6 closes;
+    /// <c>type</c> itself is implemented, and the same declaration with a literal value runs to
+    /// completion. Naming the directive told an author to stop using a directive that works.
     /// </summary>
     [Test]
     public void ARefusalNamesTheWildcardRatherThanTheDirectiveThatCarriesIt()
     {
         var (refused, _) = Transform(
-            "app.a.name=x\napp.a.v=1\n", "app.output=namespace\napp.*.key=n*me\n");
+            "app.a.name=x\napp.a.v=1\n", "app.output=namespace\napp.*.type=arr*y\n");
 
         refused.State.ShouldBe(PipelineRunState.Unsupported);
         refused.Unsupported.ShouldNotBeNull().Capability
             .ShouldBe("a wildcard capture substituted into a directive value");
 
         var (accepted, sink) = Transform(
-            "app.a.name=x\napp.a.v=1\n", "app.output=json\napp.*.key=name\n");
+            "app.a.name=x\napp.a.v=1\n", "app.output=json\napp.*.type=array\n");
 
         accepted.State.ShouldBe(PipelineRunState.Finished);
         sink.Written.ShouldContainKey("app.json");

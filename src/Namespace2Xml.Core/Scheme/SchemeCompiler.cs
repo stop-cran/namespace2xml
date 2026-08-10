@@ -157,7 +157,11 @@ public sealed record InputMerge(QualifiedName? Path, MergeStrategy Strategy);
 /// 15.2 puts "exact and wildcard declarations" in one source-ordered override stream.
 /// </param>
 /// <param name="Types">The Section 16.6 type set, or null when this rule is a <c>key</c>.</param>
-/// <param name="KeyField">The Section 16.5 field name, or null when this rule is a <c>type</c>.</param>
+/// <param name="KeyField">
+/// The Section 16.5 field name, or null when this rule is a <c>type</c>. It is a template rather
+/// than text because Section 12.1 substitutes the captures the rule's own path bound, and those are
+/// not known until the rule is matched against an absolute path at step 16.
+/// </param>
 /// <param name="Order">Source order, which Section 15.2 makes the only precedence.</param>
 /// <param name="Declaration">Where the directive was written, for the Section 22 members.</param>
 /// <remarks>
@@ -169,7 +173,7 @@ public sealed record InputMerge(QualifiedName? Path, MergeStrategy Strategy);
 public sealed record TransformRule(
     QualifiedName? Path,
     TypeSet? Types,
-    string? KeyField,
+    InterpretedValue? KeyField,
     StableOrderingKey Order,
     DeclarationSite Declaration);
 
@@ -270,17 +274,17 @@ public static class SchemeCompiler
             var entry = ordered[index];
 
             if (entry.Value.ContainsReference
-                || (entry.Value.ContainsWildcard && entry.Directive != SchemeDirective.Filename))
+                || (entry.Value.ContainsWildcard && DeferredWildcardDirective(entry.Directive)))
             {
                 // Section 15.1 step 1 resolves scheme-internal references before anything reads a
                 // directive value. Compiling the text as written would silently treat "${x}" as a
                 // literal file name.
                 //
-                // A wildcard is deferred for the same reason everywhere except 'filename', whose
-                // Section 16.2 substitution is not a step 1 concern at all: "Wildcard captures may
-                // be substituted into path segments", and the captures come from the Section 14.1
-                // selector expansion at step 13. Deferring it there would refuse the one directive
-                // the specification writes wildcards into.
+                // Section 12.1 makes a '*' in a scheme value a positional capture substitution
+                // wherever the selector defines an unnamed capture, so a wildcard is not deferred
+                // for any directive whose captures are known where its value is read: the
+                // output-instance-scoped ones take them from the Section 14.1 expansion at step 13,
+                // and 'key' takes them from its own per-path match at step 16.
                 deferred.Add(entry);
                 continue;
             }
@@ -339,6 +343,31 @@ public static class SchemeCompiler
     }
 
     /// <summary>
+    /// Whether a Section 12.1 capture substitution in this directive's value has to wait, because
+    /// nothing has bound the captures where the value is read.
+    /// </summary>
+    /// <param name="directive">The directive carrying the value.</param>
+    /// <remarks>
+    /// <para>
+    /// <c>type</c> is matched per path at step 16 exactly as <c>key</c> is, so its captures do
+    /// exist where its value is read. What keeps it here is Section 16.6, which closes its value
+    /// to a keyword set, together with Section 22, which places the rejection of an unrecognized
+    /// one in the scheme phase. Parsing the value late would move that diagnostic to another
+    /// phase, and a capture can complete a type keyword only by accident, so the trade favours the
+    /// fixed phase.
+    /// </para>
+    /// <para>
+    /// No other directive reaches here. Section 15.1 compiles <c>merge</c>, <c>substitute</c> and
+    /// the input-options directives at steps 2 through 4, before any selector has been expanded,
+    /// but each also rejects the declaration on its own terms — Sections 16.8 and 16.10 forbid the
+    /// wildcard selector outright, and Section 16.7 closes its value — and a precise scheme error
+    /// naming the rule that was broken is worth more than a refusal to run.
+    /// </para>
+    /// </remarks>
+    private static bool DeferredWildcardDirective(SchemeDirective directive) =>
+        directive == SchemeDirective.Type;
+
+    /// <summary>
     /// Every winning per-instance-scoped directive declaration, in source order.
     /// </summary>
     /// <param name="winners">The compiled winners, keyed by (selector, directive).</param>
@@ -364,22 +393,24 @@ public static class SchemeCompiler
         DiagnosticBuffer diagnostics,
         ImmutableArray<TransformRule>.Builder transforms)
     {
-        var written = entry.Value.LiteralText!;
         var site = new DeclarationSite(entry.Declaration, entry.Source, entry.Line);
 
         if (entry.Directive == SchemeDirective.Key)
         {
-            var field = written.Trim();
-
-            if (field.Length == 0)
+            // A template's emptiness cannot be decided here: Section 12.1 substitutes captures that
+            // step 16 binds, so 'key= *' is empty only for a capture that matched nothing. The check
+            // that survives compile time is the one about text that is already final.
+            if (entry.Value.LiteralText is { } literal && literal.Trim().Length == 0)
             {
                 Reject(entry, diagnostics, "\u00A716.5", "a 'key' directive names no field.");
                 return;
             }
 
-            transforms.Add(new TransformRule(entry.Selector, null, field, entry.Order, site));
+            transforms.Add(new TransformRule(entry.Selector, null, entry.Value, entry.Order, site));
             return;
         }
+
+        var written = entry.Value.LiteralText!;
 
         if (!TypeSet.TryParse(written, out var types, out var failure))
         {
@@ -489,6 +520,7 @@ public static class SchemeCompiler
     /// </summary>
     /// <param name="winner">The winning declaration.</param>
     /// <param name="formats">The concrete output instance's formats.</param>
+    /// <param name="captures">The Section 14.1 captures the winning declaration's match bound.</param>
     /// <param name="diagnostics">The buffer diagnostics accumulate in.</param>
     /// <returns>The typed value, discriminated by <see cref="InstanceOptionWinner.Directive"/>.</returns>
     /// <remarks>
@@ -502,22 +534,41 @@ public static class SchemeCompiler
     internal static object? CompileInstanceOption(
         InstanceOptionWinner winner,
         ImmutableArray<OutputFormat> formats,
-        DiagnosticBuffer diagnostics) => winner.Directive switch
+        WildcardCaptures captures,
+        DiagnosticBuffer diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(winner);
+        ArgumentNullException.ThrowIfNull(captures);
+
+        // Section 12.1 substitutes the selector's captures into the directive's value. 'filename'
+        // is the exception: Section 16.2 makes substituted text "opaque segment data", so its
+        // template is carried to 'OutputInstance.Filename' and substituted where the portable
+        // segment algorithm can see the boundary between generated and written text.
+        var entry = winner.Directive == SchemeDirective.Filename || !winner.Entry.Value.ContainsWildcard
+            ? winner.Entry
+            : winner.Entry with
+            {
+                Value = new InterpretedValue(
+                    [new LiteralValueToken(WildcardSubstitution.Apply(winner.Entry.Value, captures))]),
+            };
+
+        return winner.Directive switch
         {
-            SchemeDirective.Filename => CompileFilename(winner.Entry, diagnostics),
-            SchemeDirective.Root => CompileRoot(winner.Entry, diagnostics),
-            SchemeDirective.Delimiter => CompileDelimiterValue(winner.Entry, formats, diagnostics),
-            SchemeDirective.IniOutputOptions => CompileIniOptions(winner.Entry, diagnostics),
-            SchemeDirective.JsonOutputOptions => CompileJsonOptions(winner.Entry, diagnostics),
-            SchemeDirective.YamlOutputOptions => CompileYamlOptions(winner.Entry, diagnostics),
-            SchemeDirective.XmlOutputOptions => CompileXmlOptions(winner.Entry, diagnostics),
-            SchemeDirective.FileMerge => CompileStrategy(winner.Entry, diagnostics),
+            SchemeDirective.Filename => CompileFilename(entry, diagnostics),
+            SchemeDirective.Root => CompileRoot(entry, diagnostics),
+            SchemeDirective.Delimiter => CompileDelimiterValue(entry, formats, diagnostics),
+            SchemeDirective.IniOutputOptions => CompileIniOptions(entry, diagnostics),
+            SchemeDirective.JsonOutputOptions => CompileJsonOptions(entry, diagnostics),
+            SchemeDirective.YamlOutputOptions => CompileYamlOptions(entry, diagnostics),
+            SchemeDirective.XmlOutputOptions => CompileXmlOptions(entry, diagnostics),
+            SchemeDirective.FileMerge => CompileStrategy(entry, diagnostics),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(winner),
                 winner.Directive,
                 "Section 15.2's per-instance override stream carries only the directives listed on "
                 + "'SchemeConfiguration.InstanceOptions'."),
         };
+    }
 
     private static T? Compile<T>(
         Dictionary<(SelectorKey Selector, SchemeDirective Directive), (SchemeEntry Entry, long Order)> winners,
@@ -526,7 +577,7 @@ public static class SchemeCompiler
         DiagnosticBuffer diagnostics,
         Func<SchemeEntry, DiagnosticBuffer, T?> compile)
         where T : struct =>
-        winners.TryGetValue((selector, directive), out var winner)
+        winners.TryGetValue((selector, directive), out var winner) && !Pending(winner.Entry)
             ? compile(winner.Entry, diagnostics)
             : null;
 
@@ -537,7 +588,7 @@ public static class SchemeCompiler
         DiagnosticBuffer diagnostics,
         Func<SchemeEntry, DiagnosticBuffer, T?> compile)
         where T : class =>
-        winners.TryGetValue((selector, directive), out var winner)
+        winners.TryGetValue((selector, directive), out var winner) && !Pending(winner.Entry)
             ? compile(winner.Entry, diagnostics)
             : null;
 
@@ -561,7 +612,7 @@ public static class SchemeCompiler
         SchemeDirective directive,
         DiagnosticBuffer diagnostics,
         Func<SchemeEntry, DiagnosticBuffer, QualifiedName?> compile) =>
-        winners.TryGetValue((selector, directive), out var winner)
+        winners.TryGetValue((selector, directive), out var winner) && !Pending(winner.Entry)
             ? compile(winner.Entry, diagnostics)
             : null;
 
@@ -663,12 +714,12 @@ public static class SchemeCompiler
 
         if (QualifiedNameLexer.ContainsWildcard(lexed.Name))
         {
-            Reject(
-                entry,
-                diagnostics,
-                "\u00A716.3",
-                "a 'root' value wraps content in named levels, so it admits no wildcard.");
-            return null;
+            // Section 12.1: "in a scheme whose selector contains no wildcard, '*' in a 'filename',
+            // 'root', or 'delimiter' value is literal text." Where the selector does define
+            // captures, CompileInstanceOption has already substituted them, so what arrives here is
+            // data. Neither case is a pattern — Section 16.3 gives 'root' no matching semantics at
+            // all — so the asterisk is literal in both, and Section 21 escapes it on the way out.
+            return QualifiedNameLexer.Literalize(lexed.Name);
         }
 
         return lexed.Name;
@@ -681,8 +732,22 @@ public static class SchemeCompiler
         ImmutableArray<OutputFormat> formats,
         DiagnosticBuffer diagnostics) =>
         winners.TryGetValue((selector, SchemeDirective.Delimiter), out var winner)
+            && !Pending(winner.Entry)
             ? CompileDelimiterValue(winner.Entry, formats, diagnostics)
             : null;
+
+    /// <summary>
+    /// Whether this declaration's value still holds a Section 12.1 capture substitution, so nothing
+    /// may read it until pipeline step 13 binds the captures.
+    /// </summary>
+    /// <param name="entry">The winning declaration.</param>
+    /// <remarks>
+    /// Every wildcard-valued directive reaches <see cref="CompileInstanceOption"/> at step 13
+    /// through <c>InstanceOptions</c>, which is where its captures exist. Compiling the template
+    /// here as well would parse text that is not the directive's value — and for a value that is
+    /// nothing but a substitution, no text at all.
+    /// </remarks>
+    private static bool Pending(SchemeEntry entry) => entry.Value.ContainsWildcard;
 
     /// <summary>
     /// Section 16.4, given a specific delimiter declaration and the formats it applies against.

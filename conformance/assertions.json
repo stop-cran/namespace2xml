@@ -75,10 +75,17 @@
       "assertions": [
         "The bare * capture form substitutes the matched text into a template value, so a.*.z=tag-* generates tag-x at a.x.z.",
         "The *[id] form names a capture, and one identifier used twice in a name and again twice in a value carries one text through every occurrence.",
-        "A generated name takes its matched prefix from the concrete path rather than from the pattern, so capture text is ordinary literal text in one name part and is never re-lexed."
+        "A generated name takes its matched prefix from the concrete path rather than from the pattern, so capture text is ordinary literal text in one name part and is never re-lexed.",
+        "A scheme directive value is decided from the captures its selector defines, so root, delimiter, and key are substituted from the same tuple filename is, not filename alone.",
+        "A value carrying more substitutions than the name produced repeats the last capture, and one carrying fewer ignores the unused ones.",
+        "Under a selector defining no capture, an asterisk in a filename, root, or delimiter value is literal text rather than a capture or an error, and Sections 16.4 and 21 escape it on output."
       ],
       "fixtures": [
+        "a-capture-repeats-for-a-shorter-name-and-is-ignored-when-unused",
+        "a-capture-substitutes-into-a-key-field-name",
+        "a-capture-substitutes-into-root-and-delimiter",
         "a-yaml-scheme-key-carries-a-wildcard-template",
+        "an-asterisk-in-a-directive-value-under-a-literal-selector-is-text",
         "wildcard-repeated-capture-backtracking",
         "wildcard-template-generation"
       ]

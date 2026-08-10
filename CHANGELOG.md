@@ -36,6 +36,41 @@ independently.
 
 ### Added
 
+- **A wildcard capture is substituted into every directive value the specification asks it to
+  (§12.1).** The clause says "a scheme directive's value is decided the same way, from the captures
+  its selector defines"; this build performed it for `filename` alone. It now performs it wherever
+  the captures are bound at the point the value is read: `root`, `delimiter`, `output`, `filemerge`
+  and the four output-option directives take them from the §14.1 expansion at pipeline step 13, and
+  `key` takes them from its own per-path match at step 16, so one `n*.key=*_id` rule names a
+  different field at every path it matches.
+  **Closes [#71](https://github.com/stop-cran/namespace2xml/issues/71)**, with one directive left
+  and its reason recorded: §16.6 closes `type` to a keyword set and §22 fixes the phase its
+  rejection is reported in, so substituting late would move an observable the contract pins. See
+  `KNOWN-LIMITS.md` §1.4.2.
+- **The literal half of §12.1 was wrong and is fixed.** "In a scheme whose selector contains no
+  wildcard, `*` in a `filename`, `root`, or `delimiter` value is literal text" — but `a.root=r*`
+  was a blocking `SCHEME001`. The value lexer did decide the asterisk was text; §16.3's compiler
+  then re-lexed that text under the *name* grammar, where a bare `*` is a wildcard token, and
+  rejected it. A decision made once has to be carried, not remade by the next grammar to see the
+  same characters. `KNOWN-LIMITS.md` had recorded this case as already correct, **unverified**;
+  it was not.
+- **Three refusals became precise scheme errors.** Auditing what a correct build would do with a
+  wildcard in each directive's value showed that `merge`, `substitute` and the three input-option
+  directives never needed the refusal at all: §16.8 and §16.10 forbid a wildcard-qualified
+  input-option or `merge` *selector* outright, and §16.7 closes `substitute` to four keywords. Each
+  now reports the rule it broke at the line it was written on. One of them had been claiming in its
+  refusal text that "the same declaration with no `*` in its value runs" — which was false, because
+  the selector was the defect.
+- `conformance/a-capture-substitutes-into-root-and-delimiter`,
+  `conformance/a-capture-repeats-for-a-shorter-name-and-is-ignored-when-unused`,
+  `conformance/a-capture-substitutes-into-a-key-field-name` and
+  `conformance/an-asterisk-in-a-directive-value-under-a-literal-selector-is-text`, with
+  `tools/mutate-capture-substitution.ps1` proving all four red against six mutations. 2.4.0 differs
+  on all four: it drops a `root` whose value contains an asterisk **silently**, ignores a
+  wildcard-qualified `key` entirely, and takes only the last selector part as a default file name.
+  It does substitute captures into `root` and `delimiter` when the selector expands, so the
+  regression is narrower than the refusal it replaced implied.
+
 - **Scheme files written as JSON or YAML (§15) are read.** A structured scheme projects to the same
   directive stream a namespace-profile scheme does: a mapping that has properties is a path and is
   recursed, and **everything else is a declaration site**, so no value is silently walked past. A

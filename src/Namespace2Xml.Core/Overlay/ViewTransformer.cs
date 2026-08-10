@@ -143,7 +143,7 @@ public static class ViewTransformer
 
         foreach (var rule in rules)
         {
-            if (!Matches(rule, absolute))
+            if (!Matches(rule, absolute, out var captures))
             {
                 continue;
             }
@@ -158,7 +158,7 @@ public static class ViewTransformer
             // later type rule replaces the whole earlier set rather than merging into it.
             effective[key] = rule.Types is not null
                 ? current with { Types = rule.Types, TypeRule = rule }
-                : current with { Key = rule.KeyField, KeyRule = rule };
+                : current with { Key = Field(rule, captures), KeyRule = rule };
         }
 
         foreach (var (name, child) in OverlayAddressing.Addresses(node))
@@ -209,20 +209,40 @@ public static class ViewTransformer
     /// alias to <em>scheme paths</em> alone; Sections 8.6 and 12 say nothing of the kind, and
     /// <see cref="WildcardMatch"/> is shared with both.
     /// </remarks>
-    private static bool Matches(TransformRule rule, ImmutableArray<NamePart> absolute)
+    private static bool Matches(
+        TransformRule rule,
+        ImmutableArray<NamePart> absolute,
+        out WildcardCaptures captures)
     {
         if (rule.Path is not { } pattern)
         {
+            captures = WildcardCaptures.Empty;
             return absolute.IsEmpty;
         }
 
-        return pattern.Parts.Length == absolute.Length
-            && WildcardMatch.TryMatchPrefix(
-                pattern.Parts,
-                pattern.Parts.Length,
-                SchemeAlias.Align(pattern.Parts, pattern.Parts.Length, absolute),
-                out _);
+        if (pattern.Parts.Length != absolute.Length)
+        {
+            captures = WildcardCaptures.Empty;
+            return false;
+        }
+
+        return WildcardMatch.TryMatchPrefix(
+            pattern.Parts,
+            pattern.Parts.Length,
+            SchemeAlias.Align(pattern.Parts, pattern.Parts.Length, absolute),
+            out captures);
     }
+
+    /// <summary>
+    /// Section 12.1: a <c>key</c> value's <c>*</c> is a positional substitution of the captures the
+    /// rule's own path bound at this location, so one wildcard rule can name a different field at
+    /// every path it matches.
+    /// </summary>
+    /// <param name="rule">The matched rule.</param>
+    /// <param name="captures">The captures this match bound.</param>
+    /// <returns>The field name, or null when the rule is a <c>type</c>.</returns>
+    private static string? Field(TransformRule rule, WildcardCaptures captures) =>
+        rule.KeyField is { } template ? WildcardSubstitution.Apply(template, captures) : null;
 
     /// <summary>
     /// Section 16.5: "An effective <c>type=array</c> and <c>key</c> at the same path is therefore an
