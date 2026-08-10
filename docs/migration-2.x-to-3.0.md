@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (115)
+## Observable differences (116)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1783,6 +1783,30 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - Legacy observation: the baseline exits `1` with no output tree and prints `ERROR(S):` on standard error. The measurement records `exit 1 (expected 0); missing a.properties`.
 - Clean behavior: `--max-wildcard-iterations 3` admits the three generating waves, the fixed point settles, and the run writes `a.properties` with the four expected lines at exit `0`.
 - Why the difference is intentional: 2.4.0 has no `--max-wildcard-iterations` option, so its CommandLineParser rejects the unknown flag before any input is read and prints `ERROR(S):` -- the standard CommandLineParser preamble for an argument diagnostic. The correction is not merely that the option must be accepted but that the bound be a *bound*, so the companion case `wildcard-cascade-crosses-the-iteration-bound` reproduces the failure side of Section 12.4 and this case pins that a run below the bound still completes. Neither half of that guarantee is expressible in 2.4.0, whose iteration limit was hard-coded rather than configurable.
+
+### `wildcard-generation-appends-beside-every-contribution`
+
+- namespace2xml 2.4.0: **differs**. It exits `0` and writes `a.json` containing `{ "p": [ "second"
+  ] }` -- one item where the contract requires three.
+- Contract: Section 12.4 for the generated contribution remaining separate, Section 16.10 for what
+  `append` must contain, Section 15.1 step 8 for the earliest contribution retaining its supplied
+  values.
+- Legacy observation, with controls. Four baseline runs produce byte-identical output:
+
+  | Run | Sources | Scheme | Output |
+  |---|---|---|---|
+  | as specified | template, first, second | `merge=append` | `{ "p": [ "second" ] }` |
+  | template removed | first, second | `merge=append` | `{ "p": [ "second" ] }` |
+  | merge removed | template, first, second | none | `{ "p": [ "second" ] }` |
+  | both removed | first, second | none | `{ "p": [ "second" ] }` |
+
+  Removing the template changes nothing, and removing the merge directive changes nothing. The
+  baseline therefore neither expanded the template nor applied `append`: it overrode at `a.p.0` and
+  kept the last value written. The controls are what distinguish that from an implementation that
+  did something different with the directives it was given.
+- Why the difference is intentional: 2.4.0 has no `append` strategy for an input path, so the
+  divergence is a capability this version adds rather than a behaviour it changes. Section 3 covers
+  it under the input merge strategies.
 
 ### `wildcard-generation-merges-at-rule-position`
 

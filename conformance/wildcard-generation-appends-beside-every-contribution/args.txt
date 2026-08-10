@@ -1,0 +1,6 @@
+-i
+inputs/template.txt
+inputs/first.txt
+inputs/second.txt
+-s
+schemes/scheme.txt

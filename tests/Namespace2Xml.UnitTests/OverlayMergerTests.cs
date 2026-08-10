@@ -317,7 +317,9 @@ public class OverlayMergerTests
     /// <summary>
     /// Section 16.10 <c>append</c>: "every item in the later sequence contribution, including
     /// explicitly indexed items, is rebased in ascending original ordering value onto fresh implicit
-    /// ordering values above the current high-water mark".
+    /// ordering values above the current high-water mark". Section 15.1 step 8 rebases only "when a
+    /// strictly earlier surviving sequence-eligible contribution exists", so the earlier
+    /// contribution keeps the values its author supplied and the later one lands above them.
     /// </summary>
     [Test]
     public void AppendRebasesLaterItemsAboveTheHighWaterMark()
@@ -325,8 +327,8 @@ public class OverlayMergerTests
         var node = Descend(
             Merge(Strategy(MergeStrategy.Append, "a"), "a.0=x\na.1=y", "a.0=p\na.1=q"), "a");
 
-        node.OrderedSequence.Select(item => item.Key).ShouldBe([2L, 3L]);
-        node.OrderedSequence.Select(item => Value(item.Value.Node)).ShouldBe(["p", "q"]);
+        node.OrderedSequence.Select(item => item.Key).ShouldBe([0L, 1L, 2L, 3L]);
+        node.OrderedSequence.Select(item => Value(item.Value.Node)).ShouldBe(["x", "y", "p", "q"]);
         node.SequenceHighWater.ShouldBe(3);
     }
 
@@ -341,8 +343,8 @@ public class OverlayMergerTests
         var node = Descend(
             Merge(Strategy(MergeStrategy.Append, "a"), "a.0=x", "a.3=p\na.1=q"), "a");
 
-        node.OrderedSequence.Select(item => item.Key).ShouldBe([2L, 4L]);
-        node.OrderedSequence.Select(item => Value(item.Value.Node)).ShouldBe(["q", "p"]);
+        node.OrderedSequence.Select(item => item.Key).ShouldBe([0L, 2L, 4L]);
+        node.OrderedSequence.Select(item => Value(item.Value.Node)).ShouldBe(["x", "q", "p"]);
     }
 
     /// <summary>

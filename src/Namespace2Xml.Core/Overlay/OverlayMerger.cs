@@ -378,7 +378,7 @@ public sealed class OverlayMerger
         // Checking only the later side let append run over a scalar or an ordinary mapping and
         // silently degrade to a deep merge, so a run that asked to append to something unappendable
         // succeeded and published a scalar and a sequence coexisting at one path.
-        if (!TryReadSequenceContribution(earlier, out _))
+        if (!TryReadSequenceContribution(earlier, out var seeded))
         {
             if (IsContributionAt(earlier))
             {
@@ -394,7 +394,17 @@ public sealed class OverlayMerger
         }
 
         var allocator = SequenceOrderingAllocator.From(earlier.SequenceHighWater);
-        var sequence = earlier.Sequence;
+
+        // The earlier side is read through the same route as the later one. A contribution that is
+        // sequence-eligible as "a nonempty all-in-range-canonical-numeric mapping" carries its items
+        // in its children, not in its sequence, so seeding from the sequence alone starts the fold
+        // from nothing and every item the earlier side supplied is absent from the result. Section
+        // 16.10 appends "every item in the later sequence contribution" to what is already there,
+        // and what is already there is whatever the earlier contribution holds however it spelled
+        // it. Section 15.1 makes a numeric mapping child and the item at its ordering value one
+        // structural node, so placing them in the sequence beside the retained children restates
+        // that identity rather than duplicating anything.
+        var sequence = seeded;
 
         // Section 5.4: "process items in ascending original ordering value. For each item, first
         // raise the current high-water mark to at least its supplied value, then allocate its new

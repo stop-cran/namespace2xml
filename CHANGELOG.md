@@ -318,6 +318,23 @@ independently.
 
 ### Fixed
 
+- **`merge=append` silently destroyed contributions.** §16.10 makes a contribution sequence-eligible
+  either as a native sequence or as "a nonempty all-in-range-canonical-numeric mapping", but `append`
+  read only the first of those on the accumulator side: it seeded the result from the earlier node's
+  sequence projection, which is empty when the earlier contribution is spelled as an ordering-value
+  mapping, and then rebased the later items onto it. Every item the earlier contribution supplied was
+  absent from the result. It survived end to end in the common case only because the merged node also
+  retains the earlier node's children and §8.7 re-infers a sequence from them — but where those
+  children are not retained, as under a §12.4 wildcard rule, the items were gone. Three input files
+  under `a.p.merge=append` published two items where the contract requires three, at exit `0` with an
+  empty diagnostic stream. Both sides are now read through the same route.
+  `conformance/wildcard-generation-appends-beside-every-contribution` pins it. The neighbouring
+  `wildcard-generation-merges-at-rule-position` could not: both of its roots use `merge=replace`,
+  which discards the earlier value by design, so the corpus was invariant under the defect.
+- Two unit tests asserted the *internal* sequence projection after an `append` and had silently
+  encoded the defect above, expecting the earlier contribution's items to be absent from it. Their
+  own documentation quotes §16.10 on rebasing the **later** items, which the corrected expectations
+  still satisfy; what they additionally asserted was that `append` had nothing to append to.
 - **A capture in an `output` value terminated the process with an unhandled
   `NullReferenceException`** and exit `-532462766`, which §6.3 forbids without qualification. Every
   other instance-scoped directive takes its captures from the §14.1 expansion at pipeline step 13,

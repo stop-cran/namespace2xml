@@ -384,13 +384,15 @@
         "A merge directive governs only the node it matches, so sibling roots carrying different strategies over identical two-source input each behave as their own directive says.",
         "An explicitly empty native sequence is a sequence contribution with no items to rebase, so appending it leaves the earlier sequence unchanged rather than being rejected as a non-sequence use.",
         "Under replace a later contribution whose container shape differs from the earlier one replaces that shape outright in both directions, without reporting a conflict between the two.",
-        "Under error a second contribution at the path is refused outright, and because the condition is a property of the folded node rather than of either contribution the diagnostic names the path and no source."
+        "Under error a second contribution at the path is refused outright, and because the condition is a property of the folded node rather than of either contribution the diagnostic names the path and no source.",
+        "A generated contribution remains a separate contribution under append, so a template and every concrete source that contributes at the path all survive into the appended sequence rather than the generated value standing in place of one of them."
       ],
       "fixtures": [
         "append-onto-a-non-sequence-accumulator-is-an-error",
         "merge-error-rejects-a-second-source-contribution",
         "merge-strategies-over-native-sequence-shapes",
         "namespace-input-merge-strategies",
+        "wildcard-generation-appends-beside-every-contribution",
         "wildcard-generation-merges-at-rule-position"
       ]
     },

@@ -440,12 +440,22 @@ straddle it — an earlier source and a later source both wrote the path, and th
 between them — one binary split cannot express the true interleaving, and the generated value is
 ordered against the whole rather than against each part.
 
+The case is now constructed, and the answer is that the shape is reachable rather than unreachable.
+Three input files under `merge=append` — `a.p.0=EARLY`, then the template `a.*.0=TEMPLATE`, then
+`a.p.0=LATE`, with `a.p.merge=append` — publish `[TEMPLATE, EARLY, LATE]` where §12.4 requires
+`[EARLY, TEMPLATE, LATE]`, and produce output identical to the run that lists the template *first*.
+Both extremes are correct; every rule position between them collapses onto the earlier one.
+
+The same probe originally destroyed `EARLY` outright, which is a separate defect with a separate
+cause and is **fixed**: `append` seeded its accumulator from the earlier node's sequence projection
+alone, which is empty for a contribution spelled as an ordering-value mapping, so the earlier items
+were dropped from the result. `conformance/wildcard-generation-appends-beside-every-contribution`
+pins every contribution surviving. What remains here is the ordering, and only the ordering.
+
 Full fidelity means retaining each source's contribution at a path instead of the folded result.
 §1.7 previously claimed to need the same change and did not; that estimate was wrong and this one
-is unverified. No case in the corpus distinguishes the two orderings today;
-this entry exists so that one that does is read as a known gap rather than as a surprise. Tracked as
-[#59](https://github.com/stop-cran/namespace2xml/issues/59), which asks for that case to be
-constructed before either fix, since it may show the shape is unreachable.
+is unverified. Tracked as
+[#59](https://github.com/stop-cran/namespace2xml/issues/59).
 
 ### 1.9 *(resolved)* A canonical reference to an XML comment position
 
