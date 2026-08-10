@@ -68,18 +68,28 @@ whose part is literally `a.b`, and any output format that spells qualified names
 namespace profile in particular — has to escape that `.` to keep the part atomic (see §16.4,
 §A.6). JSON has no escape for splitting a key across parts, and neither does §9.1.
 
-Backslashes in the decoded property name are preserved literally (§9.1). Within one part, an
-unescaped `*` or `*[identifier]` remains a wildcard-template token for compatibility; `\*` is a
-literal asterisk. A wildcard key is extracted as a §10.4 wildcard template and expanded in the
-§12.4 fixed point; `docs/format-yaml.md` describes that capability in full, including the two
-shapes beneath a wildcard key that are declined, and it applies unchanged to JSON because both
-formats share a reader. The `a-wildcard-in-a-native-json-key-is-a-template` and
+Backslashes in the decoded property name are preserved literally except at the very start of the
+key, where one may escape a marker (§9.1). Within one part, an unescaped `*` or `*[identifier]`
+remains a wildcard-template token for compatibility; `\*` is a literal asterisk. A wildcard key is
+extracted as a §10.4 wildcard template and expanded in the §12.4 fixed point;
+`docs/format-yaml.md` describes that capability in full, including the two shapes beneath a
+wildcard key that are declined, and it applies unchanged to JSON because both formats share a
+reader. The `a-wildcard-in-a-native-json-key-is-a-template` and
 `a-backslash-asterisk-in-a-native-key-is-a-literal-asterisk` conformance cases pin the JSON side.
-Marker-shaped keys (`@field`, `#3`, `Q{...}local`) do **not** acquire an XML node
-kind from JSON — §8.2 fixes them as ordinary literal components when they arrive from JSON or
-YAML — and the namespace projection of `{"lit": {"@key": "literalval"}}` spells `\@key` on the
-namespace side. The `xml-typed-components-recognized-and-json-yaml-marker-keys-stay-literal`
-conformance case pins that rule together with its XML mirror.
+
+Marker-shaped keys (`@field`, `#3`, `Q{...}local`) **are** the typed XML components those markers
+introduce (§9.1). `{"a": {"@x": "1"}}` contributes the attribute `x` under `a`, exactly as
+`<a x="1"/>` does, and §19.3 writes it back as `@x` — so a JSON document this tool produces reads
+back into the XML it came from, and a short JSON overlay can override an attribute in a large XML
+base. Marker recognition commits: a key that begins like a marker without completing the
+production, such as a bare `"@"` or `"#01"`, is blocking `PARSE001` rather than silently becoming
+literal text. A leading backslash escapes a following `@`, `#`, `Q`, or `\` and suppresses marker
+recognition for the whole key, so the literal key `@key` is written `"\\@key"` in JSON source and
+spells `\@key` on the namespace side. Elsewhere in the key a backslash is literal, so `"C:\\dir"`
+needs no escaping. The `a-json-key-carries-xml-markers-through-a-round-trip`,
+`a-json-override-reaches-an-xml-attribute`, `a-native-key-marker-commits-once-recognized`, and
+`xml-typed-components-recognized-and-an-escaped-json-key-stays-literal` conformance cases pin
+these rules.
 
 Strings pass through the §A.5 decoded-native-string transducer *after* native JSON escape
 processing: `\*` in a resulting string emits a literal `*`, `\${` emits a literal `${`, and every

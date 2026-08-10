@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "3f8a6acc0aa29b58f1812eabf04760b0865bb902e2109cf603a48d8955cdfb3f"
+    "sha256": "bee18b6d744cb2db12638c70d8776d85cbac5be5d924084c2f6445488abb1b09"
   },
   "authoritativeFor": [
     "code",
@@ -224,7 +224,7 @@
       "code": "FLAT001",
       "severity": "error",
       "cardinality": "once per projected key and output instance",
-      "condition": "Distinct logical paths collide after flat-format projection or normalization",
+      "condition": "Distinct logical paths collide after output projection or normalization",
       "fields": [
         "path",
         "destination"

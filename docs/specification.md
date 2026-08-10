@@ -639,7 +639,7 @@ At the start of a name part, unescaped `@`, `#` followed by canonical decimal di
 
 Marker recognition commits. Once an unescaped `@`, `#`, or `Q{` is recognized at the start of a name part, that part must match the typed production in full; text that begins like a typed marker without completing one is `PARSE001`, not an ordinary part. `#1x`, `@`, and `Q{urn:x` are therefore each errors, and the ordinary parts carrying that text are written `\#1x`, `\@`, and `\Q{urn:x`, which is exactly what Section 21 emits for them. The rule keeps the lexer local and total, since it never has to unread a part, and it makes Section 11.4's blocking errors inside `Q{...}` consistent with the other two markers rather than an exception to them. Under the alternative, a one-character edit would silently change a part's kind: `#1` would be a content token and `#1x` an ordinary name.
 
-JSON and YAML mapping keys are always one ordinary literal component and never acquire XML node kind from marker-shaped text. XML input receives typed components from the XML parser rather than by applying this namespace lexer. `filename`, delimiter, option, `key` field-name, and other non-path directive values treat marker-shaped text as ordinary value text.
+JSON and YAML mapping keys are one component that carries the same markers every other name syntax carries, under the native-key rules of Section 9.1: `@x` is an attribute, `#0` is a content component, `Q{uri}x` is a qualified element, and a literal marker-shaped key is escaped `\@x`. Only the delimiter and `\u{HEX}` lose their meaning there, because a key is one part rather than a path. XML input receives typed components from the XML parser rather than by applying this namespace lexer. `filename`, delimiter, option, `key` field-name, and other non-path directive values treat marker-shaped text as ordinary value text.
 
 An identifier consists of ASCII letters, digits, `_`, or `-` and must not be empty.
 
@@ -832,7 +832,11 @@ JSON input supports:
 
 A JSON number whose lexical form contains a fraction part or exponent is an arbitrary-precision decimal. Every other valid JSON number is an arbitrary-precision integer.
 
-Each object-property name becomes one literal qualified-name part. Dots and backslashes in the native property name remain literal characters.
+Each object-property name becomes one qualified-name part. Dots and `\u{HEX}` sequences in the native property name remain literal characters: a key is one part's worth of text, not a written qualified name, so nothing in it separates parts.
+
+That one part carries the Section 11.4 markers. A key whose text begins with an unescaped `@`, `#`, or `Q{` is the typed component that marker introduces, so an attribute written by this tool reads back as the same attribute and a JSON overlay can name any component an XML input contributed. Marker recognition commits exactly as in Section 8.2: a key that begins like a marker without completing the production is `PARSE001`.
+
+A backslash at the start of the key escapes a following `@`, `#`, `Q`, or `\`, contributing that character literally and suppressing marker recognition for the whole part. A key holding the literal text `@x` is therefore written `\@x`, and one holding `\@x` is written `\\@x`. Elsewhere in the key, and before any other character, a backslash contributes itself and consumes nothing, so a key such as `C:\dir` needs no escaping.
 
 Within that one part, unescaped `*` and `*[identifier]` tokens retain their wildcard-template meaning for compatibility. `\*` suppresses wildcard interpretation and contributes a literal `*`; other backslashes are preserved.
 
@@ -913,7 +917,7 @@ Encountering any explicit document marker is an error.
 
 ### 10.4 Wildcard templates supplied as YAML
 
-YAML mapping keys must be strings. Each key becomes one literal qualified-name part, so dots and ordinary backslashes remain literal.
+YAML mapping keys must be strings. Each key becomes one qualified-name part under the Section 9.1 native-key rules: dots and `\u{HEX}` remain literal, the Section 11.4 markers apply to a key beginning with an unescaped `@`, `#`, or `Q{`, and a leading backslash escapes one of those and suppresses marker recognition. Elsewhere a backslash remains literal.
 
 Within that part, unescaped `*` and `*[identifier]` tokens use the wildcard-template grammar. `\*` contributes a literal asterisk.
 
@@ -2315,6 +2319,10 @@ JSON output:
 
 At an overlay containing both payload and container contributions, Section 4.4 selects exactly one JSON shape and warns about the omitted shape.
 
+A mapping key carries the Section 11.4 markers, so an attribute component `x` is the key `@x`, a content component is `#0`, and a qualified element is `Q{uri}local` — the same spellings Section 9.1 reads back. An ordinary component whose own literal text begins with `@`, `#`, `\`, or `Q{` is written with a leading `\`, so that it too reads back as itself. This makes a JSON document this tool writes readable by it, and lets a JSON input name any component an XML input can carry.
+
+Distinct logical paths must never both emit a member of one mapping under the same key. Escaping removes the ordinary case, so a collision now requires two components that are distinct in the model and spell one key regardless — but emitting both would produce a duplicate-key document that Section 3.3 forbids and that this specification's own reader rejects, so a mapping-key collision after projection is blocking `FLAT001`. A later contribution to the *same* logical path is an override under Section 4.4 and is never a collision; both colliding paths remain separately addressable, so an input may override either one to resolve the conflict.
+
 ### 19.4 YAML
 
 YAML output:
@@ -2330,6 +2338,8 @@ YAML output:
 A string whose plain spelling would resolve to a non-string kind under `RestrictedYaml1` is emitted single-quoted, with a literal single quote doubled as `''`.
 
 At an overlay containing both payload and container contributions, Section 4.4 selects exactly one YAML shape and warns about the omitted shape.
+
+A mapping key carries the Section 11.4 markers and escapes a marker-shaped ordinary component, and a mapping-key collision after projection is blocking `FLAT001`, on the same rules and for the same reasons as Section 19.3.
 
 ### 19.5 XML
 
@@ -2603,7 +2613,7 @@ The normative diagnostic registry is:
 | `REFERENCE005` | error | Non-scalar reference target | once per reachable owning value |
 | `TYPE001` | error | Invalid shape, input merge conflict, root removal, or transformation target | once per path and applicable source/output instance |
 | `TYPE002` | warning | Shape conflict resolved by precedence | once per path and output instance |
-| `FLAT001` | error | Distinct logical paths collide after flat-format projection or normalization | once per projected key and output instance |
+| `FLAT001` | error | Distinct logical paths collide after output projection or normalization | once per projected key and output instance |
 | `SHELL001` | error | Invalid quoted-namespace shell identifier | once per projected key and output instance |
 | `XML001` | error | DTD, external entity/resource, or prohibited XML feature | once per failing document |
 | `XML002` | error | Invalid XML name, namespace, declaration, or canonical address | once per failing node or document |
@@ -2625,7 +2635,7 @@ The normative diagnostic registry is:
 | `WARN010` | warning | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | once per source contribution, canonical mapping path, and output instance |
 | `WARN011` | warning | Later unmarked contribution aliases an existing XML component instead of overriding it | once per canonical path |
 
-`TYPE001` includes a bare scalar selected for a structured output without a configured `root`. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions. Ordering-value overflow and every configured resource-bound violation are `LIMIT001`; malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`.
+`TYPE001` includes a bare scalar selected for a structured output without a configured `root`. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions, and JSON and YAML mapping-key collisions. Ordering-value overflow and every configured resource-bound violation are `LIMIT001`; malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`.
 
 A reference cycle is identified by its ordered ring of canonical paths, independent of discovery entry point. Rotate the ring so its lexicographically smallest canonical path under unsigned UTF-8 byte order is first; when the same smallest path appears more than once, choose the lexicographically smallest resulting rotated sequence. Report the chain from that canonical start and close it by repeating the first path.
 
@@ -3099,7 +3109,7 @@ An implementation is conforming only when automated black-box tests cover:
 68. Output-instance-scoped `WARN010` suppression by `type=mapping` and stable diagnostic stream/code behavior.
 69. Differential compatibility fixtures against namespace2xml 2.4.0 for every behavior claimed in Section 3.1, with explicit expected divergences for every correction in Section 3.2.
 70. XML sequence projection for mapping children, root sequences, scalar items, record items, and illegal attribute projection.
-71. Typed XML component recognition in namespace input, variables, scheme paths, references, and `root`, with literal JSON/YAML marker-shaped keys.
+71. Typed XML component recognition in namespace input, variables, scheme paths, references, and `root`.
 72. Deterministic global-budget attribution under varied parser thread schedules.
 73. Phase-local diagnostic collection, complete failed-source discard, and phase-boundary abort.
 74. Informational-mode precedence, repeated list options, `--`, and explicit-filename extension behavior.
@@ -3115,6 +3125,7 @@ An implementation is conforming only when automated black-box tests cover:
 84. XML attribute-count limits, absence of any separate entity-expansion budget, and deterministic `LIMIT001` attribution when per-source and global bounds are crossed together.
 85. `--version` contract-bundle reporting and machine-readable field layout, and registry agreement with the Section 22 code-level facts.
 86. The uniform option-token grammar of Section 6.2: the `--name=value` inline form on every long option, the absence of an inline form on short options, a value that is not attached to any option, an option token that ends the argument vector still requiring a value, and `-` as an ordinary value.
+87. Marker-carrying JSON and YAML mapping keys: reading an attribute, content, and qualified-element key, the leading-backslash escape and its suppression of marker recognition, `PARSE001` for a key that begins like a marker without completing it, escaping on output, and an XML → JSON → XML round trip that preserves attributes.
 
 ## 27. Deferred features
 

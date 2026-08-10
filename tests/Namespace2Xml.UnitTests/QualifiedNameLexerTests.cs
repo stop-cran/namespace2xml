@@ -509,4 +509,156 @@ public sealed class QualifiedNameLexerTests
             }
         }
     }
+    // Section 9.1: "That one part carries the Section 11.4 markers."
+
+    private static string DescribeNative(string text)
+    {
+        var result = QualifiedNameLexer.LexNativePart(text);
+        result.Fault.ShouldBeNull(text);
+        return Describe(result.Name!);
+    }
+
+    private static NameFault NativeFault(string text)
+    {
+        var result = QualifiedNameLexer.LexNativePart(text);
+        result.Name.ShouldBeNull(text);
+        return result.Fault!.Value;
+    }
+
+    [Test]
+    public void ANativeKeyIsOnePartHoweverManyDelimitersItHolds() =>
+        DescribeNative("a.b.c").ShouldBe("ord('a.b.c')");
+
+    [Test]
+    public void ANativeUnicodeEscapeIsLiteralText() =>
+        DescribeNative("a\\u{41}b").ShouldBe("ord('a\\u{41}b')");
+
+    [Test]
+    public void ANativeAtMarkerIsAnAttribute() =>
+        DescribeNative("@x").ShouldBe("attr(ord('x'))");
+
+    [Test]
+    public void ANativeAttributeNameKeepsItsDots() =>
+        DescribeNative("@odata.type").ShouldBe("attr(ord('odata.type'))");
+
+    [Test]
+    public void ANativeNumberSignMarkerIsAContentComponent() =>
+        DescribeNative("#12").ShouldBe("content(12)");
+
+    [Test]
+    public void ANativeQualifiedMarkerIsAQualifiedElement() =>
+        DescribeNative("Q{urn:n}local").ShouldBe("elem(urn:n;'local')");
+
+    [Test]
+    public void ANativeEmptyQualifiedMarkerIsOrdinary() =>
+        DescribeNative("Q{}local").ShouldBe("ord('local')");
+
+    [Test]
+    public void ANativeAttributeMayCarryAQualifiedName() =>
+        DescribeNative("@Q{urn:n}x").ShouldBe("attr(elem(urn:n;'x'))");
+
+    [Test]
+    public void ALeadingBackslashEscapesTheAtMarker() =>
+        DescribeNative("\\@x").ShouldBe("ord('@x')");
+
+    [Test]
+    public void ALeadingBackslashEscapesTheNumberSignMarker() =>
+        DescribeNative("\\#12").ShouldBe("ord('#12')");
+
+    [Test]
+    public void ALeadingBackslashEscapesTheQualifiedMarker() =>
+        DescribeNative("\\Q{urn:n}x").ShouldBe("ord('Q{urn:n}x')");
+
+    [Test]
+    public void ALeadingBackslashEscapesItself() =>
+        DescribeNative("\\\\@x").ShouldBe("ord('\\@x')");
+
+    [Test]
+    public void AnEscapeSuppressesMarkerRecognitionForTheWholePart() =>
+        DescribeNative("\\@a.@b").ShouldBe("ord('@a.@b')");
+
+    [Test]
+    public void ABackslashBeforeAnythingElseIsLiteralAndConsumesNothing() =>
+        DescribeNative("C:\\dir").ShouldBe("ord('C:\\dir')");
+
+    [Test]
+    public void ALeadingBackslashBeforeANonMarkerIsLiteral() =>
+        DescribeNative("\\dir").ShouldBe("ord('\\dir')");
+
+    [Test]
+    public void ANativeWildcardStillTemplates() =>
+        DescribeNative("a*b").ShouldBe("ord('a'<*>'b')");
+
+    [Test]
+    public void ANativeEscapedAsteriskIsLiteral() =>
+        DescribeNative("a\\*b").ShouldBe("ord('a*b')");
+
+    [Test]
+    public void AWildcardSurvivesAMarker() =>
+        DescribeNative("@a*").ShouldBe("attr(ord('a'<*>))");
+
+    // "Marker recognition commits exactly as in Section 8.2."
+
+    [Test]
+    public void ABareAtMarkerIsAFault() =>
+        NativeFault("@").Message.ShouldContain("must be followed by one");
+
+    [Test]
+    public void ANumberSignWithoutDigitsIsAFault() =>
+        NativeFault("#").Message.ShouldContain("decimal ordering value");
+
+    [Test]
+    public void ANumberSignWithNonDigitsIsAFault() =>
+        NativeFault("#1a").Message.ShouldContain("decimal ordering value");
+
+    [Test]
+    public void ALeadingZeroOrderingValueIsAFault() =>
+        NativeFault("#01").Message.ShouldContain("without leading zeros");
+
+    [Test]
+    public void AnUnclosedQualifiedUriIsAFault() =>
+        NativeFault("Q{urn:n").Message.ShouldContain("no closing brace");
+
+    [Test]
+    public void AQualifiedMarkerWithNoLocalNameIsAFault() =>
+        NativeFault("Q{urn:n}").Message.ShouldContain("no empty parts");
+
+    [Test]
+    public void AnEmptyNativeKeyIsAFault() =>
+        NativeFault("").Message.ShouldContain("no empty parts");
+
+    [Test]
+    public void ALoneQIsOrdinaryBecauseItOpensNoUri() =>
+        DescribeNative("Q").ShouldBe("ord('Q')");
+
+    /// <summary>
+    /// Every key this writes must read back as the component it was written from, which is the
+    /// property Section 19.3's escaping rule exists to hold.
+    /// </summary>
+    [Test]
+    public void EveryNativeKeyShapeSurvivesTheWriterAndReaderTogether()
+    {
+        string[] keys =
+        [
+            "@x", "@odata.type", "#7", "Q{urn:n}local", "@Q{urn:n}x",
+            "\\@x", "\\#7", "\\Q{urn:n}local", "\\\\@x", "C:\\dir", "plain", "a.b", "Q",
+        ];
+
+        foreach (var key in keys)
+        {
+            var part = QualifiedNameLexer.LexNativePart(key).Name!.Parts[0];
+
+            QualifiedNameLexer.LexNativePart(NativeKeyText(part)).Name!.Parts[0]
+                .ShouldBe(part, key);
+        }
+    }
+
+    private static string NativeKeyText(NamePart part)
+    {
+        var method = typeof(QualifiedNameLexer).Assembly
+            .GetType("Namespace2Xml.Output.StructuredKey")!
+            .GetMethod("Of")!;
+
+        return (string)method.Invoke(null, [part])!;
+    }
 }

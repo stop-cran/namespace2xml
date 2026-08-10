@@ -1037,7 +1037,7 @@
     },
     {
       "item": 71,
-      "text": "Typed XML component recognition in namespace input, variables, scheme paths, references, and `root`, with literal JSON/YAML marker-shaped keys.",
+      "text": "Typed XML component recognition in namespace input, variables, scheme paths, references, and `root`.",
       "milestone": "m2",
       "status": "required",
       "assertions": [
@@ -1051,7 +1051,7 @@
         "scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias",
         "scheme-an-ambiguous-simple-alias-is-blocking",
         "scheme-an-unmarked-directive-reaches-an-attribute-through-the-simple-alias",
-        "xml-typed-components-recognized-and-json-yaml-marker-keys-stay-literal"
+        "xml-typed-components-recognized-and-an-escaped-json-key-stays-literal"
       ]
     },
     {
@@ -1240,6 +1240,19 @@
         "cli-option-missing-value-rejected",
         "cli-short-option-inline-rejected",
         "cli-unattached-value-rejected"
+      ]
+    },
+    {
+      "item": 87,
+      "text": "Marker-carrying JSON and YAML mapping keys: reading an attribute, content, and qualified-element key, the leading-backslash escape and its suppression of marker recognition, `PARSE001` for a key that begins like a marker without completing it, escaping on output, and an XML → JSON → XML round trip that preserves attributes.",
+      "milestone": "m8",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "a-json-key-carries-xml-markers-through-a-round-trip",
+        "a-json-override-reaches-an-xml-attribute",
+        "a-native-key-marker-commits-once-recognized",
+        "xml-typed-components-recognized-and-an-escaped-json-key-stays-literal"
       ]
     }
   ]

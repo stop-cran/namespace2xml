@@ -1,0 +1,5 @@
+-i
+inputs/bare-at.json
+inputs/bad-ordinal.yaml
+-s
+schemes/scheme.txt

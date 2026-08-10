@@ -20,10 +20,9 @@
   reaching the XML writer as one attribute-name space, that `r.nsattr` (no `@`) is a
   child element sharing the local name with the attribute rather than colliding with it
   under the alias index, that `r.ref` resolves through the alias index to the attribute's
-  scalar `ATTRVAL`, and that on the JSON side `lit.@key` reaches the namespace writer as
-  the escaped literal `\@key` because the JSON reader does not build typed components —
-  are all invisible under this crash. The process aborted before any of the four values
-  reached a writer.
+  scalar `ATTRVAL`, and that on the JSON side the escaped key `\@key` reaches the namespace
+  writer as an ordinary component — are all invisible under this crash. The process aborted
+  before any of the four values reached a writer.
 - Clean behavior: §11.4's marker components govern the XML side. `r.@nsattr` and the CLI
   variable `r.@varattr` are canonical attribute components under `<r>`; §11.4's
   scalarization rule ("an attribute owns its string scalar at its attribute path") makes
@@ -34,12 +33,13 @@
   child element both named `x` make `${a.x}` ambiguous; `${a.@x}` selects the attribute"
   — is what makes this reference unambiguously canonical. `root=Q{}r` is the explicit
   spelling that pins the child-element resolution rather than the alias — the acceptance
-  clause the fixture's title names. On the JSON side, §8.2's rule that "JSON and YAML
-  mapping keys are always one ordinary literal component and never acquire XML node kind
-  from marker-shaped text" makes `lit.@key` a literal name whose namespace-output
-  spelling under §19.1 is `\@key`.
+  clause the fixture's title names. On the JSON side, §9.1's rule that "a backslash at the
+  start of the key escapes a following `@`, `#`, `Q`, or `\`, contributing that character
+  literally and suppressing marker recognition for the whole part" makes the written key
+  `\@key` an ordinary component whose namespace-output spelling under §19.1 is `\@key`
+  again — the escape survives a format crossing in both directions.
 - The difference is intentional: an implementation that crashes on the sequence numeric
-  index cannot be run at all, so no other §11.4 or §8.2 rule is observable against it —
+  index cannot be run at all, so no other §11.4 or §9.1 rule is observable against it —
   including the four independent rules this fixture pins together. Fixing the XML writer
   to emit repeated named elements is necessary before the marker vocabulary this case
   exercises can be evidenced. As with the two neighbouring crashes, §3.2 lists the

@@ -517,28 +517,6 @@ which trades a remote divergence for a common one. Closing this properly means c
 beside the tree and re-addressing it through selector-prefix removal, `root`, `key` and `type`, as
 §17.5 describes. Tracked as [#62](https://github.com/stop-cran/namespace2xml/issues/62).
 
-### 1.14 A JSON or YAML key collision has no diagnostic
-
-§3.3 requires a same-format round trip to preserve "data structure", and §8.2 gives JSON and YAML
-mapping keys as "one ordinary literal component" that never acquires an XML node kind. Two distinct
-overlay components can nevertheless spell the same structured key: an ordinary component whose
-literal text is `@x`, read from JSON, and a typed attribute `x`, read from XML, both project to the
-key `@x`.
-
-The tool emits both members, producing a document with a duplicate key, exit status `0` and no
-diagnostic. Its own reader then rejects that document with `PARSE001`. **verified**
-
-There is no code to raise. §17.4 requires collision detection only of "every flat output", and §22
-states that "`FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions" —
-the closed diagnostic list assigns nothing to the structured formats. Inventing a code here would
-put an unspecified blocking error on a default path, so the gap is recorded rather than filled. It
-is filed as a specification gap in
-[#51](https://github.com/stop-cran/namespace2xml/issues/51); the natural resolutions are to widen
-`FLAT001` to every format whose projection can collide, or to add a structured-format counterpart.
-
-Reaching it needs two input formats disagreeing about the same path, which is why no fixture in the
-corpus produced it.
-
 ### 1.15 A value ending in a blank line is spelled double-quoted, not as a block scalar
 
 §19.4 "uses literal block scalars for multiline values", and a value whose content ends in a blank

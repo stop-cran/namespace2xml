@@ -15,7 +15,38 @@ independently.
 
 ### Contract
 
-- `contract-bundle` `r40+1a91651b823f`.
+- `contract-bundle` `r41+40581a1a2041`.
+- §8.2, §9.1, §10.4, §19.3 and §19.4: **a JSON or YAML mapping key now carries the §11.4 markers**
+  instead of being "one ordinary literal component" that never acquires an XML node kind. `@x` is
+  the attribute `x`, `#0` is a content component, `Q{uri}x` is a qualified element, and a leading
+  backslash escapes `@`, `#`, `Q` or `\` and suppresses marker recognition for the whole key.
+  Marker recognition commits as it does everywhere else, so a bare `"@"` or a `"#01"` is blocking
+  `PARSE001` rather than silently becoming text. §19.3 escapes an ordinary component whose own text
+  begins with a marker, so every key this tool writes reads back as the component it was written
+  from. **Caused by [#51](https://github.com/stop-cran/namespace2xml/issues/51)**, which reported a
+  duplicate-key document; investigating it found the larger defect underneath. The old rule made
+  JSON and YAML the only formats that could not name an attribute, a content node, or a qualified
+  element — so **the tool could not read its own JSON output back into XML** (blocking `XML002`,
+  measured), and an XML attribute was unreachable from a JSON overlay while `.properties` reached
+  it fine. That contradicts §4.4's guarantee that any value can be overridden, and it is the
+  scenario the tool exists for: a large XML base specialized by a short list of environment
+  overrides. 2.4.0 is no better and rather worse here — it wrote `#01=v` into a namespace file,
+  where `#` starts a comment, and reported success.
+  - **Removed**: the §8.2 sentence "JSON and YAML mapping keys are always one ordinary literal
+    component and never acquire XML node kind from marker-shaped text", and the corresponding
+    clauses in §9.1 and §10.4.
+  - **Accepted cost**: a foreign JSON document whose keys are `@odata.type` or `@context` now
+    contributes attributes rather than ordinary members, and `{"@": 1}` is `PARSE001` unless
+    written `{"\\@": 1}`. This is a breaking change for JSON and YAML input, which 3.0 is the
+    release to make.
+  - §19.3 keeps `FLAT001` for a mapping-key collision, now as a backstop rather than the common
+    case: escaping removes the ordinary-versus-attribute collision that #51 reported, and what
+    remains is two components that are genuinely distinct and spell one key regardless. Emitting
+    both would produce a duplicate-key document that §3.3 forbids and that this specification's own
+    reader rejects. `KNOWN-LIMITS.md` §1.14 recorded that gap and is removed.
+  - §26 gains acceptance item 87 and four fixtures, one of which was re-anchored and renamed from
+    `…-json-yaml-marker-keys-stay-literal` to `…-an-escaped-json-key-stays-literal` because the
+    rule it pinned is no longer the rule.
 - §3.2 gains two causes of legacy behavior that is deliberately not preserved, both found by
   measuring 2.4.0 while implementing
   [#70](https://github.com/stop-cran/namespace2xml/issues/70) rather than by reading its source.

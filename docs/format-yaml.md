@@ -138,9 +138,12 @@ no output.
 ## Wildcard templates supplied as YAML
 
 §10.4 defines a normative capability: a YAML mapping whose keys carry wildcard tokens is a
-wildcard template. Each key becomes one literal qualified-name part, so dots and ordinary
-backslashes remain literal. Within that part, unescaped `*` and `*[identifier]` tokens use the
-wildcard-template grammar of §12.1 and §12.2, and `\*` contributes a literal asterisk.
+wildcard template. Each key becomes one qualified-name part under the §9.1 native-key rules, so
+dots and `\u{HEX}` remain literal, a key beginning with an unescaped `@`, `#`, or `Q{` is the
+typed XML component that marker introduces, and a leading backslash escapes one of those and
+suppresses marker recognition. Elsewhere a backslash remains literal. Within that part, unescaped
+`*` and `*[identifier]` tokens use the wildcard-template grammar of §12.1 and §12.2, and `\*`
+contributes a literal asterisk.
 
 The spec's worked example is:
 

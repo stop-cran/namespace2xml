@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r40+1a91651b823f`.** 35 codes.
+**Contract bundle `r41+40581a1a2041`.** 35 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -37,7 +37,7 @@ by preference.
 | `REFERENCE005` | error | once per reachable owning value | Non-scalar reference target | `source`, `line`, `column`, `path` |
 | `TYPE001` | error | once per path and applicable source/output instance | Invalid shape, input merge conflict, root removal, or transformation target | `source`, `line`, `column`, `path`, `declaration`, `destination` |
 | `TYPE002` | warning | once per path and output instance | Shape conflict resolved by precedence | `source`, `path`, `destination` |
-| `FLAT001` | error | once per projected key and output instance | Distinct logical paths collide after flat-format projection or normalization | `path`, `destination` |
+| `FLAT001` | error | once per projected key and output instance | Distinct logical paths collide after output projection or normalization | `path`, `destination` |
 | `SHELL001` | error | once per projected key and output instance | Invalid quoted-namespace shell identifier | `path`, `destination` |
 | `XML001` | error | once per failing document | DTD, external entity/resource, or prohibited XML feature | `source`, `line`, `column` |
 | `XML002` | error | once per failing node or document | Invalid XML name, namespace, declaration, or canonical address | `source`, `line`, `column`, `path` |
@@ -147,7 +147,7 @@ Each code below lists the situations the specification maps to it (Appendix B).
 
 - Exclusive-shape projection omits a scalar or container contribution
 
-### `FLAT001` — Distinct logical paths collide after flat-format projection or normalization
+### `FLAT001` — Distinct logical paths collide after output projection or normalization
 
 *error, once per projected key and output instance.*
 

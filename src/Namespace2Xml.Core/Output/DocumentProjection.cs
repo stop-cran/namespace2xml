@@ -122,6 +122,8 @@ public sealed class DocumentProjection
 
         if (marks.RendersAsMapping)
         {
+            var claimed = new Dictionary<string, ImmutableArray<NamePart>>(StringComparer.Ordinal);
+
             foreach (var (name, child) in node.OrderedChildren)
             {
                 if (CommentNodes.Vanishes(child))
@@ -130,14 +132,55 @@ public sealed class DocumentProjection
                     continue;
                 }
 
-                members.Add(new DocumentMember(
-                    StructuredKey.Of(name),
-                    Visit(child, path.Add(name))));
+                var key = StructuredKey.Of(name);
+                var here = path.Add(name);
+
+                if (claimed.TryGetValue(key, out var first))
+                {
+                    ReportCollision(here, first, path, key);
+                    continue;
+                }
+
+                claimed.Add(key, here);
+
+                members.Add(new DocumentMember(key, Visit(child, here)));
             }
         }
 
         return new DocumentMapping(members.ToImmutable(), comments);
     }
+
+    /// <summary>
+    /// Reports two distinct logical paths spelling one mapping key, which Section 19.3 forbids.
+    /// </summary>
+    /// <param name="here">The path of the losing child.</param>
+    /// <param name="first">The path of the child that claimed the key.</param>
+    /// <param name="parent">The path of the mapping both are members of.</param>
+    /// <param name="key">The key text both spell.</param>
+    /// <remarks>
+    /// The cardinality slot carries the parent mapping's path as well as the key, because the same
+    /// key text in two different mappings is two collisions and not one. Naming only the key would
+    /// let the second be dropped as a duplicate of the first, which is the reverse of the failure
+    /// this diagnostic exists to prevent.
+    /// </remarks>
+    private void ReportCollision(
+        ImmutableArray<NamePart> here,
+        ImmutableArray<NamePart> first,
+        ImmutableArray<NamePart> parent,
+        string key) =>
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Flat001(
+                DiagnosticPhase.Planning,
+                anchor,
+                $"'{FlatIdentity.PathText(here)}' and '{FlatIdentity.PathText(first)}' are distinct "
+                + $"logical paths that both spell the mapping key '{key}': Section 19.3 forbids two "
+                + "paths silently becoming one key.",
+                cardinalityKey: FlatIdentity.Key(
+                    destination?.Canonical,
+                    $"{FlatIdentity.PathText(parent)}\u0000{key}"),
+                path: FlatIdentity.PathText(here),
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
 
     private void Report(NodeMarks marks, ImmutableArray<NamePart> path)
     {

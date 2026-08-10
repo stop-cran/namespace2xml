@@ -67,26 +67,171 @@ public static class QualifiedNameLexer
     /// <param name="text">The key, as the native parser decoded it.</param>
     /// <remarks>
     /// <para>
-    /// Section 9.1: "Each object-property name becomes one literal qualified-name part. Dots and
-    /// backslashes in the native property name remain literal characters." So none of Appendix A.2
-    /// applies here: <c>.</c> does not separate, <c>@</c>, <c>#</c>, and <c>Q{</c> are ordinary
-    /// text, and <c>\u{...}</c> is not an escape. A key is not a written qualified name; it is one
-    /// part's worth of text that the tool never asked its author to escape.
+    /// Section 9.1: a key "becomes one qualified-name part", so <c>.</c> does not separate and
+    /// <c>\u{...}</c> is not an escape — a key is one part's worth of text rather than a written
+    /// qualified name. Within that part the Section 11.4 markers apply: a key beginning with an
+    /// unescaped <c>@</c>, <c>#</c>, or <c>Q{</c> is the typed component that marker introduces, so
+    /// an attribute this tool writes reads back as the same attribute.
     /// </para>
     /// <para>
-    /// The two exceptions are the ones Section 9.1 names: an unescaped <c>*</c> or
-    /// <c>*[identifier]</c> is still a wildcard token "for compatibility", and <c>\*</c> suppresses
-    /// that. Every other backslash emits itself and consumes nothing after it, which is the
-    /// Appendix A.5 rule for text a native parser has already decoded.
+    /// A leading backslash escapes a following <c>@</c>, <c>#</c>, <c>Q</c>, or <c>\</c> and
+    /// suppresses marker recognition for the whole part, which is what makes a literal
+    /// marker-shaped key expressible. Everywhere else a backslash emits itself and consumes
+    /// nothing, the Appendix A.5 rule for text a native parser has already decoded, so a key such
+    /// as <c>C:\dir</c> needs no escaping. The one older exception stands: an unescaped <c>*</c> or
+    /// <c>*[identifier]</c> is a wildcard token "for compatibility", and <c>\*</c> suppresses it.
     /// </para>
     /// </remarks>
     public static QualifiedNameResult LexNativePart(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
 
+        if (text.Length == 0)
+        {
+            return new QualifiedNameResult(new NameFault(
+                "a qualified name has no empty parts, so a native key contributes no name.",
+                0));
+        }
+
+        if (text[0] == '\\' && text.Length > 1 && text[1] is '@' or '#' or 'Q' or '\\')
+        {
+            return LexNativeOrdinary(text, 2, text[1].ToString());
+        }
+
+        return text[0] switch
+        {
+            '@' => LexNativeAttribute(text),
+            '#' => LexNativeContent(text),
+            'Q' when text.Length > 1 && text[1] == '{' => LexNativeQualified(text),
+            _ => LexNativeOrdinary(text, 0, string.Empty),
+        };
+    }
+
+    /// <summary>Lexes <c>@</c> followed by a native XML name component.</summary>
+    private static QualifiedNameResult LexNativeAttribute(string text)
+    {
+        if (text.Length == 1)
+        {
+            return new QualifiedNameResult(new NameFault(
+                "an attribute marker introduces a name, so '@' must be followed by one; write "
+                + "'\\@' for an ordinary key beginning with an at sign.",
+                0));
+        }
+
+        var inner = text[1] == 'Q' && text.Length > 2 && text[2] == '{'
+            ? LexNativeQualified(text[1..])
+            : LexNativeOrdinary(text[1..], 0, string.Empty);
+
+        return inner.Name is null
+            ? inner
+            : new QualifiedNameResult(new QualifiedName(
+                [new AttributePart((XmlNameComponent)inner.Name.Parts[0])]));
+    }
+
+    /// <summary>Lexes <c>#</c> followed by a canonical decimal ordering value.</summary>
+    private static QualifiedNameResult LexNativeContent(string text)
+    {
+        var digits = text[1..];
+
+        // Section 8.2 commits once '#' is recognized, so each of these is an error rather than an
+        // ordinary key whose text happens to begin with a number sign.
+        if (digits.Length == 0 || !digits.All(char.IsAsciiDigit))
+        {
+            return new QualifiedNameResult(new NameFault(
+                "a content-token key is '#' followed by a decimal ordering value; write '\\#' for "
+                + "an ordinary key beginning with a number sign.",
+                0));
+        }
+
+        if (digits.Length > 1 && digits[0] == '0')
+        {
+            return new QualifiedNameResult(new NameFault(
+                "a content-token ordering value is written without leading zeros, so '#"
+                + digits + "' is not one.",
+                1));
+        }
+
+        if (!long.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var ordinal))
+        {
+            return new QualifiedNameResult(new NameFault(
+                "this content-token ordering value exceeds 9223372036854775807, the Section 5.4 "
+                + "maximum, so no document can assign it.",
+                1));
+        }
+
+        return new QualifiedNameResult(new QualifiedName([new ContentPart(ordinal)]));
+    }
+
+    /// <summary>Lexes <c>Q{</c> URI <c>}</c> followed by a native local name.</summary>
+    private static QualifiedNameResult LexNativeQualified(string text)
+    {
+        var uri = new StringBuilder();
+        var cursor = 2;
+
+        while (true)
+        {
+            if (cursor >= text.Length)
+            {
+                return new QualifiedNameResult(new NameFault(
+                    "this 'Q{' URI has no closing brace; write '\\Q' for an ordinary key beginning "
+                    + "with a Q.",
+                    0));
+            }
+
+            var c = text[cursor];
+
+            if (c == '}')
+            {
+                cursor++;
+                break;
+            }
+
+            if (c == '\\')
+            {
+                // Section 11.4: inside the URI only these two escapes exist, and any other
+                // backslash sequence is a blocking parse error.
+                var next = cursor + 1 < text.Length ? text[cursor + 1] : '\0';
+                if (next is not ('}' or '\\'))
+                {
+                    return new QualifiedNameResult(new NameFault(
+                        "inside 'Q{...}' the only escapes are '\\}' and '\\\\'.",
+                        cursor));
+                }
+
+                uri.Append(next);
+                cursor += 2;
+                continue;
+            }
+
+            uri.Append(c);
+            cursor++;
+        }
+
+        var local = LexNativeOrdinary(text, cursor, string.Empty);
+
+        if (local.Name is null)
+        {
+            return local;
+        }
+
+        var tokens = ((OrdinaryPart)local.Name.Parts[0]).Tokens;
+
+        return new QualifiedNameResult(new QualifiedName([
+            uri.Length == 0
+                ? new OrdinaryPart(tokens) { IsExplicitlyCanonical = true }
+                : new QualifiedElementPart(uri.ToString(), tokens)]));
+    }
+
+    /// <summary>
+    /// Lexes the ordinary tail of a native key, wildcard tokens included.
+    /// </summary>
+    /// <param name="text">The whole key.</param>
+    /// <param name="index">Where the ordinary text starts.</param>
+    /// <param name="prefix">Literal text an escape already contributed, before <paramref name="index"/>.</param>
+    private static QualifiedNameResult LexNativeOrdinary(string text, int index, string prefix)
+    {
         var tokens = ImmutableArray.CreateBuilder<NameToken>();
-        var literal = new StringBuilder();
-        var index = 0;
+        var literal = new StringBuilder(prefix);
 
         void FlushLiteral()
         {

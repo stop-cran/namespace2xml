@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r40+1a91651b823f`.**
+**Contract bundle `r41+40581a1a2041`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (111)
+## Observable differences (112)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -178,6 +178,34 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: silently substituting a different destination for the one the
   scheme asked for is the failure mode this tool is least able to tolerate, because the output
   looks correct and lands in the wrong place.
+
+### `a-native-key-marker-commits-once-recognized`
+
+- namespace2xml 2.4.0: **differs**. It exits 0 and writes `a.properties` containing the two
+  records `@=v` and `#01=v`. The case expects exit 1 and two `PARSE001` diagnostics, one per
+  offending key.
+- Contract: Section 9.1 and Section 10.4 marker recognition in native keys, which "commits
+  exactly as in Section 8.2: a key that begins like a marker without completing the
+  production is `PARSE001`". §3.2 correction against behaviour that produces output no
+  reader can consume.
+- Legacy observation: 2.4.0 treated every native key as opaque literal text, so `@` and
+  `#01` passed through untouched, and its namespace writer applied no escaping on the way
+  out. The result is worse than a wrong value. `#01=v` is a **comment** to the namespace
+  reader, so feeding `a.properties` back to 2.4.0 silently discards that entry, and `@=v`
+  is a record whose name is a bare marker. The tool produced a file it cannot read back,
+  with no diagnostic, and reported success.
+- Clean behavior: §9.1 gives a key beginning with an unescaped `@`, `#`, or `Q{` the typed
+  component that marker introduces, and commits to that reading. `@` alone completes no
+  attribute production, because an attribute marker introduces a name; `#01` completes no
+  content production, because a content ordering value "is written without leading zeros".
+  Neither can be silently demoted to ordinary text — that is exactly the demotion that
+  produced 2.4.0's unreadable file — so each is blocking `PARSE001` naming the escape that
+  expresses the literal intent, `\@` and `\#`.
+- The difference is intentional: the escape hatch exists and is one character, so refusing
+  the ambiguous spelling costs an author nothing and buys the guarantee that a key which
+  parses means what it says. The neighbouring
+  `xml-typed-components-recognized-and-an-escaped-json-key-stays-literal` case pins the
+  accepting side of the same rule.
 
 ### `a-native-template-value-substitutes-its-own-capture`
 
@@ -2379,10 +2407,68 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs that crashed 2.4.0 (15)
+## Inputs that crashed 2.4.0 (17)
 
 The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
 reports a diagnostic and exits deliberately.
+
+### `a-json-key-carries-xml-markers-through-a-round-trip`
+
+- namespace2xml 2.4.0: **crashes**. `System.Xml.XmlException: Name cannot begin with the '@'
+  character, hexadecimal value 0x40.` from
+  `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle`, exit `-532462766` on Windows and
+  134 on Linux. A zero-length `a.xml` is left behind and `c.json` is never written. The case
+  expects exit 0, `a.xml` containing `<a x="1"><b>t</b></a>`, and `c.json` containing the
+  members `"@y"` and `"d"`.
+- Contract: Section 9.1 marker-carrying native keys (a JSON key beginning with an unescaped
+  `@` is the attribute component that marker introduces) and Section 19.3 mapping-key
+  spelling (an attribute component is written back as `@y`). §3.2 correction against
+  behaviour "caused by unhandled user-input exceptions".
+- Legacy observation: 2.4.0 has one name model with no typed components, so the JSON key
+  `@x` became an ordinary path part named `@x`. The XML writer then asked
+  `System.Xml.Linq.XName` for an element called `@x` and `XmlConvert.VerifyNCName` threw,
+  because `@` is not a valid NCName start character. The crash is unconditional: there is no
+  input under which 2.4.0 turns a JSON key into an XML attribute, so the round trip this
+  case pins is not merely wrong there — it is unreachable. The same run also never reaches
+  the `c.json` destination, so 2.4.0's spelling of an attribute on the JSON side is
+  unobservable here too.
+- Clean behavior: §9.1 gives a native key "the Section 11.4 markers", so `@x` from
+  `read.json` is the attribute component `x` under `a` and reaches the XML writer as an
+  attribute rather than as an element name. §19.3 is the mirror: the attribute component
+  `y` contributed by `write.properties` as `c.@y` is written to `c.json` as the key `@y`.
+  The two halves are one rule read in each direction, which is what makes a document this
+  tool writes readable by it.
+- The difference is intentional: 2.4.0's JSON reader could not express an XML attribute at
+  all, so its JSON output was a lossy projection that its own XML writer rejected. Section
+  9.1 closes that by giving the reader the same vocabulary the writer already used.
+
+### `a-json-override-reaches-an-xml-attribute`
+
+- namespace2xml 2.4.0: **crashes**. `System.Xml.XmlException: Name cannot begin with the '@'
+  character, hexadecimal value 0x40.` from
+  `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle`, exit `-532462766` on Windows and
+  134 on Linux, leaving a zero-length `a.xml`. The case expects exit 0 and `a.xml` containing
+  `<a port="80" domain="example-dev.com"><b>keep</b></a>`.
+- Contract: Section 9.1 marker-carrying native keys, Section 4.4 ordered override, and
+  Section 5.2 mapping order after override ("Overriding a mapping key moves that exact key
+  … to the winning contribution's position mark"). §3.2 correction against behaviour
+  "caused by unhandled user-input exceptions".
+- Legacy observation: 2.4.0 read `<a domain="…" port="…">` into paths `a.domain` and
+  `a.port`, and read the JSON key `@domain` into a third, unrelated path `a.@domain`. The
+  override therefore did not happen at all — the two never met — and the extra path went to
+  the XML writer as an element name, where `XmlConvert.VerifyNCName` threw. Both halves of
+  this case are invisible under that crash: neither the override nor the reordering it
+  causes is observable, and no output file survives to inspect.
+- Clean behavior: §9.1 makes the JSON key `@domain` the same attribute component the XML
+  parser produced, so the two contributions address one logical path and §4.4's ordered
+  override selects the later one. §5.2 then moves that key to the winning contribution's
+  position mark, which is why `port` precedes `domain` in the output even though the base
+  document declared `domain` first — the override does not edit in place, it re-places. This
+  is the scenario the format exists for: a large XML base specialized by a short list of
+  environment overrides written in whatever format is convenient.
+- The difference is intentional: an attribute that no other format can name is an attribute
+  that cannot be overridden, and §4.4's guarantee is that any value can be. Reaching an XML
+  attribute from JSON is the point, not an incidental consequence.
 
 ### `an-existing-non-directory-output-root-is-rejected`
 
@@ -2755,7 +2841,7 @@ reports a diagnostic and exits deliberately.
   the run in the honest way §3.2 requires: with a diagnostic carrying a code, a phase,
   and a specification anchor rather than with a process termination.
 
-### `xml-typed-components-recognized-and-json-yaml-marker-keys-stay-literal`
+### `xml-typed-components-recognized-and-an-escaped-json-key-stays-literal`
 
 - namespace2xml 2.4.0: **crashes**. It terminates with the same `System.Xml.XmlException:
   Name cannot begin with the '0' character, hexadecimal value 0x30.` from
@@ -2777,10 +2863,9 @@ reports a diagnostic and exits deliberately.
   reaching the XML writer as one attribute-name space, that `r.nsattr` (no `@`) is a
   child element sharing the local name with the attribute rather than colliding with it
   under the alias index, that `r.ref` resolves through the alias index to the attribute's
-  scalar `ATTRVAL`, and that on the JSON side `lit.@key` reaches the namespace writer as
-  the escaped literal `\@key` because the JSON reader does not build typed components —
-  are all invisible under this crash. The process aborted before any of the four values
-  reached a writer.
+  scalar `ATTRVAL`, and that on the JSON side the escaped key `\@key` reaches the namespace
+  writer as an ordinary component — are all invisible under this crash. The process aborted
+  before any of the four values reached a writer.
 - Clean behavior: §11.4's marker components govern the XML side. `r.@nsattr` and the CLI
   variable `r.@varattr` are canonical attribute components under `<r>`; §11.4's
   scalarization rule ("an attribute owns its string scalar at its attribute path") makes
@@ -2791,12 +2876,13 @@ reports a diagnostic and exits deliberately.
   child element both named `x` make `${a.x}` ambiguous; `${a.@x}` selects the attribute"
   — is what makes this reference unambiguously canonical. `root=Q{}r` is the explicit
   spelling that pins the child-element resolution rather than the alias — the acceptance
-  clause the fixture's title names. On the JSON side, §8.2's rule that "JSON and YAML
-  mapping keys are always one ordinary literal component and never acquire XML node kind
-  from marker-shaped text" makes `lit.@key` a literal name whose namespace-output
-  spelling under §19.1 is `\@key`.
+  clause the fixture's title names. On the JSON side, §9.1's rule that "a backslash at the
+  start of the key escapes a following `@`, `#`, `Q`, or `\`, contributing that character
+  literally and suppressing marker recognition for the whole part" makes the written key
+  `\@key` an ordinary component whose namespace-output spelling under §19.1 is `\@key`
+  again — the escape survives a format crossing in both directions.
 - The difference is intentional: an implementation that crashes on the sequence numeric
-  index cannot be run at all, so no other §11.4 or §8.2 rule is observable against it —
+  index cannot be run at all, so no other §11.4 or §9.1 rule is observable against it —
   including the four independent rules this fixture pins together. Fixing the XML writer
   to emit repeated named elements is necessary before the marker vocabulary this case
   exercises can be evidenced. As with the two neighbouring crashes, §3.2 lists the

@@ -1,0 +1,5 @@
+-i
+inputs/read.json
+inputs/write.properties
+-s
+schemes/scheme.txt

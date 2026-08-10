@@ -589,12 +589,12 @@ public sealed class XmlProjection
     /// The expanded name of one component, or false when it has no XML name spelling.
     /// </summary>
     /// <remarks>
-    /// A JSON or YAML key is "one ordinary literal component" under Section 8.2 and acquires no XML
-    /// node kind, so its text is whatever the source document wrote — including text that is not an
-    /// NCName. Section 11.2 admits only names XML admits, so such a key has no element or attribute
-    /// spelling and Section 22's <c>XML002</c> says exactly that. Deciding it by construction
-    /// rather than by catching the writer's exception keeps Section 6.3's rule that a user-caused
-    /// error never escapes as an unhandled exception.
+    /// A native mapping key carries the Section 11.4 markers under Section 9.1, but its ordinary
+    /// text is still whatever the source document wrote — including text that is not an NCName,
+    /// which no marker can rescue. Section 11.2 admits only names XML admits, so such a key has no
+    /// element or attribute spelling and Section 22's <c>XML002</c> says exactly that. Deciding it
+    /// by construction rather than by catching the writer's exception keeps Section 6.3's rule that
+    /// a user-caused error never escapes as an unhandled exception.
     /// </remarks>
     private static bool TryName(NamePart part, out XName? name)
     {
@@ -647,8 +647,8 @@ public sealed class XmlProjection
                 DiagnosticPhase.Planning,
                 "\u00A711.2",
                 $"'{StructuredKey.Of(part)}' is not usable as an XML {role} name: Section 11.2 "
-                + "admits the names XML admits, and a JSON or YAML key is an ordinary literal "
-                + "component that need not be one.",
+                + "admits the names XML admits, and a name component carrying arbitrary text — a "
+                + "JSON or YAML key, say — need not be one.",
                 cardinalityKey: FlatIdentity.Key(destination?.Canonical, text),
                 path: text),
             DestinationOrder: destination?.Order));

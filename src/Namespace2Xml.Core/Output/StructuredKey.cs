@@ -13,7 +13,9 @@ namespace Namespace2Xml.Output;
 /// path and needs none of the Section 19.1 escaping: a component holding a dot is one key whose
 /// text contains a dot, and writing it <c>a\.b</c> would name a key nobody addressed. The typed XML
 /// components keep their Section 11.4 markers, which is the only spelling that distinguishes an
-/// attribute <c>@x</c> from the element <c>x</c> once both are ordinary mapping keys.
+/// attribute <c>@x</c> from the element <c>x</c> once both are ordinary mapping keys. Section 9.1
+/// reads those markers back, so an ordinary component whose own text begins with one is escaped
+/// here — otherwise the key this writes would not name the component it was written from.
 /// </remarks>
 internal static class StructuredKey
 {
@@ -25,7 +27,33 @@ internal static class StructuredKey
 
         Append(part, builder);
 
-        return builder.ToString();
+        return Escaped(builder.ToString(), part);
+    }
+
+    /// <summary>
+    /// Escapes a leading marker that Section 9.1 would otherwise read back as a typed component.
+    /// </summary>
+    /// <param name="key">The spelled key.</param>
+    /// <param name="part">The component it was spelled from.</param>
+    /// <remarks>
+    /// Only an ordinary component needs this: the marked components spell their own marker and are
+    /// meant to be read back as themselves. A leading backslash is escaped as well, because
+    /// Section 9.1 gives a leading <c>\</c> before one of these characters its escaping meaning,
+    /// and a key beginning <c>\@</c> would otherwise read back one character shorter.
+    /// </remarks>
+    private static string Escaped(string key, NamePart part)
+    {
+        if (part is not OrdinaryPart)
+        {
+            return key;
+        }
+
+        var marked = key.StartsWith('@')
+            || key.StartsWith('#')
+            || key.StartsWith('\\')
+            || key.StartsWith("Q{", StringComparison.Ordinal);
+
+        return marked ? "\\" + key : key;
     }
 
     private static void Append(NamePart part, StringBuilder builder)

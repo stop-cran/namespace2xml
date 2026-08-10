@@ -75,7 +75,7 @@ public static partial class DiagnosticCodes
             ["source", "path", "destination"]),
         new DiagnosticCodeInfo("FLAT001", DiagnosticSeverity.Error,
             "once per projected key and output instance",
-            "Distinct logical paths collide after flat-format projection or normalization",
+            "Distinct logical paths collide after output projection or normalization",
             ["path", "destination"]),
         new DiagnosticCodeInfo("SHELL001", DiagnosticSeverity.Error,
             "once per projected key and output instance",
@@ -451,7 +451,7 @@ public static partial class DiagnosticCodes
         Create("TYPE002", DiagnosticSeverity.Warning, phase, spec, message,
             cardinalityKey, source: source, path: path, destination: destination);
 
-    /// <summary><c>FLAT001</c> (error) — Distinct logical paths collide after flat-format projection or normalization.</summary>
+    /// <summary><c>FLAT001</c> (error) — Distinct logical paths collide after output projection or normalization.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
