@@ -293,8 +293,45 @@ independently.
   `cfg.e.@a=1` with an unhandled `XmlException`, after opening the destination, leaving a zero-byte
   file behind.
 
+- `tools/check-known-limits-issues.ps1` makes `KNOWN-LIMITS.md`'s own stated invariant — "every entry
+  that owes a resolution names the issue that owns it" — checkable, and runs in the `lint` job. A
+  plain `[#59](…)` link must name an **open** issue; a `[#58 (closed)](…)` link must name a
+  **closed** one. The check is bidirectional, so it catches an entry that outlived its defect *and* a
+  `(closed)` annotation applied too early, and a reader can now see which citations are live work
+  without following any of them. Proven red before it was trusted: it found **eight** stale links
+  where reading the file by hand had found six.
+- `conformance/xml-a-comment-among-element-only-children-is-addressable` pins §11.4's assignment of
+  content tokens by "every parent, including element-only parents" together with §17.4's rule that
+  comments alone do not make a parent mixed-content. No fixture covered that combination — the one
+  added for #60 uses mixed content, where element children are addressed positionally anyway, so it
+  could not distinguish the two rules. Its differential verdict is measured: 2.4.0 **differs**,
+  writing `<r b="" d="" />` and ignoring the directive entirely.
+
 ### Fixed
 
+- **A capture in an `output` value terminated the process with an unhandled
+  `NullReferenceException`** and exit `-532462766`, which §6.3 forbids without qualification. Every
+  other instance-scoped directive takes its captures from the §14.1 expansion at pipeline step 13,
+  but `output` is what *creates* the instances that expansion binds to, so its value was read with
+  nothing bound and a null dereference followed. It now reaches the same documented refusal as
+  `type`, and the contract question both raise is
+  [#74](https://github.com/stop-cran/namespace2xml/issues/74). Found by re-testing a
+  `KNOWN-LIMITS.md` claim that carried a **verified** marker and asserted the opposite; the marker
+  recorded that someone had once looked, not that the claim was still true.
+- The refusal message for a capture in a directive value said this build "substitutes captures into
+  `filename` alone". It substitutes into `root`, `delimiter`, `filemerge`, the four output-option
+  directives and `key` as well, and the message now names them. An author reading the old text
+  would have concluded six working capabilities were missing.
+- `KNOWN-LIMITS.md` §1.3 contradicted itself about XML comments among element-only children,
+  claiming in one paragraph that such a comment "has no address at all" and cannot be reached by
+  `type=ignore`. Both halves are false and were measured to be: the comment takes a content token
+  whose index counts its element siblings, `a.#1.type=ignore` removes it, and `${a.#1}` returns
+  `REFERENCE005` — proving the address exists. It is the *element* children that have no positional
+  address there. Pinned by the fixture added above so the file cannot drift back.
+- `conformance/xml-canonical-addresses/legacy.md` understated the 2.4.0 defect it records. Measured
+  across nine shapes, 2.4.0 discards **all** XML element text content on import, unconditionally and
+  silently at exit `0` — `<r><b>1</b></r>` yields `b=` and `<r>hello</r>` yields `=`. Attributes
+  survive. The note had said text was dropped only when attributes or children were also present.
 - Two conformance cases carried a **fabricated** legacy observation, and both were published in the
   generated `docs/migration-2.x-to-3.0.md`: `json-and-yaml-render-one-exclusive-shape` said "JSON
   and YAML output did not exist" in 2.4.0, and `json-output-options-and-escaping` said "there was no

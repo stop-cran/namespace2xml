@@ -318,6 +318,19 @@ jobs:
           fi
           echo "every path under conformance, spec, tools and spikes is committable"
 
+      - name: KNOWN-LIMITS.md must not cite closed issues as live work
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # KNOWN-LIMITS.md records what is *not* verified, so nothing else in this workflow
+          # re-checks its claims. Section 1.9 of that file was published in 3.0.0-preview.2
+          # asserting a defect that had already been fixed, and a reader who acted on it was
+          # misled. An entry stops being true at about the moment its issue is closed, so the
+          # tracker is a cheap standing check on prose no test can reach.
+          pwsh -NoProfile -File tools/check-known-limits-issues.ps1 -RequireGh
+
       - name: Conformance fixtures must carry no CR bytes
         shell: bash
         run: |

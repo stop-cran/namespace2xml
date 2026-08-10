@@ -862,7 +862,8 @@ public static class PlanningPhase
                     "a wildcard capture substituted into a directive value",
                     $"'{entry.Declaration}' in {entry.Source} has a selector defining a capture and "
                     + "a '*' in its value, which Section 12.1 makes a capture substitution. This "
-                    + $"build substitutes captures into 'filename' alone. The {entry.Directive} "
+                    + "build substitutes captures into 'filename', 'root', 'delimiter', "
+                    + $"'filemerge', the output-option directives and 'key'. The {entry.Directive} "
                     + "directive itself is implemented, and the same declaration with no '*' in its "
                     + "value runs.",
                     "\u00A712.1"));

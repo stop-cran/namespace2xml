@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (113)
+## Observable differences (114)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1935,6 +1935,37 @@ implemented, its case says so plainly rather than letting the heading imply othe
   rather than from the file. The remedy is the canonical spelling, pinned by
   `xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address`.
 
+### `xml-a-comment-among-element-only-children-is-addressable`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.5 comment retention as ordered comment nodes; Section 17.4's rule that
+  comments alone do not make a parent mixed-content; Section 11.4's assignment of content-token
+  ordering values by every parent "including element-only parents"; Section 16.6 `ignore`;
+  Section 26 item 16.
+- Legacy observation: the baseline exits `0` and writes `r.xml` as the single element
+  `<r b="" d="" />` after the XML declaration, with no trailing newline. It writes the same bytes
+  with the `r.#1.type=ignore` directive removed, so the directive changes nothing for it.
+- Clean behavior: `<r>` holds two element children and a comment. Section 17.4 keeps it
+  element-only, so `b` and `d` keep element-name addressing; Section 11.4 still assigns content
+  tokens across that parent, so the comment sits at `r.#1` between them. `r.#1.type=ignore` selects
+  it and Section 16.6 removes it from this output instance, leaving `<b>` and `<d>` in place.
+- Why the difference is intentional: two separate corrections meet here.
+
+  The first is that the baseline **discards element text content on XML import unconditionally**.
+  Measured on the same baseline: `<cfg><app><name>svc</name></app></cfg>` reads as `app.name=` with
+  an empty value, and `<r>hello</r>` as `=`, while attributes survive — `<cfg><b x="1"/></cfg>`
+  reads as `b.x=1`. This is broader than the condition the divergence list records for it, which
+  names the case where attributes or children are also present; a leaf element with neither loses
+  its text just the same. So the baseline's model here is `r.b=` and `r.d=` with no values, and its
+  XML writer emits two valueless names as empty attributes on one element. Section 11.2 and
+  Section 11.4 make text a first-class addressable component, which is why `<b>1</b>` survives.
+
+  The second is the comment. The baseline discarded comments at read time, so there was nothing at
+  `r.#1` for a directive to select and nothing to remove; Section 11.5 retains the comment, which
+  is what makes the address exist and the `ignore` meaningful.
+
+  Both differences are therefore additive: this build carries components the baseline dropped.
+
 ### `xml-a-reference-does-not-import-a-spelling`
 
 - namespace2xml 2.4.0: **differs**.
@@ -1966,10 +1997,14 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - namespace2xml 2.4.0: **differs**.
 - Contract: Sections 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 5.2, 5.4, and 19.1.
 - Legacy observation: XML input carried no address for an attribute, no address for a namespace URI,
-  and no address for a text run in mixed content. An element and its attributes collapsed into one
-  name, so `<b x="1">two</b>` could not express both `two` and `x`; two children with the same name
-  overwrote one another rather than becoming an ordered pair; and a prefix was kept as written, so
-  the same element read under two prefix spellings produced two different names for one identity.
+  and no address for a text run in mixed content. Element text was discarded outright — measured on
+  the baseline, `<cfg><app><name>svc</name></app></cfg>` reads as `app.name=` with an empty value
+  even though that leaf has neither attributes nor children, while `<cfg><b x="1"/></cfg>` reads as
+  `b.x=1`, so attributes survived and text did not. An element and its attributes therefore
+  collapsed into one name, and `<b x="1">two</b>` could express neither `two` nor both together;
+  two children with the same name overwrote one another rather than becoming an ordered pair; and a
+  prefix was kept as written, so the same element read under two prefix spellings produced two
+  different names for one identity.
 - Clean behavior: Section 11.4 gives every XML component one canonical address. An attribute is
   `@name`; a name in a namespace is `Q{uri}local`, resolved from the URI rather than the prefix, so
   `p:rev` addresses as `@Q{urn:p}rev` and the reserved `xml` prefix addresses through its fixed

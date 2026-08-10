@@ -1,6 +1,11 @@
 # Known limits
 
-**As of `3.0.0-preview.2`, contract bundle `r37+2d644be6926e`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r41+40581a1a2041`. Dated 2026-08.**
+
+The published `3.0.0-preview.2` binary carries bundle `r37+2d644be6926e` and is **behind this file**.
+Where an entry is marked *(resolved)* the fix is on the branch and not in that binary, so a reader
+running the published preview still has the limit. Compare the `contract-bundle` line of
+`--version` against the revision above before concluding an entry does or does not apply to you.
 
 This file exists because a project that claims completeness cannot receive feedback: every gap reads
 as user error, and the reporter concludes they are holding it wrong. During the preview this list is
@@ -10,10 +15,17 @@ If something you need is here, **say so** — an entry on this list is a stateme
 not a refusal. Adding your case to the relevant thread is what moves it.
 
 Every entry that owes a resolution **names the issue that owns it**, so that this file is a map of
-current behaviour and the tracker is where the work is argued. Two kinds of entry name no issue and
-that is not an oversight: one documenting a choice the specification explicitly permits (§1.5), and
-one stating the boundary of what a piece of evidence proves (§4.1). Anything with no user-visible
-symptom — a corpus gap, an internal to-do — is not written here at all; it lives only as an issue.
+current behaviour and the tracker is where the work is argued. A link written plainly, as `[#59]`,
+is live work; a link written `[#58 (closed)]` is history, cited by an entry that no longer owes
+anything. `tools/check-known-limits-issues.ps1` asserts both directions against the tracker on every
+CI run, so an entry cannot quietly outlive the issue that owned it — which is exactly how §1.9 came
+to be published as a limit months after it was fixed.
+
+Three kinds of entry name no live issue and that is not an oversight: one documenting a choice the
+specification explicitly permits (§1.5), one stating the boundary of what a piece of evidence proves
+(§4.1), and one recording a boundary that is already decided and fixture-pinned, where the argument
+is the value and there is nothing left to track (§1.10). Anything with no user-visible symptom — a
+corpus gap, an internal to-do — is not written here at all; it lives only as an issue.
 
 ---
 
@@ -50,10 +62,10 @@ audit is now the way this table is maintained.
 | Rendering: namespace, quoted namespace, INI | Implemented | §19.1–§19.2, §19.6 |
 | Rendering: JSON, YAML | Implemented | §19.3–§19.4 |
 | Publication and the validation gate | Implemented | §21 |
-| References and value wildcards | Implemented in input values, except the `REFERENCE005` case in §1.9 | §13 |
+| References and value wildcards | Implemented | §13 |
 | Templates and masks | Implemented for namespace input | §8.6, §12 |
 | Wildcard output selectors | Implemented | §14 |
-| Path-scoped view transformations: `type`, `key`, `substitute` | Implemented, with the gaps in §1.10–§1.12 | §16.5–§16.7 |
+| Path-scoped view transformations: `type`, `key`, `substitute` | Implemented, with the gaps in §1.11–§1.12 | §16.5–§16.7 |
 | Ordered sequences from numeric paths | Implemented | §8.7, §5.4 |
 | Rendering: XML | Implemented | §19.5 |
 | **Scheme files** written as JSON or YAML | Implemented | §15, §9.1, §10.4 |
@@ -166,10 +178,12 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   That is not a defect — it is what retaining every text node means — but it is the reason
   `xmlinputoptions=NormalizeFormattingWhitespace` exists, and pointing this tool at XML a human
   wrote without it will surprise you. It surprises overrides too: a profile line written against
-  `a.b` lands beside the real element rather than on it, silently, which is
-  [#40](https://github.com/stop-cran/namespace2xml/issues/40) and is worked through in
-  [docs/usage-methodology.md](docs/usage-methodology.md) §3. The fixture `xml-canonical-addresses`
-  pins both spellings.
+  `a.b` lands beside the real element rather than on it, silently. That was reported as
+  [#40 (closed)](https://github.com/stop-cran/namespace2xml/issues/40), which asked for the
+  surprise to be documented rather than for the addressing to change — the addressing is what
+  §11.4 specifies — and was closed by
+  [docs/usage-methodology.md](docs/usage-methodology.md) §3, which works the case through. The
+  fixture `xml-canonical-addresses` pins both spellings.
 - **A promoted sequence item's place in the serialized XML stream is not pinned.** §11.4 evaluates
   mixedness and repeated-child classification "across all input contributions to that element", and
   this tool does: a mixed contribution re-addresses an element-only contribution's children as
@@ -203,9 +217,17 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   many it dropped. That warning is counted under its own feature category, separate from the §4.5
   bound comments a YAML or INI source contributes, because the two are different source concepts.
 
-  One reduction remains inside XML itself: a comment is addressed at `#n`, and `#n` does not yet
-  select an element-only child, so `type=ignore` and the §11.4 conversions reach a comment in mixed
-  content but not one sitting among element-only children.
+  One reduction remains inside XML itself, and it is narrower than an earlier revision of this
+  entry claimed. That revision said `type=ignore` and the §11.4 conversions "reach a comment in
+  mixed content but not one sitting among element-only children", which contradicted the sentence
+  immediately before it — the one placing the comment of `<a><b/><!--c--><d/></a>` at `a.#1` — and
+  was false. A comment takes a content token wherever it sits, the token index counts its element
+  siblings, and the address is real: against that document `${a.#1}` resolves onto the comment as
+  `REFERENCE005`, and `a.#1.type=ignore` removes it and exits `0` with an empty diagnostic stream.
+  Move the comment first, as `<a><!--c--><b/></a>`, and it answers to `a.#0` instead. What `#n` does
+  not reach is an **element** child: `${a.#2}` in the first document is `REFERENCE002`, because
+  §11.4 gives an element-only child a content token for placement without making it an address. So
+  the reduction is that an element cannot be selected positionally, and it costs a comment nothing.
 - **CDATA is retained**, and this entry records what that costs elsewhere rather than a gap. §11.6
   keeps CDATA distinct so XML output can re-emit it; the spelling now rides on the scalar payload,
   so §4.4's last-wins replacement carries it and the two cannot disagree about which text is
@@ -217,10 +239,11 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   element-only children retain element-name addressing "while also carrying their content-token
   ordering value for deterministic placement". The placement half now works:
   `<a><b>1</b><c>2</c><b>3</b></a>` round-trips unchanged, its `<c>` still between the two `<b>`
-  elements, and a namespace-profile override at `a.b.1` changes the third element's text without
-  moving it. What is still missing is the *address*: `a.#1` does not select an element-only child,
-  so a comment among element-only children has no address at all, and neither does an element-only
-  child selected positionally rather than by name.
+  elements,   A namespace-profile override at `a.b.1` changes the third element's text without
+  moving it. What is still missing is the *address*: an element-only child cannot be selected
+  positionally, so `a.#1` addresses whichever content node holds that token and never the element
+  beside it. A comment among element-only children **is** addressed, contrary to what this entry
+  used to say — see the correction under "Comments are retained" above.
 
   A second reduction is in how a token survives merging. §11.4 assigns values "while concrete XML
   contributions merge", and says a payload converted from a non-XML source "receives a fresh
@@ -275,24 +298,36 @@ all is read as a namespace profile, exactly as §7.1 treats input files.
 and the two fixtures above were **measured** against it: the baseline produces the same file names,
 the same nesting, the same key order and the same values, differing only in §24's output bytes.
 The preview that refused them was narrower than the tool it replaces, and
-[#66](https://github.com/stop-cran/namespace2xml/issues/66) records that. This is worth stating
-plainly because the refusal read as caution and was in fact a loss of function.
+[#66 (closed)](https://github.com/stop-cran/namespace2xml/issues/66) records that. This is worth
+stating plainly because the refusal read as caution and was in fact a loss of function.
 
-### 1.4.2 A capture in a `type` value is refused rather than substituted
+### 1.4.2 A capture in a `type` or `output` value is refused rather than substituted
 
 §12.1 says "A scheme directive's value is decided the same way, from the captures its selector
 defines", which makes a `*` in **any** directive's value a positional capture substitution wherever
 the selector defines an unnamed capture. This build performs that substitution everywhere the
-captures are bound at the point the value is read: `filename`, `root`, `delimiter`, `output`,
-`filemerge` and the four output-option directives take them from the §14.1 expansion at pipeline
-step 13, and `key` takes them from its own per-path match at step 16. **verified.**
+captures are bound at the point the value is read: `filename`, `root`, `delimiter`, `filemerge` and
+the four output-option directives take them from the §14.1 expansion at pipeline step 13, and `key`
+takes them from its own per-path match at step 16. **verified**, by reading the refusal message the
+tool prints, which names exactly that set.
 
-`type` is the one directive left. It is matched per path at step 16 exactly as `key` is, so its
-captures do exist — what keeps it out is §16.6, which closes its value to a keyword set, together
-with §22, which places the rejection of an unrecognized one in the **scheme** phase. Parsing the
-value late enough to substitute would move that diagnostic to another phase, changing an observable
-the contract fixes; and a capture can complete a type keyword only by accident. So
-`a.*.type=arr*y` is refused with exit `70` rather than guessed at. **verified.**
+Two directives are left, for two different reasons.
+
+`type` is matched per path at step 16 exactly as `key` is, so its captures do exist — what keeps it
+out is §16.6, which closes its value to a keyword set, together with §22, which places the rejection
+of an unrecognized one in the **scheme** phase. Parsing the value late enough to substitute would
+move that diagnostic to another phase, changing an observable the contract fixes; and a capture can
+complete a type keyword only by accident. So `a.*.type=arr*y` is refused with exit `70` rather than
+guessed at. **verified.**
+
+`output` is left out because it is not *bound* to an instance the way the step 13 list above is — it
+is what **creates** the instance. There is no expansion to take its captures from, because the
+expansion is downstream of it. This entry claimed the opposite until it was tested: `a.*.output=*`
+did not substitute and did not refuse, it terminated the process with an unhandled
+`NullReferenceException` and exit `-532462766`, which §6.3 forbids without qualification. It now
+joins `type` at the same refusal. That correction is the argument for this file being audited rather
+than read: the claim carried a **verified** marker, and nothing re-ran it. **verified**, by a unit
+test proven to fail against the unguarded source with that exception.
 
 No other directive reaches that refusal, and the reason is worth recording because it was not the
 reason expected. §15.1 compiles `merge`, `substitute` and the three input-option directives at steps
@@ -310,7 +345,10 @@ compiler re-lexed that text under the *name* grammar, where a bare `*` is a wild
 rejected it as `SCHEME001`. A decision made once has to be carried, not remade by the next grammar
 to see the same characters.
 
-Tracked as [#71](https://github.com/stop-cran/namespace2xml/issues/71).
+Tracked as [#74](https://github.com/stop-cran/namespace2xml/issues/74), which proposes amending
+§12.1 to exclude both directives. It supersedes the completed
+[#71 (closed)](https://github.com/stop-cran/namespace2xml/issues/71), which asked for substitution in
+every directive value and delivered it for every directive whose value is free text.
 
 ### 1.5 `--max-depth` has a hard safety ceiling of 4096
 
@@ -377,7 +415,7 @@ segment makes no shape claim to contradict. `type=mapping` suppresses the warnin
 instance rather than per node, so a model rendered twice can keep the keys in one output and be
 warned about the other. `conformance/warn010-fires-once-per-native-source-contribution` and
 `conformance/type-mapping-suppresses-warn010-per-output-instance` pin those five properties, and
-acceptance item 68 is now `required`. [#58](https://github.com/stop-cran/namespace2xml/issues/58).
+acceptance item 68 is now `required`. [#58 (closed)](https://github.com/stop-cran/namespace2xml/issues/58).
 
 The previous text explained the gap by "per-source provenance the overlay does not retain", and
 said §1.8 needed the same change. Both halves were wrong in a way worth recording. The warning does
@@ -422,7 +460,7 @@ path at all. An XML comment is a `ContentPart` child holding a `ScalarPayload` w
 and a `#n` naming nothing is `REFERENCE002`. `conformance/a-reference-to-an-xml-comment-is-not-a-value`
 pins both against one node, one digit apart, so the codes cannot converge again unnoticed. The
 message now names the comment rather than describing it as a structured node.
-[#60](https://github.com/stop-cran/namespace2xml/issues/60).
+[#60 (closed)](https://github.com/stop-cran/namespace2xml/issues/60).
 
 This entry is kept rather than deleted because a published limit that was never true is worth more
 as a correction than as an absence. A reader who acted on preview.2's text — writing off
@@ -477,7 +515,14 @@ naming both components and the canonical spelling that would have overridden, an
 `conformance/xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component`. The first of those
 measured 2.4.0 accepting `r.a.x=dev` against `<a x="base">` and overriding the attribute, which is
 what makes this a migration hazard and not merely a specification detail. Write `a.@x`.
-[#56](https://github.com/stop-cran/namespace2xml/issues/56) owns both halves.
+[#56 (closed)](https://github.com/stop-cran/namespace2xml/issues/56) owned both halves and both
+have landed.
+
+This entry names no live issue, and that is the third case the preamble's rule allows beside §1.5
+and §4.1: every boundary above is a **decided** one, argued from a clause and pinned by a fixture,
+so there is nothing outstanding to track. It stays because a reader hitting one of them needs the
+argument, not a tracker link — the shape of what the alias does and does not reach is exactly what
+a 2.x scheme runs into.
 
 ### 1.11 A directive bound beneath a node that a later step-16 pass reshapes becomes inert
 
@@ -612,7 +657,7 @@ contract does not state.
 
 §16.9 said `NewLineOnAttributes` "places each attribute after the first on its own line", and this
 build placed *every* attribute on its own line, including the first.
-[#53](https://github.com/stop-cran/namespace2xml/issues/53) put the choice to review, and the clause
+[#53 (closed)](https://github.com/stop-cran/namespace2xml/issues/53) put the choice to review, and the clause
 moved: §16.9 now says every attribute, including the first. The corpus gap that let the divergence
 survive is closed by `conformance/xml-newline-on-attributes`.
 
@@ -660,19 +705,20 @@ nothing pins this case either way. Tracked as
 
 ## 2. Acceptance coverage
 
-`conformance/assertions.json` records all 86 acceptance requirements from specification §26, each
-with a status. Items marked `pending` have **no fixture coverage yet** and no claim is made about
-them. Items marked `required` are covered and can never lose coverage.
+`conformance/assertions.json` records **every** acceptance requirement from specification §26, each
+with a status; that file is generated from §26 and is the count of record. Items marked `pending`
+have **no fixture coverage yet** and no claim is made about them. Items marked `required` are
+covered and can never lose coverage.
 
 Do not read a passing test run as evidence about a `pending` item.
 
 Two specified conditions had no fixture at all until
-[#47](https://github.com/stop-cran/namespace2xml/issues/47) landed: Section 22 listed diagnostic
-members per *code* while the mapping appendix enumerated *conditions*, and Appendix C.4 compares
-members exactly, so an omitted member was an assertion of absence that the specification did not
-determine. Appendix B now states the member set each *condition* supplies, and both fixtures have
-since been authored — `merge-error-rejects-a-second-source-contribution` for §16.10 `merge=error`,
-and `WILDCARD002` across the four wildcard-bound cases.
+[#47 (closed)](https://github.com/stop-cran/namespace2xml/issues/47) landed: Section 22 listed
+diagnostic members per *code* while the mapping appendix enumerated *conditions*, and Appendix C.4
+compares members exactly, so an omitted member was an assertion of absence that the specification
+did not determine. Appendix B now states the member set each *condition* supplies, and both fixtures
+have since been authored — `merge-error-rejects-a-second-source-contribution` for §16.10
+`merge=error`, and `WILDCARD002` across the four wildcard-bound cases.
 
 ### 2.1 The INI dialect is not tested against any third-party parser
 

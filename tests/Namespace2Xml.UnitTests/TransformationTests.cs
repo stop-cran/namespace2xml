@@ -388,6 +388,29 @@ public sealed class TransformationTests
     }
 
     /// <summary>
+    /// A capture in an <c>output</c> value refuses rather than crashing. <c>output</c> creates the
+    /// instance instead of binding to one, so the step 13 expansion that supplies every other
+    /// instance-scoped directive's captures has nothing to bind its value against, and the value's
+    /// literal text is null where the formats are read. Before this was guarded the run died with
+    /// an unhandled <c>NullReferenceException</c>, which Section 6.3 forbids as a way for a
+    /// user-caused condition to surface. The declaration with a literal value still runs.
+    /// </summary>
+    [Test]
+    public void ACaptureInAnOutputValueRefusesRatherThanCrashing()
+    {
+        var (refused, _) = Transform("a.json.b=hello\n", "a.*.output=*\n");
+
+        refused.State.ShouldBe(PipelineRunState.Unsupported);
+        refused.Unsupported.ShouldNotBeNull().Capability
+            .ShouldBe("a wildcard capture substituted into a directive value");
+
+        var (accepted, sink) = Transform("a.json.b=hello\n", "a.*.output=json\n");
+
+        accepted.State.ShouldBe(PipelineRunState.Finished);
+        sink.Written.ShouldContainKey("a.json.json");
+    }
+
+    /// <summary>
     /// Section 13.1: a reference "resolves only the scalar or null payload stored at that exact
     /// canonical path", and Section 13.2 gives a value that is exactly one reference the referent's
     /// own kind. The referring entry is still emitted at its own path.

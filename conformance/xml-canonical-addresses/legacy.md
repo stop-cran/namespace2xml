@@ -3,10 +3,14 @@
 - namespace2xml 2.4.0: **differs**.
 - Contract: Sections 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 5.2, 5.4, and 19.1.
 - Legacy observation: XML input carried no address for an attribute, no address for a namespace URI,
-  and no address for a text run in mixed content. An element and its attributes collapsed into one
-  name, so `<b x="1">two</b>` could not express both `two` and `x`; two children with the same name
-  overwrote one another rather than becoming an ordered pair; and a prefix was kept as written, so
-  the same element read under two prefix spellings produced two different names for one identity.
+  and no address for a text run in mixed content. Element text was discarded outright — measured on
+  the baseline, `<cfg><app><name>svc</name></app></cfg>` reads as `app.name=` with an empty value
+  even though that leaf has neither attributes nor children, while `<cfg><b x="1"/></cfg>` reads as
+  `b.x=1`, so attributes survived and text did not. An element and its attributes therefore
+  collapsed into one name, and `<b x="1">two</b>` could express neither `two` nor both together;
+  two children with the same name overwrote one another rather than becoming an ordered pair; and a
+  prefix was kept as written, so the same element read under two prefix spellings produced two
+  different names for one identity.
 - Clean behavior: Section 11.4 gives every XML component one canonical address. An attribute is
   `@name`; a name in a namespace is `Q{uri}local`, resolved from the URI rather than the prefix, so
   `p:rev` addresses as `@Q{urn:p}rev` and the reserved `xml` prefix addresses through its fixed

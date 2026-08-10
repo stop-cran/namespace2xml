@@ -357,6 +357,15 @@ public static class SchemeCompiler
     /// fixed phase.
     /// </para>
     /// <para>
+    /// <c>output</c> is here for a different reason: it is the directive that <em>creates</em> an
+    /// output instance rather than one bound to an instance that already exists, so the step 13
+    /// expansion the other instance-scoped directives take their captures from has nothing to bind
+    /// its value against. Its formats are read while the instances are still being built. Without
+    /// this arm the value's null literal text reaches <c>TryCompileOutput</c> and the run dies with
+    /// a <c>NullReferenceException</c>, which Section 6.3 forbids as a way for a user-caused
+    /// condition to surface.
+    /// </para>
+    /// <para>
     /// No other directive reaches here. Section 15.1 compiles <c>merge</c>, <c>substitute</c> and
     /// the input-options directives at steps 2 through 4, before any selector has been expanded,
     /// but each also rejects the declaration on its own terms — Sections 16.8 and 16.10 forbid the
@@ -365,7 +374,7 @@ public static class SchemeCompiler
     /// </para>
     /// </remarks>
     private static bool DeferredWildcardDirective(SchemeDirective directive) =>
-        directive == SchemeDirective.Type;
+        directive is SchemeDirective.Type or SchemeDirective.Output;
 
     /// <summary>
     /// Every winning per-instance-scoped directive declaration, in source order.
