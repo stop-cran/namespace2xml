@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (114)
+## Observable differences (115)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1044,6 +1044,14 @@ implemented, its case says so plainly rather than letting the heading imply othe
   human-readable annotation next to a value and expects the tool to move it with that value,
   and an implementation that drops the annotation gives the reader less than they started
   with.
+
+### `key-on-a-sequence-only-target-is-type001`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 16.5's "applying `key` to a sequence-only or scalar-only target is `TYPE001`" and its requirement that the target be an ordered mapping; Section 8.7 sequence inference; Section 26 item 67.
+- Legacy observation: the baseline exits `0` and writes `cfg.properties` containing `a.0.v=1` and `a.1.v=2`, 18 bytes. The measurement records `exit 0 (expected 1); extra cfg.properties`. Standard error carries only the banner and progress lines, ending in "Success! Exiting...", so no diagnostic is emitted. Re-running the baseline with the `cfg.a.key=name` line deleted produces a byte-identical file, which is the evidence that the directive was not applied in some other form but ignored outright.
+- Clean behavior: one blocking `TYPE001` naming the declaration and the path, exit `1`, and no file.
+- Why the difference is intentional: a `key` directive that names a field the output never contains has done nothing, and reporting success in that case tells an author their transformation worked. The control run is what makes this a silent no-op rather than a difference of opinion about the result -- there is no result. Section 3.2 lists the correction of silently ignored directives among the reasons for the rewrite, and Section 16.5 states the refusal three separate times, which is the specification treating this as a case an implementation is likely to get wrong.
 
 ### `key-projects-an-ordered-mapping-as-records`
 

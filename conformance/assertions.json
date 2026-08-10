@@ -995,12 +995,14 @@
         "Text a scheme reference contributes is opaque segment data, so a `/` or `\\` it supplies is encoded rather than creating a directory, and the opacity survives a further reference to the value that holds it.",
         "A scheme reference reads the Section 15.2 winner of the directive it names, including when that declaration comes later in source order.",
         "A scheme reference resolves against scheme entries alone: a name whose final part is not a Section 15 directive is missing even when input data exists at that path.",
-        "Each canonically distinct cycle among scheme references is reported once, at its canonically first member, including a cycle of one."
+        "Each canonically distinct cycle among scheme references is reported once, at its canonically first member, including a cycle of one.",
+        "Applying `key` to a sequence-only target is blocking `TYPE001`: a node whose child names are all ordering values projects a sequence, and Section 16.5 requires an ordered mapping."
       ],
       "fixtures": [
         "a-missing-scheme-reference-is-blocking",
         "a-scheme-reference-cycle-is-blocking",
         "an-empty-scheme-directive-is-blocking",
+        "key-on-a-sequence-only-target-is-type001",
         "scheme-reference-filename-separators-are-encoded-data",
         "type-array-with-key-is-an-illegal-combination"
       ]

@@ -293,6 +293,15 @@ independently.
   `cfg.e.@a=1` with an unhandled `XmlException`, after opening the destination, leaving a zero-byte
   file behind.
 
+- `conformance/key-on-a-sequence-only-target-is-type001` pins §16.5's "applying `key` to a
+  sequence-only or scalar-only target is `TYPE001`", which no fixture asserted. It exists to hold up
+  an argument rather than to catch a suspected defect: it is one of the two rules that makes §16.5's
+  *other* clause — the merge with an independent sequence projection already at the node —
+  unreachable, and [#61](https://github.com/stop-cran/namespace2xml/issues/61) now proposes deleting
+  that clause on those grounds. An amendment resting on a behaviour needs the behaviour pinned. Its
+  differential verdict is measured, with a control: 2.4.0 exits `0` and writes the sequence
+  unchanged, **byte-identical to the same run with the `key` line deleted**, so the directive was not
+  applied differently but ignored outright.
 - `tools/check-known-limits-issues.ps1` makes `KNOWN-LIMITS.md`'s own stated invariant — "every entry
   that owes a resolution names the issue that owns it" — checkable, and runs in the `lint` job. A
   plain `[#59](…)` link must name an **open** issue; a `[#58 (closed)](…)` link must name a
