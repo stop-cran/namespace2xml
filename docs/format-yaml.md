@@ -158,7 +158,7 @@ a:
   - b: 2
 ```
 
-the specified result is:
+the result §10.4 prints is:
 
 ```yaml
 a:
@@ -168,38 +168,28 @@ a:
     c: XXX
 ```
 
+That rendering holds when `data.yaml` is listed **first**. §10.4 introduces the template as the
+first input and prints this order anyway, which contradicts §5.3 — "generated entries inherit the
+rule's precedence position" — and §4.7, which makes the rule's CLI source ordinal the leading
+component of the ordering key. This build implements §5.3, so listing the template first puts the
+generated `c` ahead of `b` in every item. The contradiction is filed as
+[#73](https://github.com/stop-cran/namespace2xml/issues/73); until it is decided, list the data
+input first if you want the order §10.4 prints.
+
 Wildcard template entries are extracted before structural input merging and expanded during the
 fixed point in §12.4, before numeric-map sequence inference and output rendering. Extraction is
 entry-by-entry: carrier ancestors created only to contain an extracted template do not contribute
 mapping-presence marks, and literal sibling entries remain concrete data (§10.4).
 
-**The current preview does not implement §10.4.** Running the tool on the specification's own
-worked example produces no output and exits `70` — the non-normative refusal code — with the
-message that "wildcard templates in native input (§9.1) is not implemented in this preview: the
-key '*' contains an unescaped wildcard token". Namespace2xml 2.4.0 implements §10.4 correctly on
-the same input, so a 2.x user gets the specified file today and gets nothing from the preview.
-This is recorded in `KNOWN-LIMITS.md` §1.2 as a blocker for 3.0 final rather than a deferred
-nicety, and the fixture `yaml-wildcard-template-in-a-native-key-is-declined` pins the refusal so
-that a preview that starts guessing at wildcard keys does not do so silently.
+**Two shapes beneath a wildcard key are declined**, with exit `70` and no output: a sequence, and
+an empty mapping. §10.4 shows neither, and both are under-determined rather than merely
+unimplemented — a native sequence item takes its ordering value from the destination path's §5.4
+high-water mark, and the destination is not known until §12.4 expansion; an empty mapping has no
+scalar leaf to extract and expresses mapping presence, which §10.4 explicitly denies a template.
+Refusing is narrower than inventing a reading. See `KNOWN-LIMITS.md` §1.2.
 
-The workaround, until §10.4 lands, is to declare the template in a namespace-profile input file
-rather than in a YAML input file. `a.*.c=XXX` in a `.txt` input, listed **after** the data input,
-against the same `a: [{b: 1}, {b: 2}]` YAML reproduces the specified item shape today:
-
-```text
-$ namespace2xml -i data.yaml tpl.txt -s scheme.txt -o out
-
-# out/a.yaml
-- b: 1
-  c: XXX
-- b: 2
-  c: XXX
-```
-
-Input order is load-bearing here, because §12.4 merges a generated value at its deterministic rule
-position: list the template *first* and the generated `c` precedes `b` in every item instead. The
-`a:` wrapper is absent because `a.output=yaml` makes `a` the output root, and §16.3 removes the
-selector prefix before rendering.
+§16.7 `substitute` reaches native keys: under `substitute=None` or `substitute=Value` the names
+are not interpreted, so `'*'` becomes a literal asterisk key exactly as `'\*'` does.
 
 ## Comments
 

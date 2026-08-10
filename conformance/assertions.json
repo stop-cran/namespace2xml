@@ -78,12 +78,14 @@
         "A generated name takes its matched prefix from the concrete path rather than from the pattern, so capture text is ordinary literal text in one name part and is never re-lexed.",
         "A scheme directive value is decided from the captures its selector defines, so root, delimiter, and key are substituted from the same tuple filename is, not filename alone.",
         "A value carrying more substitutions than the name produced repeats the last capture, and one carrying fewer ignores the unused ones.",
-        "Under a selector defining no capture, an asterisk in a filename, root, or delimiter value is literal text rather than a capture or an error, and Sections 16.4 and 21 escape it on output."
+        "Under a selector defining no capture, an asterisk in a filename, root, or delimiter value is literal text rather than a capture or an error, and Sections 16.4 and 21 escape it on output.",
+        "A template extracted from a native JSON or YAML key owns its captures for Section 12.1 purposes, so a bare asterisk in the extracted value substitutes what the key matched."
       ],
       "fixtures": [
         "a-capture-repeats-for-a-shorter-name-and-is-ignored-when-unused",
         "a-capture-substitutes-into-a-key-field-name",
         "a-capture-substitutes-into-root-and-delimiter",
+        "a-native-template-value-substitutes-its-own-capture",
         "a-yaml-scheme-key-carries-a-wildcard-template",
         "an-asterisk-in-a-directive-value-under-a-literal-selector-is-text",
         "wildcard-repeated-capture-backtracking",
@@ -171,9 +173,17 @@
       "text": "YAML wildcard enrichment across files.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
+      "assertions": [
+        "A wildcard in a native YAML mapping key is a template rather than a name: it is extracted entry by entry before structural input merging and expanded during the Section 12.4 fixed point, so records contributed by another file gain the template's keys.",
+        "The generated entry sorts at its rule's Section 4.7 source position, so listing the template file before the data places the generated key ahead of the record's own keys, and listing it after places it behind them.",
+        "A template over a shape no entry can carry - a sequence, or an empty mapping - is refused with exit 70 rather than guessed at, because Section 10.4 extracts one scalar per entry and shows neither shape."
+      ],
       "fixtures": [
-        "yaml-wildcard-template-in-a-native-key-is-declined"
+        "a-native-template-value-substitutes-its-own-capture",
+        "a-native-wildcard-template-over-a-sequence-is-declined",
+        "a-native-wildcard-template-over-an-empty-mapping-is-declined",
+        "a-yaml-wildcard-key-enriches-each-record-of-a-later-file",
+        "a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file"
       ]
     },
     {
@@ -864,8 +874,16 @@
       "text": "Single-pass native decoded-string escaping for adjacent backslashes, wildcards, and reference starts.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
+      "assertions": [
+        "A backslash-asterisk in a native mapping key suppresses the wildcard-template grammar and contributes a literal asterisk, and Section 21 re-escapes it on the way out so the namespace output reads back as the same literal name.",
+        "Suppression is total: a sibling record contributed by a later file does not acquire the escaped key's children, because the key is a name and not a rule.",
+        "Section 9.2 gives a JSON object-property name the same unescaped-asterisk recognition that Section 10.4 gives a YAML mapping key, so the two front ends cannot diverge on whether a native key is a template.",
+        "Section 16.7 'names interpreted: no' literalizes a wildcard token in a native key at the point it is read, so no live token survives into a concrete path where a later matcher would read it back as a pattern."
+      ],
       "fixtures": [
+        "a-backslash-asterisk-in-a-native-key-is-a-literal-asterisk",
+        "a-wildcard-in-a-native-json-key-is-a-template",
+        "names-uninterpreted-makes-a-native-wildcard-key-literal",
         "native-strings-do-not-get-a-second-escape-pass"
       ]
     },

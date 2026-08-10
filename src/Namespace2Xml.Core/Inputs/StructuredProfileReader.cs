@@ -51,7 +51,7 @@ public static class StructuredProfileReader
 
         unsupported = projection.Refusal;
 
-        return new ProfileContribution(overlay, [], []);
+        return new ProfileContribution(overlay, [], projection.Templates);
     }
 
     private sealed class Projection(
@@ -60,10 +60,16 @@ public static class StructuredProfileReader
         SubstituteModeMap substitutes,
         DiagnosticBuffer diagnostics)
     {
+        private readonly ImmutableArray<ProfileEntry>.Builder templates =
+            ImmutableArray.CreateBuilder<ProfileEntry>();
+
         private long ordinal;
 
 
         public UnsupportedCapability? Refusal { get; private set; }
+
+        /// <summary>The Section 15.1 step 7 templates this document declared.</summary>
+        public ImmutableArray<ProfileEntry> Templates => templates.ToImmutable();
 
         /// <summary>The Section 16.7 mode governing a native value at one path.</summary>
         /// <param name="path">The value's declared path, from the document root.</param>
@@ -146,13 +152,33 @@ public static class StructuredProfileReader
 
             foreach (var property in mapping.Properties)
             {
+                // Section 15.1 step 6 scopes 'substitute' to "an entry's declared pre-expansion
+                // path", so the mode is read at the path the key names rather than at its parent.
+                var declared = path.Add(property.Name);
+
                 if (Wildcards(property.Name))
                 {
-                    Decline(property);
+                    if (Mode(declared).InterpretsNames())
+                    {
+                        Extract(property.Value, declared);
+                        continue;
+                    }
+
+                    // Section 16.7 'names interpreted: no' makes the token ordinary text, and it
+                    // has to stop being a token here rather than survive into a concrete path
+                    // where a later matcher would read it back as a pattern.
+                    var literal = QualifiedNameLexer.Literalize(new QualifiedName([property.Name]));
+                    var concrete = Build(property.Value, path.Add(literal.Parts[0]));
+
+                    if (!concrete.IsEmpty)
+                    {
+                        result = result.WithChild(literal.Parts[0], concrete);
+                    }
+
                     continue;
                 }
 
-                var child = Build(property.Value, path.Add(property.Name));
+                var child = Build(property.Value, declared);
 
                 // Section 10.4: "carrier ancestors created only to contain an extracted template
                 // do not contribute mapping-presence marks". A child that contributed nothing is
@@ -312,13 +338,119 @@ public static class StructuredProfileReader
             diagnostics.Add(new BufferedDiagnostic(occurrence, key));
         }
 
-        private void Decline(StructuredProperty property) =>
+        private void Decline(StructuredNode node, ImmutableArray<NamePart> path, string what) =>
             Refusal ??= new UnsupportedCapability(
-                "wildcard templates in native input",
-                $"the key '{property.Key}' contains an unescaped wildcard token, which Section 9.1 "
-                + "keeps for compatibility but this preview does not yet evaluate for native "
-                + "input. Write '\\*' for a literal asterisk.",
-                "\u00A79.1");
+                "a native wildcard template over " + what,
+                $"the template at '{CanonicalPath.Of(new QualifiedName(path))}' in {source.File} "
+                + $"reaches {what} at "
+                + $"line {source.LineOf(node.Line)}. Section 10.4 extracts a template "
+                + "entry by entry, and an entry names one scalar; this build does not yet decide "
+                + "what a template over that shape extracts to. Write the branch without a "
+                + "wildcard key, or write '\\*' for a literal asterisk.",
+                "\u00A710.4");
+
+        /// <summary>
+        /// Section 10.4 step 7 for a native document: extracts the subtree under a wildcard key as
+        /// template entries rather than as concrete contributions.
+        /// </summary>
+        /// <param name="node">The value the wildcard key names.</param>
+        /// <param name="path">The declared path, whose last part carries the wildcard tokens.</param>
+        /// <remarks>
+        /// <para>
+        /// "Wildcard template entries are extracted before structural input merging", and
+        /// "extraction is entry-by-entry" — so one <see cref="ProfileEntry"/> per scalar leaf,
+        /// named by the whole path from the document root, exactly as
+        /// <see cref="NamespaceProfileReader"/> produces from <c>a.*.c=XXX</c>. Nothing is added to
+        /// the overlay, which is what makes the ancestors that only carried the template contribute
+        /// no mapping-presence mark.
+        /// </para>
+        /// <para>
+        /// Ordering keys are allocated from the same counter the concrete walk uses, so Section
+        /// 12.4's "one deterministic worklist ordered by source order" interleaves templates from
+        /// this source with the entries written around them.
+        /// </para>
+        /// </remarks>
+        private void Extract(StructuredNode node, ImmutableArray<NamePart> path)
+        {
+            var key = StableOrderingKey.FromSource(sourceOrdinal, ++ordinal);
+
+            switch (node)
+            {
+                case StructuredScalar scalar:
+                    Emit(scalar, path, key);
+                    return;
+
+                case StructuredMapping { Scalar: { } own }:
+                    Emit(own, path, key);
+                    return;
+
+                case StructuredMapping { Properties.IsEmpty: false } mapping:
+                    foreach (var property in mapping.Properties)
+                    {
+                        Extract(property.Value, path.Add(property.Name));
+                    }
+
+                    return;
+
+                // An empty mapping and a sequence are both Section 4.4 shape contributions rather
+                // than scalars, and a ProfileEntry carries a value. Section 10.4 shows neither, so
+                // the honest answer is that this build has not decided.
+                case StructuredMapping:
+                    Decline(node, path, "an empty mapping");
+                    return;
+
+                case StructuredSequence:
+                    Decline(node, path, "a sequence");
+                    return;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"'{node.GetType().Name}' is not a {nameof(StructuredNode)} shape.");
+            }
+        }
+
+        /// <summary>Records one template entry for a scalar leaf under a wildcard key.</summary>
+        /// <param name="scalar">The leaf.</param>
+        /// <param name="path">The template's whole name.</param>
+        /// <param name="key">The entry's Section 4.7 ordering key.</param>
+        /// <remarks>
+        /// Section 12.1 reads a value's capture form "from the owning name's captures", and the
+        /// owning name here is the template's, so a bare <c>*</c> in the value substitutes what the
+        /// key's <c>*</c> matched. That is the one place a native value's wildcard syntax is not
+        /// <see cref="WildcardSyntax.None"/>.
+        /// </remarks>
+        private void Emit(StructuredScalar scalar, ImmutableArray<NamePart> path, StableOrderingKey key)
+        {
+            var name = new QualifiedName(path);
+
+            // Section 18 keeps a typed native scalar's kind "without re-inference", and a template
+            // entry carries text that Section 12.4 re-lexes for the generated entry. Canonical text
+            // is what Section 18 defines as the typed scalar's spelling, so it is the projection
+            // that loses nothing a reader could observe.
+            var text = scalar.Payload is { } typed ? typed.ToCanonicalText() : scalar.NativeString!;
+
+            if (!Mode(path).InterpretsValues())
+            {
+                templates.Add(new ProfileEntry(
+                    name, Literal(text), key, source.LineOf(scalar.Line) ?? 0, []));
+                return;
+            }
+
+            var lexed = ValueLexer.Lex(
+                text, ValueSyntax.NativeString(QualifiedNameLexer.CaptureForm(name)));
+
+            if (lexed.Value is null)
+            {
+                EmitValueFault(lexed.Fault!.Value, scalar, key);
+                return;
+            }
+
+            templates.Add(new ProfileEntry(
+                name, lexed.Value, key, source.LineOf(scalar.Line) ?? 0, []));
+        }
+
+        private static InterpretedValue Literal(string text) =>
+            new([new LiteralValueToken(text)]);
 
         private static bool Wildcards(NamePart part) =>
             QualifiedNameLexer.ContainsWildcard(new QualifiedName([part]));

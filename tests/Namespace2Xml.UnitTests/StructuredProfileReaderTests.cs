@@ -145,17 +145,19 @@ public class StructuredProfileReaderTests
     /// carrier, so attaching it would give its parent a mapping mark nothing stands behind.
     /// </summary>
     /// <remarks>
-    /// The declined wildcard key is what empties the inner mapping. It is the only construct that
-    /// still contributes nothing: a reference-bearing value is an ordinary Section 13.1 payload
-    /// held unresolved, and a genuinely empty mapping carries a presence mark of its own.
+    /// The wildcard key is what empties the inner mapping: its subtree leaves as template entries
+    /// rather than as concrete data, so <c>a</c> exists in the document only to hold a rule. A
+    /// reference-bearing value is by contrast an ordinary Section 13.1 payload held unresolved, and
+    /// a genuinely empty mapping carries a presence mark of its own.
     /// </remarks>
     [Test]
     public void AChildThatContributedNothingIsNotAttached()
     {
         var root = Project("""{"a":{"*":1}}""", out var unsupported);
 
-        unsupported.ShouldNotBeNull();
+        unsupported.ShouldBeNull();
         root.Overlay.Children.ShouldBeEmpty();
+        root.Templates.ShouldHaveSingleItem();
     }
 
     /// <summary>
@@ -190,15 +192,66 @@ public class StructuredProfileReaderTests
     }
 
     /// <summary>
-    /// A native key carrying an unescaped wildcard has no representation in this preview, so it is
-    /// declined outright rather than treated as a literal asterisk.
+    /// Section 9.2 keeps an unescaped asterisk in a native object-property name as a
+    /// wildcard-template token, and Section 10.4 extracts the branch it heads "entry-by-entry"
+    /// rather than merging it as data.
     /// </summary>
     [Test]
-    public void AWildcardInANativeKeyIsDeclined()
+    public void AWildcardInANativeKeyBecomesATemplate()
     {
-        Project("""{"*":1}""", out var unsupported);
+        var contribution = Project("""{"*":1}""", out var unsupported);
 
-        unsupported.ShouldNotBeNull().Capability.ShouldBe("wildcard templates in native input");
+        unsupported.ShouldBeNull();
+        diagnostics.Drain().ShouldBeEmpty();
+
+        var template = contribution.Templates.ShouldHaveSingleItem();
+
+        CanonicalPath.Of(template.Name).ShouldBe("*");
+        contribution.Overlay.Children.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 10.4 makes extraction entry-by-entry, so a template branch yields one entry per
+    /// scalar leaf and each entry carries the whole path from the wildcard key down to that leaf.
+    /// </summary>
+    [Test]
+    public void ATemplateBranchYieldsOneEntryPerScalarLeaf()
+    {
+        var contribution = Project("""{"a":{"*":{"c":"X","d":{"e":"Y"}}}}""", out var unsupported);
+
+        unsupported.ShouldBeNull();
+
+        contribution.Templates
+            .Select(entry => CanonicalPath.Of(entry.Name))
+            .ShouldBe(["a.*.c", "a.*.d.e"], ignoreOrder: true);
+    }
+
+    /// <summary>
+    /// Section 10.4 shows a mapping under a wildcard key and never a sequence. A native sequence
+    /// item takes its ordering value from the destination path's Section 5.4 high-water mark, and
+    /// under a template the destination is unknown until Section 12.4 expansion, so the shape is
+    /// refused rather than resolved to one of its readings.
+    /// </summary>
+    [Test]
+    public void ASequenceUnderAWildcardKeyIsDeclined()
+    {
+        Project("""{"a":{"*":[1,2]}}""", out var unsupported);
+
+        unsupported.ShouldNotBeNull().Detail.ShouldContain("a.*", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// An empty mapping has no scalar leaf, so entry-by-entry extraction yields nothing. What it
+    /// expresses is a shape rather than a value, and Section 10.4 gives a template no way to carry
+    /// one: "carrier ancestors created only to contain an extracted template do not contribute
+    /// mapping-presence marks".
+    /// </summary>
+    [Test]
+    public void AnEmptyMappingUnderAWildcardKeyIsDeclined()
+    {
+        Project("""{"a":{"*":{}}}""", out var unsupported);
+
+        unsupported.ShouldNotBeNull().Detail.ShouldContain("a.*", Case.Sensitive);
     }
 
     /// <summary>

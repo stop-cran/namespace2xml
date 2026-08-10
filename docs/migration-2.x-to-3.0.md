@@ -19,13 +19,29 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (102)
+## Observable differences (107)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
 Nearly all are corrections, and every case says which contract it is correcting. A difference
 is not automatically an improvement, though: where this preview declines a capability 2.4.0
 implemented, its case says so plainly rather than letting the heading imply otherwise.
+
+### `a-backslash-asterisk-in-a-native-key-is-a-literal-asterisk`
+
+- namespace2xml 2.4.0: **differs**. It writes `*.c=XXX` where this case expects `\*.c=XXX`. The
+  data is the same; the escape is missing. CRLF-terminated, under the Section 24 divergence.
+- Contract: Section 10.4, "`\*` contributes a literal asterisk", and Section 21, which escapes a
+  literal `*` in a namespace name part.
+- The two clauses are one round trip. Section 10.4 lets a YAML key spell a literal asterisk, and
+  Section 21 is what lets the resulting namespace output be read back as that same literal. 2.4.0
+  honours the first and not the second, so its own output re-read through its own reader turns a
+  literal key into a wildcard template — the file says `*.c=XXX`, which is a rule, not data.
+- The case also fixes the negative half of extraction: `d` is a sibling record in a later file and
+  must **not** acquire `c`, because `'\*'` is a name and not a template. A build that extracted it
+  anyway would emit `d.c=XXX`, and the escape test alone would not catch that.
+- Legacy observation: 2.4.0 did not enrich `d`, so it agreed that `\*` suppresses the template. The
+  divergence is confined to how it then spelled the key on the way out.
 
 ### `a-capture-repeats-for-a-shorter-name-and-is-ignored-when-unused`
 
@@ -143,6 +159,69 @@ implemented, its case says so plainly rather than letting the heading imply othe
   glob, or an `strftime`-adjacent format string every time somebody quotes one, and the
   difference between `*` and `\*` in the emitted file is precisely what such a value cannot
   survive.
+
+### `a-native-template-value-substitutes-its-own-capture`
+
+- namespace2xml 2.4.0: **differs**. It substitutes the capture identically — `v-db` and `v-web` —
+  and then emits every generated entry before every concrete one: `db.c`, `web.c`, `db.b`, `web.b`,
+  where this case expects the four lines grouped by record. CRLF-terminated, under the Section 24
+  divergence.
+- Contract: Section 12.1 for the substitution, Section 10.4 for extraction from a native key,
+  Section 5.2 and Section 5.3 for the order.
+- Section 12.1 decides a value's capture form "from the owning name's captures", and the owning
+  name of a template extracted from a YAML key is the template's own. A bare `*` in `v-*` therefore
+  substitutes what the key's `*` matched. This is the one place a native value carries wildcard
+  syntax at all — everywhere else a native scalar is `WildcardSyntax.None` — which is why it is
+  fixed by a case of its own rather than left to the namespace-input equivalents.
+- The order follows from the tree rather than from a list. Under `db`, the generated `c` carries
+  the rule's Section 4.7 source ordinal of 1 and the concrete `b` carries 2, so Section 5.2 puts
+  `c` first; `db` precedes `web` by match order. 2.4.0's grouping is what a flat list of entries
+  looks like when generated entries are appended to it, and it is visible here only because the
+  case has two matches rather than one.
+- Legacy observation: the substitution itself is a Section 3.1 preservation. What 2.4.0 did not
+  preserve is any relationship between a generated entry and the record it enriches, which is the
+  same defect recorded in `a-yaml-wildcard-key-enriches-each-record-of-a-later-file` seen from a
+  second angle.
+
+### `a-native-wildcard-template-over-a-sequence-is-declined`
+
+- namespace2xml 2.4.0: **differs**. It exits `0` and writes **no output file at all** — the output
+  directory is empty. This case expects exit `70` and no output.
+- Contract: Section 10.4. "Extraction is entry-by-entry", and an extracted entry names one scalar.
+- Section 10.4 shows a mapping under a wildcard key and says nothing about a sequence under one.
+  The shape is genuinely under-determined: a native sequence item takes an implicit ordering value
+  from the destination path's Section 5.4 high-water mark, and under a template the destination is
+  not known until Section 12.4 expansion, so there is no mark to allocate against at extraction
+  time. This build therefore refuses rather than choosing one of the readings.
+- Exit `70` is the refusal status, deliberately outside the normative `0` and `1`: the run decides
+  no outcome, publishes nothing, and names on standard error the capability it lacks. The message
+  identifies the template as `a.*` and offers both remedies — write the branch without a wildcard
+  key, or write `\*` for a literal asterisk.
+- **The legacy behaviour is worse than the refusal, not better.** Exit `0` with no file is a
+  success status for work that was not done: a caller that checks the exit code and then reads its
+  output gets a missing-file error at a distance, or silently keeps a stale file from a previous
+  run. The refusal is the same absence of output with an honest status attached.
+- Once Section 10.4 settles what a template over a sequence extracts to, this fixture's
+  `expected/` and `expected-exit-code.txt` change together at that commit. Recorded in
+  `KNOWN-LIMITS.md` section 1.2.
+
+### `a-native-wildcard-template-over-an-empty-mapping-is-declined`
+
+- namespace2xml 2.4.0: **differs**. It exits `0` and writes `a.yaml` containing `'*': {}` — the
+  wildcard key emitted verbatim as literal data. This case expects exit `70` and no output.
+- Contract: Section 10.4. "Extraction is entry-by-entry", and an extracted entry names one scalar.
+- An empty mapping has no scalar leaf, so entry-by-entry extraction yields nothing. What the author
+  wrote is not a value but a **shape**: "every match gains an empty mapping here". Section 10.4's
+  own carrier rule points the other way — "carrier ancestors created only to contain an extracted
+  template do not contribute mapping-presence marks" — so a template is not a vehicle for mapping
+  presence, and there is no entry to carry this one. Refusing is narrower than inventing a
+  mapping-presence template that Section 10.4 does not describe.
+- 2.4.0's answer is a third thing again: it treated `*` as an ordinary key, so the template leaked
+  into the output as data. Read back through its own reader that key is a rule, which is the same
+  round-trip break recorded in
+  `a-backslash-asterisk-in-a-native-key-is-a-literal-asterisk`.
+- Once Section 10.4 settles the shape, this fixture changes at that commit. Recorded in
+  `KNOWN-LIMITS.md` section 1.2.
 
 ### `a-refused-fold-is-reported-once-per-destination`
 
@@ -280,6 +359,31 @@ implemented, its case says so plainly rather than letting the heading imply othe
   agreement: Section 10.4's "retain their wildcard-template meaning for compatibility" names a
   behavior that exists in the field, and this case is the evidence that 3.0 kept it rather than
   reasoning that it should.
+
+### `a-yaml-wildcard-key-enriches-each-record-of-a-later-file`
+
+- namespace2xml 2.4.0: **differs**. It exits `0` and writes the same two records with the same two
+  keys, but orders them `b` then `c` where this case expects `c` then `b`. Content is identical;
+  only sibling order differs. CRLF-terminated, under the Section 24 divergence.
+- Contract: Section 10.4 for extraction, Section 5.3 for where the generated entry sorts.
+- Why the expectation is `c` first. `args.txt` lists `template.yaml` before `data.yaml`, so the
+  wildcard rule is a Section 4.7 CLI source ordinal of 1 and the concrete `b` is 2. Section 5.3
+  says generated entries "inherit the rule's precedence position", Section 4.7 makes that ordinal
+  the first component of the stable ordering key, and Section 5.2 states that "the position mark is
+  the Section 4.7 stable ordering key". The generated `c` therefore precedes `b`.
+- **Section 10.4's own worked example prints the opposite**, while introducing the template as the
+  first input. That contradiction is filed as
+  [#73](https://github.com/stop-cran/namespace2xml/issues/73). 2.4.0 matches the printed example;
+  3.0 matches the rule. This expectation is authored from Section 5.3 rather than from Section
+  10.4's rendering, and it flips if #73 is decided the other way — which is precisely why the
+  companion case
+  `a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file` exists: it fixes the same
+  enrichment under an argument order where both readings agree, so a #73 decision cannot silently
+  take the capability with it.
+- Legacy observation: 2.4.0 produced `b` first for **both** argument orders, so its ordering is
+  insensitive to where the template file appears. Under Section 5.3 the order is a function of
+  source position, so the two orders must differ. The legacy behaviour is not a different rule so
+  much as no rule.
 
 ### `an-asterisk-in-a-directive-value-under-a-literal-selector-is-text`
 
@@ -1029,6 +1133,28 @@ implemented, its case says so plainly rather than letting the heading imply othe
   §19.1 refuses to write a literal LF between records: the flat format cannot represent a
   sequence and a joined scalar the same way, so the scheme has to choose, and choosing
   silently is worse than either.
+
+### `names-uninterpreted-makes-a-native-wildcard-key-literal`
+
+- namespace2xml 2.4.0: **differs**. It writes `d.c=XXX` and `d.b=1`, having expanded the template
+  anyway: `substitute=None` had no effect on a native mapping key. This case expects `\*.c=XXX` and
+  `d.b=1` — the key kept as a literal name and the sibling record left alone. CRLF-terminated,
+  under the Section 24 divergence.
+- Contract: Section 16.7, where `None` is "names interpreted: no"; Section 15.1 step 6, which
+  matches a `substitute` pattern against "an entry's declared pre-expansion path"; Section 21 for
+  the escape on the way out.
+- The case exists because `\*` and `substitute=None` reach the same place by different routes, and
+  only one of them was covered. `a-backslash-asterisk-in-a-native-key-is-a-literal-asterisk` proves
+  the escape; this proves the directive. A mutation that stopped literalizing the key on the
+  directive path survived the whole corpus until this case was added, because every other native
+  case leaves names interpreted and never enters that branch.
+- Literalizing is what stops the token rather than merely ignoring it. A `*` that is not
+  interpreted must cease to be a token at the point it is read, because a concrete path carrying a
+  live token is read back as a pattern by every later matcher — the wildcard evaluator, an output
+  selector, a reference. Turning off interpretation and leaving the character as syntax is the one
+  outcome that is wrong under every reading of Section 16.7.
+- Legacy observation: 2.4.0 supported `substitute` for namespace input only, so a native key was
+  never subject to it. That is why the mode is invisible here rather than partially applied.
 
 ### `namespace-document-trailing-comments-reach-the-output`
 
@@ -2165,50 +2291,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-### `yaml-wildcard-template-in-a-native-key-is-declined`
-
-- namespace2xml 2.4.0: **differs**. It exits `0` and writes `a.yaml` containing four lines —
-  `- b: 1` / `  c: XXX` / `- b: 2` / `  c: XXX`. The case expects exit `70` and no output.
-- **The baseline output is correct, and this preview is the one that is wrong.** Those four
-  lines are Section 10.4's own worked example: the template `a.'*'.c=XXX` expanded against the
-  two sibling records under `a:`, each generated `c` merged into the record it belongs to. `a`
-  itself is absent from the document because the scheme sets `a.output=yaml`, which makes `a`
-  the output root rather than a key inside it. 2.4.0 implements the Section 10.4 enrichment on
-  this input; the 3.0 preview declines it. This is the only case in the corpus where the
-  baseline satisfies the specification and the clean implementation does not, and it is
-  recorded here rather than smoothed over because a differential lane that only ever flattered
-  the new implementation would not be evidence of anything.
-- Contract: Section 10.4, wildcard templates supplied as YAML. This is not a Section 3.1
-  preservation case or a Section 3.2 correction — it is a preview refusal, recorded in
-  `KNOWN-LIMITS.md` §1.1 for JSON and repeated for YAML: "**A wildcard in a key is declined**,
-  with exit `70` and no output, exactly as for JSON, and for the same §12.3 reason." The
-  missing machinery is §12.3's requirement that "template-bearing JSON or YAML branches are
-  extracted entry-by-entry", which the preview's structured reader cannot express because the
-  entry it emits carries an interpreted value.
-- Legacy observation: 2.4.0 extracted the wildcard entry from the mapping key `'*'` and expanded
-  it during its equivalent of the §12.4 fixed point, producing exactly the specified result. The
-  behaviour is not accidental for this shape of input; what 2.4.0 lacks is the surrounding
-  typed-payload and mapping-presence discipline that §10.4's "carrier ancestors created only to
-  contain an extracted template do not contribute mapping-presence marks" depends on, which is
-  why the capability is being rebuilt rather than ported.
-- Clean behavior once §10.4 lands: §10.4 states that "unescaped `*` and `*[identifier]` tokens
-  use the wildcard-template grammar" and that "wildcard template entries are extracted before
-  structural input merging and expanded during the fixed point in Section 12.4". The expected
-  document becomes the four lines above, and this fixture's `expected/` and
-  `expected-exit-code.txt` are rewritten to that at the same commit — which is the point of
-  pinning it now.
-- Why the fixture pins the refusal rather than the answer: `KNOWN-LIMITS.md` explains that "a
-  preview must never return either for work it did not do. It is a **refusal**, not a diagnostic
-  — the run decides no outcome at all, publishes nothing, and says on standard error which
-  capability it lacked." Exit `70` is deliberately outside the normative `0` and `1`. Pinning it
-  catches the two regressions that would otherwise be silent: a preview that starts guessing at
-  wildcard keys and emits plausible-but-unverified output, and a preview that returns `0` or `1`
-  for a capability it does not have.
-- The difference is **not** an improvement, and the migration notes should be read that way. For
-  this input a 2.x user gets the right file today and gets nothing from the preview. The
-  refusal is the honest interim behaviour, not the desired one, and closing it is a release
-  blocker for 3.0 final rather than a deferred nicety.
-
 ## Inputs that crashed 2.4.0 (15)
 
 The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
@@ -2733,7 +2815,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (27)
+## Same observable result as 2.4.0 (29)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -2755,6 +2837,40 @@ those that name a shared reason are behaviour 3.0 preserved.
   `filemerge` and no stated model for a cross-format collision at one destination, so how it
   arrived at the same bytes cannot be read off the observable, and this case is not the one that
   would find out.
+
+### `a-wildcard-in-a-native-json-key-is-a-template`
+
+- namespace2xml 2.4.0: **agrees**, modulo CRLF line endings under the Section 24 divergence.
+- Contract: Section 9.2 — "Within that one part, unescaped `*` and `*[identifier]` tokens retain
+  their wildcard-template meaning for compatibility" — with the extraction and expansion rules of
+  Section 10.4 and Section 12.4.
+- Section 10.4 is titled for YAML, and Section 9.2 states the same rule for JSON in its own words.
+  This case exists so that the JSON half is fixed by a fixture rather than inferred from the YAML
+  one: the two formats share a reader, and a change that gated extraction on the YAML front end
+  alone would pass every YAML case in the corpus.
+- The generated `c` precedes the concrete `b` under Section 5.3, because `template.json` carries
+  the earlier Section 4.7 CLI source ordinal. See
+  [#73](https://github.com/stop-cran/namespace2xml/issues/73) for the Section 10.4 worked example
+  that prints the opposite order.
+- Legacy observation: 2.4.0 produced these exact two lines, so JSON template extraction is a
+  Section 3.1 preservation rather than a Section 3.2 correction. What it did not preserve is the
+  ordering, which it reached by a different route — see the note in
+  `a-yaml-wildcard-key-enriches-each-record-of-a-later-file`.
+
+### `a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file`
+
+- namespace2xml 2.4.0: **agrees** on content and on order, modulo CRLF line endings under the
+  Section 24 divergence.
+- Contract: Section 10.4 for extraction, Section 5.3 for where the generated entry sorts.
+- This is Section 10.4's enrichment with the data file listed first, so the wildcard rule carries
+  the later Section 4.7 CLI source ordinal and the generated `c` sorts after the concrete `b` under
+  Section 5.3. Both readings of the Section 10.4 / Section 5.3 disagreement filed as
+  [#73](https://github.com/stop-cran/namespace2xml/issues/73) produce this result, which is what
+  makes the case worth pinning separately: it holds the enrichment capability steady no matter how
+  #73 is decided.
+- Legacy observation: 2.4.0 emitted the same bytes for this argument order and for the reversed one
+  recorded in `a-yaml-wildcard-key-enriches-each-record-of-a-later-file`, so the agreement here is
+  a coincidence of a rule it did not implement rather than evidence that it ordered anything.
 
 ### `cli-diagnostics-format-inline-invalid`
 

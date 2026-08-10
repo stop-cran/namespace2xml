@@ -70,7 +70,12 @@ namespace profile in particular — has to escape that `.` to keep the part atom
 
 Backslashes in the decoded property name are preserved literally (§9.1). Within one part, an
 unescaped `*` or `*[identifier]` remains a wildcard-template token for compatibility; `\*` is a
-literal asterisk. Marker-shaped keys (`@field`, `#3`, `Q{...}local`) do **not** acquire an XML node
+literal asterisk. A wildcard key is extracted as a §10.4 wildcard template and expanded in the
+§12.4 fixed point; `docs/format-yaml.md` describes that capability in full, including the two
+shapes beneath a wildcard key that are declined, and it applies unchanged to JSON because both
+formats share a reader. The `a-wildcard-in-a-native-json-key-is-a-template` and
+`a-backslash-asterisk-in-a-native-key-is-a-literal-asterisk` conformance cases pin the JSON side.
+Marker-shaped keys (`@field`, `#3`, `Q{...}local`) do **not** acquire an XML node
 kind from JSON — §8.2 fixes them as ordinary literal components when they arrive from JSON or
 YAML — and the namespace projection of `{"lit": {"@key": "literalval"}}` spells `\@key` on the
 namespace side. The `xml-typed-components-recognized-and-json-yaml-marker-keys-stay-literal`

@@ -1,0 +1,2 @@
+substitute=None
+a.output=namespace

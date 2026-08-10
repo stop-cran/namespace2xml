@@ -36,6 +36,29 @@ independently.
 
 ### Added
 
+- **A wildcard token in a native JSON or YAML key is a wildcard template again (§10.4, §9.2).**
+  A mapping key carrying an unescaped `*` or `*[identifier]` is extracted entry by entry before
+  structural merging and expanded in the §12.4 fixed point, so `a: {'*': {c: XXX}}` enriches every
+  record of a later `a:` sequence, and the capture is substituted into the template's own value —
+  `c: v-*` yields `v-db` and `v-web`. `\*` keeps a literal asterisk, and §16.7 `substitute=None`
+  reaches native keys to reach the same result by the other route, which 2.4.0 did not do because
+  `substitute` was namespace-input only. **Caused by
+  [#57](https://github.com/stop-cran/namespace2xml/issues/57)**, the only case in the corpus where
+  2.4.0 satisfied the specification and this implementation did not; `KNOWN-LIMITS.md` §1.1 and
+  §1.2 shrink accordingly. Two shapes beneath a wildcard key are **still declined** with exit `70`
+  — a sequence, whose §5.4 ordering value cannot be allocated before the destination is known, and
+  an empty mapping, which has no scalar leaf and expresses the mapping presence §10.4 denies a
+  template. §10.4 shows neither shape, so refusing is narrower than guessing; both refusals are
+  pinned by fixtures that change at the commit which settles them.
+  Eight conformance fixtures cover the capability, every one measured against 2.4.0 — which
+  **diverges on six of them**, including emitting a literal `*` key *unescaped* (its own output,
+  re-read by its own reader, turns data into a rule) and exiting `0` with **no output file at all**
+  for a sequence under a wildcard key. Sibling order follows §5.3, not §10.4's worked example,
+  which contradicts it; that is filed separately as
+  [#73](https://github.com/stop-cran/namespace2xml/issues/73) and one fixture deliberately uses the
+  argument order under which both readings agree, so a decision on #73 cannot take the capability
+  with it.
+
 - **A wildcard capture is substituted into every directive value the specification asks it to
   (§12.1).** The clause says "a scheme directive's value is decided the same way, from the captures
   its selector defines"; this build performed it for `filename` alone. It now performs it wherever

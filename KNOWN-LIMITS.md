@@ -90,16 +90,11 @@ selector was the actual defect.
 JSON input is complete for §9 syntax, the §18 typed-scalar rules and the §15.1 projection, and this
 one case is declined within it.
 
-- **A wildcard in a native key is declined**, with exit `70` and no output. `{"*": 1}` has no
-  representation in the overlay this preview builds, so it is refused rather than guessed at. `\*`
-  for a literal asterisk works and is tested. §9.1 keeps the syntax reserved. §12 evaluation is
-  implemented for namespace-profile rules; what is missing is §12.3's requirement that
-  "template-bearing JSON or YAML branches are extracted entry-by-entry", because the entry a
-  structured reader emits carries an interpreted value and cannot express a typed payload, an empty
-  container, or a sequence ordering value beneath a wildcard key. Acceptance item 12 covers it. This
-  is the same defect as the YAML half in §1.2 and shares its issue,
-  [#57](https://github.com/stop-cran/namespace2xml/issues/57) — but note that only the YAML half is
-  a regression against 2.4.0, because 2.4.0 had no JSON input at all.
+- **A wildcard in a native key is a template**, extracted entry by entry under §9.2 and expanded in
+  the §12.4 fixed point exactly as the YAML half in §1.2, and `\*` for a literal asterisk works.
+  Two shapes under a wildcard key are still declined, with exit `70` and no output — a sequence and
+  an empty mapping — for the reasons given in §1.2, which covers both formats because they share a
+  reader.
 
 A reference nested inside a native sequence is a second case, but it cannot be reached: any
 unresolved value declines the whole invocation under §13, so no path exists today by which the
@@ -114,14 +109,32 @@ it.
 
 - **Anchors, aliases, tags and merge keys are refused rather than retained.** A comment attached to
   a construct that §10.2 declines never reaches the model, because the document does not.
-- **A wildcard in a key is declined**, with exit `70` and no output, exactly as for JSON, and for the
-  same §12.3 reason. `\*` for a literal asterisk works. **This one is a regression against 2.4.0.**
-  The differential lane measured 2.4.0 producing §10.4's worked example correctly for
-  `conformance/yaml-wildcard-template-in-a-native-key-is-declined`, so for that input a 2.x user
-  gets the right file today and gets nothing from this preview. It is the only case in the corpus
-  where the baseline satisfies the specification and this implementation does not. Closing it is a
-  blocker for 3.0 final rather than a deferred nicety, and is tracked as
-  [#57](https://github.com/stop-cran/namespace2xml/issues/57).
+- **A wildcard in a key is a template**, extracted before structural merging and expanded in the
+  §12.4 fixed point, so §10.4's enrichment works and the 2.4.0 regression recorded here is closed.
+  `\*` for a literal asterisk works, and §16.7 `substitute=None` makes the key literal by the same
+  route. Two shapes beneath a wildcard key are still **declined**, with exit `70` and no output:
+  - **a sequence**, because a native sequence item takes its ordering value from the destination
+    path's §5.4 high-water mark and the destination is unknown until §12.4 expansion, so there is
+    no mark to allocate against at extraction time;
+  - **an empty mapping**, because it has no scalar leaf for entry-by-entry extraction to find, and
+    what it expresses is mapping presence, which §10.4 explicitly denies a template — "carrier
+    ancestors created only to contain an extracted template do not contribute mapping-presence
+    marks".
+
+  §10.4 shows neither shape, so both are under-determined rather than merely unimplemented, and
+  refusing is narrower than inventing a reading. Pinned by
+  `conformance/a-native-wildcard-template-over-a-sequence-is-declined` and
+  `conformance/a-native-wildcard-template-over-an-empty-mapping-is-declined`; both fixtures change
+  at the commit that settles the shapes.
+
+  One further residue is **ordering, not capability**. §10.4's worked example prints the generated
+  key after the record's own keys while introducing the template as the first input, which
+  contradicts §5.3's "generated entries inherit the rule's precedence position". This build
+  implements §5.3. The contradiction is filed as
+  [#73](https://github.com/stop-cran/namespace2xml/issues/73), and
+  `conformance/a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file` fixes the enrichment
+  under an argument order where both readings agree, so a decision on #73 cannot take the
+  capability with it.
 
 One §10.1 clause is under-determined and this preview chose a reading. §10.1 lists merge keys among
 the constructs `RestrictedYaml1` excludes without saying whether an unsupported merge key is an
