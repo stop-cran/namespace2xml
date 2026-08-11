@@ -357,7 +357,7 @@ public sealed class SourceLoader
     }
 
     /// <summary>The Section 6.4.3 spelling of a path: relative, with <c>/</c> separators.</summary>
-    private static string Normalize(string path) => path.Replace('\\', '/');
+    internal static string Normalize(string path) => path.Replace('\\', '/');
 
     private static LoadedSource? Charge(
         ImmutableArray<NamespaceRecord> records,

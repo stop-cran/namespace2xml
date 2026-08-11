@@ -58,4 +58,72 @@ public class HelpTextLinkTests
             File.Exists(path).ShouldBeTrue($"{link.Value} names {link.Groups["path"].Value}, which is not in the repository");
         }
     }
+
+    /// <summary>
+    /// The documents an automated caller cannot work without must be reachable in one step from
+    /// the help text.
+    /// </summary>
+    /// <remarks>
+    /// The two gates above are structural, so both stay green when a link is deleted: an empty set
+    /// of wrong links is still a set of no wrong links. This one is an enumeration for that
+    /// reason, and it is deliberately short. Each entry answers a question an agent asks before it
+    /// can report anything usefully: what is the contract, what does this code mean, is this
+    /// already known, and where does a finding go. An agent that has to search for those either
+    /// guesses or gives up, and both failures are silent.
+    ///
+    /// Help and version are asserted separately rather than over their concatenation. Checked
+    /// together, deleting a link from one passes as long as the other still carries it, which is
+    /// exactly the regression worth catching: an agent runs one command, not both.
+    ///
+    /// Matching is case-sensitive because the distinction being asserted is partly one of case:
+    /// the <c>known-limits</c> field and the <c>KNOWN-LIMITS.md</c> file it names differ by
+    /// nothing else, and Shouldly compares strings case-insensitively unless told otherwise.
+    /// </remarks>
+    [Test]
+    public void TheHelpTextLinksEveryDocumentAnAgentNeeds()
+    {
+        string[] required =
+        [
+            "docs/specification.md",
+            "docs/diagnostics.md",
+            "KNOWN-LIMITS.md",
+            "CONTRIBUTING.md",
+            "AGENTS.md",
+            "llms.txt",
+        ];
+
+        foreach (var document in required)
+        {
+            HelpText.Render().ShouldContain(
+                document,
+                Case.Sensitive,
+                $"--help must link {document}; an agent that cannot reach it from the tool has no " +
+                "way to find it that does not involve guessing");
+        }
+    }
+
+    /// <summary>
+    /// The version output is the machine-readable half of the discovery surface, so the documents
+    /// it names are the ones a caller parsing fields rather than prose has to be able to find.
+    /// </summary>
+    [Test]
+    public void TheVersionOutputLinksTheContractDocuments()
+    {
+        string[] required =
+        [
+            "docs/specification.md",
+            "docs/diagnostics.md",
+            "KNOWN-LIMITS.md",
+            "llms.txt",
+        ];
+
+        foreach (var document in required)
+        {
+            HelpText.RenderVersion().ShouldContain(
+                document,
+                Case.Sensitive,
+                $"--version must link {document}; it is the only discovery surface a caller that " +
+                "parses fields rather than prose will read");
+        }
+    }
 }

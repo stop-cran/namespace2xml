@@ -184,12 +184,13 @@ fixed point in §12.4, before numeric-map sequence inference and output renderin
 entry-by-entry: carrier ancestors created only to contain an extracted template do not contribute
 mapping-presence marks, and literal sibling entries remain concrete data (§10.4).
 
-**Two shapes beneath a wildcard key are declined**, with exit `70` and no output: a sequence, and
-an empty mapping. §10.4 shows neither, and both are under-determined rather than merely
-unimplemented — a native sequence item takes its ordering value from the destination path's §5.4
-high-water mark, and the destination is not known until §12.4 expansion; an empty mapping has no
-scalar leaf to extract and expresses mapping presence, which §10.4 explicitly denies a template.
-Refusing is narrower than inventing a reading. See `KNOWN-LIMITS.md` §1.2.
+**An empty mapping beneath a wildcard key is `PARSE001`.** §10.4 extracts a template entry by
+entry, and an empty mapping has no entries, so such a template would contribute nothing at every
+path it matched, while an empty mapping elsewhere expresses mapping presence — which §10.4
+explicitly denies a template. Give the template a scalar, or write `'\*'` for a literal asterisk
+if the key was not meant to be a wildcard. A sequence beneath a wildcard key is supported: each
+item takes its ordering value from the destination path's §5.4 high-water mark once §12.4
+expansion has determined that destination.
 
 §16.7 `substitute` reaches native keys: under `substitute=None` or `substitute=Value` the names
 are not interpreted, so `'*'` becomes a literal asterisk key exactly as `'\*'` does.
@@ -456,10 +457,10 @@ which is not what a semver-like intent says.
 implicit document per stream and refuses explicit markers. If you meant the literal string
 `---`, quote it: `sep: '---'` is fine. If you meant to start a new document, split the file.
 
-**A wildcard `*` in a YAML mapping key is refused today.** §10.4 specifies the behaviour and
-the specification's own worked example produces the same output that namespace2xml 2.4.0
-produces, but this preview refuses that input with exit `70` and no output. Declare wildcard
-templates in a namespace-profile input file until §10.4 lands. See `KNOWN-LIMITS.md` §1.2.
+**A wildcard `*` in a YAML mapping key is a template, not a literal key.** §10.4 makes
+`'*': {c: XXX}` beneath `a` contribute `c` to every child of `a`, so a key you meant literally
+becomes a template that edits its siblings. Write `'\*'` for a literal asterisk. The one shape
+that is refused is an empty mapping, which is `PARSE001` — see the wildcard section above.
 
 **A comment at the top of a YAML file is document-scoped, not first-entry-scoped.** Under an
 ignore mask on the first entry, a top-of-namespace-profile comment is dropped with the entry;

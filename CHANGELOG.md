@@ -11,6 +11,51 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 recorded separately from the package version, because the contract and the implementation move
 independently.
 
+## [Unreleased]
+
+### Fixed
+
+- **A Section 15 scheme rejection spelled its `source` with whatever separator the caller typed.**
+  §6.4.3 fixes `source` as a relative path with `/` separators for anything inside the invocation's
+  input set, and every other diagnostic gets that spelling from the loader. The XML-scheme refusal
+  reports *before* the file is read, so it never reached the loader and quoted the raw argument:
+  `-s schemes\scheme.xml` and `-s schemes/scheme.xml` named the same file and produced different
+  diagnostic bytes. A regression introduced with the refusal itself, reported by exploratory
+  testing against `3.0.0-preview.3`, and now covered by
+  `diagnostic-source-spelling-is-independent-of-separator`.
+- Three documentation defects found by the same round, all of them drift this project introduced
+  rather than long-standing errors. `README.md`'s first example printed output the tool does not
+  produce, in all three formats at once. `docs/format-xml.md` said the document element comes from
+  the output selector; §16.3 says it comes from the selected view, and more than one top-level
+  member is `TYPE001` until `root` supplies one. `docs/format-yaml.md` still described wildcard
+  YAML mapping keys as refused with exit `70`, which the §10.4 resolution shipped in
+  `3.0.0-preview.3` had already removed.
+
+### Added
+
+- **`--help` and `--version` now name every document an agent needs, release-pinned.** `--help`
+  carries a seven-entry document index — the index itself, the specification, the diagnostic
+  codes, the known limits, the reporting guide, the agent guide, and where to file — and says
+  what each is for. `--version` gains `diagnostics`, `known-limits` and `documentation` fields
+  alongside the existing `specification`. §6.4.1 fixes a *minimum* field set, so this needs no
+  amendment.
+
+  This closes a gap the exploratory round found repeatedly: `llms.txt` already indexed the whole
+  documentation set, and nothing anywhere pointed at it. Agents reported reconstructing the
+  document list by guessing at paths. Every link is pinned to the release tag, so the index an
+  agent reads describes the binary it is running rather than a later branch.
+- **The package carries the documentation set it indexes.** `llms.txt`, `AGENTS.md`,
+  `CONTRIBUTING.md`, `KNOWN-LIMITS.md`, `docs/diagnostics.md`, `docs/usage-methodology.md`, the
+  five format guides, and the remaining `spec/` artifacts now ship in the `.nupkg` beside the
+  specification, at the paths `llms.txt` names them by, so the index resolves offline.
+  `docs/migration-2.x-to-3.0.md` is deliberately omitted: 300 KB about the version this one
+  replaces is the least useful document to carry and the most expensive.
+- Gates for all of the above: the help text and the version output are each checked separately
+  for the documents they must name — together, deleting a link from one passes while the other
+  still carries it — and the project file is checked against `llms.txt` so a document added to
+  the index cannot silently miss the package, or land at a path its relative links do not
+  resolve to.
+
 ## [3.0.0-preview.3] - 2026-08-11
 
 ### Contract

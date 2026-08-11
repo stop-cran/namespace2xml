@@ -50,6 +50,12 @@ public static class SchemePhase
         // qualified directive path, and says so rather than leaving the question open -- see issue
         // #72. Reported before anything is read, so the namespace parser never sees the file and
         // never reports Section 8.1 against a document written to no such contract.
+        //
+        // Reporting before the read is also why this path must spell the source itself. Every
+        // other scheme diagnostic takes the Section 6.4.3 spelling from SourceLoader.LoadFile,
+        // which this file never reaches; quoting the raw argument instead let a Windows caller's
+        // 'schemes\x.xml' reach the stream unnormalized, so one invocation produced different
+        // diagnostic bytes depending only on how the separator was typed.
         var rejected = false;
 
         foreach (var path in command.Schemes)
@@ -61,15 +67,17 @@ public static class SchemePhase
 
             rejected = true;
 
+            var source = SourceLoader.Normalize(path);
+
             diagnostics.Add(new BufferedDiagnostic(DiagnosticCodes.Parse001(
                 DiagnosticPhase.Scheme,
                 "\u00A715",
-                $"'{path}' names the XML format, which Section 15 excludes from the scheme file "
+                $"'{source}' names the XML format, which Section 15 excludes from the scheme file "
                 + "extensions because it defines no projection from an XML document to a "
                 + "qualified directive path. Scheme files are namespace profiles, JSON, or YAML, "
                 + "and Section 15 calls the namespace-profile form canonical.",
-                cardinalityKey: path,
-                source: path)));
+                cardinalityKey: source,
+                source: source)));
         }
 
         if (rejected)

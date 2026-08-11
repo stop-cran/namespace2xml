@@ -13,6 +13,9 @@ internal static class HelpText
     internal static readonly string DiagnosticsUrl = DocumentUrl("docs/diagnostics.md");
     internal const string ReportUrl = RepositoryUrl + "/issues/new/choose";
     internal static readonly string AgentGuideUrl = DocumentUrl("AGENTS.md");
+    internal static readonly string DocumentIndexUrl = DocumentUrl("llms.txt");
+    internal static readonly string KnownLimitsUrl = DocumentUrl("KNOWN-LIMITS.md");
+    internal static readonly string ReportingGuideUrl = DocumentUrl("CONTRIBUTING.md");
 
     /// <summary>
     /// A link to a document as it stood in the release being run, rather than on a branch.
@@ -99,17 +102,32 @@ internal static class HelpText
           precisely rather than described. Run with --diagnostics-format json for
           machine-readable diagnostics.
 
+          Every link below is pinned to this release, so it describes this binary rather
+          than a later branch. The document index lists these and the rest, including one
+          guide per format. The diagnostic codes page lists every error and warning this
+          build can emit, each with the clause it enforces.
+
+          Document index    {DocumentIndexUrl}
           Specification     {SpecificationUrl}
           Diagnostic codes  {DiagnosticsUrl}
+          Known limits      {KnownLimitsUrl}
+          Reporting guide   {ReportingGuideUrl}
           Agent guide       {AgentGuideUrl}
           Report a defect   {ReportUrl}
 
-          When reporting, include the contract-bundle revision printed by --version.
+          Read the known limits before reporting: a gap documented there is known, and the
+          entry says whether this build has it. The reporting guide routes a finding to the
+          right form — code defect, specification ambiguity, usage gap, or feature request —
+          and misrouting is the main way a real finding gets lost. When reporting, include
+          the contract-bundle revision printed by --version.
 
         """.ReplaceLineEndings("\n");
 
     internal static string RenderVersion() =>
         // One "<field>: <value>" line per field, so a script can read it without a parser.
+        // Section 6.4.1 fixes a minimum of 'version' and 'contract-bundle'; the rest exist so
+        // that a caller holding only this output can reach the contract and the report form
+        // without first guessing a URL.
         $"""
         name: namespace2xml
         version: {ContractBundle.ProductVersion}
@@ -117,6 +135,9 @@ internal static class HelpText
         specification-sha256: {ContractBundle.Current.SpecificationSha256}
         registry-sha256: {ContractBundle.Current.RegistrySha256}
         specification: {SpecificationUrl}
+        diagnostics: {DiagnosticsUrl}
+        known-limits: {KnownLimitsUrl}
+        documentation: {DocumentIndexUrl}
         repository: {RepositoryUrl}
         report: {ReportUrl}
 

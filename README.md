@@ -57,12 +57,13 @@ a.output=xml,json,yaml,ini,namespace
 namespace2xml -i test.properties -s scheme.properties
 ```
 
-produces `a.xml`, `a.json`, `a.yml`, `a.ini` and `a.properties`:
+produces `a.xml`, `a.json`, `a.yaml`, `a.ini` and `a.properties`:
 
 ```xml
-<a>
-  <b x="1" />
-</a>
+<?xml version="1.0" encoding="utf-8"?>
+<b>
+  <x>1</x>
+</b>
 ```
 
 ```json
@@ -80,12 +81,25 @@ b:
 
 ```ini
 [b]
-x = 1
+x=1
 ```
 
 ```
 b.x=1
 ```
+
+The output selector `a` names what to render, and Section 16.3 removes it before rendering, so
+`b` is what each document contains. Add `root` to wrap the result in a name of your choosing.
+
+Scalars become elements in XML unless a scheme directive asks otherwise. Section 16.6 makes
+attributes an explicit opt-in, and the choice is scoped to the formats that have attributes:
+
+```
+a.output=xml,json
+a.b.x.type=attribute
+```
+
+renders `<b x="1" />` in XML while JSON keeps `"x": 1` as an ordinary member.
 
 ### Overlaying
 

@@ -276,9 +276,15 @@ A canonical reference directly to a comment content-token fails as a non-scalar 
 
 ### The document element and `root`
 
-When converting a non-XML mapping to XML, the concrete selector supplies the document-element
-name unless `root` names another (§11.4). A root-level selector with no XML element identity
-must specify `root`, or serialization fails as `TYPE001` (§14.1).
+When converting a non-XML mapping to XML, the document element comes from the selected view, not
+from the selector. §16.3 removes the concrete output selector prefix first, and does not retain
+the selector name unless `root` also names it. What remains must be a single top-level member,
+which becomes the document element; `root` overrides that and wraps the remaining content in a
+name of its own (§11.4).
+
+So `a.output=xml` over `a.b.x=1` emits `<b>`, not `<a>`. A selected view with more than one
+top-level member, or one that is a bare scalar, has no single element to serve as the document
+element and fails as `TYPE001` (§19.5, §14.1) until `root` supplies one.
 
 ## XML comments
 

@@ -1211,7 +1211,8 @@
         "cli-diagnostics-format-inline-invalid",
         "cli-diagnostics-format-invalid-value",
         "cli-diagnostics-format-missing-value",
-        "cli-diagnostics-stream-on-a-clean-run"
+        "cli-diagnostics-stream-on-a-clean-run",
+        "diagnostic-source-spelling-is-independent-of-separator"
       ]
     },
     {

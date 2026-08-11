@@ -5,3 +5,8 @@ specification-sha256: ${specification-sha256}
 registry-sha256: ${registry-sha256}
 specification: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.3/docs/specification.md
 !specification: https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md
+diagnostics: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.3/docs/diagnostics.md
+!diagnostics: https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md
+known-limits: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.3/KNOWN-LIMITS.md
+documentation: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.3/llms.txt
+repository: https://github.com/stop-cran/namespace2xml
