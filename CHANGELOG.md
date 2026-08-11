@@ -39,6 +39,9 @@ independently.
   reference must contain no wildcard" — so a capture the template cannot bind now survives
   substitution and is refused as `REFERENCE001` against §13.3, matching what the corpus already
   pinned for the same construct in a non-template owner. Found while fixing #77.
+  **Closes [#83](https://github.com/stop-cran/namespace2xml/issues/83)**; the choice of code is
+  recorded as an open ambiguity in
+  [#84](https://github.com/stop-cran/namespace2xml/issues/84).
 
 - **A reference in a template's value silently corrupted its positional captures.** §12.1 says
   "legacy unnamed captures are substituted positionally", and the counter ran across the whole
@@ -47,7 +50,7 @@ independently.
   against captures `p` and `q` wrote `K-p-p` instead of `K-p-q`: wrong output, exit `0`, no
   diagnostic. The existing gate for the positional rule passed throughout because its value carried
   no reference. The two paths now share one counter, so they cannot disagree again. Found while
-  fixing #77.
+  fixing #77. **Closes [#82](https://github.com/stop-cran/namespace2xml/issues/82)**.
 
 ### Changed
 

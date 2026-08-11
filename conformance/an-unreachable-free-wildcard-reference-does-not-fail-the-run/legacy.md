@@ -1,14 +1,14 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**, on line endings only.
+- namespace2xml 2.4.0: **agrees**.
 - Contract: Section 14.4 reference closure, both sentences; Section 13.3 free wildcard references;
   Section 22 counting `REFERENCE001` once per reachable owning value; Section 26 item 46.
 - Legacy observation: the baseline exits `0` and writes `out/app.properties` holding `k=1` and
-  `out=1` — the same entries, in the same order, as `expected/app.properties`. It reports none of
-  the six defective references under `dead` and `orphan`. The measured divergence is entirely the
-  Section 19.1 line terminator: 2.4.0 emitted `\r\n` on this host, 12 bytes against 10, and every
-  other byte agrees. That divergence is the deliberate one recorded across the corpus, not a
-  behavioral disagreement about this case.
+  `out=1` — byte for byte `expected/app.properties` on the Linux differential lane. It reports none
+  of the six defective references under `dead` and `orphan`. Measuring the same case on Windows
+  shows 12 bytes against 10, because 2.4.0 writes `Environment.NewLine`; that is the runner, not
+  the tool, which is why Appendix C.6's lane is Linux-only and why the verdict here is agreement
+  rather than a line-terminator divergence.
 - Clean behavior: Section 14.4 says "missing, cyclic, ambiguous, free-wildcard, and non-scalar
   references in entries unreachable from every concrete output instance do not fail the run", and
   its last paragraph says a selector whose winning declaration is `output=ignore` "creates no
