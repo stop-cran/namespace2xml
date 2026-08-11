@@ -11,9 +11,9 @@ n*.key=*_id
 ```
 
 `n*` matches `na` and `ni`, binding the captures `a` and `i`. Section 16.5 says "Wildcard-qualified
-`key` directives are supported", and Section 12.1 says a scheme directive's value is decided "from
-the captures its selector defines" — so the one rule names the field `a_id` under `na` and `i_id`
-under `ni`.
+`key` directives are supported", and Section 12.1 decides a scheme directive's value "from the
+captures its own pattern defines … its path for the path-scoped ones" — so the one rule names the
+field `a_id` under `na` and `i_id` under `ni`.
 
 ## What this asserts
 

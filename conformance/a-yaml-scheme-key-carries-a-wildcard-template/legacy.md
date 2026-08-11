@@ -21,7 +21,8 @@ against the concrete name graph, producing one output instance per child of `app
 
 Section 12.1 supplies the value half:
 
-> A scheme directive's value is decided the same way, from the captures its selector defines.
+> A scheme directive's value is decided the same way, from the captures its own pattern defines:
+> its selector for the output-instance-scoped directives, its path for the path-scoped ones.
 
 The selector defines one unnamed capture, so the `*` in `x-*.json` is that capture rather than
 literal text, and the two instances are named from the two children.

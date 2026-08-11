@@ -313,7 +313,7 @@ at all is read as a namespace profile, exactly as §7.1 treats input files.
 
 `v3.0.0-preview.1` and `v3.0.0-preview.2` decline `a.*.type=arr*y` and `a.*.output=*` with
 exit `70`, naming "a wildcard capture substituted into a directive value" as a capability they
-lack. §12.1 said a scheme directive's value is decided from the captures its selector defines,
+lack. §12.1 said a scheme directive's value is decided from the captures its own pattern defines,
 without exception, so the refusal was the build declining to follow its own contract.
 
 §12.1 now **excludes** both values from capture substitution: §16.6 closes the type names and §16.1

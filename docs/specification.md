@@ -1195,7 +1195,7 @@ Whether a value contains wildcard tokens at all is therefore decided before the 
 
 Exactly one capture form is recognized in any one value, so where the name defines unnamed captures the bare form is the recognized one and it consumes the asterisk alone: in `x*[0-9]y` the asterisk is an unnamed capture substitution and `[0-9]` is literal text. The bracketed form is not recognized there, so its brackets never terminate a token.
 
-A scheme directive's value is decided the same way, from the captures its selector defines. The `substitute` directive does not apply to scheme declarations, so the selector alone decides: in a scheme whose selector contains no wildcard, `*` in a `filename`, `root`, or `delimiter` value is literal text.
+A scheme directive's value is decided the same way, from the captures its own pattern defines: its selector for the output-instance-scoped directives, its path for the path-scoped ones, as Section 15.2 separates them. The `substitute` directive does not apply to scheme declarations, so that pattern alone decides. Where it defines captures they are substituted into the directive's value once per binding — per concrete output instance for a selector, per matched path for a path-scoped directive — so one wildcard declaration can give each instance or each match a different value; `jobs.*.root=*` wraps each instance's content in an element named after its own capture, and `reg.*.key=*` names the generated field after each match's. Where it defines none, `*` in the value is literal text: in a scheme whose selector contains no wildcard, `*` in a `filename`, `root`, or `delimiter` value needs no escape. Those three are named as the common cases and not as a closed list; the rule reaches every directive except the two the next paragraph excludes.
 
 A `type` value and an `output` value are excluded from capture substitution. Section 16.6 closes the type names and their legal combinations, and Section 16.1 closes the output formats, so a capture could complete either only by accident of the matched data. Capture recognition is therefore disabled in both values whatever the selector defines, and an unescaped `*` in a `type` or `output` value is literal text. It falls to the ordinary Section 16.1 or Section 16.6 value check, which rejects it as `SCHEME001` in the scheme phase, at the line the declaration was written on. The exclusion belongs to the directive and not to the declaration, so `cfg.*.output=*` and `cfg.output=*` are the same error.
 
@@ -1691,6 +1691,8 @@ For `root=x.y`:
 
 `\.` represents a literal dot inside one root name part.
 
+Wildcard captures may be substituted into root name parts, per output instance, under the Section 12.1 rule that governs every scheme directive value. `jobs.*.root=*` therefore wraps each concrete instance's content in an element named after that instance's own capture. A capture matches within one qualified-name part, so substituted text cannot introduce a further nesting level.
+
 ### 16.4 `delimiter`
 
 ```text
@@ -1777,6 +1779,8 @@ x=2
 ```
 
 Wildcard-qualified `key` directives are supported.
+
+The captures a wildcard-qualified `key` binds are substituted into its field-name value, per matched path, under the Section 12.1 rule that governs every scheme directive value. `reg.*.key=*` therefore names each generated field after the capture of the path it was matched against, so one declaration can name the field differently in each record set it produces. Section 12.1's rule is stated for the captures a directive's own pattern defines; for `key` that pattern is the path of Section 15.2's path-scoped family, not an output selector, and the field name is resolved once per match rather than once per output instance.
 
 If several directives match, the later directive wins. A later directive may therefore intentionally replace the key-field name chosen by an earlier wildcard rule.
 

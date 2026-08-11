@@ -13,6 +13,27 @@ independently.
 
 ## [Unreleased]
 
+### Changed
+
+- **§12.1's rule for capture substitution into a scheme directive value now covers the directives
+  it always governed.** It was written as "from the captures its **selector** defines", but §15.2
+  splits scheme directives into two families — selector-scoped (`output`, `filename`, `root`,
+  `delimiter`, output options, `filemerge`) and path-scoped (`type`, `key`, output-view ignores) —
+  and a `key` directive's wildcards live in a path, not a selector. The one general sentence the
+  contract had therefore did not reach `key` at all, even though `key` substitutes captures, and
+  `reg.*.key=*` visibly changes document shape by naming the generated field after each match. The
+  clause now names both families and says explicitly that its list of `filename`, `root` and
+  `delimiter` is the common cases rather than a closed list — which the following paragraph already
+  implied by needing to *exclude* `type` and `output`. §16.3 and §16.5 now state the rule locally
+  instead of leaving it to be inferred from §16.2's statement for `filename`.
+
+  No behaviour changed: the corpus already pinned both cases, in
+  `a-capture-substitutes-into-root-and-delimiter` and `a-capture-substitutes-into-a-key-field-name`.
+  That is the point of the report — the behaviour was right, was tested, and was still not
+  reachable from the clause a reader would consult, so the reporting agent confirmed it against the
+  binary instead. Reported as
+  **[#81](https://github.com/stop-cran/namespace2xml/issues/81)**. **Closes #81.**
+
 ### Fixed
 
 - **`--verbosity` did nothing, and no operational message was ever written.** §6.2 gives the option

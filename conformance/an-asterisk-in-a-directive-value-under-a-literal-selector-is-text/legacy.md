@@ -13,10 +13,12 @@ a.root=r*
 
 Section 12.1:
 
-> A scheme directive's value is decided the same way, from the captures its selector defines. The
-> `substitute` directive does not apply to scheme declarations, so the selector alone decides: in a
-> scheme whose selector contains no wildcard, `*` in a `filename`, `root`, or `delimiter` value is
-> literal text.
+> A scheme directive's value is decided the same way, from the captures its own pattern defines:
+> its selector for the output-instance-scoped directives, its path for the path-scoped ones, as
+> Section 15.2 separates them. The `substitute` directive does not apply to scheme declarations, so
+> that pattern alone decides. […] Where it defines none, `*` in the value is literal text: in a
+> scheme whose selector contains no wildcard, `*` in a `filename`, `root`, or `delimiter` value
+> needs no escape.
 
 So neither asterisk is a capture, and neither is an error. This is the negative half of item 6, and
 it is the half an implementation is most likely to get wrong by rejecting rather than by

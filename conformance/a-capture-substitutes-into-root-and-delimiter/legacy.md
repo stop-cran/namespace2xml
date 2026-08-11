@@ -14,10 +14,12 @@ a.*.delimiter=-*-
 
 Section 12.1:
 
-> A scheme directive's value is decided the same way, from the captures its selector defines.
+> A scheme directive's value is decided the same way, from the captures its own pattern defines:
+> its selector for the output-instance-scoped directives, its path for the path-scoped ones.
 
-The clause names `filename`, `root`, and `delimiter` together. `filename` is covered by
-`wildcard-filename-substitutes-the-selector-captures`; this case is the other two.
+The clause names `filename`, `root`, and `delimiter` as its common cases rather than as a closed
+list. `filename` is covered by `wildcard-filename-substitutes-the-selector-captures`; this case is
+the other two.
 
 ## What this asserts
 
