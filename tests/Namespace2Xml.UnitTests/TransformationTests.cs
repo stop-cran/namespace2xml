@@ -58,15 +58,30 @@ public sealed class TransformationTests
 
         public void CreateDirectory(string root, string relative) => Directories.Add(relative);
 
-        public void Write(string root, string relative, OutputBuffer buffer) =>
+        /// <summary>
+        /// Reports a replacement when this sink already holds the destination, so that Section
+        /// 21.4's information message can be exercised without a filesystem.
+        /// </summary>
+        public bool Write(string root, string relative, OutputBuffer buffer)
+        {
+            var replaced = Written.ContainsKey(relative);
+
             Written[relative] = new UTF8Encoding(false).GetString(buffer.ToArray());
+
+            return replaced;
+        }
     }
 
-    internal static TransformationResult Run(Sink sink, Sources sources, params string[] arguments)
+    internal static TransformationResult Run(
+        Sink sink, Sources sources, params string[] arguments) =>
+        Run(sink, sources, log: null, arguments);
+
+    internal static TransformationResult Run(
+        Sink sink, Sources sources, IOperationalLog? log, params string[] arguments)
     {
         var parsed = CommandLineParser.Parse(arguments);
         parsed.Diagnostic.ShouldBeNull();
-        return Transformation.Run(parsed.CommandLine.ShouldNotBeNull(), sources, sink);
+        return Transformation.Run(parsed.CommandLine.ShouldNotBeNull(), sources, sink, log);
     }
 
     private static (TransformationResult Result, Sink Sink) Transform(string input, string scheme)

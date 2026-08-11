@@ -40,13 +40,21 @@ public static class Program
         var parsed = CommandLineParser.Parse(args);
         if (parsed.Diagnostic is { } invalid)
         {
-            Emit(stderr, format, [invalid]);
+            // The default threshold, not the one the arguments asked for. Section 6.2 makes
+            // verbosity a property of a validated command line, and this line reports why
+            // validation failed — including, when it was '--verbosity' itself that was invalid, a
+            // refusal that could not be filtered by the value being refused. Exit 1 with an empty
+            // stream would leave the caller nothing to act on.
+            Emit(stderr, format, [invalid], Verbosity.Information);
             return 1;
         }
 
-        var result = Transformation.Run(parsed.CommandLine!);
+        var command = parsed.CommandLine!;
+        var log = OperationalLogWriter.For(stderr, command);
 
-        Emit(stderr, format, result.Diagnostics);
+        var result = Transformation.Run(command, sink: null, log: log);
+
+        Emit(stderr, format, result.Diagnostics, command.Verbosity);
 
         if (result.ExitCode is { } code)
         {
@@ -67,8 +75,17 @@ public static class Program
         return NotImplementedInThisPreview;
     }
 
-    private static void Emit(TextWriter stderr, DiagnosticFormat format, IReadOnlyList<Diagnostic> diagnostics)
+    private static void Emit(
+        TextWriter stderr,
+        DiagnosticFormat format,
+        IReadOnlyList<Diagnostic> diagnostics,
+        Verbosity verbosity)
     {
+        // Section 6.2 filters what is written and nothing else: the list arrives already ordered by
+        // Section 24 and this never reorders it, so a threshold change moves lines out of the
+        // stream without moving the ones that remain.
+        var admitted = diagnostics.Where(d => verbosity.Admits(d.Severity)).ToList();
+
         // Section 6.4.3: a failure to write the diagnostic stream is not itself a diagnostic and
         // does not change the exit code. A full or closed standard error must not turn a decided
         // outcome into a different one.
@@ -76,15 +93,18 @@ public static class Program
         {
             if (format == DiagnosticFormat.Json)
             {
-                // The array container is always written, so the stream always parses (Section 6.4.3).
+                // The array container is always written, so the stream always parses (Section
+                // 6.4.3). That clause explicitly overrides Section 6.2 for `none`: "--verbosity
+                // none, and any threshold that filters every produced diagnostic, yields exactly
+                // the two bytes [] followed by one LF", which is what an empty list renders as.
                 using var raw = Console.OpenStandardError();
-                var bytes = JsonDiagnosticWriter.Render(diagnostics);
+                var bytes = JsonDiagnosticWriter.Render(admitted);
                 raw.Write(bytes, 0, bytes.Length);
                 raw.Flush();
                 return;
             }
 
-            foreach (var diagnostic in diagnostics)
+            foreach (var diagnostic in admitted)
             {
                 // LF, not Environment.NewLine: Section 24 forbids host-dependent line endings.
                 stderr.Write(TextDiagnosticWriter.Render(diagnostic) + "\n");

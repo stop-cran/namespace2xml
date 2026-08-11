@@ -559,7 +559,13 @@ public class PublisherTests
             }
         }
 
-        public void Write(string root, string relative, OutputBuffer buffer)
+        /// <summary>
+        /// Destinations this double reports as already existing, so that a test can exercise the
+        /// Section 21.4 replacement path without a filesystem.
+        /// </summary>
+        public HashSet<string> Existing { get; } = new(StringComparer.Ordinal);
+
+        public bool Write(string root, string relative, OutputBuffer buffer)
         {
             lock (gate)
             {
@@ -580,6 +586,8 @@ public class PublisherTests
 
                 buffer.WriteTo(stream);
                 contents[relative] = System.Text.Encoding.UTF8.GetString(stream.ToArray());
+
+                return Existing.Contains(relative);
             }
             finally
             {

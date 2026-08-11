@@ -73,17 +73,19 @@ public static class PublicationPhase
     /// <param name="outputRoot">The configured output root.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <param name="sink">Where bytes go, or <c>null</c> for the file system.</param>
+    /// <param name="log">Where Section 21.4 replacement messages go.</param>
     /// <returns>How many destinations were written.</returns>
     public static StepOutcome<int> Publish(
         ImmutableArray<PlannedOutput> planned,
         string outputRoot,
         DiagnosticBuffer diagnostics,
-        IPublicationSink? sink = null)
+        IPublicationSink? sink = null,
+        IOperationalLog? log = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(outputRoot);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        return new Publisher(outputRoot, diagnostics, sink).TryPublish(planned)
+        return new Publisher(outputRoot, diagnostics, sink, log).TryPublish(planned)
             ? StepOutcome.Produced(planned.Length)
             : StepOutcome.Failed<int>();
     }

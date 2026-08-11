@@ -1,3 +1,5 @@
+using Namespace2Xml.Diagnostics;
+
 namespace Namespace2Xml.Pipeline;
 
 /// <summary>
@@ -114,6 +116,11 @@ public enum PipelineRunState
 public sealed class PipelineRun
 {
     private PipelineStep? completed;
+    private readonly IOperationalLog log;
+
+    /// <summary>Creates a run.</summary>
+    /// <param name="log">Where Section 6.2 phase-progress messages go.</param>
+    public PipelineRun(IOperationalLog? log = null) => this.log = log ?? SilentOperationalLog.Instance;
 
     /// <summary>Every diagnostic buffered so far, in Section 24 emission order when drained.</summary>
     public DiagnosticBuffer Diagnostics { get; } = new();
@@ -224,9 +231,18 @@ public sealed class PipelineRun
 
         if (State != PipelineRunState.Running || input is null)
         {
+            // Section 6.2 lists "pipeline-phase progress" among what debug shows. A step that was
+            // skipped is progress too, and is the more interesting half: it tells a reader where
+            // Section 15.4 stopped the run.
+            log.Write(
+                OperationalLevel.Debug,
+                $"step {step.Number()} {step} skipped.");
+
             CloseStep(step);
             return null;
         }
+
+        log.Write(OperationalLevel.Debug, $"step {step.Number()} {step}.");
 
         var stepDiagnostics = new DiagnosticBuffer();
         var outcome = body(input.Value, stepDiagnostics);

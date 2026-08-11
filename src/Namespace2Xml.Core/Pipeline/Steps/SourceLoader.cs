@@ -71,17 +71,20 @@ public sealed class SourceLoader
 {
     private readonly ISourceReader reader;
     private readonly ResourceLimits limits;
+    private readonly IOperationalLog log;
 
     /// <summary>Creates a loader.</summary>
     /// <param name="reader">Where bytes come from.</param>
     /// <param name="limits">The Section 23 bounds.</param>
-    public SourceLoader(ISourceReader reader, ResourceLimits limits)
+    /// <param name="log">Where Section 6.2 per-file parsing messages go.</param>
+    public SourceLoader(ISourceReader reader, ResourceLimits limits, IOperationalLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(limits);
 
         this.reader = reader;
         this.limits = limits;
+        this.log = log ?? SilentOperationalLog.Instance;
     }
 
     /// <summary>The Section 7.1 extension of a native structured input format.</summary>
@@ -230,14 +233,26 @@ public sealed class SourceLoader
                 return Attempted(origin, ordinal, budget);
             }
 
+            log.Write(
+                OperationalLevel.Trace,
+                $"parsed '{origin.File}' as {format}: {read.Bytes.Length} byte(s), "
+                + $"{decoded.Encoding!.Value}.");
+
             return new LoadedSource(origin, ordinal, [], budget.Tally, Admitted: true)
             {
                 Document = document,
                 Format = format,
             };
         }
-
         var records = NamespaceRecordClassifier.Classify(PhysicalRecordReader.Read(decoded.Text!));
+
+        // Section 6.2 level 1 shows "per-file parsing" detail. The counts are what a reader wants
+        // when a file appears to contribute less than expected: an encoding that decoded to fewer
+        // records than the file has lines is visible here and nowhere else.
+        log.Write(
+            OperationalLevel.Trace,
+            $"parsed '{origin.File}' as a namespace profile: {records.Length} record(s), "
+            + $"{read.Bytes.Length} byte(s), {decoded.Encoding!.Value}.");
 
         return Charge(records, origin, ordinal, budget, phase, diagnostics, key);
     }

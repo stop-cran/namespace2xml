@@ -55,6 +55,7 @@ public static class Transformation
     /// <param name="command">The parsed and validated command line.</param>
     /// <param name="reader">Where source bytes come from, or <c>null</c> for the file system.</param>
     /// <param name="sink">Where output bytes go, or <c>null</c> for the file system.</param>
+    /// <param name="log">Where operational messages go, or <c>null</c> to discard them.</param>
     /// <returns>What the run produced.</returns>
     /// <remarks>
     /// The work happens on a thread with an explicitly sized stack. Several phases walk the overlay
@@ -67,7 +68,8 @@ public static class Transformation
     public static TransformationResult Run(
         CommandLine command,
         ISourceReader? reader = null,
-        IPublicationSink? sink = null)
+        IPublicationSink? sink = null,
+        IOperationalLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(command);
 
@@ -79,7 +81,7 @@ public static class Transformation
             {
                 try
                 {
-                    result = RunCore(command, reader, sink);
+                    result = RunCore(command, reader, sink, log ?? SilentOperationalLog.Instance);
                 }
                 catch (Exception error)
                 {
@@ -111,11 +113,12 @@ public static class Transformation
     private static TransformationResult RunCore(
         CommandLine command,
         ISourceReader? reader,
-        IPublicationSink? sink)
+        IPublicationSink? sink,
+        IOperationalLog log)
     {
-        var run = new PipelineRun();
+        var run = new PipelineRun(log);
         var budget = new GlobalBudget(command.Limits);
-        var loader = new SourceLoader(reader ?? new FileSystemSourceReader(), command.Limits);
+        var loader = new SourceLoader(reader ?? new FileSystemSourceReader(), command.Limits, log);
         var start = PipelineRun.Seed(command);
 
         var schemes = run.Run(
@@ -236,7 +239,7 @@ public static class Transformation
             PipelineStep.Publish,
             serialized,
             (outputs, diagnostics) =>
-                PublicationPhase.Publish(outputs, command.OutputRoot, diagnostics, sink));
+                PublicationPhase.Publish(outputs, command.OutputRoot, diagnostics, sink, log));
 
         return new TransformationResult(
             run.Diagnostics.Drain(),

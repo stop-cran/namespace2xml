@@ -21,12 +21,18 @@ public sealed class Publisher
     private readonly string outputRoot;
     private readonly DiagnosticBuffer diagnostics;
     private readonly IPublicationSink sink;
+    private readonly IOperationalLog log;
 
     /// <summary>Creates a publisher.</summary>
     /// <param name="outputRoot">The configured <c>--output</c> root.</param>
     /// <param name="diagnostics">The buffer publication faults accumulate in.</param>
     /// <param name="sink">The filesystem, or a test double standing in for it.</param>
-    public Publisher(string outputRoot, DiagnosticBuffer diagnostics, IPublicationSink? sink = null)
+    /// <param name="log">Where Section 21.4 replacement messages go.</param>
+    public Publisher(
+        string outputRoot,
+        DiagnosticBuffer diagnostics,
+        IPublicationSink? sink = null,
+        IOperationalLog? log = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(outputRoot);
         ArgumentNullException.ThrowIfNull(diagnostics);
@@ -34,6 +40,7 @@ public sealed class Publisher
         this.outputRoot = outputRoot;
         this.diagnostics = diagnostics;
         this.sink = sink ?? new FileSystemPublicationSink();
+        this.log = log ?? SilentOperationalLog.Instance;
     }
 
     /// <summary>Publishes every planned output.</summary>
@@ -103,7 +110,21 @@ public sealed class Publisher
 
         try
         {
-            sink.Write(outputRoot, output.Path.Canonical, output.Buffer);
+            if (sink.Write(outputRoot, output.Path.Canonical, output.Buffer))
+            {
+                // Section 21.4: "Replacing an existing destination is allowed and is logged at
+                // information level." Allowed, so this is not a diagnostic and does not touch the
+                // exit code; logged, so silence is not an option either.
+                log.Write(
+                    OperationalLevel.Information,
+                    $"replaced the existing destination '{output.Path.Canonical}'.");
+            }
+            else
+            {
+                log.Write(
+                    OperationalLevel.Trace,
+                    $"wrote the destination '{output.Path.Canonical}'.");
+            }
         }
         catch (UncontainableDestinationException e)
         {
@@ -205,7 +226,16 @@ public interface IPublicationSink
     /// <param name="root">The configured output root.</param>
     /// <param name="relative">The canonical relative destination path.</param>
     /// <param name="buffer">The complete buffer.</param>
-    void Write(string root, string relative, OutputBuffer buffer);
+    /// <returns>
+    /// <see langword="true"/> when the destination already existed and was replaced.
+    /// </returns>
+    /// <remarks>
+    /// Section 21.4 says replacing an existing destination "is logged at information level", so
+    /// whether a write replaced something is part of what publication produces rather than a
+    /// question the caller can ask afterwards. Afterwards is too late: by then every destination
+    /// exists.
+    /// </remarks>
+    bool Write(string root, string relative, OutputBuffer buffer);
 
     /// <summary>
     /// Gets whether this host can guarantee Section 21.1 containment.
@@ -246,11 +276,19 @@ internal sealed class FileSystemPublicationSink : IPublicationSink
         DisposeReverse(opened);
     }
 
-    public void Write(string root, string relative, OutputBuffer buffer)
+    public bool Write(string root, string relative, OutputBuffer buffer)
     {
         var segments = relative.Split('/');
         using var secureRoot = factory.OpenRoot(root);
         var opened = OpenDirectories(secureRoot, segments[..^1]);
+
+        // Section 21.4's replacement message is operational, not a diagnostic: Section 22 puts
+        // trace, debug and information messages outside the registry, so this observation never
+        // reaches the deterministic stream and never affects an exit code. That is why an ordinary
+        // existence check is adequate here and no no-follow primitive is added for it. The write
+        // itself still goes through the containment anchor below, so a destination this returns
+        // true for is one the secure path then refuses if it is not really a contained file.
+        var replaced = File.Exists(Path.Combine(Path.GetFullPath(root), relative.Replace('/', Path.DirectorySeparatorChar)));
 
         // Section 21.3: created or truncated "only after its complete byte buffer exists", then
         // flushed and closed "before beginning the next one". Disposing the stream here, rather
@@ -269,6 +307,8 @@ internal sealed class FileSystemPublicationSink : IPublicationSink
         {
             DisposeReverse(opened);
         }
+
+        return replaced;
     }
 
     /// <summary>

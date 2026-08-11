@@ -15,6 +15,32 @@ independently.
 
 ### Fixed
 
+- **`--verbosity` did nothing, and no operational message was ever written.** §6.2 gives the option
+  seven thresholds and describes it as an output threshold that "never changes what the tool
+  computes, only what it writes"; the rewrite parsed the value and then consulted it nowhere, so
+  `--verbosity none` and `--verbosity critical` both printed every diagnostic, in text and in
+  JSON. That is the larger half of the report, and it was found while confirming the smaller one:
+  §6.2 also names two categories of operational message — per-file parsing progress at `trace` and
+  pipeline-phase progress at `debug` — and §21.4 requires that "replacing an existing destination
+  … is logged at information level", none of which existed. Both halves are now implemented, with
+  §6.4.3's overriding rule intact: under `--diagnostics-format json` operational output is
+  suppressed at every verbosity, and a threshold that filters every diagnostic still writes the two
+  bytes `[]` and one LF rather than nothing. Reported as
+  **[#78](https://github.com/stop-cran/namespace2xml/issues/78)**. **Closes #78.**
+
+  Two consequences of §6.2 read against §22 are worth recording, because they look like bugs and
+  are not: §22 defines exactly two diagnostic severities, so `critical` — "critical host/runtime
+  failures only" — admits no diagnostic at all, and `trace`, `debug`, `information` and the default
+  are indistinguishable over the severities that exist. They are derived in
+  `VerbosityThreshold.Admits` rather than asserted, so that adding a third severity changes the
+  answer without changing the reasoning.
+
+  The gap the corpus should have caught it with was already claimed: acceptance items 61 and 82
+  both cited verbosity behaviour, and no fixture passed `--verbosity` at all.
+  `verbosity-none-still-emits-the-json-array-container` now carries item 82's `[]` claim.
+  namespace2xml 2.4.0 honours `--verbosity none` and does emit operational messages, so — like #76
+  and #77 — this was a regression in the rewrite rather than a §3.2 change.
+
 - **A free-wildcard reference failed the run from an entry nothing could reach**, and two further
   defects in the same code fell out of fixing it. §14.4 says "missing, cyclic, ambiguous,
   free-wildcard, and non-scalar references in entries unreachable from every concrete output

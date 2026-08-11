@@ -1,0 +1,2 @@
+app.name=example
+app.broken=${app.absent}
