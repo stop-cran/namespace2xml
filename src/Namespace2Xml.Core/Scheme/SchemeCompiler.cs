@@ -618,7 +618,8 @@ public static class SchemeCompiler
                     entry,
                     diagnostics,
                     "\u00A716.1",
-                    $"'{name}' is not one of the Section 16.1 output formats.");
+                    $"'{name}' is not one of the Section 16.1 output formats."
+                    + AcceptedValues.Sentence(OutputFormats.Spellings));
                 return false;
             }
 
@@ -776,7 +777,8 @@ public static class SchemeCompiler
                     entry,
                     diagnostics,
                     "\u00A716.9",
-                    $"'{name}' is not one of the Section 16.9 'PortableIni1' options.");
+                    $"'{name}' is not one of the Section 16.9 'PortableIni1' options."
+                    + AcceptedValues.OfFlags<IniOutputOptions>());
                 return null;
             }
 
@@ -816,7 +818,8 @@ public static class SchemeCompiler
                     entry,
                     diagnostics,
                     "\u00A716.9",
-                    $"'{name}' is not one of the Section 16.9 JSON output options.");
+                    $"'{name}' is not one of the Section 16.9 JSON output options."
+                    + AcceptedValues.OfFlags<JsonOutputOptions>());
                 return null;
             }
 
@@ -930,7 +933,8 @@ public static class SchemeCompiler
                     entry,
                     diagnostics,
                     "\u00A716.8",
-                    $"'{name}' is not one of the Section 16.8 XML input options.");
+                    $"'{name}' is not one of the Section 16.8 XML input options."
+                    + AcceptedValues.OfFlags<XmlInputOptions>());
                 return null;
             }
 
@@ -994,7 +998,8 @@ public static class SchemeCompiler
                     entry,
                     diagnostics,
                     "\u00A716.9",
-                    $"'{name}' is not one of the Section 16.9 XML output options.");
+                    $"'{name}' is not one of the Section 16.9 XML output options."
+                    + AcceptedValues.OfFlags<XmlOutputOptions>());
                 return null;
             }
 
@@ -1044,7 +1049,8 @@ public static class SchemeCompiler
                     entry,
                     diagnostics,
                     "\u00A716.9",
-                    $"'{name}' is not one of the Section 16.9 YAML output options.");
+                    $"'{name}' is not one of the Section 16.9 YAML output options."
+                    + AcceptedValues.OfFlags<YamlOutputOptions>());
                 return null;
             }
 

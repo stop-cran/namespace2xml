@@ -120,6 +120,12 @@ public static class SchemeDirectives
         Names.Where(entry => entry.Value.Alias == SchemeAlias.None)
             .ToDictionary(entry => entry.Value.Directive, entry => entry.Key);
 
+    /// <summary>
+    /// The Section 15 directive names an author may write, excluding the Section 15.3 deprecated
+    /// aliases, which a refusal should not steer anyone towards.
+    /// </summary>
+    public static IEnumerable<string> Spellings => Canonical.Values;
+
     /// <summary>Recognizes one directive name.</summary>
     /// <param name="name">The final qualified-name part, already unescaped.</param>
     /// <param name="directive">The directive the name identifies.</param>

@@ -125,7 +125,8 @@ public static class StructuredSchemeReader
             if (!SchemeDirectives.TryRecognize(directiveName, out var directive, out var alias))
             {
                 Reject(
-                    $"'{directiveName}' is not a recognized Section 15 directive.",
+                    $"'{directiveName}' is not a recognized Section 15 directive."
+                        + AcceptedValues.Sentence(SchemeDirectives.Spellings),
                     node,
                     key,
                     name,

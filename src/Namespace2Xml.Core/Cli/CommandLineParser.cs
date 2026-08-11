@@ -133,7 +133,8 @@ public static class CommandLineParser
                 {
                     var alias = ShortAliasPrefixOf(name);
                     return Failure("§6.2", alias is null
-                        ? $"'{name}' is not a recognized option."
+                        ? $"'{name}' is not a recognized option. Run 'namespace2xml --help' for "
+                            + "the complete list."
                         : $"'{name}' is not a recognized option. A short option has no '=value' form; "
                             + $"write '{alias} <value>'.");
                 }

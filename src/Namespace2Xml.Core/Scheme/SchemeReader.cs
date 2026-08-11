@@ -155,7 +155,8 @@ public static class SchemeReader
         if (!SchemeDirectives.TryRecognize(name, out var directive, out var alias))
         {
             Reject(
-                $"'{name}' is not a recognized Section 15 directive.",
+                $"'{name}' is not a recognized Section 15 directive."
+                    + AcceptedValues.Sentence(SchemeDirectives.Spellings),
                 record,
                 source,
                 diagnostics,

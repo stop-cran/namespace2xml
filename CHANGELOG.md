@@ -13,6 +13,21 @@ independently.
 
 ## [Unreleased]
 
+### Changed
+
+- **A refusal from a closed set now names the set.** Issue 80 reported spending eleven attempts on
+  `output=quoted-namespace`: the refusal said the value was "not one of the Section 16.1 output
+  formats" without listing them, and `--help` offered no enumeration at all — worse, its English
+  prose named the format `quoted-namespace`, a spelling the parser rejects, so the one place a
+  reader could look actively misled them. Eight refusals across `SchemeCompiler`, `SchemeReader`,
+  `StructuredSchemeReader` and `TypeSet` now append the accepted values, and `--help` gains a
+  `SCHEME BASICS` section enumerating the seven Section 16.1 formats and the fifteen Section 15
+  directives. Both lists are derived from the same tables the parsers match against, and
+  `AcceptedValueTests` compares them against the specification's own order, so a format added to
+  the parser and forgotten in the list fails the build. `--verbosity` and `--diagnostics-format`
+  already enumerated their values; the unrecognized *option name* now points at `--help`.
+  **Closes [#80](https://github.com/stop-cran/namespace2xml/issues/80).**
+
 ### Fixed
 
 - **`type=string` bound to a path and was then ignored in JSON and YAML.** §16.6 says the

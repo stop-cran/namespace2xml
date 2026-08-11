@@ -1,3 +1,5 @@
+using Namespace2Xml.Diagnostics;
+
 namespace Namespace2Xml.Scheme;
 
 /// <summary>One Section 16.6 <c>type</c> value.</summary>
@@ -161,7 +163,8 @@ public readonly record struct TypeSet
 
             if (!TryRecognize(token, out var value))
             {
-                failure = $"'{token}' is not one of the Section 16.6 type values.";
+                failure = $"'{token}' is not one of the Section 16.6 type values."
+                    + AcceptedValues.Sentence(Spellings);
                 return false;
             }
 
@@ -198,6 +201,17 @@ public readonly record struct TypeSet
         failure = null;
         return true;
     }
+
+    /// <summary>
+    /// The Section 16.6 type values an author may write, in the order Section 16.6 lists them.
+    /// </summary>
+    /// <remarks>
+    /// Derived from <see cref="Spell"/>, which is the same function <c>TryRecognize</c> matches
+    /// against, so a value this tool accepts cannot go unmentioned by the diagnostic that rejects a
+    /// misspelling of it. The Section 15.3 legacy no-ops are absent: they are accepted and
+    /// discarded, and a refusal should not offer them as a remedy.
+    /// </remarks>
+    public static IEnumerable<string> Spellings => Enum.GetValues<TypeValue>().Select(Spell);
 
     /// <summary>The Section 16.6 spelling of one value.</summary>
     /// <param name="value">The value to spell.</param>

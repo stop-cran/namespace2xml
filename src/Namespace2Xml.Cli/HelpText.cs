@@ -1,4 +1,6 @@
+using System.Text;
 using Namespace2Xml.Contract;
+using Namespace2Xml.Scheme;
 
 namespace Namespace2Xml.Cli;
 
@@ -32,13 +34,74 @@ internal static class HelpText
     private static string DocumentUrl(string path) =>
         $"{RepositoryUrl}/blob/v{ContractBundle.ProductVersion}/{path}";
 
+    /// <summary>
+    /// The Section 16.1 output formats, laid out to sit inside the help text's indent.
+    /// </summary>
+    /// <remarks>
+    /// Read from the same table the scheme compiler parses against rather than typed out here. The
+    /// help text previously described the formats in English prose, and a reader took the
+    /// hyphenated <c>quoted-namespace</c> for the token it names; the token is
+    /// <c>quotednamespace</c>. Prose that has to agree with a parser eventually will not.
+    /// </remarks>
+    private static readonly string Formats = string.Join(", ", OutputFormats.Spellings);
+
+    /// <summary>
+    /// The Section 15 directive names other than <c>output</c>, which the help text introduces on
+    /// its own, excluding the Section 15.3 deprecated aliases.
+    /// </summary>
+    private static readonly string Directives = Wrap(
+        SchemeDirectives.Spellings.Where(name => name != "output"),
+        "  ");
+
+    /// <summary>
+    /// Joins names into comma-separated lines that fit the help text's fixed width.
+    /// </summary>
+    /// <param name="names">The names to lay out.</param>
+    /// <param name="indent">
+    /// The leading whitespace every continuation line carries. The raw string literal below is
+    /// dedented by the compiler and an interpolated value is not, so this is the indent as it
+    /// appears in the rendered help rather than as it appears in this file.
+    /// </param>
+    private static string Wrap(IEnumerable<string> names, string indent)
+    {
+        const int Width = 80;
+
+        var listed = names.ToList();
+        var lines = new List<string>();
+        var line = new StringBuilder(indent);
+
+        for (var i = 0; i < listed.Count; i++)
+        {
+            // The separator travels with the name it follows, so a wrap can never leave a comma
+            // stranded at the end of one line or start the next one with a bare name.
+            var chunk = i == listed.Count - 1 ? listed[i] + "." : listed[i] + ",";
+
+            if (line.Length > indent.Length && line.Length + 1 + chunk.Length > Width)
+            {
+                lines.Add(line.ToString());
+                line.Clear().Append(indent);
+            }
+
+            if (line.Length > indent.Length)
+            {
+                line.Append(' ');
+            }
+
+            line.Append(chunk);
+        }
+
+        lines.Add(line.ToString());
+
+        return string.Join(Environment.NewLine, lines).TrimStart();
+    }
+
     internal static string Render() =>
         $"""
         namespace2xml - deterministic configuration transformer.
 
         Reads ordered namespace profiles, JSON, YAML and XML inputs, applies scheme
-        directives, and renders namespace, quoted-namespace, JSON, YAML, XML and INI
-        outputs. Identical inputs always produce byte-identical outputs.
+        directives, and renders namespace, shell-quoted namespace, JSON, YAML, XML and
+        INI outputs. Identical inputs always produce byte-identical outputs.
 
         USAGE
           namespace2xml -i <input files> -s <scheme files> [options]
@@ -57,6 +120,21 @@ internal static class HelpText
                                        JSON array and suppresses operational messages.
               --help                   Print this help and exit successfully.
               --version                Print version information and exit successfully.
+
+        SCHEME BASICS
+          A scheme file is a namespace profile whose last name part is a directive. Every
+          run needs an 'output' declaration, which selects the formats a subtree renders
+          as:
+
+            app.output=json,yaml
+
+          Formats: {Formats}. Names are
+          case-insensitive; 'ignore' must appear alone and suppresses output entirely.
+
+          The other directives are
+          {Directives}
+          Each refuses an unrecognized value by naming the values it accepts, so the error
+          text is the reference. The document index below carries one guide per format.
 
         LIMITS
           Every resource bound is a --max-* option. See the specification, section 6.2.

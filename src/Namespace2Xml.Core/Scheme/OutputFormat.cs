@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Namespace2Xml.Output;
 
 namespace Namespace2Xml.Scheme;
@@ -40,6 +41,30 @@ public static class OutputFormats
             ["xml"] = OutputFormat.Xml,
             ["ini"] = OutputFormat.Ini,
         };
+
+    /// <summary>
+    /// The Section 16.1 format names an author may write, in the order Section 16.1 lists them,
+    /// including the negative declaration.
+    /// </summary>
+    /// <remarks>
+    /// Written out rather than projected from <see cref="Names"/> because a dictionary's
+    /// enumeration order is an implementation detail and this list is read by humans, who should
+    /// meet it in the order the clause presents it. <c>TheSpellingsAreExactlyTheNamesTheParserKnows</c>
+    /// holds the two in agreement, so the ordering choice cannot become a membership difference.
+    /// </remarks>
+    public static ImmutableArray<string> Spellings { get; } =
+    [
+        "namespace",
+        "quotednamespace",
+        "json",
+        "yaml",
+        "xml",
+        "ini",
+        Ignore,
+    ];
+
+    /// <summary>The spellings <see cref="TryParse"/> matches, excluding the negative declaration.</summary>
+    internal static IEnumerable<string> ParsedNames => Names.Keys;
 
     /// <summary>Recognizes one format name.</summary>
     /// <param name="name">The written name, already trimmed.</param>
