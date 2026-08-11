@@ -133,7 +133,7 @@ public static class StructuredSchemeReader
                 return;
             }
 
-            if (!TryReadValue(node, name, declaration, directiveName, key, out var value))
+            if (!TryReadValue(node, name, declaration, directiveName, directive, key, out var value))
             {
                 return;
             }
@@ -169,6 +169,7 @@ public static class StructuredSchemeReader
             QualifiedName name,
             string declaration,
             string directiveName,
+            SchemeDirective directive,
             StableOrderingKey key,
             out InterpretedValue? value)
         {
@@ -214,10 +215,12 @@ public static class StructuredSchemeReader
             // Section 9.1: "String scalar values use the same strict reference and value-escape
             // lexer as namespace values." Section 12.1 decides the capture form from the owning
             // name, exactly as the profile reader does, and the directive part is literal by the
-            // check above, so the whole name gives the same answer.
+            // check above, so the whole name gives the same answer -- except for the two directives
+            // Section 12.1 excludes, which SchemeDirectives.CaptureForm applies.
             var lexed = ValueLexer.Lex(
                 scalar.NativeString!,
-                ValueSyntax.NativeString(QualifiedNameLexer.CaptureForm(name)));
+                ValueSyntax.NativeString(
+                    SchemeDirectives.CaptureForm(directive, QualifiedNameLexer.CaptureForm(name))));
 
             if (lexed.Value is null)
             {

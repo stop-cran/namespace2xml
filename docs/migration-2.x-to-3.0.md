@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r41+40581a1a2041`.**
+**Contract bundle `r42+8ca382644091`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (116)
+## Observable differences (118)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -458,6 +458,66 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - Legacy observation: the baseline exits `0` and writes `all.conf`, so it agrees on the explicit filename. The file contains `x=1` — neither the `root` nor the `delimiter` directive had any effect. Its bytes are CRLF-terminated under the Section 24 divergence.
 - Clean behavior: `all.conf` containing `r\u{2A}*x=1`, LF-terminated.
 - Why the divergence is the specified one: the two directives are unremarkable except for the asterisk in each value, and Section 12.1 makes that asterisk ordinary text here. Discarding both directives on account of it means the baseline treats a character the specification calls literal as a reason to ignore configuration, which is the silent-discard outcome Section 6.3 rules out. The escaped rendering is then forced: Section 16.4 escapes a delimiter occurrence inside a part unconditionally, and the delimiter is the same character.
+
+### `an-asterisk-in-a-type-value-is-scheme001`
+
+- namespace2xml 2.4.0: **differs**. It exits `-532462766` (0xE0434352, an unhandled CLR
+  exception) and writes nothing. The terminating exception is
+  `System.ArgumentException: Requested value 'arrby' was not found.` from `Enum.Parse` in
+  `Formatters/Extensions.cs:72`, reached through `SchemeNodeExtensions.WithImplicitArrays`.
+- Contract: Section 12.1's exclusion of `type` from capture substitution, Section 16.6's closed
+  type-name set, and Section 22's `SCHEME001` cardinality of once per declaration. Section 6.3
+  admits only exits 0 and 1, and Section 3.2 lists behaviour "caused by unhandled user-input
+  exceptions" among the corrections.
+- Legacy observation: 2.4.0 substituted the capture into the `type` value. `arr*y` matched
+  `cfg.b`, the capture text `b` was spliced in, and the resulting `arrby` was handed to
+  `Enum.Parse` unguarded. The failure is therefore data-dependent, which the following control
+  measures: with `cfg.b.x=2` removed so that only `cfg.a.x=1` remains, the same scheme line
+  produces the capture text `a`, `arr*y` becomes `array`, and 2.4.0 exits 0 and writes
+  `cfg.properties` containing `a.x=1` — silently applying `type=array`.
+
+  | Input profile | 2.4.0 result |
+  |---|---|
+  | `cfg.a.x=1` and `cfg.b.x=2` | unhandled `ArgumentException`, exit `-532462766`, nothing written |
+  | `cfg.a.x=1` alone | exit 0, `cfg.properties` = `a.x=1`, `type=array` silently applied |
+
+  One scheme line is thus either a working directive or a process crash depending on which data
+  it matches. This is the accident Section 12.1 names: "a capture could complete either only by
+  accident of the matched data."
+- Clean behavior: capture recognition is disabled in a `type` value whatever the selector
+  defines, so `arr*y` is literal text. It falls to the ordinary Section 16.6 value check, which
+  rejects it as `SCHEME001` in the scheme phase at the line the declaration was written on. The
+  run exits 1 and publishes nothing, so the `cfg.output=namespace` instance that is perfectly
+  well-formed is not written either.
+- The difference is intentional: a diagnosis that depends on the data the rule happens to match
+  is not a diagnosis. Rejecting the declaration itself makes the same authoring mistake produce
+  the same message on every input, which is the property an author can act on.
+
+### `an-asterisk-in-an-output-value-is-scheme001`
+
+- namespace2xml 2.4.0: **differs**. It exits 0 and writes `json.json` containing
+  `{`, `  "b": "hello"`, `}` on three lines.
+- Contract: Section 12.1's exclusion of `output` from capture substitution, Section 16.1's
+  closed format list, and Section 22's `SCHEME001` cardinality of once per declaration.
+- Legacy observation: 2.4.0 substituted the capture into the `output` value. The selector
+  `cfg.*` matched `cfg.json`, the capture text `json` was spliced into the value, and
+  `output=json` was the result — a valid format name reached entirely by accident of the input
+  path's spelling. The instance was then named after the same capture, so the destination is
+  `json.json`. Had the profile said `cfg.foo.b=hello` instead, the identical scheme line would
+  have produced `output=foo`, which names no format at all.
+- Clean behavior: capture recognition is disabled in an `output` value whatever the selector
+  defines, so `*` is literal text. It falls to the ordinary Section 16.1 value check, which
+  rejects it as `SCHEME001` in the scheme phase at the line the declaration was written on, and
+  the run exits 1 having written nothing.
+- The difference is intentional, and `output` is the sharper of the two cases in Section 12.1
+  because `output` creates the output instance rather than binding to one. The Section 14.1
+  expansion that supplies every other instance-scoped directive's captures runs *after* the
+  instances exist, so there is no tuple to substitute from at the point the value is read. A
+  build that substitutes anyway is reading captures that the pipeline has not bound yet, and the
+  legacy result above shows what that produces: a destination and a format both chosen by the
+  data rather than by the scheme.
+- Section 12.1 also fixes that `cfg.*.output=*` and `cfg.output=*` are the same error, because
+  the exclusion belongs to the directive and not to the declaration.
 
 ### `an-empty-qualifier-escapes-the-alias-ambiguity`
 

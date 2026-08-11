@@ -1,3 +1,5 @@
+using Namespace2Xml.Profiles;
+
 namespace Namespace2Xml.Scheme;
 
 /// <summary>The Section 15 recognized scheme directives, after alias resolution.</summary>
@@ -137,6 +139,30 @@ public static class SchemeDirectives
         alias = SchemeAlias.None;
         return false;
     }
+
+    /// <summary>
+    /// The Section 12.1 capture form a directive's value recognizes, given its selector's.
+    /// </summary>
+    /// <param name="directive">The directive whose value is about to be lexed.</param>
+    /// <param name="selector">The form the owning name defines.</param>
+    /// <returns>The form to lex the value with.</returns>
+    /// <remarks>
+    /// Section 12.1 excludes two directives from capture substitution: "Section 16.6 closes the
+    /// type names and their legal combinations, and Section 16.1 closes the output formats, so a
+    /// capture could complete either only by accident of the matched data. Capture recognition is
+    /// therefore disabled in both values whatever the selector defines, and an unescaped <c>*</c>
+    /// in a <c>type</c> or <c>output</c> value is literal text."
+    /// <para>
+    /// The rule is applied here, at the one place both readers ask what a value's captures are,
+    /// because the clause makes the exclusion a property of the directive: "so <c>cfg.*.output=*</c>
+    /// and <c>cfg.output=*</c> are the same error". Deciding it later, from the lexed value, would
+    /// make the two declarations differ in the token stream and agree only by a second rule.
+    /// </para>
+    /// </remarks>
+    public static WildcardSyntax CaptureForm(SchemeDirective directive, WildcardSyntax selector) =>
+        directive is SchemeDirective.Type or SchemeDirective.Output
+            ? WildcardSyntax.None
+            : selector;
 
     /// <summary>Section 15's spelling of a directive, for a canonical directive path.</summary>
     /// <param name="directive">The directive.</param>

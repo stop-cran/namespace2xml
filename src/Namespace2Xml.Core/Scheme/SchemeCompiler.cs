@@ -273,18 +273,19 @@ public static class SchemeCompiler
         {
             var entry = ordered[index];
 
-            if (entry.Value.ContainsReference
-                || (entry.Value.ContainsWildcard && DeferredWildcardDirective(entry.Directive)))
+            if (entry.Value.ContainsReference)
             {
                 // Section 15.1 step 1 resolves scheme-internal references before anything reads a
                 // directive value. Compiling the text as written would silently treat "${x}" as a
                 // literal file name.
                 //
-                // Section 12.1 makes a '*' in a scheme value a positional capture substitution
-                // wherever the selector defines an unnamed capture, so a wildcard is not deferred
-                // for any directive whose captures are known where its value is read: the
-                // output-instance-scoped ones take them from the Section 14.1 expansion at step 13,
-                // and 'key' takes them from its own per-path match at step 16.
+                // A wildcard is never deferred. Section 12.1 makes a '*' in a scheme value a
+                // capture substitution only where the captures are known by the time the value is
+                // read: the output-instance-scoped directives take them from the Section 14.1
+                // expansion at step 13, 'key' takes them from its own per-path match at step 16,
+                // and the two directives for which neither holds -- 'type' and 'output' -- are
+                // excluded from substitution by Section 12.1 itself, so their values arrive here
+                // as literal text and are judged by Section 16.6 and Section 16.1.
                 deferred.Add(entry);
                 continue;
             }
@@ -341,40 +342,6 @@ public static class SchemeCompiler
             deferred.ToImmutable(),
             CollectInstanceOptions(winners));
     }
-
-    /// <summary>
-    /// Whether a Section 12.1 capture substitution in this directive's value has to wait, because
-    /// nothing has bound the captures where the value is read.
-    /// </summary>
-    /// <param name="directive">The directive carrying the value.</param>
-    /// <remarks>
-    /// <para>
-    /// <c>type</c> is matched per path at step 16 exactly as <c>key</c> is, so its captures do
-    /// exist where its value is read. What keeps it here is Section 16.6, which closes its value
-    /// to a keyword set, together with Section 22, which places the rejection of an unrecognized
-    /// one in the scheme phase. Parsing the value late would move that diagnostic to another
-    /// phase, and a capture can complete a type keyword only by accident, so the trade favours the
-    /// fixed phase.
-    /// </para>
-    /// <para>
-    /// <c>output</c> is here for a different reason: it is the directive that <em>creates</em> an
-    /// output instance rather than one bound to an instance that already exists, so the step 13
-    /// expansion the other instance-scoped directives take their captures from has nothing to bind
-    /// its value against. Its formats are read while the instances are still being built. Without
-    /// this arm the value's null literal text reaches <c>TryCompileOutput</c> and the run dies with
-    /// a <c>NullReferenceException</c>, which Section 6.3 forbids as a way for a user-caused
-    /// condition to surface.
-    /// </para>
-    /// <para>
-    /// No other directive reaches here. Section 15.1 compiles <c>merge</c>, <c>substitute</c> and
-    /// the input-options directives at steps 2 through 4, before any selector has been expanded,
-    /// but each also rejects the declaration on its own terms — Sections 16.8 and 16.10 forbid the
-    /// wildcard selector outright, and Section 16.7 closes its value — and a precise scheme error
-    /// naming the rule that was broken is worth more than a refusal to run.
-    /// </para>
-    /// </remarks>
-    private static bool DeferredWildcardDirective(SchemeDirective directive) =>
-        directive is SchemeDirective.Type or SchemeDirective.Output;
 
     /// <summary>
     /// Every winning per-instance-scoped directive declaration, in source order.

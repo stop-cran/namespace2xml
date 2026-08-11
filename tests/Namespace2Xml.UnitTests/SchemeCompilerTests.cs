@@ -466,19 +466,23 @@ public class SchemeCompilerTests
     }
 
     /// <summary>
-    /// A directive value this build does not compile is carried rather than dropped, so the driver
-    /// can refuse the run. Silently ignoring configuration the user wrote is the failure mode this
-    /// list exists to prevent.
+    /// Section 12.1 excludes <c>type</c> from capture substitution, and "the exclusion belongs to
+    /// the directive", so the selector's shape does not change the reading: the value is literal
+    /// text, and Section 16.6 closes it to a keyword set that does not contain "arr*y".
     /// </summary>
     /// <remarks>
-    /// Section 12.1's substitution is performed for every directive whose captures are bound where
-    /// its value is read, so the residue is <c>type</c> alone — Section 16.6 closes its value to a
-    /// keyword set and Section 22 fixes the phase its rejection is reported in.
+    /// An unresolved reference is now the only thing a value can carry that this step declines to
+    /// compile, so nothing here may be deferred. Deferring the entry instead would carry it to a
+    /// step that cannot judge a keyword set either, and Section 22 fixes the rejection in this
+    /// phase.
     /// </remarks>
     [Test]
-    public void AnUncompiledDirectiveIsCarried() =>
-        Compile("a.*.type=arr*y").Deferred.ShouldHaveSingleItem()
-            .Directive.ShouldBe(SchemeDirective.Type);
+    public void AnAsteriskInATypeValueIsJudgedAgainstTheKeywordSet()
+    {
+        Only("a.*.type=arr*y").Code.ShouldBe("SCHEME001");
+
+        Compile("a.*.type=arr*y").Deferred.ShouldBeEmpty();
+    }
 
     /// <summary>
     /// Every member of <see cref="SchemeDirective"/> has a compiler arm, so no well-formed

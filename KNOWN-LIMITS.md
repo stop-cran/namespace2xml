@@ -74,7 +74,7 @@ audit is now the way this table is maintained.
 | **Scheme files** written as JSON or YAML | Implemented | §15, §9.1, §10.4 |
 | **Scheme files** written as XML | Undecided contract — [#72](https://github.com/stop-cran/namespace2xml/issues/72) | §15 |
 | **References in a scheme value** | Implemented | §15.1 step 1 |
-| **A capture substituted into a directive value** | Implemented, except the `type` and `output` residues in §1.4.2 | §12.1 |
+| **A capture substituted into a directive value** | Implemented | §12.1 |
 
 A preview binary returns exit status `70` when an invocation needs a capability one of the rows above
 does not mark `Implemented`.
@@ -303,55 +303,6 @@ the same nesting, the same key order and the same values, differing only in §24
 The preview that refused them was narrower than the tool it replaces, and
 [#66 (closed)](https://github.com/stop-cran/namespace2xml/issues/66) records that. This is worth
 stating plainly because the refusal read as caution and was in fact a loss of function.
-
-### 1.4.2 A capture in a `type` or `output` value is refused rather than substituted
-
-§12.1 says "A scheme directive's value is decided the same way, from the captures its selector
-defines", which makes a `*` in **any** directive's value a positional capture substitution wherever
-the selector defines an unnamed capture. This build performs that substitution everywhere the
-captures are bound at the point the value is read: `filename`, `root`, `delimiter`, `filemerge` and
-the four output-option directives take them from the §14.1 expansion at pipeline step 13, and `key`
-takes them from its own per-path match at step 16. **verified**, by reading the refusal message the
-tool prints, which names exactly that set.
-
-Two directives are left, for two different reasons.
-
-`type` is matched per path at step 16 exactly as `key` is, so its captures do exist — what keeps it
-out is §16.6, which closes its value to a keyword set, together with §22, which places the rejection
-of an unrecognized one in the **scheme** phase. Parsing the value late enough to substitute would
-move that diagnostic to another phase, changing an observable the contract fixes; and a capture can
-complete a type keyword only by accident. So `a.*.type=arr*y` is refused with exit `70` rather than
-guessed at. **verified.**
-
-`output` is left out because it is not *bound* to an instance the way the step 13 list above is — it
-is what **creates** the instance. There is no expansion to take its captures from, because the
-expansion is downstream of it. This entry claimed the opposite until it was tested: `a.*.output=*`
-did not substitute and did not refuse, it terminated the process with an unhandled
-`NullReferenceException` and exit `-532462766`, which §6.3 forbids without qualification. It now
-joins `type` at the same refusal. That correction is the argument for this file being audited rather
-than read: the claim carried a **verified** marker, and nothing re-ran it. **verified**, by a unit
-test proven to fail against the unguarded source with that exception.
-
-No other directive reaches that refusal, and the reason is worth recording because it was not the
-reason expected. §15.1 compiles `merge`, `substitute` and the three input-option directives at steps
-2 through 4, before any selector has been expanded — but every one of them also rejects the
-declaration on its own terms, and does so for the *selector* rather than the value: §16.8 and §16.10
-forbid a wildcard-qualified input-option or `merge` path outright, and §16.7 closes `substitute` to
-`All`, `Key`, `Value`, and `None`. A precise scheme error naming the rule that was broken is worth
-more than a refusal to run, so those four are left to their own sections.
-
-The negative half of §12.1 — "in a scheme whose selector contains no wildcard, `*` in a `filename`,
-`root`, or `delimiter` value is literal text" — is covered by
-`conformance/an-asterisk-in-a-directive-value-under-a-literal-selector-is-text`. It was **not**
-correct before this was audited: the value lexer did decide the asterisk was text, and then §16.3's
-compiler re-lexed that text under the *name* grammar, where a bare `*` is a wildcard token, and
-rejected it as `SCHEME001`. A decision made once has to be carried, not remade by the next grammar
-to see the same characters.
-
-Tracked as [#74](https://github.com/stop-cran/namespace2xml/issues/74), which proposes amending
-§12.1 to exclude both directives. It supersedes the completed
-[#71 (closed)](https://github.com/stop-cran/namespace2xml/issues/71), which asked for substitution in
-every directive value and delivered it for every directive whose value is free text.
 
 ### 1.5 `--max-depth` has a hard safety ceiling of 4096
 

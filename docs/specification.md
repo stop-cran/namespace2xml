@@ -1183,6 +1183,8 @@ Exactly one capture form is recognized in any one value, so where the name defin
 
 A scheme directive's value is decided the same way, from the captures its selector defines. The `substitute` directive does not apply to scheme declarations, so the selector alone decides: in a scheme whose selector contains no wildcard, `*` in a `filename`, `root`, or `delimiter` value is literal text.
 
+A `type` value and an `output` value are excluded from capture substitution. Section 16.6 closes the type names and their legal combinations, and Section 16.1 closes the output formats, so a capture could complete either only by accident of the matched data. Capture recognition is therefore disabled in both values whatever the selector defines, and an unescaped `*` in a `type` or `output` value is literal text. It falls to the ordinary Section 16.1 or Section 16.6 value check, which rejects it as `SCHEME001` in the scheme phase, at the line the declaration was written on. The exclusion belongs to the directive and not to the declaration, so `cfg.*.output=*` and `cfg.output=*` are the same error.
+
 A legacy unnamed capture inside a `${...}` reference is not supported and is `REFERENCE001`. References from templates must use explicit named or numbered captures.
 
 ### 12.2 Explicit captures

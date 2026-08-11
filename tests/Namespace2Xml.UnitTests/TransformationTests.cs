@@ -300,16 +300,19 @@ public sealed class TransformationTests
     }
 
     [Test]
-    public void ARefusalPublishesNothingAtAllEvenForFormatsThatAreSupported()
+    public void ABlockingSchemeErrorPublishesNothingIncludingTheInstancesThatAreWellFormed()
     {
         // A partial run is the failure this gate exists to prevent: publishing `app.properties`
-        // and silently dropping the refused work would leave a plausible tree that asserts less
-        // than the scheme asked for. The refused directive is declined at step 16, after the
-        // instance it shares a scheme with has already been planned.
+        // and silently dropping the rejected work would leave a plausible tree that asserts less
+        // than the scheme asked for. `app` is well-formed and shares nothing with `other` but the
+        // scheme file; Section 15.4 still lets the phase finish its independent checks, and
+        // Section 6.2 then publishes nothing at all.
         var (result, sink) = Transform(
-            "app.name=example\n", "app.output=namespace\napp.*.type=arr*y\n");
+            "app.name=example\nother.name=example\n",
+            "app.output=namespace\nother.output=namespace\nother.*.type=arr*y\n");
 
-        result.State.ShouldBe(PipelineRunState.Unsupported);
+        result.ExitCode.ShouldBe(1);
+        Codes(result).ShouldContain("SCHEME001");
         sink.Written.ShouldBeEmpty();
     }
 
@@ -365,20 +368,21 @@ public sealed class TransformationTests
     }
 
     /// <summary>
-    /// A refusal names the capability the invocation actually needs. This one is a Section 12.2
-    /// wildcard in a <c>type</c> value, whose keyword set Section 16.6 closes;
-    /// <c>type</c> itself is implemented, and the same declaration with a literal value runs to
-    /// completion. Naming the directive told an author to stop using a directive that works.
+    /// Section 12.1 excludes <c>type</c> from capture substitution, and says the exclusion belongs
+    /// to the directive rather than to the selector, so an unescaped asterisk in a <c>type</c>
+    /// value is literal text under a wildcard selector exactly as it is under a literal one. Section
+    /// 16.6 closes the value to a keyword set, so the declaration is a blocking Section 22 scheme
+    /// error rather than a request the tool declines. The same declaration with a keyword value
+    /// still runs to completion.
     /// </summary>
     [Test]
-    public void ARefusalNamesTheWildcardRatherThanTheDirectiveThatCarriesIt()
+    public void AnAsteriskInATypeValueIsAnInvalidTypeRatherThanACapture()
     {
-        var (refused, _) = Transform(
+        var (rejected, _) = Transform(
             "app.a.name=x\napp.a.v=1\n", "app.output=namespace\napp.*.type=arr*y\n");
 
-        refused.State.ShouldBe(PipelineRunState.Unsupported);
-        refused.Unsupported.ShouldNotBeNull().Capability
-            .ShouldBe("a wildcard capture substituted into a directive value");
+        rejected.ExitCode.ShouldBe(1);
+        Codes(rejected).ShouldContain("SCHEME001");
 
         var (accepted, sink) = Transform(
             "app.a.name=x\napp.a.v=1\n", "app.output=json\napp.*.type=array\n");
@@ -388,21 +392,22 @@ public sealed class TransformationTests
     }
 
     /// <summary>
-    /// A capture in an <c>output</c> value refuses rather than crashing. <c>output</c> creates the
-    /// instance instead of binding to one, so the step 13 expansion that supplies every other
-    /// instance-scoped directive's captures has nothing to bind its value against, and the value's
-    /// literal text is null where the formats are read. Before this was guarded the run died with
-    /// an unhandled <c>NullReferenceException</c>, which Section 6.3 forbids as a way for a
-    /// user-caused condition to surface. The declaration with a literal value still runs.
+    /// Section 12.1 excludes <c>output</c> for a reason the implementation can feel: <c>output</c>
+    /// creates the instance instead of binding to one, so the step 13 expansion that supplies every
+    /// other instance-scoped directive's captures has nothing to bind its value against. Before the
+    /// exclusion was written down the run died with an unhandled <c>NullReferenceException</c>,
+    /// which Section 6.3 forbids as a way for a user-caused condition to surface. The value is
+    /// literal text instead, and Section 16.1's format list does not contain "*". The declaration
+    /// with a format name still runs.
     /// </summary>
     [Test]
-    public void ACaptureInAnOutputValueRefusesRatherThanCrashing()
+    public void AnAsteriskInAnOutputValueIsAnInvalidFormatRatherThanACapture()
     {
-        var (refused, _) = Transform("a.json.b=hello\n", "a.*.output=*\n");
+        var (rejected, refused) = Transform("a.json.b=hello\n", "a.*.output=*\n");
 
-        refused.State.ShouldBe(PipelineRunState.Unsupported);
-        refused.Unsupported.ShouldNotBeNull().Capability
-            .ShouldBe("a wildcard capture substituted into a directive value");
+        rejected.ExitCode.ShouldBe(1);
+        Codes(rejected).ShouldContain("SCHEME001");
+        refused.Written.ShouldBeEmpty();
 
         var (accepted, sink) = Transform("a.json.b=hello\n", "a.*.output=json\n");
 

@@ -1,0 +1,3 @@
+[
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/scheme.txt","line":1,"path":"cfg.*","declaration":"cfg.*.output","spec":"§16.1"}
+]

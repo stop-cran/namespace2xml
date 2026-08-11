@@ -79,7 +79,9 @@
         "A scheme directive value is decided from the captures its selector defines, so root, delimiter, and key are substituted from the same tuple filename is, not filename alone.",
         "A value carrying more substitutions than the name produced repeats the last capture, and one carrying fewer ignores the unused ones.",
         "Under a selector defining no capture, an asterisk in a filename, root, or delimiter value is literal text rather than a capture or an error, and Sections 16.4 and 21 escape it on output.",
-        "A template extracted from a native JSON or YAML key owns its captures for Section 12.1 purposes, so a bare asterisk in the extracted value substitutes what the key matched."
+        "A template extracted from a native JSON or YAML key owns its captures for Section 12.1 purposes, so a bare asterisk in the extracted value substitutes what the key matched.",
+        "A type value and an output value are excluded from capture substitution whatever the selector defines, so an unescaped asterisk in either is literal text that the Section 16.6 keyword set or the Section 16.1 format list rejects as SCHEME001 in the scheme phase.",
+        "The exclusion belongs to the directive rather than to the declaration, so a wildcard selector does not make the value a capture and cfg.*.output=* is the same error as cfg.output=*."
       ],
       "fixtures": [
         "a-capture-repeats-for-a-shorter-name-and-is-ignored-when-unused",
@@ -88,6 +90,8 @@
         "a-native-template-value-substitutes-its-own-capture",
         "a-yaml-scheme-key-carries-a-wildcard-template",
         "an-asterisk-in-a-directive-value-under-a-literal-selector-is-text",
+        "an-asterisk-in-a-type-value-is-scheme001",
+        "an-asterisk-in-an-output-value-is-scheme001",
         "wildcard-repeated-capture-backtracking",
         "wildcard-template-generation"
       ]

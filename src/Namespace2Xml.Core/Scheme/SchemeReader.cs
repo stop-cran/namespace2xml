@@ -167,10 +167,13 @@ public static class SchemeReader
 
         // Section 12.1: a scheme directive's value is decided from the captures its selector
         // defines, and 'substitute' does not apply to scheme declarations. The directive part is
-        // literal by the check above, so the whole written name gives the same answer.
+        // literal by the check above, so the whole written name gives the same answer -- except for
+        // the two directives Section 12.1 excludes, which SchemeDirectives.CaptureForm applies.
         var lexedValue = ValueLexer.Lex(
             record.Value!,
-            ValueSyntax.Profile(QualifiedNameLexer.CaptureForm(lexedName.Name)));
+            ValueSyntax.Profile(
+                SchemeDirectives.CaptureForm(
+                    directive, QualifiedNameLexer.CaptureForm(lexedName.Name))));
 
         if (lexedValue.Value is null)
         {

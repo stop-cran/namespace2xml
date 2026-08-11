@@ -15,7 +15,25 @@ independently.
 
 ### Contract
 
-- `contract-bundle` `r41+40581a1a2041`.
+- `contract-bundle` `r42+8ca382644091`.
+- §12.1: **a `type` value and an `output` value are excluded from capture substitution.**
+  §16.6 closes the type names and §16.1 closes the output formats, so a capture could complete
+  either only by accident of the matched data. Capture recognition is now disabled in both values
+  whatever the selector defines, an unescaped `*` in either is literal text, and it falls to the
+  ordinary §16.1 or §16.6 value check that rejects it as `SCHEME001` in the scheme phase at the
+  line the declaration was written on. The exclusion belongs to the directive and not to the
+  declaration, so `cfg.*.output=*` and `cfg.output=*` are the same error. **Caused by
+  [#74](https://github.com/stop-cran/namespace2xml/issues/74).** The accident is not hypothetical:
+  2.4.0 substitutes into both, and the two new fixtures measure what that produces. With
+  `cfg.*.type=arr*y` over a profile holding `cfg.a` alone, the capture text `a` completes
+  `array` and 2.4.0 exits 0 having silently applied `type=array`; add `cfg.b` and the same
+  scheme line yields `arrby`, which reaches `Enum.Parse` unguarded and terminates the process
+  with exit `-532462766`. One declaration is a working directive or a process crash depending on
+  which data it matches. `cfg.*.output=*` is sharper still, because `output` **creates** the
+  output instance rather than binding to one, so the §14.1 expansion that supplies every other
+  instance-scoped directive's captures runs after the value is read: 2.4.0 spliced the matched path
+  part `json` into the format and wrote `json.json`, choosing both the format and the
+  destination from the data.
 - §8.2, §9.1, §10.4, §19.3 and §19.4: **a JSON or YAML mapping key now carries the §11.4 markers**
   instead of being "one ordinary literal component" that never acquires an XML node kind. `@x` is
   the attribute `x`, `#0` is a content component, `Q{uri}x` is a qualified element, and a leading
@@ -317,6 +335,14 @@ independently.
   writing `<r b="" d="" />` and ignoring the directive entirely.
 
 ### Fixed
+
+- **A capture-shaped `type` or `output` value no longer refuses the run.** The preview returned
+  the out-of-contract exit `70` for `cfg.*.type=arr*y` and `cfg.*.output=*`, naming "a wildcard
+  capture substituted into a directive value" as a capability it lacked. §12.1 now says both values
+  are literal text, so each is an ordinary `SCHEME001` at exit `1` reported in the scheme phase
+  at the declaration's own line. Nothing is published, including the well-formed instances that
+  share the scheme file. This removes one of the two remaining exit-`70` paths; §6.3 defines only
+  `0` and `1`, so no released build may return `70`.
 
 - **`merge=append` silently destroyed contributions.** §16.10 makes a contribution sequence-eligible
   either as a native sequence or as "a nonempty all-in-range-canonical-numeric mapping", but `append`

@@ -837,36 +837,18 @@ public static class PlanningPhase
         {
             var entry = configuration.Deferred[0];
 
-            // An entry is deferred for one reason now that Section 15.1 step 1 resolves references:
-            // a Section 12.1 capture substitution in a directive value this build does not yet
-            // substitute into. Naming the directive would be a lie — 'key' is implemented, and
-            // 'cfg.*.key=name' runs to completion in this build.
-            //
-            // A reference-bearing value can still reach the compiler's deferral list, because a
-            // reference that fails to resolve leaves its value unresolved and Section 15.4 lets the
-            // phase finish its independent checks first. It cannot reach *here*, because the scheme
-            // phase aborts on that blocking diagnostic. The arm is written out rather than asserted
-            // because the reachability is a property of another component.
-            if (entry.Value.ContainsReference)
-            {
-                return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
-                    new UnsupportedCapability(
-                        "references in scheme values",
-                        $"'{entry.Declaration}' in {entry.Source} contains a reference that step 1 "
-                        + "did not resolve.",
-                        "\u00A715.1"));
-            }
-
+            // Only one thing defers an entry now that Section 15.1 step 1 resolves references and
+            // Section 12.1 excludes 'type' and 'output' from capture substitution: a reference that
+            // failed to resolve leaves its value unresolved, and Section 15.4 lets the phase finish
+            // its independent checks first. It cannot reach *here*, because the scheme phase aborts
+            // on that blocking diagnostic. The arm is written out rather than asserted because the
+            // reachability is a property of another component.
             return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
                 new UnsupportedCapability(
-                    "a wildcard capture substituted into a directive value",
-                    $"'{entry.Declaration}' in {entry.Source} has a selector defining a capture and "
-                    + "a '*' in its value, which Section 12.1 makes a capture substitution. This "
-                    + "build substitutes captures into 'filename', 'root', 'delimiter', "
-                    + $"'filemerge', the output-option directives and 'key'. The {entry.Directive} "
-                    + "directive itself is implemented, and the same declaration with no '*' in its "
-                    + "value runs.",
-                    "\u00A712.1"));
+                    "references in scheme values",
+                    $"'{entry.Declaration}' in {entry.Source} contains a reference that step 1 "
+                    + "did not resolve.",
+                    "\u00A715.1"));
         }
 
         if (configuration.Transforms.IsEmpty)

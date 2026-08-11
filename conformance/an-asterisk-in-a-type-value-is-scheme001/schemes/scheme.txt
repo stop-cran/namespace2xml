@@ -1,0 +1,2 @@
+cfg.output=namespace
+cfg.*.type=arr*y
