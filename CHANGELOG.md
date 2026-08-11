@@ -11,7 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 recorded separately from the package version, because the contract and the implementation move
 independently.
 
-## [Unreleased]
+## [3.0.0-preview.3] - 2026-08-11
 
 ### Contract
 

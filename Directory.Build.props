@@ -34,7 +34,7 @@
 
   <!-- Package identity and AI discoverability (implementation plan Section 8.1). -->
   <PropertyGroup>
-    <Version>3.0.0-preview.2</Version>
+    <Version>3.0.0-preview.3</Version>
     <Authors>stop-cran &lt;stop-cran@list.ru&gt;</Authors>
     <Company>stop-cran &lt;stop-cran@list.ru&gt;</Company>
     <Copyright>Apache License 2.0 (stop-cran, 2019-2026)</Copyright>

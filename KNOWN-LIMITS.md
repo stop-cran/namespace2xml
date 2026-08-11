@@ -1,14 +1,16 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r41+40581a1a2041`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r44+a91f25bf49ec`. Dated 2026-08.**
 
-The published `3.0.0-preview.2` binary carries bundle `r37+2d644be6926e` and is **behind this file**.
-Where an entry is marked *(resolved)* the fix is on the branch and not in that binary, so a reader
-running the published preview still has the limit. Compare the `contract-bundle` line of
-`--version` against the revision above before concluding an entry does or does not apply to you.
-Those entries exist for that comparison alone: **when 3.0.0 ships, every *(resolved)* entry is
-deleted**, because a released binary that contains the fix leaves nothing for the entry to warn
-anyone about. Their arguments are already in `CHANGELOG.md`, where the history belongs.
+The published `3.0.0-preview.3` binary is built from that branch and carries that same bundle, so
+this file and the current preview agree. Earlier previews do not: `3.0.0-preview.2` carries
+`r37+2d644be6926e` and `3.0.0-preview.1` is older still, and where an entry is marked *(resolved)*
+the fix is absent from both. Compare the `contract-bundle` line of `--version` against the revision
+above before concluding an entry does or does not apply to you — an entry marked *(resolved)* is a
+statement about a bundle, not about every binary named `3.0.0-preview`. Those entries exist for that
+comparison alone: **when 3.0.0 ships, every *(resolved)* entry is deleted**, because a released
+binary that contains the fix leaves nothing for the entry to warn anyone about. Their arguments are
+already in `CHANGELOG.md`, where the history belongs.
 
 This file exists because a project that claims completeness cannot receive feedback: every gap reads
 as user error, and the reporter concludes they are holding it wrong. During the preview this list is
