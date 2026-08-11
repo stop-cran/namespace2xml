@@ -182,7 +182,12 @@ public static class PublicationPhase
         }
 
         var anchor = view.Format == OutputFormat.Json ? "\u00A719.3" : "\u00A719.4";
-        var document = new DocumentProjection(diagnostics, anchor, destination)
+        var document = new DocumentProjection(
+                diagnostics,
+                anchor,
+                view.Types,
+                view.AppliedRoot.Length,
+                destination)
             .Project(view.View, view.Root);
 
         return view.Format == OutputFormat.Json

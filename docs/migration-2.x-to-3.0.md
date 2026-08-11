@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (122)
+## Observable differences (123)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1884,6 +1884,14 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - Legacy observation: the baseline exits `0` and writes a `cfg.properties` whose bytes differ from the expected file. The measurement records `content cfg.properties`. Standard error is empty beyond the banner.
 - Clean behavior: `type=ignore` at `cfg.a` removes the whole subtree from this output instance and the stranded `cfg.a.p.type=array` directive is inert but is reported once as a `WARN009` scheme warning. The rendered file therefore contains only `b=3`, exit `0`.
 - Why the difference is intentional: the *shape* of the tree matches -- one `cfg.properties` at exit `0` -- but the bytes differ, so what the baseline wrote to it is not what the specification prescribes. Section 16.6's rule "an effective ignore at path `P` removes every descendant regardless of directives matching those descendants" is a specification decision about which directive wins at a path an ignore covers; without that rule an implementation is free to evaluate `type=array` on `cfg.a.p` in whichever order its passes happen to visit them, and the resulting bytes depend on that accident. The content divergence here is exactly the observable Section 3.2's "dependent on parallel execution order" and "dependent on dictionary iteration order" corrections were written to remove. The stranded-directive warning is not observable in the tree comparison and is not scored by this verdict.
+
+### `type-string-forces-document-scalar-rendering`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 16.6 `string`; Section 13.2 typed reference forwarding; Section 16.3 `root`; Section 19.4 YAML ordering and quoting; Section 26 items 9 and 18.
+- Legacy observation: the baseline exits `0` and writes all three files. `svc.json` is byte-identical to the expected output, so 2.4.0 implements the scalar-forcing and both reference directions exactly as specified. `svc.yaml` holds the same six values with the same quoting but sorted alphabetically -- `copy, echo, enabled, label, port, ratio` -- rather than in source order. `api.json` is `{"timeout": "30"}`: the `root=x.y` wrapping is absent entirely.
+- Clean behavior: all three files render as specified, with YAML in source order and `api.json` wrapped as `{"x":{"y":{"timeout":"30"}}}`.
+- Why the difference is intentional: the two differences are unrelated to `type=string`, which the baseline already gets right, and this fixture exists to keep it that way. Section 19.4 requires YAML to preserve mapping order, and the baseline's alphabetical sort discards the ordering the input established, which no author can recover. Section 16.3 states the `root` rendering for JSON in normative form and the baseline ignores it for this format, so a scheme that is portable across the baseline's own output formats stops being portable at JSON. Recording the agreement on `svc.json` matters as much as the differences: it establishes that a v3 regression here would be a regression against 2.4.0 as well as against the specification.
 
 ### `validation-gate-leaves-the-output-root-untouched`
 

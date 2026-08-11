@@ -37,7 +37,12 @@ public class DocumentProjectionTests
         SequenceItem.Native(Leaf(text, source));
 
     private DocumentNode Project(OverlayNode view, params string[] root) =>
-        new DocumentProjection(diagnostics, "\u00a719.3", new DestinationRef("out.json", 0))
+        new DocumentProjection(
+                diagnostics,
+                "\u00a719.3",
+                ImmutableDictionary<string, EffectiveTransform>.Empty,
+                0,
+                new DestinationRef("out.json", 0))
             .Project(view, [.. root.Select(Ordinary)]);
 
     private static string Text(DocumentNode node) =>

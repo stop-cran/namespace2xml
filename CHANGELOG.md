@@ -15,6 +15,20 @@ independently.
 
 ### Fixed
 
+- **`type=string` bound to a path and was then ignored in JSON and YAML.** §16.6 says the
+  directive "forces scalar rendering as a string in the selected output view", and both document
+  formats rendered the inferred scalar instead: `s.a=8443` with `s.a.type=string` emitted the JSON
+  number `8443`. `TypeSet.IsString` was defined and read by nothing. Only the XML projection
+  consulted the §16 transform table at serialization time; `DocumentProjection` was never handed
+  it. namespace2xml 2.4.0 renders this case correctly, so the defect was a regression in the
+  rewrite rather than a missing feature, and the release would have shipped a directive that
+  silently did nothing. Reported by exploratory testing against `3.0.0-preview.3` and now covered
+  by `type-string-forces-document-scalar-rendering`, which also pins the two §13.2 rules that pull
+  the other way: the directive does not travel forward along a reference to the referring node, nor
+  backward to the referent. The transform table is now a required constructor parameter, so a
+  future projection that forgets it does not compile.
+  **Closes [#76](https://github.com/stop-cran/namespace2xml/issues/76).**
+
 - **A Section 15 scheme rejection spelled its `source` with whatever separator the caller typed.**
   §6.4.3 fixes `source` as a relative path with `/` separators for anything inside the invocation's
   input set, and every other diagnostic gets that spelling from the loader. The XML-scheme refusal

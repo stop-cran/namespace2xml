@@ -151,7 +151,8 @@
         "a-reference-to-an-xml-comment-is-not-a-value",
         "an-empty-qualifier-escapes-the-alias-ambiguity",
         "reference-alias-ambiguity-lists-candidates",
-        "reference-typed-values-and-alias-addressing"
+        "reference-typed-values-and-alias-addressing",
+        "type-string-forces-document-scalar-rendering"
       ]
     },
     {
@@ -297,7 +298,8 @@
         "substitute-key-preserves-a-native-string-exactly",
         "substitute-keyonly-is-a-deprecated-alias",
         "substitute-none-disables-interpretation-at-the-matched-node",
-        "type-ignore-removes-a-subtree-and-strands-its-directives"
+        "type-ignore-removes-a-subtree-and-strands-its-directives",
+        "type-string-forces-document-scalar-rendering"
       ]
     },
     {

@@ -27,6 +27,8 @@ public sealed class DocumentProjection
     private readonly DiagnosticBuffer diagnostics;
     private readonly string anchor;
     private readonly DestinationRef? destination;
+    private readonly IReadOnlyDictionary<string, EffectiveTransform> types;
+    private readonly int wrapper;
     private int discardedComments;
 
     /// <summary>Creates a projection.</summary>
@@ -39,13 +41,32 @@ public sealed class DocumentProjection
     /// The Section 6.4.3 <c>destination</c> this output instance writes to, which is half of the
     /// "once per path and output instance" cardinality of <c>TYPE002</c>.
     /// </param>
-    public DocumentProjection(DiagnosticBuffer diagnostics, string anchor, DestinationRef? destination = null)
+    /// <param name="types">
+    /// The Section 16.6 transforms bound to this output instance. Explicit scalar types are applied
+    /// at serialization time by the format that has them, so the table is read here rather than
+    /// having reshaped the view. Required rather than defaulted: an empty table is indistinguishable
+    /// from a forgotten one at run time, and forgetting it is how <c>type=string</c> came to bind
+    /// and then be ignored.
+    /// </param>
+    /// <param name="wrapper">
+    /// The number of leading path parts a Section 16.3 <c>root</c> already wrapped the view in. The
+    /// table is keyed by unwrapped paths, so these are stripped before a lookup.
+    /// </param>
+    public DocumentProjection(
+        DiagnosticBuffer diagnostics,
+        string anchor,
+        IReadOnlyDictionary<string, EffectiveTransform> types,
+        int wrapper,
+        DestinationRef? destination = null)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
+        ArgumentNullException.ThrowIfNull(types);
 
         this.diagnostics = diagnostics;
         this.anchor = anchor;
         this.destination = destination;
+        this.types = types;
+        this.wrapper = wrapper;
     }
 
     /// <summary>Projects a view.</summary>
@@ -112,7 +133,7 @@ public sealed class DocumentProjection
 
         if (marks.RendersAsScalar && node.Payload is { IsValue: true } payload)
         {
-            return new DocumentScalar(payload, comments);
+            return new DocumentScalar(ForcedString(path) ? AsString(payload) : payload, comments);
         }
 
         // Section 14.1: an output view with nothing in it emits "an empty mapping". A node with no
@@ -181,6 +202,38 @@ public sealed class DocumentProjection
                 path: FlatIdentity.PathText(here),
                 destination: destination?.Canonical),
             DestinationOrder: destination?.Order));
+
+    /// <summary>Whether Section 16.6 <c>type=string</c> is effective at one path.</summary>
+    private bool ForcedString(ImmutableArray<NamePart> path)
+    {
+        if (path.Length < wrapper)
+        {
+            return false;
+        }
+
+        return ViewTransformer.At(types, CanonicalPath.Of(path[wrapper..]) ?? string.Empty)
+            .Types is { IsString: true };
+    }
+
+    /// <summary>
+    /// Section 16.6 <c>string</c>: "Forces scalar rendering as a string in the selected output
+    /// view."
+    /// </summary>
+    /// <remarks>
+    /// The same clause says the directive "does not change input scalar inference or the typed
+    /// value forwarded through references", so this converts a payload that inference has already
+    /// settled, at the one output view being rendered, and takes the Section 18 canonical text of
+    /// that settled value. An author who writes <c>0755</c> and asks for a string gets
+    /// <c>"755"</c>: the leading zero was gone before this point, and re-deriving it here would be
+    /// the change to inference the clause forbids.
+    ///
+    /// Null is left alone. It has no canonical text of its own because Section 19 lets each format
+    /// spell it differently, so forcing it to a string would be this pass choosing a spelling on
+    /// every format's behalf. Section 16.6 does not say what a forced-string null should be, and
+    /// inventing an answer here would be a decision disguised as an implementation detail.
+    /// </remarks>
+    private static ScalarPayload AsString(ScalarPayload payload) =>
+        payload.IsNull ? payload : ScalarPayload.OfString(payload.ToCanonicalText());
 
     private void Report(NodeMarks marks, ImmutableArray<NamePart> path)
     {
