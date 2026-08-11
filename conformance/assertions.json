@@ -1137,6 +1137,7 @@
         "Creating no file is not a blocking error, so the run still publishes the instances that did match and exits 0."
       ],
       "fixtures": [
+        "a-literal-output-selector-matching-nothing-warns",
         "wildcard-output-selector-matching-nothing-warns"
       ]
     },

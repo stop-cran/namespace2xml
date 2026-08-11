@@ -1,0 +1,3 @@
+[
+{"code":"WARN009","severity":"warning","phase":"planning","source":"schemes/scheme.txt","line":2,"path":"b","declaration":"b.output","spec":"§14.1"}
+]

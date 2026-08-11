@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r45+17aa5f919d3f`.**
+**Contract bundle `r46+85fce567e11e`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (123)
+## Observable differences (124)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -159,6 +159,23 @@ implemented, its case says so plainly rather than letting the heading imply othe
   glob, or an `strftime`-adjacent format string every time somebody quotes one, and the
   difference between `*` and `\*` in the emitted file is precisely what such a value cannot
   survive.
+
+### `a-literal-output-selector-matching-nothing-warns`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 14.1's planned-output rule and its empty-selection warning; Section 22
+  `WARN009`; Section 26 item 75.
+- Legacy observation: the baseline exits `0`, writes `a.properties`, and writes **no file at all**
+  for `b` — it neither reports the empty selection nor produces the document Section 14.1 requires.
+  Its standard error carries only its banner and its two `Reading input` lines.
+- Clean behavior: `a.properties` holding `x=1`, `b.properties` holding nothing, and one `WARN009`.
+- Why the divergence is the specified one: the baseline is silent *and* absent, so it diverges from
+  Section 14.1 twice over, in opposite directions. Dropping the file contradicts "remains a planned
+  output"; saying nothing leaves the author of a mistyped selector with no signal from any stage.
+  The combination is the worst of the two available answers — a pipeline that templates a filename
+  per environment gets a missing file in one environment and a present one in another, with no
+  diagnostic to attribute the difference to. Reported as issue 79, whose finding was that the
+  silence, not the file, is what makes the two spellings of one typo behave differently.
 
 ### `a-missing-scheme-reference-is-blocking`
 

@@ -231,7 +231,61 @@ public sealed class TransformationTests
             new Sources(("scheme.txt", "app.output=namespace\n")),
             "-i", "absent.txt", "-s", "scheme.txt");
 
-        result.Diagnostics.Single().Source.ShouldBe("absent.txt");
+        result.Diagnostics.Single(d => d.Code == "WARN001").Source.ShouldBe("absent.txt");
+    }
+
+    /// <summary>
+    /// A missing input leaves nothing for the scheme's selector to select, so Section 14.1's
+    /// empty-selection warning accompanies the missing-source one.
+    /// </summary>
+    /// <remarks>
+    /// This is the pairing Section 14.1 exists to make audible. Without it a run whose only input
+    /// failed to load still exits 0 and still publishes a well-formed, deployable, empty
+    /// configuration, and the sole clue is a warning about a file rather than about the output.
+    /// </remarks>
+    [Test]
+    public void AMissingSourceAlsoReportsThatNothingWasSelected()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(("scheme.txt", "app.output=namespace\n")),
+            "-i", "absent.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldBe(["WARN001", "WARN009"]);
+        result.ExitCode.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// Section 14.1 counts comments as content, so a selection holding only a comment does not
+    /// draw the empty-selection warning.
+    /// </summary>
+    /// <remarks>
+    /// Section 14.1's empty view is one with "no surviving payload, explicit container presence,
+    /// descendants, or comments", and the fourth member of that list is the one an implementation
+    /// is most likely to drop, because <see cref="OverlayNode.IsEmpty"/> asks a different question
+    /// — whether a format could render anything — and does not consider comments. The author here
+    /// did write something at the selected path, so there is no selector mistake to report.
+    /// <para>
+    /// This is asserted on the diagnostic codes alone rather than on the published bytes. A
+    /// comments-only document currently renders as zero bytes because the comment has no surviving
+    /// contribution to precede, which is a separate question from this one; pinning the bytes here
+    /// would freeze an answer this test has no opinion about.
+    /// </para>
+    /// </remarks>
+    [Test]
+    public void ASelectionHoldingOnlyACommentIsNotAnEmptySelection()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("input.txt", "# only a note, no entries\n"),
+                ("scheme.txt", "output=namespace\n")),
+            "-i", "input.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldBeEmpty();
+        result.ExitCode.ShouldBe(0);
     }
 
     [Test]
@@ -245,7 +299,10 @@ public sealed class TransformationTests
             new Sources(("scheme.txt", "app.output=namespace\n")),
             "-i", "b.txt", "-i", "a.txt", "-s", "scheme.txt");
 
-        result.Diagnostics.Select(d => d.Source).ShouldBe(["b.txt", "a.txt"]);
+        result.Diagnostics
+            .Where(d => d.Code == "WARN001")
+            .Select(d => d.Source)
+            .ShouldBe(["b.txt", "a.txt"]);
     }
 
     // ---- Section 16.2 default destinations ---------------------------------------------------

@@ -1445,6 +1445,8 @@ A concrete output instance created by a literal declaration or wildcard expansio
 
 A wildcard output declaration that produces no concrete selector instance emits `WARN009` and creates no file. Explicit empty mapping or sequence presence is not a zero-entry selection.
 
+A concrete output instance whose selected view contains nothing also emits `WARN009`, and still produces its file as described above. The instance is a planned output either way, so this is a warning rather than an error and the exit code is unaffected; what it removes is the silence. A literal selector that matches no data and a wildcard selector that matches no data are the same authoring mistake, and Section 14.1 otherwise reports only the second: the first produces a well-formed, deployable, empty document and no diagnostic, so a mistyped selector is indistinguishable from a deliberately empty one at every later stage. An intentionally empty output is still expressible and still exits `0`; it now says so in the stream. Explicit empty mapping or sequence presence is content for this purpose, exactly as it is for the wildcard rule above, so a deliberately declared empty container does not warn.
+
 If the empty root selector selects a bare scalar, JSON and YAML may emit a scalar document. XML, namespace, quoted namespace, and INI require an explicit `root`; otherwise rendering is a blocking type error because no key or element identity exists.
 
 ### 14.2 Strict prefix semantics
@@ -2653,7 +2655,7 @@ The normative diagnostic registry is:
 | `WARN006` | warning | Processing instruction discarded | once per input document |
 | `WARN007` | warning | XML formatting whitespace discarded | once per input document |
 | `WARN008` | warning | Output plan contains no destinations | once per invocation |
-| `WARN009` | warning | Scheme directive binds to no effective output/path or wildcard output creates no instance | once per declaration or expanded directive |
+| `WARN009` | warning | Scheme directive binds to no effective output/path, wildcard output creates no instance, or a concrete output instance selects nothing | once per declaration or expanded directive |
 | `WARN010` | warning | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | once per source contribution, canonical mapping path, and output instance |
 | `WARN011` | warning | Later unmarked contribution aliases an existing XML component instead of overriding it | once per canonical path |
 
@@ -3318,6 +3320,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | XML formatting whitespace discarded | `WARN007` |
 | Validated output plan contains no destinations | `WARN008` |
 | Directive binds to no effective output/path or wildcard output creates no concrete instance | `WARN009` |
+| Concrete output instance selects nothing | `WARN009` |
 | JSON/YAML numeric mapping remains inferred as a sequence | `WARN010` |
 | Later unmarked contribution adds an ordinary component aliasing an existing XML component | `WARN011` |
 

@@ -15,6 +15,27 @@ independently.
 
 ### Changed
 
+- **A concrete output instance that selects nothing now warns.** A wildcard `output` selector that
+  expanded to no instance already drew `WARN009`; a literal selector naming a path that does not
+  exist produced a planned output, an empty file, exit 0 and complete silence. The two spellings of
+  the same typo were therefore differently loud, and the quieter one is the more common — a `.`
+  where a `-` belongs in a single-instance selector says nothing at all, at any verbosity, in any
+  diagnostics format. §14.1 now states that a concrete instance whose selected view holds nothing
+  emits `WARN009` as well.
+
+  The empty file is still written and the exit code is still 0: §14.1 deliberately specifies the
+  empty document, and an output that renders nothing is legal — a scheme may reasonably select a
+  branch that a given input set does not populate. This is a warning about a *likely* mistake, not
+  a rule about an invalid one. An explicit empty mapping or sequence is content, so it does not
+  warn.
+
+  Emptiness is judged on what step 14 selects, not on what survives step 16, so a view emptied by
+  `type=ignore` is silent — that is a scheme doing what it was asked to do. The most valuable
+  instance of the change is the one nobody asked for: a missing input file now draws both `WARN001`
+  and `WARN009`, which is exactly the pair that distinguishes "I could not read your input" from
+  "and consequently your output is empty". Bundle revision r45 → r46. Reported as
+  **[#79](https://github.com/stop-cran/namespace2xml/issues/79)**. **Closes #79.**
+
 - **§12.1's rule for capture substitution into a scheme directive value now covers the directives
   it always governed.** It was written as "from the captures its **selector** defines", but §15.2
   splits scheme directives into two families — selector-scoped (`output`, `filename`, `root`,

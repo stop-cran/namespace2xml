@@ -705,13 +705,17 @@ public static class PlanningPhase
 
         foreach (var instance in instances)
         {
+            // Section 14.1: an instance is planned "even when no data path currently matches
+            // its literal prefix", so a missing subtree is an empty view rather than no view.
+            // The selection does not depend on the format, so it is made once per instance —
+            // which is also the granularity Section 22 counts the warning below at.
+            var selected = Descend(model, instance.Selector.Name);
+
+            WarnWhenNothingSelected(instance, selected, diagnostics);
+
             for (var ordinal = 0; ordinal < instance.Formats.Length; ordinal++)
             {
                 var format = instance.Formats[ordinal];
-
-                // Section 14.1: an instance is planned "even when no data path currently matches
-                // its literal prefix", so a missing subtree is an empty view rather than no view.
-                var selected = Descend(model, instance.Selector.Name);
 
                 if (!TryRoot(instance, format, selected, diagnostics, out var root))
                 {
@@ -725,6 +729,57 @@ public static class PlanningPhase
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<ImmutableArray<OutputView>>()
             : StepOutcome.Produced(views.ToImmutable());
+    }
+
+    /// <summary>
+    /// Section 14.1's <c>WARN009</c> for a concrete output instance whose selected view is empty.
+    /// </summary>
+    /// <param name="instance">The instance whose selection was just made.</param>
+    /// <param name="selected">The selected view.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <remarks>
+    /// <para>
+    /// Section 14.1 keeps the instance planned and still writes its file, so this is a warning and
+    /// the exit code is unaffected. What it removes is the silence: a literal selector matching no
+    /// data and a wildcard selector matching no data are one authoring mistake, and without this
+    /// only the second is reported — the first produces a well-formed, deployable, empty document
+    /// that nothing downstream can distinguish from a deliberately empty one.
+    /// </para>
+    /// <para>
+    /// Emptiness is Section 14.1's own four-part list — "no surviving payload, explicit container
+    /// presence, descendants, or comments" — rather than <see cref="OverlayNode.IsEmpty"/>, which
+    /// asks whether a format could render anything and so does not consider comments. An explicit
+    /// empty mapping or sequence is content here, exactly as Section 14.1 says it is not "a
+    /// zero-entry selection" for the wildcard rule.
+    /// </para>
+    /// <para>
+    /// The test is on the selection, not on what survives step 16, so a view emptied by
+    /// <c>type=ignore</c> does not warn: that is a directive doing what it was asked to do, while
+    /// this condition is a selector finding nothing to do it to.
+    /// </para>
+    /// </remarks>
+    private static void WarnWhenNothingSelected(
+        OutputInstance instance, OverlayNode selected, DiagnosticBuffer diagnostics)
+    {
+        if (!selected.IsEmpty || !selected.Comments.IsEmpty)
+        {
+            return;
+        }
+
+        var selector = instance.Selector.Name is null ? "the root selector" : $"'{instance.Selector}'";
+
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Warn009(
+                DiagnosticPhase.Planning,
+                "\u00A714.1",
+                $"{selector} selects nothing, so its output is empty. The file is still written; "
+                + "check the selector if that was not intended.",
+                cardinalityKey: $"empty:{instance.Selector}",
+                source: instance.Declaration.Source,
+                line: instance.Declaration.Line,
+                path: instance.Selector.ToString(),
+                declaration: instance.Declaration.Text),
+            StableOrderingKey.FromSource(instance.DeclarationOrder, 0)));
     }
 
     /// <summary>Section 15.1 step 15: resolve references within each instance's closure.</summary>
