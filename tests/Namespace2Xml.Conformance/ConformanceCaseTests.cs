@@ -112,6 +112,20 @@ public class ConformanceCaseTests
     }
 
     [TestCaseSource(nameof(Cases))]
+    public void CaseDeclaresAWellFormedLegacyVerdict(ConformanceCase conformanceCase)
+    {
+        // The Appendix C.6 verdict is parsed only by DifferentialTests, which needs the pinned
+        // 2.4.0 package and ignores itself without it. A verdict line with a misplaced bold run
+        // therefore reads as "no claim" everywhere the baseline is absent -- and "no claim" is not
+        // inert: it asserts the baseline reproduces the expected result, and the generated
+        // migration document publishes that assertion as verified. Parsing the line here costs
+        // nothing, needs no baseline, and fails on the machine that wrote it.
+        Should.NotThrow(
+            () => LegacyClaim.Read(conformanceCase),
+            $"{conformanceCase.Name}: legacy.md must declare exactly one Appendix C.6 verdict.");
+    }
+
+    [TestCaseSource(nameof(Cases))]
     public void CaseIsByteIdenticalAcrossRepeatedRuns(ConformanceCase conformanceCase)
     {
         // Section 24: identical inputs must produce identical bytes. A single run cannot show that.

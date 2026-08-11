@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs, and silently**. It exits 0, writes **nothing at all**, and
+- namespace2xml 2.4.0: **differs**, and silently. It exits 0, writes **nothing at all**, and
   reports `Success! Exiting...`. The scheme file is opened — the run logs
   `Reading input ...s.xml` — and contributes no directives, so the `app` output instance the
   author asked for is never created and no diagnostic says so.

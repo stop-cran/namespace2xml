@@ -117,7 +117,18 @@ foreach ($case in $cases) {
         }
     }
 
-    if ($start -lt 0) { $silent += $case.Name; continue }
+    if ($start -lt 0) {
+        throw ("$($case.Name): legacy.md declares no Appendix C.6 verdict. A case that carries the " +
+            'file but no verdict line would be published under "same observable result, no note", ' +
+            'which asserts the baseline reproduces the expected result. The line is ' +
+            '"- namespace2xml 2.4.0: **<verdict>**", and the bold run must close at the verdict word.')
+    }
+
+    if (-not $verdicts.Contains($verdict)) {
+        throw ("$($case.Name): legacy.md declares the verdict '$verdict', which is outside the " +
+            "Appendix C.6 vocabulary ($($verdicts.Keys -join ', ')). An unrecognized verdict would " +
+            'drop the case out of this document entirely.')
+    }
 
     $end = $lines.Count - 1
     for ($i = $start + 1; $i -lt $lines.Count; $i++) {

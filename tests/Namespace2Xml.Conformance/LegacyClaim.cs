@@ -37,13 +37,14 @@ internal sealed record LegacyClaim(LegacyVerdict Verdict, string Line)
         TimeSpan.FromSeconds(5));
 
     /// <summary>
-    /// Reads the verdict a case declares, or <see langword="null"/> when it declares none and is
-    /// therefore not a differential case.
+    /// Reads the verdict a case declares, or <see langword="null"/> when it carries no
+    /// <c>legacy.md</c> at all and is therefore not a differential case.
     /// </summary>
     /// <param name="conformanceCase">The case to read.</param>
     /// <exception cref="ConformanceFormatException">
-    /// The file declares more than one verdict, or a word outside the closed vocabulary. Both are
-    /// silent-coverage-loss failures: an unrecognized word would otherwise read as "no claim".
+    /// The file declares no verdict, more than one verdict, or a word outside the closed
+    /// vocabulary. All three are silent-coverage-loss failures: each would otherwise read as
+    /// "no claim", which Appendix C.6 treats as a claim that the baseline agrees.
     /// </exception>
     internal static LegacyClaim? Read(ConformanceCase conformanceCase)
     {
@@ -60,7 +61,12 @@ internal sealed record LegacyClaim(LegacyVerdict Verdict, string Line)
 
         if (matches.Count == 0)
         {
-            return null;
+            throw new ConformanceFormatException(
+                $"{conformanceCase.Name}: legacy.md declares no Appendix C.6 verdict. A case that " +
+                "carries the file but no verdict line reads as a claim that the baseline agrees, " +
+                "which is the opposite of what an author who wrote the file meant. The line is " +
+                "`- namespace2xml 2.4.0: **<verdict>**`, and the bold run must close at the " +
+                "verdict word itself.");
         }
 
         if (matches.Count > 1)

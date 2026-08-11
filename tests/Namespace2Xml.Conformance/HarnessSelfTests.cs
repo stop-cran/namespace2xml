@@ -681,6 +681,61 @@ public class HarnessSelfTests
             .ShouldContain(failure => failure.Contains("not valid UTF-8"));
     }
 
+    /// <summary>
+    /// The spelling that shipped a false claim. A bold run closed after the qualification rather
+    /// than after the verdict word read as "no verdict", which Appendix C.6 treats as a claim that
+    /// the baseline agrees -- so the generated migration document listed a case the baseline
+    /// silently disagrees with under "same observable result", citing the harness as verification.
+    /// </summary>
+    [TestCase("- namespace2xml 2.4.0: **differs, and silently**. It exits 0.\n")]
+    [TestCase("- namespace2xml 2.4.0: **differs. It exits 0.\n")]
+    [TestCase("- namespace2xml 2.4.0: differs. It exits 0.\n")]
+    [TestCase("# Legacy differential\n\nNo verdict anywhere in this file.\n")]
+    public void ALegacyFileThatDeclaresNoVerdictIsRejected(string legacy)
+    {
+        Should.Throw<ConformanceFormatException>(() => ReadClaim(legacy));
+    }
+
+    [Test]
+    public void ALegacyFileThatDeclaresTwoVerdictsIsRejected()
+    {
+        Should.Throw<ConformanceFormatException>(
+            () => ReadClaim("- namespace2xml 2.4.0: **differs**.\n- namespace2xml 2.4.0: **agrees**.\n"));
+    }
+
+    [Test]
+    public void ALegacyFileThatDeclaresAWordOutsideTheVocabularyIsRejected()
+    {
+        Should.Throw<ConformanceFormatException>(() => ReadClaim("- namespace2xml 2.4.0: **silent**.\n"));
+    }
+
+    [Test]
+    public void AWellFormedVerdictSurvivesItsOwnQualification() =>
+        ReadClaim("- namespace2xml 2.4.0: **differs**, and silently. It exits 0.\n")!
+            .Verdict.ShouldBe(LegacyVerdict.Differs);
+
+    [Test]
+    public void ACaseWithNoLegacyFileDeclaresNoClaim() =>
+        // Appendix C.6 gives an absent file a meaning -- the baseline agrees -- and the tightened
+        // reader must not turn that specified silence into a format error.
+        ReadClaim(null).ShouldBeNull();
+
+    private static LegacyClaim? ReadClaim(string? legacy)
+    {
+        using var corpus = new TemporaryDirectory();
+
+        var caseDirectory = Directory.CreateDirectory(System.IO.Path.Combine(corpus.Path, "a-case"));
+
+        File.WriteAllText(System.IO.Path.Combine(caseDirectory.FullName, "args.txt"), "--help\n");
+
+        if (legacy is not null)
+        {
+            File.WriteAllText(System.IO.Path.Combine(caseDirectory.FullName, "legacy.md"), legacy);
+        }
+
+        return LegacyClaim.Read(ConformanceCase.Discover(corpus.Path).Single());
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         internal TemporaryDirectory()
