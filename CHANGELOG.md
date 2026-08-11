@@ -13,6 +13,42 @@ independently.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A free-wildcard reference failed the run from an entry nothing could reach**, and two further
+  defects in the same code fell out of fixing it. §14.4 says "missing, cyclic, ambiguous,
+  free-wildcard, and non-scalar references in entries unreachable from every concrete output
+  instance do not fail the run", and §22 counts `REFERENCE001` "once per reachable owning value".
+  Four of those five members were evaluated at §15.1 step 15, where reachability is known, and
+  behaved correctly; the free-wildcard case was refused by the value lexer in the input phase,
+  before any output instance existed and therefore before reachability could be known. The one
+  member of the list that names a wildcard was the one member that did not use the list. It also
+  applied to only one of the construct's two spellings — `${a.*}` was refused at lex time while
+  `${a.*[0]}` was carried forward — so two spellings of one specified concept had different
+  lifetimes. Reported as
+  **[#77](https://github.com/stop-cran/namespace2xml/issues/77)**, whose three controls placed the
+  defect exactly, and now covered by
+  `an-unreachable-free-wildcard-reference-does-not-fail-the-run`. namespace2xml 2.4.0 accepts the
+  same profile and exits `0`, so this was a regression in the rewrite rather than a missing
+  feature.
+
+- **An unbound capture inside a template's reference ended the process on a stack trace.**
+  `a.*[0].copy=${a.*[9]}` read `9` straight out of the bound capture set and threw
+  `KeyNotFoundException`, which is neither an exit code §6.3 defines nor a diagnostic an author can
+  act on. §13.3 states its test over the result — "after capture substitution, the resulting
+  reference must contain no wildcard" — so a capture the template cannot bind now survives
+  substitution and is refused as `REFERENCE001` against §13.3, matching what the corpus already
+  pinned for the same construct in a non-template owner. Found while fixing #77.
+
+- **A reference in a template's value silently corrupted its positional captures.** §12.1 says
+  "legacy unnamed captures are substituted positionally", and the counter ran across the whole
+  value — except that a value carrying a reference took a second code path which rebuilt each
+  wildcard as a one-token value, restarting the counter at zero every time. `a.*.*.v=${a.k}-*-*`
+  against captures `p` and `q` wrote `K-p-p` instead of `K-p-q`: wrong output, exit `0`, no
+  diagnostic. The existing gate for the positional rule passed throughout because its value carried
+  no reference. The two paths now share one counter, so they cannot disagree again. Found while
+  fixing #77.
+
 ### Changed
 
 - **A refusal from a closed set now names the set.** Issue 80 reported spending eleven attempts on

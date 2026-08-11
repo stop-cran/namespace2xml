@@ -700,9 +700,12 @@
       "assertions": [
         "A reference naming a node that has descendants but no scalar or null payload is REFERENCE002 rather than a subtree copy or an empty string.",
         "A reference whose name carries a capture that the referring name does not bind is REFERENCE001, because Section 13.3 admits only explicitly bound and mutually consistent captures.",
-        "Two reference defects written in one file are ordered by where they were written, not by their codes."
+        "Two reference defects written in one file are ordered by where they were written, not by their codes.",
+        "A free-wildcard reference in an entry no concrete output instance reaches does not fail the run, in either of its spellings, whether the owner is unreachable because no declaration selects it or because the winning declaration is output=ignore.",
+        "The reachability suppression covers every member of the Section 14.4 list, so a missing, cyclic and non-scalar reference in the same unreachable position are equally silent."
       ],
       "fixtures": [
+        "an-unreachable-free-wildcard-reference-does-not-fail-the-run",
         "reference-scalar-only-and-free-wildcard-rejected"
       ]
     },

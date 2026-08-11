@@ -91,18 +91,8 @@ public static class WildcardSubstitution
                     text.Append(plain.Text);
                     break;
 
-                case ValueWildcardToken { CaptureId: null }:
-                    if (!captures.Positional.IsEmpty)
-                    {
-                        text.Append(
-                            captures.Positional[Math.Min(next, captures.Positional.Length - 1)]);
-                    }
-
-                    next++;
-                    break;
-
-                case ValueWildcardToken { CaptureId: { } id }:
-                    text.Append(captures.Named[id]);
+                case ValueWildcardToken wildcard:
+                    text.Append(Substituted(wildcard, captures, ref next));
                     break;
 
                 case ResolvedReferenceToken opaque:
@@ -117,6 +107,44 @@ public static class WildcardSubstitution
         }
 
         return text.ToString();
+    }
+
+    /// <summary>
+    /// The text one value wildcard substitutes, advancing the positional counter when it consumes
+    /// one.
+    /// </summary>
+    /// <param name="wildcard">The token to substitute.</param>
+    /// <param name="captures">The captures the match bound.</param>
+    /// <param name="positional">
+    /// How many legacy captures the value has already consumed. Section 12.1 assigns them
+    /// positionally across the whole value, so every caller must thread one counter through every
+    /// token of that value.
+    /// </param>
+    /// <remarks>
+    /// Section 12.1: "Legacy unnamed captures are substituted positionally", and "If a legacy value
+    /// contains more wildcard substitutions than the name produced, the last capture is repeated
+    /// for compatibility." Both callers share this so the counting cannot differ between a value
+    /// that carries a reference and one that does not.
+    /// </remarks>
+    private static string Substituted(
+        ValueWildcardToken wildcard, WildcardCaptures captures, ref int positional)
+    {
+        if (wildcard.CaptureId is { } id)
+        {
+            return captures.Named[id];
+        }
+
+        if (captures.Positional.IsEmpty)
+        {
+            return string.Empty;
+        }
+
+        var text = captures.Positional[
+            Math.Min(positional, captures.Positional.Length - 1)];
+
+        positional++;
+
+        return text;
     }
 
     /// <summary>
@@ -153,12 +181,12 @@ public static class WildcardSubstitution
             {
                 case ReferenceToken reference:
                     tokens.Add(new ReferenceToken(
-                        SubstituteName(reference.Name, captures, ref positional)));
+                        SubstituteName(reference.Name, captures)));
                     break;
 
-                case ValueWildcardToken:
+                case ValueWildcardToken wildcard:
                     tokens.Add(new LiteralValueToken(
-                        Apply(new InterpretedValue([token]), captures)));
+                        Substituted(wildcard, captures, ref positional)));
                     break;
 
                 default:
@@ -170,55 +198,80 @@ public static class WildcardSubstitution
         return ScalarPayload.Unresolved(new InterpretedValue(tokens.ToImmutable()), origin);
     }
 
-    private static QualifiedName SubstituteName(
-        QualifiedName name, WildcardCaptures captures, ref int positional)
+    private static QualifiedName SubstituteName(QualifiedName name, WildcardCaptures captures)
     {
         var parts = ImmutableArray.CreateBuilder<NamePart>(name.Parts.Length);
-        var next = positional;
 
         foreach (var part in name.Parts)
         {
-            parts.Add(SubstitutePart(part, captures, ref next));
+            parts.Add(SubstitutePart(part, captures));
         }
-
-        positional = next;
 
         return new QualifiedName(parts.ToImmutable());
     }
 
-    private static NamePart SubstitutePart(
-        NamePart part, WildcardCaptures captures, ref int positional)
+    private static NamePart SubstitutePart(NamePart part, WildcardCaptures captures)
     {
         switch (part)
         {
             case OrdinaryPart ordinary:
                 return new OrdinaryPart(
-                    SubstituteTokens(ordinary.Tokens, captures, ref positional))
+                    SubstituteTokens(ordinary.Tokens, captures))
                 {
                     IsExplicitlyCanonical = ordinary.IsExplicitlyCanonical,
                 };
 
             case QualifiedElementPart qualified:
                 return new QualifiedElementPart(
-                    qualified.Uri, SubstituteTokens(qualified.Local, captures, ref positional));
+                    qualified.Uri, SubstituteTokens(qualified.Local, captures));
 
             case AttributePart attribute:
                 return new AttributePart(
-                    (XmlNameComponent)SubstitutePart(attribute.Name, captures, ref positional));
+                    (XmlNameComponent)SubstitutePart(attribute.Name, captures));
 
             default:
                 return part;
         }
     }
 
+    /// <summary>
+    /// Substitutes the captures a reference's name names, leaving any it cannot bind in place.
+    /// </summary>
+    /// <param name="tokens">The name-part tokens to substitute into.</param>
+    /// <param name="captures">The captures the match bound.</param>
+    /// <remarks>
+    /// <para>
+    /// Section 13.3: "A reference inside a wildcard template may contain only explicit captures
+    /// already bound by that same template. After capture substitution, the resulting reference
+    /// must contain no wildcard." The test is stated over the result, so a wildcard this template
+    /// cannot bind has to survive substitution in order to fail it. Two spellings reach here that
+    /// cannot be bound.
+    /// </para>
+    /// <para>
+    /// A legacy unnamed capture is one: Section 12.1 says it "is not supported" inside a reference,
+    /// so binding it positionally — the compatible reading for a value — would silently accept
+    /// what that sentence refuses.
+    /// </para>
+    /// <para>
+    /// An explicit capture the owning name never defined is the other. Reading it out of the bound
+    /// set threw <see cref="KeyNotFoundException"/> and ended the process on a stack trace, which
+    /// is neither an exit code Section 6.3 defines nor a diagnostic anyone can act on.
+    /// </para>
+    /// <para>
+    /// Both now reach Section 15.1 step 15 still carrying a wildcard, where the reference resolver
+    /// reports <c>REFERENCE001</c> against Section 13.3 for the reachable owning values Section
+    /// 14.4 leaves in scope, and for no others.
+    /// </para>
+    /// </remarks>
     private static ImmutableArray<NameToken> SubstituteTokens(
-        ImmutableArray<NameToken> tokens, WildcardCaptures captures, ref int positional)
+        ImmutableArray<NameToken> tokens, WildcardCaptures captures)
     {
         var result = ImmutableArray.CreateBuilder<NameToken>(tokens.Length);
 
         foreach (var token in tokens)
         {
-            if (token is not WildcardToken wildcard)
+            if (token is not WildcardToken { CaptureId: { } id }
+                || !captures.Named.TryGetValue(id, out var text))
             {
                 result.Add(token);
                 continue;
@@ -227,30 +280,9 @@ public static class WildcardSubstitution
             // Section 13.1: "marker text inserted from a wildcard capture" is an ordinary literal
             // name component, so the capture's text is never rescanned for the Q{}, @ or #n markers
             // that would otherwise make it a typed XML component.
-            result.Add(new LiteralToken(Capture(wildcard.CaptureId, captures, ref positional)));
+            result.Add(new LiteralToken(text));
         }
 
         return result.ToImmutable();
-    }
-
-    private static string Capture(
-        string? captureId, WildcardCaptures captures, ref int positional)
-    {
-        if (captureId is { } id)
-        {
-            return captures.Named[id];
-        }
-
-        if (captures.Positional.IsEmpty)
-        {
-            return string.Empty;
-        }
-
-        var text = captures.Positional[
-            Math.Min(positional, captures.Positional.Length - 1)];
-
-        positional++;
-
-        return text;
     }
 }

@@ -237,6 +237,21 @@ public static class ValueLexer
         index += 2;
     }
 
+    /// <summary>Lexes one <c>${...}</c> reference.</summary>
+    /// <param name="text">The value being lexed.</param>
+    /// <param name="index">The offset of the <c>${</c> marker; advanced past the reference.</param>
+    /// <param name="token">The lexed reference.</param>
+    /// <param name="fault">Why the reference could not be lexed.</param>
+    /// <remarks>
+    /// A wildcard the reference carries is lexed rather than refused. Section 12.1 does say that "a
+    /// legacy unnamed capture inside a <c>${...}</c> reference is not supported and is
+    /// <c>REFERENCE001</c>", but it says nothing about when that is reported, and Section 14.4 does:
+    /// free-wildcard references "in entries unreachable from every concrete output instance do not
+    /// fail the run", which Section 22 repeats as "once per reachable owning value". A fault raised
+    /// here is raised in the input phase, before any output instance exists and therefore before
+    /// reachability can be known. Carrying the wildcard forward lets Section 13.3 refuse it at step
+    /// 15, where the same suppression the missing, cyclic and non-scalar cases already use applies.
+    /// </remarks>
     private static bool TryLexReference(
         string text,
         ref int index,
@@ -244,7 +259,6 @@ public static class ValueLexer
         out ValueFault fault)
     {
         token = null!;
-        var markerAt = index;
         var cursor = index + 2;
         var result = QualifiedNameLexer.LexReferenceName(text, ref cursor);
 
@@ -254,22 +268,8 @@ public static class ValueLexer
             return false;
         }
 
-        var name = result.Name!;
-
-        if (QualifiedNameLexer.Wildcards(name).Any(wildcard => wildcard.CaptureId is null))
-        {
-            // Section 12.1 and Appendix A.4: a legacy unnamed capture inside a reference is not
-            // supported, and Section 13.3 makes a free wildcard reference blocking anyway.
-            fault = new ValueFault(
-                "a reference cannot contain a bare '*'; a reference from a template must name the "
-                + "capture it substitutes, as '*[identifier]'.",
-                markerAt,
-                ValueFaultKind.Reference);
-            return false;
-        }
-
         index = cursor;
-        token = new ReferenceToken(name);
+        token = new ReferenceToken(result.Name!);
         fault = default;
         return true;
     }

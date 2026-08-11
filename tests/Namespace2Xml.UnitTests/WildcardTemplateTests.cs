@@ -69,6 +69,31 @@ public sealed class WildcardTemplateTests
     }
 
     /// <summary>
+    /// "Legacy unnamed captures are substituted positionally" counts across the whole value, and a
+    /// reference standing in it is not a place where the counting restarts.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>SeveralCapturesInOnePartTakeTheShortestTextLeftToRight</c> asserts the same positional
+    /// rule and passed throughout, because its value carries no reference. A value that carries one
+    /// took a different code path, which rebuilt each wildcard as a one-token value and so restarted
+    /// the counter at zero for every wildcard: <c>${a.k}-*-*</c> against captures <c>p</c> and
+    /// <c>q</c> produced <c>K-p-p</c>. Nothing failed, nothing was reported, and the output was
+    /// wrong — the payload of an entry the tool had been asked to write.
+    /// </para>
+    /// <para>
+    /// The two paths now share one counter, so the difference this pins cannot reappear as a
+    /// divergence between them.
+    /// </para>
+    /// </remarks>
+    [Test]
+    public void ThePositionalCounterSpansAValueThatAlsoCarriesAReference()
+    {
+        Render("a.p.q=1\na.k=K\na.*.*.v=${a.k}-*-*\n")
+            .ShouldBe("p.q=1\np.q.v=K-p-q\nk=K\n");
+    }
+
+    /// <summary>
     /// "If a legacy value contains more wildcard substitutions than the name produced, the last
     /// capture is repeated for compatibility."
     /// </summary>
@@ -160,6 +185,63 @@ public sealed class WildcardTemplateTests
 
         result.ExitCode.ShouldBe(1);
         Codes(result).ShouldBe(["WILDCARD001"]);
+    }
+
+    /// <summary>
+    /// A capture a template reference names but never bound is refused rather than fatal.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Section 13.3: "A reference inside a wildcard template may contain only explicit captures
+    /// already bound by that same template. After capture substitution, the resulting reference
+    /// must contain no wildcard." Substitution used to read the identifier straight out of the
+    /// bound set, so an unbound one threw <c>KeyNotFoundException</c> and ended the process on a
+    /// stack trace — not an exit code Section 6.3 defines, and nothing an author could act on.
+    /// </para>
+    /// <para>
+    /// The code is <c>REFERENCE001</c> against Section 13.3 rather than <c>WILDCARD001</c> against
+    /// Section 12.2's "an undefined capture is an error", because the same construct in an entry
+    /// whose name defines no captures is already <c>REFERENCE001</c> — the corpus pins that in
+    /// <c>reference-scalar-only-and-free-wildcard-rejected</c> — and one construct reporting two
+    /// codes according to whether its owner happened to be a template would be the harder thing to
+    /// explain.
+    /// </para>
+    /// <para>
+    /// That choice carries a cardinality: Section 22 counts <c>REFERENCE001</c> "once per reachable
+    /// owning value", so a template matching two entries reports twice, where <c>WILDCARD001</c>'s
+    /// "once per rule" would report once for the single authoring mistake. Both counts are
+    /// faithful to their own row. The two expected here are what makes the difference visible.
+    /// </para>
+    /// </remarks>
+    [Test]
+    public void AnUnboundCaptureInsideATemplateReferenceIsRefusedRatherThanFatal()
+    {
+        var (result, _) = Transform("a.x=1\na.y=2\na.*[0].copy=${a.*[9]}\n");
+
+        result.ExitCode.ShouldBe(1);
+        Codes(result).ShouldBe(["REFERENCE001", "REFERENCE001"]);
+    }
+
+    /// <summary>
+    /// Section 14.4: a free-wildcard reference "in entries unreachable from every concrete output
+    /// instance" does not fail the run.
+    /// </summary>
+    /// <remarks>
+    /// The suppression already worked for the missing, cyclic and non-scalar cases, which are
+    /// evaluated at Section 15.1 step 15 where reachability is known. The free-wildcard case was
+    /// refused by the value lexer instead, in the input phase, before any output instance existed —
+    /// so the one member of Section 14.4's list that names a wildcard was the one member that did
+    /// not use the list.
+    /// </remarks>
+    [Test]
+    public void AnUnreachableFreeWildcardReferenceDoesNotFailTheRun()
+    {
+        var (result, _) = Transformation(
+            ("in.txt", "a.k=1\nz.free=${a.*}\nz.named=${a.*[9]}\n"),
+            ("scheme.txt", "a.output=namespace\n"));
+
+        result.ExitCode.ShouldBe(0, string.Join("; ", Codes(result)));
+        Codes(result).ShouldBeEmpty();
     }
 
     /// <summary>"A single rule must not mix explicit and legacy unnamed captures."</summary>

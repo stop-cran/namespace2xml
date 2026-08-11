@@ -200,19 +200,39 @@ public sealed class ValueLexerTests
         LexFault("${.a}").Kind.ShouldBe(ValueFaultKind.Reference);
     }
 
+    /// <summary>
+    /// A wildcard a reference carries survives lexing, because Section 14.4 decides whether it is
+    /// reported and the input phase cannot yet know.
+    /// </summary>
+    /// <remarks>
+    /// Section 12.1 says a legacy unnamed capture inside a reference "is not supported and is
+    /// <c>REFERENCE001</c>". That fixes the code, not the phase. Section 14.4 fixes the phase:
+    /// free-wildcard references "in entries unreachable from every concrete output instance do not
+    /// fail the run", and Section 22 counts <c>REFERENCE001</c> "once per reachable owning value".
+    /// Refusing the value here reported it before any output instance existed, so an unreachable
+    /// entry failed a run that Section 14.4 says it must not. The explicit spelling was always
+    /// lexed — see <c>AnExplicitCaptureInsideAReferenceIsSyntacticallyValid</c> — so the two
+    /// spellings of one specified concept had different lifetimes.
+    /// </remarks>
     [Test]
-    public void ALegacyCaptureInsideAReferenceIsAReferenceFault()
+    public void AWildcardInsideAReferenceIsLexedRatherThanRefused()
     {
-        // Section 12.1 and A.4: references from templates must use explicit captures.
-        var fault = LexFault("x${a.*}");
+        Describe(LexExplicit("x${a.*}")).ShouldBe("'x'|ref(a.<*>)");
 
-        fault.Kind.ShouldBe(ValueFaultKind.Reference);
-        fault.Offset.ShouldBe(1);
+        Describe(LexExplicit("${a.*[0].b}")).ShouldBe("ref(a.<*0>.b)");
     }
 
+    /// <summary>
+    /// The grammar defects Section 14.4 does not list still fail in the input phase. Its list is
+    /// "missing, cyclic, ambiguous, free-wildcard, and non-scalar", which names neither a malformed
+    /// name nor a missing terminator, so deferring the wildcard case must not defer those with it.
+    /// </summary>
     [Test]
-    public void AFreeWildcardReferenceIsAReferenceFault() =>
-        LexFault("${a.*}").Kind.ShouldBe(ValueFaultKind.Reference);
+    public void AMalformedReferenceIsStillARefusalAndNotAWildcard()
+    {
+        LexFault("${a").Kind.ShouldBe(ValueFaultKind.Reference);
+        LexFault("${a..b}").Kind.ShouldBe(ValueFaultKind.Reference);
+    }
 
     [Test]
     public void AnExplicitCaptureInsideAReferenceIsSyntacticallyValid() =>
