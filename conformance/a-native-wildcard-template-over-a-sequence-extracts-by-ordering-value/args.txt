@@ -1,4 +1,5 @@
 -i
+inputs/data.yaml
 inputs/template.yaml
 -s
 schemes/scheme.txt

@@ -30,9 +30,6 @@ public static class StructuredProfileReader
     /// <param name="source">The source diagnostics report this contribution against.</param>
     /// <param name="substitutes">Step 3's product: the Section 16.7 mode at each declared path.</param>
     /// <param name="diagnostics">The buffer this source's diagnostics accumulate in.</param>
-    /// <param name="unsupported">
-    /// The first construct this preview declines, or <see langword="null"/> when it declined none.
-    /// </param>
     /// <param name="nativeMappings">
     /// Whether this format's mappings are the Section 3.2 <c>WARN010</c> kind, which is JSON and
     /// YAML but not XML.
@@ -43,7 +40,6 @@ public static class StructuredProfileReader
         ProfileSource source,
         SubstituteModeMap substitutes,
         DiagnosticBuffer diagnostics,
-        out UnsupportedCapability? unsupported,
         bool nativeMappings = false)
     {
         ArgumentNullException.ThrowIfNull(root);
@@ -54,8 +50,6 @@ public static class StructuredProfileReader
         var projection = new Projection(
             sourceOrdinal, source, substitutes, diagnostics, nativeMappings);
         var overlay = projection.Build(root, []);
-
-        unsupported = projection.Refusal;
 
         return new ProfileContribution(overlay, [], projection.Templates);
     }
@@ -71,9 +65,6 @@ public static class StructuredProfileReader
             ImmutableArray.CreateBuilder<ProfileEntry>();
 
         private long ordinal;
-
-
-        public UnsupportedCapability? Refusal { get; private set; }
 
         /// <summary>The Section 15.1 step 7 templates this document declared.</summary>
         public ImmutableArray<ProfileEntry> Templates => templates.ToImmutable();
@@ -355,16 +346,21 @@ public static class StructuredProfileReader
             diagnostics.Add(new BufferedDiagnostic(occurrence, key));
         }
 
-        private void Decline(StructuredNode node, ImmutableArray<NamePart> path, string what) =>
-            Refusal ??= new UnsupportedCapability(
-                "a native wildcard template over " + what,
-                $"the template at '{CanonicalPath.Of(new QualifiedName(path))}' in {source.File} "
-                + $"reaches {what} at "
-                + $"line {source.LineOf(node.Line)}. Section 10.4 extracts a template "
-                + "entry by entry, and an entry names one scalar; this build does not yet decide "
-                + "what a template over that shape extracts to. Write the branch without a "
-                + "wildcard key, or write '\\*' for a literal asterisk.",
-                "\u00A710.4");
+        private void Reject(StructuredNode node, ImmutableArray<NamePart> path, string what) =>
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Parse001(
+                    DiagnosticPhase.Input,
+                    "\u00A710.4",
+                    $"the wildcard template at '{CanonicalPath.Of(new QualifiedName(path))}' "
+                    + $"reaches {what}. Section 10.4 extracts a template entry by entry, and "
+                    + $"{what} has no entries, so this template would contribute nothing at every "
+                    + "path it matched. Give the template a scalar, or write '\\*' for a literal "
+                    + "asterisk if the key was not meant to be a wildcard.",
+                    cardinalityKey: source.SourceKey,
+                    source: source.File,
+                    line: source.LineOf(node.Line),
+                    column: source.ColumnOf(node.Column)),
+                StableOrderingKey.FromSource(sourceOrdinal, ordinal)));
 
         /// <summary>
         /// Section 10.4 step 7 for a native document: extracts the subtree under a wildcard key as
@@ -409,15 +405,40 @@ public static class StructuredProfileReader
 
                     return;
 
-                // An empty mapping and a sequence are both Section 4.4 shape contributions rather
-                // than scalars, and a ProfileEntry carries a value. Section 10.4 shows neither, so
-                // the honest answer is that this build has not decided.
+                // Section 10.4 makes extraction entry-by-entry, and Section 5.4 says a sequence
+                // "exposes its stable ordering values as decimal name parts. These are real
+                // logical addresses for the run". An item's address is therefore an ordinary name
+                // part, and extracting through it is the same recursion a mapping child takes.
+                //
+                // The items land as canonical numeric mapping children, so Section 5.4 gives them
+                // explicit ordering provenance where the source spelled a native sequence. That is
+                // the same conversion Section 10.4 already blesses one line above for mappings —
+                // "carrier ancestors created only to contain an extracted template do not
+                // contribute mapping-presence marks" — extraction flattens native shape into
+                // namespace-shaped entries in both cases. It is also what keeps this template and
+                // the namespace template 'a.*.b.0=x' the same rule written twice: a divergence
+                // between the two spellings of one entry would be its own defect.
+                case StructuredSequence sequence when !sequence.Items.IsEmpty:
+                    var value = 0L;
+
+                    foreach (var item in sequence.Items)
+                    {
+                        Extract(item, path.Add(OrderingValues.ToNamePart(value)));
+                        value++;
+                    }
+
+                    return;
+
+                // An empty mapping and an empty sequence have no entries for entry-by-entry
+                // extraction to find, and Section 10.4 shows neither. Section 15.1 step 7 is where
+                // they are rejected, because a template that silently contributes nothing is worse
+                // than one that refuses.
                 case StructuredMapping:
-                    Decline(node, path, "an empty mapping");
+                    Reject(node, path, "an empty mapping");
                     return;
 
                 case StructuredSequence:
-                    Decline(node, path, "a sequence");
+                    Reject(node, path, "an empty sequence");
                     return;
 
                 default:

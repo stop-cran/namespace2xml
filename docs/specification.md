@@ -939,6 +939,20 @@ Wildcard template entries are extracted before structural input merging and expa
 
 Extraction is entry-by-entry. Carrier ancestors created only to contain an extracted template do not contribute mapping-presence marks. Literal sibling entries remain concrete data and do contribute their ordinary ancestor mapping marks.
 
+A sequence beneath a wildcard key is extracted through its items' ordering values, which Section 5.4 exposes as decimal name parts. A template written
+
+```yaml
+a:
+  '*':
+    b:
+      - x
+      - y
+```
+
+therefore creates the logical wildcard entries `a.*.b.0=x` and `a.*.b.1=y`, and is the same rule as those two entries written in namespace form. The items become canonical numeric mapping children, so Section 5.4 gives them explicit ordering provenance even though the source spelled a native sequence; extraction flattens native shape into namespace-shaped entries here exactly as it does for the mapping ancestors above.
+
+A wildcard key whose value is an **empty mapping or an empty sequence** has no entries for entry-by-entry extraction to find, so the template would contribute nothing at every path it matched. That is `PARSE001` against this section, once per failing source, reported at step 7.
+
 Given another input:
 
 ```yaml

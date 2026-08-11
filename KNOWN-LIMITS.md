@@ -107,9 +107,9 @@ one case is declined within it.
 
 - **A wildcard in a native key is a template**, extracted entry by entry under §9.2 and expanded in
   the §12.4 fixed point exactly as the YAML half in §1.2, and `\*` for a literal asterisk works.
-  Two shapes under a wildcard key are still declined, with exit `70` and no output — a sequence and
-  an empty mapping — for the reasons given in §1.2, which covers both formats because they share a
-  reader.
+  A sequence beneath a wildcard key is extracted through its items' ordering values, and an empty
+  container beneath one is `PARSE001`; both are settled in §1.2, which covers both formats because
+  they share a reader.
 
 A reference nested inside a native sequence is a second case, but it cannot be reached: any
 unresolved value declines the whole invocation under §13, so no path exists today by which the
@@ -127,20 +127,25 @@ it.
 - **A wildcard in a key is a template**, extracted before structural merging and expanded in the
   §12.4 fixed point, so §10.4's enrichment works and the 2.4.0 regression recorded here is closed.
   `\*` for a literal asterisk works, and §16.7 `substitute=None` makes the key literal by the same
-  route. Two shapes beneath a wildcard key are still **declined**, with exit `70` and no output:
-  - **a sequence**, because a native sequence item takes its ordering value from the destination
-    path's §5.4 high-water mark and the destination is unknown until §12.4 expansion, so there is
-    no mark to allocate against at extraction time;
-  - **an empty mapping**, because it has no scalar leaf for entry-by-entry extraction to find, and
-    what it expresses is mapping presence, which §10.4 explicitly denies a template — "carrier
-    ancestors created only to contain an extracted template do not contribute mapping-presence
-    marks".
+  route. *(resolved)* Two shapes beneath a wildcard key were declined with exit `70` and no output,
+  a sequence and an empty mapping; §10.4 now settles both, so neither refuses and exit `70` is
+  unreachable. A sequence is extracted through its items' ordering values — `a.*.b: [x, y]` is the
+  same rule as `a.*.b.0=x` and `a.*.b.1=y` written in namespace form — and an empty mapping or an
+  empty sequence, having no entries for entry-by-entry extraction to find, is `PARSE001` against
+  §10.4, once per failing source. Pinned by
+  `conformance/a-native-wildcard-template-over-a-sequence-extracts-by-ordering-value` and
+  `conformance/a-native-wildcard-template-over-an-empty-container-is-parse001`.
 
-  §10.4 shows neither shape, so both are under-determined rather than merely unimplemented, and
-  refusing is narrower than inventing a reading. Pinned by
-  `conformance/a-native-wildcard-template-over-a-sequence-is-declined` and
-  `conformance/a-native-wildcard-template-over-an-empty-mapping-is-declined`; both fixtures change
-  at the commit that settles the shapes.
+  The reading that made the sequence look under-determined was that a native sequence item takes
+  its ordering value from the destination's §5.4 high-water mark and the destination is unknown
+  until §12.4 expansion. §12.4 answers that directly — "a generated contribution reserves or
+  allocates ordering values only when it is generated" — so the timing was never the obstacle. What
+  remained was provenance: extracting through ordering values makes the items canonical numeric
+  mapping children, which §5.4 calls explicit, where the source spelled a native sequence, which
+  §5.4 calls implicit. §10.4 already has extraction flatten native shape into namespace-shaped
+  entries for the mapping ancestors above — they "do not contribute mapping-presence marks" — and
+  the alternative would make a native template and its namespace spelling two different rules. See
+  [#75](https://github.com/stop-cran/namespace2xml/issues/75).
 
   One further residue is **ordering, not capability**. §10.4's worked example prints the generated
   key after the record's own keys while introducing the template as the first input, which

@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r43+f6a39935803b`.**
+**Contract bundle `r44+a91f25bf49ec`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -230,45 +230,44 @@ implemented, its case says so plainly rather than letting the heading imply othe
   same defect recorded in `a-yaml-wildcard-key-enriches-each-record-of-a-later-file` seen from a
   second angle.
 
-### `a-native-wildcard-template-over-a-sequence-is-declined`
+### `a-native-wildcard-template-over-a-sequence-extracts-by-ordering-value`
 
-- namespace2xml 2.4.0: **differs**. It exits `0` and writes **no output file at all** — the output
-  directory is empty. This case expects exit `70` and no output.
-- Contract: Section 10.4. "Extraction is entry-by-entry", and an extracted entry names one scalar.
-- Section 10.4 shows a mapping under a wildcard key and says nothing about a sequence under one.
-  The shape is genuinely under-determined: a native sequence item takes an implicit ordering value
-  from the destination path's Section 5.4 high-water mark, and under a template the destination is
-  not known until Section 12.4 expansion, so there is no mark to allocate against at extraction
-  time. This build therefore refuses rather than choosing one of the readings.
-- Exit `70` is the refusal status, deliberately outside the normative `0` and `1`: the run decides
-  no outcome, publishes nothing, and names on standard error the capability it lacks. The message
-  identifies the template as `a.*` and offers both remedies — write the branch without a wildcard
-  key, or write `\*` for a literal asterisk.
-- **The legacy behaviour is worse than the refusal, not better.** Exit `0` with no file is a
-  success status for work that was not done: a caller that checks the exit code and then reads its
-  output gets a missing-file error at a distance, or silently keeps a stale file from a previous
-  run. The refusal is the same absence of output with an honest status attached.
-- Once Section 10.4 settles what a template over a sequence extracts to, this fixture's
-  `expected/` and `expected-exit-code.txt` change together at that commit. Recorded in
-  `KNOWN-LIMITS.md` section 1.2.
+- namespace2xml 2.4.0: **differs**. It treats `*` as an ordinary key, so the template leaks into the
+  output as literal data instead of generating anything.
+- Contract: Section 10.4. "Extraction is entry-by-entry", and a sequence beneath a wildcard key is
+  extracted "through its items' ordering values, which Section 5.4 exposes as decimal name parts".
+- The template declares `a.*.tags.0=red` and `a.*.tags.1=blue`, so it is the same rule as those two
+  entries written in namespace form. That equivalence is the point of the case: a native template
+  and its namespace spelling are one entry written two ways, and a divergence between them would be
+  its own defect.
+- The items become canonical numeric mapping children, so Section 5.4 gives them explicit ordering
+  provenance even though the source spelled a native sequence. Extraction flattens native shape into
+  namespace-shaped entries here exactly as Section 10.4 already has it do for the mapping ancestors
+  above, which "do not contribute mapping-presence marks".
+- This case previously expected exit `70`, on the reading that the shape was under-determined
+  because a native sequence item takes its ordering value from the destination's high-water mark and
+  the destination is unknown at extraction time. Section 12.4 answers that directly — "a generated
+  contribution reserves or allocates ordering values only when it is generated" — so the timing was
+  never the obstacle it was recorded as.
 
-### `a-native-wildcard-template-over-an-empty-mapping-is-declined`
+### `a-native-wildcard-template-over-an-empty-container-is-parse001`
 
-- namespace2xml 2.4.0: **differs**. It exits `0` and writes `a.yaml` containing `'*': {}` — the
-  wildcard key emitted verbatim as literal data. This case expects exit `70` and no output.
-- Contract: Section 10.4. "Extraction is entry-by-entry", and an extracted entry names one scalar.
-- An empty mapping has no scalar leaf, so entry-by-entry extraction yields nothing. What the author
-  wrote is not a value but a **shape**: "every match gains an empty mapping here". Section 10.4's
-  own carrier rule points the other way — "carrier ancestors created only to contain an extracted
-  template do not contribute mapping-presence marks" — so a template is not a vehicle for mapping
-  presence, and there is no entry to carry this one. Refusing is narrower than inventing a
-  mapping-presence template that Section 10.4 does not describe.
-- 2.4.0's answer is a third thing again: it treated `*` as an ordinary key, so the template leaked
-  into the output as data. Read back through its own reader that key is a rule, which is the same
-  round-trip break recorded in
+- namespace2xml 2.4.0: **differs**. It treats `*` as an ordinary key, so `'*': {}` is emitted
+  verbatim as literal data at exit `0`. Read back through its own reader that key is a rule, which
+  is the same round-trip break recorded in
   `a-backslash-asterisk-in-a-native-key-is-a-literal-asterisk`.
-- Once Section 10.4 settles the shape, this fixture changes at that commit. Recorded in
-  `KNOWN-LIMITS.md` section 1.2.
+- Contract: Section 10.4. An empty mapping or an empty sequence beneath a wildcard key "has no
+  entries for entry-by-entry extraction to find, so the template would contribute nothing at every
+  path it matched. That is `PARSE001` against this section, once per failing source".
+- Two sources fail, so two diagnostics are owed. Naming each document individually is the whole
+  value of the cardinality: a single diagnostic would tell an operator that some template was inert
+  without saying which file to edit.
+- Both empty container shapes are covered, because they fail for one reason. What the author wrote
+  is a **shape** rather than a value, and Section 10.4 gives a template no way to carry one:
+  "carrier ancestors created only to contain an extracted template do not contribute
+  mapping-presence marks".
+- This case previously expected exit `70`. Section 6.3 defines `0` and `1` and nothing else, so a
+  status outside that set was never something a caller could be asked to handle.
 
 ### `a-refused-fold-is-reported-once-per-destination`
 

@@ -406,10 +406,7 @@ public class SubstituteModeTests
             sourceOrdinal: 1,
             ProfileSource.OfFile("d.json"),
             substitutes,
-            diagnostics,
-            out var unsupported);
-
-        unsupported.ShouldBeNull();
+            diagnostics);
 
         return contribution.Overlay;
     }

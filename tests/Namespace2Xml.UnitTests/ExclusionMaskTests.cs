@@ -245,10 +245,8 @@ public class ExclusionMaskTests
             sourceOrdinal: 1,
             ProfileSource.OfFile("d.json"),
             SubstituteModeMap.Default,
-            diagnostics,
-            out var unsupported);
+            diagnostics);
 
-        unsupported.ShouldBeNull();
         diagnostics.Drain().ShouldBeEmpty();
 
         var mask = Read($"!{pattern}\n", 2).Masks.Select(entry => entry.Pattern);

@@ -15,7 +15,22 @@ independently.
 
 ### Contract
 
-- `contract-bundle` `r43+f6a39935803b`.
+- `contract-bundle` `r44+a91f25bf49ec`.
+- §10.4: **A wildcard template over a sequence or an empty container is settled**, and with it
+  the last path out of the tool that §6.3 did not define. A sequence beneath a wildcard key is
+  extracted through its items' ordering values, so `a.*.b: [x, y]` declares exactly what
+  `a.*.b.0=x` and `a.*.b.1=y` declare in namespace form and a native template and its namespace
+  spelling are one rule written twice. An empty mapping or an empty sequence has no entries for
+  entry-by-entry extraction to find and is `PARSE001` against §10.4, once per failing source.
+
+  Both shapes previously exited `70` with an empty diagnostic stream — under
+  `--diagnostics-format json` the machine-readable output of a failed run was literally `[]`.
+  **Exit `70` is now unreachable from any input, and §6.3's `0` and `1` are total.** The
+  refusal's stated premise — that a native sequence item's ordering value cannot be allocated
+  before the destination is known — is answered by §12.4: "a generated contribution reserves or
+  allocates ordering values only when it is generated." What the premise concealed was a
+  question about §5.4 provenance, which §10.4 still does not state and which is filed as
+  [#75](https://github.com/stop-cran/namespace2xml/issues/75).
 - §15: **XML is no longer a scheme file format.** Scheme files use the case-insensitive `.json`,
   `.yaml` and `.yml` extensions, every other extension including none at all is a namespace
   profile, and a scheme file named `.xml` is `PARSE001` against §15 in the scheme phase, once
@@ -361,6 +376,15 @@ independently.
 
 ### Fixed
 
+- **A native wildcard template over a sequence or an empty container no longer refuses the
+  run.** The preview returned the out-of-contract exit `70` for a YAML or JSON template whose
+  value was a sequence, and for one whose value was an empty mapping. A sequence now generates,
+  extracted through its items' ordering values; an empty mapping and an empty sequence are
+  `PARSE001` at exit `1`, once per failing source. **This was the last exit-`70` path**, so
+  §6.3's `0` and `1` now cover every invocation. The refusal was also the only failure mode that
+  produced an empty diagnostic stream: `--diagnostics-format json` emitted `[]`, a
+  machine-readable failure carrying no machine-readable reason.
+
 - **An XML scheme file no longer refuses the run.** The preview returned the out-of-contract exit
   `70` for `-s scheme.xml`. It is now an ordinary `PARSE001` at exit `1` anchored at §15,
   emitted once per failing source so two XML schemes report two diagnostics, and the extension is
@@ -371,8 +395,8 @@ independently.
   capture substituted into a directive value" as a capability it lacked. §12.1 now says both values
   are literal text, so each is an ordinary `SCHEME001` at exit `1` reported in the scheme phase
   at the declaration's own line. Nothing is published, including the well-formed instances that
-  share the scheme file. This removes one of the two remaining exit-`70` paths; §6.3 defines only
-  `0` and `1`, so no released build may return `70`.
+  share the scheme file. This was the first of three exit-`70` paths removed for this release;
+  §6.3 defines only `0` and `1`, so no released build may return `70`.
 
 - **`merge=append` silently destroyed contributions.** §16.10 makes a contribution sequence-eligible
   either as a native sequence or as "a nonempty all-in-range-canonical-numeric mapping", but `append`

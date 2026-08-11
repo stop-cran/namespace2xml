@@ -622,6 +622,54 @@ public sealed class PipelineRunTests
     public void TheSeedProductPrecedesEveryStep() =>
         PipelineRun.Seed(1).Step.ShouldBeNull();
 
+    /// <summary>
+    /// The refusal machinery has no reachable subject: every construct this build once declined is
+    /// now a Section 6.3 outcome. It is kept for the next capability that needs it, so its contract
+    /// is proved here rather than through a live refusal.
+    /// </summary>
+    /// <remarks>
+    /// A refusal decides no outcome. It stops the run, names the capability, and leaves the state
+    /// distinguishable from both success and failure, so that nothing downstream can mistake it for
+    /// work that was done and report a Section 6.3 exit code for it.
+    /// </remarks>
+    [Test]
+    public void ADeclinedCapabilityStopsTheRunWithoutDecidingAnOutcome()
+    {
+        var run = new PipelineRun();
+        var declined = run.Run(
+            PipelineStep.ParseSchemes,
+            PipelineRun.Seed(1),
+            (_, _) => StepOutcome.Unsupported<int>(
+                new UnsupportedCapability("a capability", "the detail", "\u00A715.1")));
+
+        declined.ShouldBeNull();
+        run.State.ShouldBe(PipelineRunState.Unsupported);
+        run.Unsupported.ShouldNotBeNull().Spec.ShouldBe("\u00A715.1");
+        run.Diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>A declined capability stops the run, so no later step may run.</summary>
+    [Test]
+    public void NoStepRunsAfterACapabilityIsDeclined()
+    {
+        var run = new PipelineRun();
+        var declined = run.Run(
+            PipelineStep.ParseSchemes,
+            PipelineRun.Seed(1),
+            (_, _) => StepOutcome.Unsupported<int>(
+                new UnsupportedCapability("a capability", "the detail", "\u00A715.1")));
+        var ran = false;
+
+        run.Run(PipelineStep.CompileInputOptions, declined, (value, _) =>
+        {
+            ran = true;
+            return StepOutcome.Produced(value);
+        });
+
+        ran.ShouldBeFalse();
+        run.State.ShouldBe(PipelineRunState.Unsupported);
+    }
+
     [Test]
     public void AProductCarriesTheStepThatProducedIt()
     {

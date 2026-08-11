@@ -27,7 +27,7 @@ public class StructuredProfileReaderTests
     [SetUp]
     public void SetUp() => diagnostics = new DiagnosticBuffer();
 
-    private ProfileContribution Project(string document, out UnsupportedCapability? unsupported)
+    private ProfileContribution Contribution(string document)
     {
         var limits = ResourceLimits.Defaults;
         var root = JsonInputReader.Read(
@@ -44,17 +44,12 @@ public class StructuredProfileReaderTests
             sourceOrdinal: 1,
             ProfileSource.OfFile("d.json"),
             SubstituteModeMap.Default,
-            diagnostics,
-            out unsupported);
+            diagnostics);
     }
 
     private OverlayNode Project(string document)
     {
-        var contribution = Project(document, out var unsupported);
-
-        unsupported.ShouldBeNull();
-
-        return contribution.Overlay;
+        return Contribution(document).Overlay;
     }
 
     private static OverlayNode Child(OverlayNode node, string name) =>
@@ -153,9 +148,8 @@ public class StructuredProfileReaderTests
     [Test]
     public void AChildThatContributedNothingIsNotAttached()
     {
-        var root = Project("""{"a":{"*":1}}""", out var unsupported);
+        var root = Contribution("""{"a":{"*":1}}""");
 
-        unsupported.ShouldBeNull();
         root.Overlay.Children.ShouldBeEmpty();
         root.Templates.ShouldHaveSingleItem();
     }
@@ -168,9 +162,8 @@ public class StructuredProfileReaderTests
     [Test]
     public void AReferenceIsRecordedAgainstItsOwningPath()
     {
-        var contribution = Project("""{"a":{"b":"${x}"}}""", out var unsupported);
+        var contribution = Contribution("""{"a":{"b":"${x}"}}""");
 
-        unsupported.ShouldBeNull();
         diagnostics.Drain().ShouldBeEmpty();
 
         var payload = Child(Child(contribution.Overlay, "a"), "b").Payload.ShouldNotBeNull();
@@ -186,7 +179,7 @@ public class StructuredProfileReaderTests
     [Test]
     public void AReferenceAtTheDocumentRootIsRefused()
     {
-        Project("\"${x}\"", out _);
+        Project("\"${x}\"");
 
         diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("REFERENCE001");
     }
@@ -199,9 +192,8 @@ public class StructuredProfileReaderTests
     [Test]
     public void AWildcardInANativeKeyBecomesATemplate()
     {
-        var contribution = Project("""{"*":1}""", out var unsupported);
+        var contribution = Contribution("""{"*":1}""");
 
-        unsupported.ShouldBeNull();
         diagnostics.Drain().ShouldBeEmpty();
 
         var template = contribution.Templates.ShouldHaveSingleItem();
@@ -217,9 +209,8 @@ public class StructuredProfileReaderTests
     [Test]
     public void ATemplateBranchYieldsOneEntryPerScalarLeaf()
     {
-        var contribution = Project("""{"a":{"*":{"c":"X","d":{"e":"Y"}}}}""", out var unsupported);
+        var contribution = Contribution("""{"a":{"*":{"c":"X","d":{"e":"Y"}}}}""");
 
-        unsupported.ShouldBeNull();
 
         contribution.Templates
             .Select(entry => CanonicalPath.Of(entry.Name))
@@ -227,31 +218,49 @@ public class StructuredProfileReaderTests
     }
 
     /// <summary>
-    /// Section 10.4 shows a mapping under a wildcard key and never a sequence. A native sequence
-    /// item takes its ordering value from the destination path's Section 5.4 high-water mark, and
-    /// under a template the destination is unknown until Section 12.4 expansion, so the shape is
-    /// refused rather than resolved to one of its readings.
+    /// Section 10.4 extracts a sequence beneath a wildcard key "through its items' ordering
+    /// values, which Section 5.4 exposes as decimal name parts", so the entries are the ones the
+    /// equivalent namespace template would declare.
     /// </summary>
     [Test]
-    public void ASequenceUnderAWildcardKeyIsDeclined()
+    public void ASequenceUnderAWildcardKeyIsExtractedThroughItsOrderingValues()
     {
-        Project("""{"a":{"*":[1,2]}}""", out var unsupported);
+        Contribution("""{"a":{"*":[1,2]}}""").Templates
+            .Select(entry => CanonicalPath.Of(entry.Name))
+            .ShouldBe(["a.*.0", "a.*.1"], ignoreOrder: true);
 
-        unsupported.ShouldNotBeNull().Detail.ShouldContain("a.*", Case.Sensitive);
+        diagnostics.Drain().ShouldBeEmpty();
     }
 
     /// <summary>
-    /// An empty mapping has no scalar leaf, so entry-by-entry extraction yields nothing. What it
-    /// expresses is a shape rather than a value, and Section 10.4 gives a template no way to carry
-    /// one: "carrier ancestors created only to contain an extracted template do not contribute
-    /// mapping-presence marks".
+    /// Extraction is entry-by-entry all the way down, so a mapping inside a sequence item
+    /// contributes the ordering value and the member name as two further parts.
     /// </summary>
     [Test]
-    public void AnEmptyMappingUnderAWildcardKeyIsDeclined()
+    public void ASequenceOfMappingsUnderAWildcardKeyExtractsThroughBoth()
     {
-        Project("""{"a":{"*":{}}}""", out var unsupported);
+        Contribution("""{"a":{"*":[{"c":1},{"c":2}]}}""").Templates
+            .Select(entry => CanonicalPath.Of(entry.Name))
+            .ShouldBe(["a.*.0.c", "a.*.1.c"], ignoreOrder: true);
+    }
 
-        unsupported.ShouldNotBeNull().Detail.ShouldContain("a.*", Case.Sensitive);
+    /// <summary>
+    /// Section 10.4: an empty mapping or an empty sequence "has no entries for entry-by-entry
+    /// extraction to find, so the template would contribute nothing at every path it matched. That
+    /// is PARSE001 against this section, once per failing source".
+    /// </summary>
+    /// <param name="document">A document whose wildcard key names an empty container.</param>
+    [TestCase("""{"a":{"*":{}}}""", TestName = "AnEmptyMappingUnderAWildcardKeyIsParse001")]
+    [TestCase("""{"a":{"*":[]}}""", TestName = "AnEmptySequenceUnderAWildcardKeyIsParse001")]
+    public void AnEmptyContainerUnderAWildcardKeyIsRejected(string document)
+    {
+        Contribution(document).Templates.ShouldBeEmpty();
+
+        var reported = diagnostics.Drain().ShouldHaveSingleItem();
+
+        reported.Code.ShouldBe("PARSE001");
+        reported.Spec.ShouldBe("\u00A710.4");
+        reported.Message.ShouldContain("a.*", Case.Sensitive);
     }
 
     /// <summary>
@@ -261,9 +270,8 @@ public class StructuredProfileReaderTests
     [Test]
     public void AnEscapedAsteriskIsAnOrdinaryKey()
     {
-        var root = Project("""{"\\*":1}""", out var unsupported);
+        var root = Contribution("""{"\\*":1}""");
 
-        unsupported.ShouldBeNull();
         Value(Child(root.Overlay, "*")).ShouldBe("1");
     }
 
@@ -285,9 +293,9 @@ public class StructuredProfileReaderTests
             StableOrderingKey.FromSource(1, 1));
 
         var first = StructuredProfileReader.Read(
-            root.ShouldNotBeNull(), 1, ProfileSource.OfFile("d.json"), SubstituteModeMap.Default, diagnostics, out _);
+            root.ShouldNotBeNull(), 1, ProfileSource.OfFile("d.json"), SubstituteModeMap.Default, diagnostics);
         var second = StructuredProfileReader.Read(
-            root, 2, ProfileSource.OfFile("d.json"), SubstituteModeMap.Default, diagnostics, out _);
+            root, 2, ProfileSource.OfFile("d.json"), SubstituteModeMap.Default, diagnostics);
 
         Child(second.Overlay, "a").Marks.Position
             .ShouldBeGreaterThan(Child(first.Overlay, "a").Marks.Position);

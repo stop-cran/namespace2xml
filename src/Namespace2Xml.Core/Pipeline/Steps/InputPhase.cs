@@ -103,13 +103,7 @@ public static class InputPhase
                     source.Origin,
                     substitutes,
                     diagnostics,
-                    out var unsupported,
                     nativeMappings: source.Format is "JSON" or "YAML");
-
-                if (unsupported is not null)
-                {
-                    return StepOutcome.Unsupported<ImmutableArray<InputContribution>>(unsupported);
-                }
 
                 contributions.Add(new InputContribution(source.Origin, native));
                 continue;

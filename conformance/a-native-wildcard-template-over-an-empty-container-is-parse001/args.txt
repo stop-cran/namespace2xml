@@ -1,0 +1,5 @@
+-i
+inputs/mapping.yaml
+inputs/sequence.yaml
+-s
+schemes/scheme.txt

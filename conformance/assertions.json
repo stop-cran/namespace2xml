@@ -182,12 +182,13 @@
       "assertions": [
         "A wildcard in a native YAML mapping key is a template rather than a name: it is extracted entry by entry before structural input merging and expanded during the Section 12.4 fixed point, so records contributed by another file gain the template's keys.",
         "The generated entry sorts at its rule's Section 4.7 source position, so listing the template file before the data places the generated key ahead of the record's own keys, and listing it after places it behind them.",
-        "A template over a shape no entry can carry - a sequence, or an empty mapping - is refused with exit 70 rather than guessed at, because Section 10.4 extracts one scalar per entry and shows neither shape."
+        "A sequence beneath a wildcard key is extracted through its items' ordering values, which Section 5.4 exposes as decimal name parts, so the template declares the same entries as the equivalent namespace template and a native template and its namespace spelling are one rule written twice.",
+        "An empty mapping or an empty sequence beneath a wildcard key has no entries for entry-by-entry extraction to find, so it is PARSE001 against Section 10.4, once per failing source, naming each document that carries one."
       ],
       "fixtures": [
         "a-native-template-value-substitutes-its-own-capture",
-        "a-native-wildcard-template-over-a-sequence-is-declined",
-        "a-native-wildcard-template-over-an-empty-mapping-is-declined",
+        "a-native-wildcard-template-over-a-sequence-extracts-by-ordering-value",
+        "a-native-wildcard-template-over-an-empty-container-is-parse001",
         "a-yaml-wildcard-key-enriches-each-record-of-a-later-file",
         "a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file"
       ]

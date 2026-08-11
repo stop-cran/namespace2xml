@@ -278,26 +278,42 @@ public sealed class TransformationTests
         sink.Written["app.properties"].ShouldBe(string.Empty);
     }
 
-    // ---- Section 15.1 refusal ----------------------------------------------------------------
+    // ---- Section 10.4 template shapes ---------------------------------------------------------
 
+    /// <summary>
+    /// Section 10.4 extracts a sequence beneath a wildcard key through its items' ordering values,
+    /// so the template is a rule like any other and the run succeeds.
+    /// </summary>
     [Test]
-    public void ACapabilityOutsideThisVersionDeclinesRatherThanGuessing()
+    public void ANativeTemplateOverASequenceGeneratesRatherThanRefusing()
     {
-        // Section 10.4 extracts a native wildcard template entry by entry, and an entry names one
-        // scalar; it shows neither a sequence nor an empty mapping under a template key, so this
-        // build declines rather than choosing one of the readings and pinning it with fixtures.
-        // A refusal is not a diagnostic: it decides no outcome, publishes nothing, names the
-        // capability on standard error, and returns a status Section 6.3 does not define so that
-        // it can never be mistaken for work that was done.
         var sink = new Sink();
         var sources = new Sources(
+            ("data.yaml", "a:\n  x: {}\n"),
             ("in.yaml", "a:\n  '*':\n    b:\n      - x\n      - y\n"),
             ("scheme.txt", "a.output=namespace\n"));
+        var result = Run(sink, sources, "-i", "data.yaml", "in.yaml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        sink.Written["a.properties"].ShouldBe("x.b.0=x\nx.b.1=y\n");
+    }
+
+    /// <summary>
+    /// An empty container beneath a wildcard key has no entries to extract, which Section 10.4
+    /// makes <c>PARSE001</c>. The outcome must be a Section 6.3 exit code: Section 6.3 defines
+    /// <c>0</c> and <c>1</c> and nothing else, so a refusal here would be outside the contract.
+    /// </summary>
+    /// <param name="document">A document whose wildcard key names an empty container.</param>
+    [TestCase("a:\n  '*':\n    b: {}\n", TestName = "AnEmptyMappingTemplateExitsOne")]
+    [TestCase("a:\n  '*':\n    b: []\n", TestName = "AnEmptySequenceTemplateExitsOne")]
+    public void ANativeTemplateOverAnEmptyContainerIsABlockingError(string document)
+    {
+        var sink = new Sink();
+        var sources = new Sources(("in.yaml", document), ("scheme.txt", "a.output=namespace\n"));
         var result = Run(sink, sources, "-i", "in.yaml", "-s", "scheme.txt");
 
-        result.State.ShouldBe(PipelineRunState.Unsupported);
-        result.ExitCode.ShouldBeNull();
-        result.Unsupported.ShouldNotBeNull().Spec.ShouldBe("\u00A710.4");
+        result.ExitCode.ShouldBe(1);
+        Codes(result).ShouldBe(["PARSE001"]);
         sink.Written.ShouldBeEmpty();
     }
 
