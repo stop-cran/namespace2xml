@@ -68,16 +68,19 @@ Section 17.2 is explicit that the mark and the projection part company:
 `x`, `y` and `z` are absent from the expected file for that reason, while the mark they raised is
 still doing work three lines later.
 
-## Not asserted
+## Also asserted elsewhere
 
 The mark of a path the replacement removes and does not itself name. Section 17.5 asks a
-contribution to carry its "complete per-path high-water map", and this implementation carries marks
-on the overlay tree rather than in a separate map, so a path with no surviving node has nowhere to
-keep one. Reaching that case needs a fourth contribution: one to raise the mark, one to replace
-without naming the path, one to recreate it, and one to address an explicit value on it.
-KNOWN-LIMITS.md records it.
+contribution to carry its "complete per-path high-water map", including "marks raised by items
+hidden by output projection", so a path with no surviving node still has a mark.
+`a-replacement-keeps-the-mark-of-a-path-it-does-not-name` reaches it with a fourth contribution: one
+to raise the mark, one to replace without naming the path, one to recreate it, and one to address an
+explicit value on it. `a-replacement-leaves-no-trace-of-a-path-it-removed` pins the other half, that
+a path nothing recreates does not reappear as an empty container.
 
-Also not asserted: `append` at a destination fold, and the cross-format replacement that discards
+## Not asserted
+
+`append` at a destination fold, and the cross-format replacement that discards
 every destination high-water mark, which
 `cross-format-replacement-renumbers-the-destination-order` covers.
 

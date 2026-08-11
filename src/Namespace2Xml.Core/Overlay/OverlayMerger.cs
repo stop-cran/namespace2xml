@@ -46,6 +46,20 @@ public sealed record MergeContext(DiagnosticPhase Phase, string Spec, string Dir
     /// <returns>The context for that destination's fold.</returns>
     public static MergeContext ForDestination(string destination) =>
         DestinationFold with { Scope = destination };
+
+    /// <summary>
+    /// Whether this merge runs after wildcards, references and selectors have finished.
+    /// </summary>
+    /// <remarks>
+    /// Step 8 merges the one common model, and everything that reads the overlay by path — Section
+    /// 12 wildcard candidacy, Section 13 reference resolution, Section 14 selector matching — runs
+    /// after it. Step 18 folds fully transformed contribution models, and Section 17.5 says so:
+    /// "file-level merge operates on fully transformed contribution models after <c>type</c>,
+    /// <c>key</c>, and <c>root</c> have been applied". Nothing addresses a path by name after this
+    /// point except rendering, which is what makes a node that carries only a Section 5.4 mark
+    /// safe here and unsafe at step 8.
+    /// </remarks>
+    public bool IsDestinationFold => Phase == DiagnosticPhase.Planning;
 }
 
 /// <summary>
@@ -314,13 +328,21 @@ public sealed class OverlayMerger
     /// declared on and never asks the strategy map about a descendant.
     /// </para>
     /// <para>
-    /// A child the replacement does not name keeps nothing, not even its mark. Section 17.5 asks for
-    /// the "complete per-path high-water map", which is a map and not part of the tree; the mark of a
-    /// path with no node has nowhere to live here, and materialising an empty node to hold it would
-    /// put a path Section 16.10 has just removed back into <see cref="OverlayNode.Children"/>, where
-    /// wildcards, references and selectors would all find it again. That trade is recorded in
-    /// KNOWN-LIMITS.md: it is observable only when a later contribution recreates the removed path
-    /// and a further one addresses an explicit ordering value on it.
+    /// At step 8 a child the replacement does not name keeps nothing, not even its mark. Section
+    /// 17.5 asks for the "complete per-path high-water map", which is a map and not part of the
+    /// tree; materialising an empty node to hold it there would put a path Section 16.10 has just
+    /// removed back into <see cref="OverlayNode.Children"/>, where wildcards, references and
+    /// selectors would all find it again.
+    /// </para>
+    /// <para>
+    /// At step 18 that objection does not apply, and the mark is kept. Section 17.5 folds "fully
+    /// transformed contribution models after <c>type</c>, <c>key</c>, and <c>root</c> have been
+    /// applied", so every stage that addresses a path by name has already run and rendering is all
+    /// that remains. The retained node carries marks and nothing else — no payload, no shape, no
+    /// comments, no items, and a position that loses every Section 5.2 comparison so a recreated
+    /// path takes the recreating contribution's place rather than the discarded one's. It exists
+    /// only until the fold for its destination finishes, at which point
+    /// <see cref="StripHighWaterCarriers"/> removes whatever no contribution has recreated.
     /// </para>
     /// </remarks>
     private ImmutableDictionary<NamePart, OverlayNode> CarryMarks(
@@ -328,7 +350,12 @@ public sealed class OverlayMerger
         ImmutableDictionary<NamePart, OverlayNode> later,
         ImmutableArray<NamePart> path)
     {
-        if (earlier.IsEmpty || later.IsEmpty)
+        if (earlier.IsEmpty)
+        {
+            return later;
+        }
+
+        if (later.IsEmpty && !context.IsDestinationFold)
         {
             return later;
         }
@@ -340,11 +367,133 @@ public sealed class OverlayMerger
             if (later.TryGetValue(name, out var replacement))
             {
                 carried = carried.SetItem(name, ReplaceMerge(node, replacement, path.Add(name)));
+                continue;
+            }
+
+            if (context.IsDestinationFold && MarksOnly(node) is { } retained)
+            {
+                carried = carried.SetItem(name, retained);
             }
         }
 
         return carried;
     }
+
+    /// <summary>
+    /// The Section 5.4 high-water marks of a subtree the replacement removed, with none of the
+    /// value.
+    /// </summary>
+    /// <param name="node">The removed subtree.</param>
+    /// <returns>
+    /// A node carrying only marks, or <see langword="null"/> when the subtree raised none and there
+    /// is nothing to keep.
+    /// </returns>
+    private static OverlayNode? MarksOnly(OverlayNode node)
+    {
+        var children = ImmutableDictionary<NamePart, OverlayNode>.Empty;
+
+        foreach (var (name, child) in node.Children)
+        {
+            if (MarksOnly(child) is { } retained)
+            {
+                children = children.SetItem(name, retained);
+            }
+        }
+
+        foreach (var (value, item) in node.Sequence)
+        {
+            if (MarksOnly(item.Node) is { } retained)
+            {
+                children = children.SetItem(OrderingValues.ToNamePart(value), retained);
+            }
+        }
+
+        if (children.IsEmpty && node.SequenceHighWater == SequenceOrderingAllocator.InitialHighWaterMark)
+        {
+            return null;
+        }
+
+        return OverlayNode.Compose(
+            NodeMarks.At(StableOrderingKey.Last),
+            payload: null,
+            hasExplicitMapping: false,
+            hasExplicitSequence: false,
+            children,
+            ImmutableDictionary<long, SequenceItem>.Empty,
+            ImmutableList<BoundComment>.Empty,
+            node.SequenceHighWater);
+    }
+
+    /// <summary>
+    /// Removes the Section 5.4 mark carriers a destination fold left behind, once the fold that
+    /// needed them has finished.
+    /// </summary>
+    /// <param name="node">The folded plan for one destination.</param>
+    /// <returns>The same plan with every unrecreated carrier removed.</returns>
+    /// <remarks>
+    /// <para>
+    /// A carrier holds a high-water mark for a path <c>filemerge=replace</c> removed, so that a
+    /// later file in the same fold recreating that path allocates above the removed items rather
+    /// than reusing their ordering values. Once every contribution to the destination has been
+    /// folded nothing allocates again — Section 5.4 numbering is dense at render time, from the
+    /// surviving items — so a carrier no contribution recreated is state with no remaining reader.
+    /// Left in place it renders: an exclusive destination emits it as an empty mapping, which is a
+    /// path the replacement removed reappearing in the output.
+    /// </para>
+    /// <para>
+    /// The test is the conjunction of the two facts that define a carrier, not either alone.
+    /// <see cref="StableOrderingKey.Last"/> is the position no contribution can hold, and Section
+    /// 5.2 resolves it away the moment one lands on the path; structural emptiness alone would also
+    /// describe a node some future contribution shape could produce legitimately.
+    /// </para>
+    /// </remarks>
+    public static OverlayNode StripHighWaterCarriers(OverlayNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+
+        var children = node.Children;
+
+        foreach (var (name, child) in node.Children)
+        {
+            var stripped = StripHighWaterCarriers(child);
+
+            children = IsHighWaterCarrier(stripped)
+                ? children.Remove(name)
+                : children.SetItem(name, stripped);
+        }
+
+        var sequence = node.Sequence;
+
+        foreach (var (value, item) in node.Sequence)
+        {
+            var stripped = StripHighWaterCarriers(item.Node);
+
+            sequence = IsHighWaterCarrier(stripped)
+                ? sequence.Remove(value)
+                : sequence.SetItem(value, item with { Node = stripped });
+        }
+
+        return ReferenceEquals(children, node.Children) && ReferenceEquals(sequence, node.Sequence)
+            ? node
+            : OverlayNode.Compose(
+                node.Marks,
+                node.Payload,
+                node.HasExplicitMapping,
+                node.HasExplicitSequence,
+                children,
+                sequence,
+                node.Comments,
+                node.SequenceHighWater);
+    }
+
+    private static bool IsHighWaterCarrier(OverlayNode node) =>
+        node.Marks.Position == StableOrderingKey.Last
+        && node.Payload is null
+        && !node.HasExplicitMapping
+        && !node.HasExplicitSequence
+        && node.Comments.IsEmpty
+        && node.Children.IsEmpty
+        && node.Sequence.IsEmpty;
 
     /// <summary>
     /// Section 16.10 <c>append</c>: "every item in the later sequence contribution, including

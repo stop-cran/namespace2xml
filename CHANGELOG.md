@@ -376,6 +376,28 @@ independently.
 
 ### Fixed
 
+- **A destination `filemerge=replace` no longer destroys an item at a path it did not name.**
+  §17.5 requires each output contribution to carry its "complete per-path high-water map,
+  including marks raised by items hidden by output projection", and says `replace` "discards the
+  visible accumulated projection without lowering the destination high-water mark". The preview
+  kept that mark only for paths the replacement itself named. Where it did not, a later
+  contribution recreating the path allocated from zero, and a further contribution addressing an
+  explicit ordering value then landed on top of it: two items became one, silently, at exit `0`.
+  **Caused by [#62](https://github.com/stop-cran/namespace2xml/issues/62).**
+
+  The mark is now retained on a node that carries nothing else, and every such carrier no
+  contribution recreated is removed once the fold ends — otherwise an exclusive destination
+  rendered the removed path back as an empty mapping, and an XML destination failed outright. The
+  carrier's position mark is the one that loses every §5.2 comparison, because §17.5 enumerates
+  the high-water mark as the only thing surviving a replacement: a recreated path takes the
+  position of the contribution that recreated it, not of the one the replacement discarded.
+
+  The fix is narrower than the issue assumed. The recorded objection — that materialising a node
+  to hold the mark puts a path §16.10 has just removed back where wildcards, references and
+  selectors find it — is true of the step-8 input merge and not of the step-18 destination fold,
+  which §17.5 says "operates on fully transformed contribution models after `type`, `key`, and
+  `root` have been applied". Retention is enabled for the fold alone.
+
 - **A native wildcard template over a sequence or an empty container no longer refuses the
   run.** The preview returned the out-of-contract exit `70` for a YAML or JSON template whose
   value was a sequence, and for one whose value was an empty mapping. A sequence now generates,

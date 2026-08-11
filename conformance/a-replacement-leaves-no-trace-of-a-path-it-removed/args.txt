@@ -1,0 +1,4 @@
+-i
+inputs/base.txt
+-s
+schemes/scheme.txt

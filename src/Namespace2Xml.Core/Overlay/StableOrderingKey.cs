@@ -37,6 +37,21 @@ public readonly record struct StableOrderingKey(
     /// <summary>The key that precedes every other, for a first contribution at the first source.</summary>
     public static StableOrderingKey First => default;
 
+    /// <summary>
+    /// The key that follows every other, for a carrier that requires no key of its own.
+    /// </summary>
+    /// <remarks>
+    /// Section 17.5's per-destination high-water marks are not contributions: they survive a
+    /// replacement precisely because the contributions that raised them did not. A carrier that
+    /// holds one must therefore lose every Section 5.2 position comparison, so that a path the
+    /// replacement removed and a later file recreates takes the recreating contribution's position
+    /// rather than the discarded one's. Every real component is an ordinal counted from zero over
+    /// CLI sources, items, declarations, matches or generations, so no reachable key equals this
+    /// one; the ordering it expresses is nonetheless total rather than special-cased.
+    /// </remarks>
+    public static StableOrderingKey Last =>
+        new(long.MaxValue, long.MaxValue, long.MaxValue, long.MaxValue, long.MaxValue);
+
     /// <summary>A key for a plain source item, whose last three components do not apply.</summary>
     public static StableOrderingKey FromSource(long sourceOrdinal, long itemOrdinal) =>
         new(sourceOrdinal, itemOrdinal, 0, 0, 0);

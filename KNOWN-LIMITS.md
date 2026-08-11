@@ -565,25 +565,38 @@ Tracked as [#61](https://github.com/stop-cran/namespace2xml/issues/61), now an a
 rather than a defect. It asked whether the shape was reachable before either fix, which was the
 right order to work in: the answer removed the implementation task instead of scheduling it.
 
-### 1.13 A destination high-water mark is lost when `replace` removes the path entirely
+### 1.13 *(resolved)* A destination high-water mark is lost when `replace` removes the path entirely
 
 §17.5 says "Every output contribution carries its complete per-path high-water map, including marks
 raised by items hidden by output projection." This build carries marks on the overlay tree rather
 than in a separate map, so a mark lives on the node whose sequence raised it. A destination
-`filemerge=replace` that discards a path and does not itself name that path leaves the mark with
-nowhere to live, and it is lost. **verified**
+`filemerge=replace` that discarded a path without naming it left the mark with nowhere to live, and
+it was lost: a later contribution recreating that path allocated from zero, and a further one
+addressing an explicit ordering value then destroyed an item instead of landing beside it.
 
-Marks below a path the replacement *does* name survive, which is the reachable case and is pinned by
-`conformance/a-replaced-destination-keeps-the-high-water-mark`. The lost case needs four
-contributions to one destination — one to raise the mark, one to replace without naming the path, one
-to recreate it, and one to address an explicit ordering value the first had used — because §5.4
-renumbers survivors densely from zero and hides every smaller difference.
+Fixed, from [#62 (closed)](https://github.com/stop-cran/namespace2xml/issues/62).
+`OverlayMerger.CarryMarks` retains a marks-only node for a path the replacement removes, and
+`OverlayMerger.StripHighWaterCarriers` removes whatever no contribution recreated once the fold that
+needed it has finished. Both halves are pinned:
+`conformance/a-replacement-keeps-the-mark-of-a-path-it-does-not-name` and
+`conformance/a-replacement-leaves-no-trace-of-a-path-it-removed`, alongside the already-covered
+reachable case in `conformance/a-replaced-destination-keeps-the-high-water-mark`.
 
-Materialising an empty node to hold the orphaned mark was tried and rejected: it puts a path §16.10
-has just removed back into the overlay tree, where wildcards, references and selectors find it again,
-which trades a remote divergence for a common one. Closing this properly means carrying the map
-beside the tree and re-addressing it through selector-prefix removal, `root`, `key` and `type`, as
-§17.5 describes. Tracked as [#62](https://github.com/stop-cran/namespace2xml/issues/62).
+The rejected-fix note this entry used to carry — that materialising an empty node "puts a path §16.10
+has just removed back into the overlay tree, where wildcards, references and selectors find it
+again" — was true of the wrong merge. `MergeContext` distinguishes the step-8 input merge from the
+step-18 destination fold, and §17.5 states that file-level merge "operates on fully transformed
+contribution models after `type`, `key`, and `root` have been applied". Every stage that addresses a
+path by name has already run by then, so the objection applies to `merge=replace` and not to the
+`filemerge=replace` this entry was about. The retention is enabled only for the destination fold.
+
+Two consequences worth recording. The carrier holds `StableOrderingKey.Last`, a position that loses
+every §5.2 comparison, because §17.5 enumerates the high-water mark as the one thing surviving a
+replacement and says nothing about the position; a carrier that kept the original position would
+sort a recreated path where its discarded contribution used to be. And the carrier must not reach a
+renderer: an exclusive destination emits it as an empty mapping, which is the removed path
+reappearing. Stripping it at the end of step 18 is safe because step 18 is the last stage that
+allocates a §5.4 ordering value.
 
 ### 1.15 A value ending in a blank line is spelled double-quoted, not as a block scalar
 

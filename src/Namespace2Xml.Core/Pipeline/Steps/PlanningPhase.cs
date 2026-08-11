@@ -1159,6 +1159,25 @@ public static class PlanningPhase
             folded[canonical] = Fold(accumulated, rooted, pending, diagnostics);
         }
 
+        // Section 15.1 step 18 is the last stage that allocates a Section 5.4 ordering value, so
+        // the high-water marks a 'filemerge=replace' retained have no reader once every
+        // contribution to every destination has been folded. Stripping them here rather than inside
+        // the fold keeps them available to a later file in the same destination, which is the whole
+        // reason they survive the replacement.
+        foreach (var canonical in order)
+        {
+            var contribution = folded[canonical];
+            var stripped = OverlayMerger.StripHighWaterCarriers(contribution.View.View);
+
+            if (!ReferenceEquals(stripped, contribution.View.View))
+            {
+                folded[canonical] = contribution with
+                {
+                    View = contribution.View with { View = stripped },
+                };
+            }
+        }
+
         Number(pending, order.Select(canonical => folded[canonical]), diagnostics);
 
         return diagnostics.HasBlockingError

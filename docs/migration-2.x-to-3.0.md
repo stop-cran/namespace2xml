@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (119)
+## Observable differences (121)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -352,6 +352,39 @@ implemented, its case says so plainly rather than letting the heading imply othe
   strategy vocabulary is not the same one this case pins. Which of the readings enumerated in the
   discrimination above the baseline lands on is not something this fixture is designed to
   identify.
+
+### `a-replacement-keeps-the-mark-of-a-path-it-does-not-name`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction that collisions between output instances must use `filemerge`
+  rather than `merge`; Section 3.2 removal of behaviour dependent on shared mutable array-index
+  state; Section 15.1 step 18; Section 17.5 complete per-path high-water map.
+- Legacy observation: the baseline writes `out.properties` with different bytes from the expected
+  file. The measurement records `content out.properties`, exit `0`, and no standard error beyond
+  the banner.
+- Clean behavior: `b`'s high-water mark of `2` survives a `replace` that never names `b`, so `s3`'s
+  implicit item lands at `3` and `s4`'s explicit `0` adds rather than overwrites. Two items are
+  published, `b.0=w` and `b.1=q`, after `c=1`.
+- Why the difference is intentional: 2.4.0 had no `filemerge` directive, so `s2.filemerge=replace`
+  was not recognized as a strategy declaration and no replacement happened at all. The baseline
+  appends each contribution to the file as it is reached, emitting `b.0` three times with three
+  different values in one properties document. Which of those a consumer sees depends on its
+  duplicate-key policy, which is precisely the class of shared-array-index behaviour Section 3.2
+  removes.
+
+### `a-replacement-leaves-no-trace-of-a-path-it-removed`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 correction that collisions between output instances must use `filemerge`
+  rather than `merge`; Section 15.1 step 18; Section 17.5 `replace` at a destination fold.
+- Legacy observation: the baseline writes `out.yaml` with different bytes from the expected file.
+  The measurement records `content out.yaml`, exit `0`, and no standard error beyond the banner.
+- Clean behavior: `d` is removed by the replacement and nothing recreates it, so the destination
+  contains `c: 1` alone.
+- Why the difference is intentional: 2.4.0 had no `filemerge` directive, so `s2.filemerge=replace`
+  was not recognized as a strategy declaration and no replacement happened. The baseline emits both
+  contributions, `d` with its two items followed by `c`, which is the merge this case exists to
+  replace.
 
 ### `a-scheme-reference-cycle-is-blocking`
 

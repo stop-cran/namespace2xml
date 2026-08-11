@@ -419,12 +419,16 @@
         "A filemerge=append between two mapping views is refused at each destination's view root, where Appendix A.2 leaves path absent, and Section 22 counts TYPE001 once per path and applicable output instance, so two destinations report two refusals rather than one being retired as a repeat of the other.",
         "A step 18 fold diagnostic carries the Appendix B destination member, which is the only member separating two root refusals that share a code, a phase, an anchor, a message and an absent path.",
         "WARN005 is counted once per folded contribution pair, so four contributions at one destination report three warnings even when two of the pairs name the same two selectors.",
-        "A destination filemerge=replace discards the accumulated items at a sequence path below the declaration without lowering that path's high-water mark, and the accumulator absorbs that mark before allocating, so the replacing contribution's own implicit item allocates above every discarded value and later explicit items at the values the discarded items had used land beside it rather than patching it."
+        "A destination filemerge=replace discards the accumulated items at a sequence path below the declaration without lowering that path's high-water mark, and the accumulator absorbs that mark before allocating, so the replacing contribution's own implicit item allocates above every discarded value and later explicit items at the values the discarded items had used land beside it rather than patching it.",
+        "A destination `filemerge=replace` keeps the high-water mark of a sequence path the replacement does not name, because Section 17.5 makes the per-path map complete and explicitly includes marks raised by items the output projection hides, so a later contribution recreating that path allocates above every discarded value instead of reusing one; the recreated path takes the position of the contribution that recreated it, because the high-water mark is the only thing Section 17.5 carries across the replacement.",
+        "A sequence path removed by a destination `filemerge=replace` and never recreated is absent from an exclusive destination entirely, rather than reappearing as an empty container, because the retained high-water mark is state belonging to the fold and not a node of the document the fold produces."
       ],
       "fixtures": [
         "a-cross-format-collision-replaces-the-earlier-plan",
         "a-refused-fold-is-reported-once-per-destination",
         "a-replaced-destination-keeps-the-high-water-mark",
+        "a-replacement-keeps-the-mark-of-a-path-it-does-not-name",
+        "a-replacement-leaves-no-trace-of-a-path-it-removed",
         "destination-fold-follows-wildcard-match-order",
         "filemerge-error-rejects-a-second-contribution",
         "folded-implicit-items-rebase-above-the-destination-mark",
