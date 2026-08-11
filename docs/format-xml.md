@@ -17,10 +17,17 @@ namespace-profile for compatibility. XML output is selected by an `output=xml` d
 default file name is `<selector>.xml` for a non-root selector and `output.xml` for the empty root
 (§16.2). An explicit `filename` is used verbatim without appending `.xml` (§3.1).
 
-§15 says a scheme file may be authored in any supported input format, and names XML among them. It
-never says what an XML scheme projects to, so this preview refuses one rather than guessing — see
-`KNOWN-LIMITS.md` and [#72](https://github.com/stop-cran/namespace2xml/issues/72). JSON and YAML
-schemes **are** read; the examples below use namespace-profile schemes.
+§15 gives scheme files the case-insensitive `.json`, `.yaml` and `.yml` extensions and routes every
+other extension, including none at all, to namespace-profile parsing. **`.xml` is excluded by name**:
+§15 defines no projection from an XML document to a qualified directive path, so a `-s` file ending
+in `.xml` is `PARSE001` against §15, once per failing source, reported before the file is read. Three
+questions have no answer and none is obviously right — an element and an attribute are distinct
+component kinds under §11.4 and only one can be an ordinary name part, the single root element sits
+where no JSON or YAML top-level key does, and §12.2 spells a capture `*`, which is not a legal XML
+name, so a wildcard selector cannot be written at all. The extension decides, not the content, so a
+scheme written in namespace-profile syntax and saved as `scheme.xml` is rejected too. JSON and YAML
+schemes **are** read; the examples below use namespace-profile schemes. See
+[#72 (closed)](https://github.com/stop-cran/namespace2xml/issues/72).
 
 ## The parser is locked down
 

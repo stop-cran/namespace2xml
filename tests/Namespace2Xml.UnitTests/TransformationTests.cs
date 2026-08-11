@@ -283,19 +283,46 @@ public sealed class TransformationTests
     [Test]
     public void ACapabilityOutsideThisVersionDeclinesRatherThanGuessing()
     {
-        // Section 15 names XML among the formats a scheme file may use and never says what an XML
-        // scheme projects to. This build declines rather than picking one of the three available
-        // readings, and says so instead of handing the file to the Section 8.1 parser and
-        // reporting the wrong contract against a file that is already correct.
+        // Section 10.4 extracts a native wildcard template entry by entry, and an entry names one
+        // scalar; it shows neither a sequence nor an empty mapping under a template key, so this
+        // build declines rather than choosing one of the readings and pinning it with fixtures.
+        // A refusal is not a diagnostic: it decides no outcome, publishes nothing, names the
+        // capability on standard error, and returns a status Section 6.3 does not define so that
+        // it can never be mistaken for work that was done.
         var sink = new Sink();
         var sources = new Sources(
-            ("in.txt", "app.name=example\n"),
-            ("scheme.xml", "<app><output>namespace</output></app>\n"));
-        var result = Run(sink, sources, "-i", "in.txt", "-s", "scheme.xml");
+            ("in.yaml", "a:\n  '*':\n    b:\n      - x\n      - y\n"),
+            ("scheme.txt", "a.output=namespace\n"));
+        var result = Run(sink, sources, "-i", "in.yaml", "-s", "scheme.txt");
 
         result.State.ShouldBe(PipelineRunState.Unsupported);
         result.ExitCode.ShouldBeNull();
-        result.Unsupported.ShouldNotBeNull();
+        result.Unsupported.ShouldNotBeNull().Spec.ShouldBe("\u00A710.4");
+        sink.Written.ShouldBeEmpty();
+    }
+
+    [TestCase("scheme.xml", TestName = "ALowercaseXmlSchemeIsRejected")]
+    [TestCase("scheme.XML", TestName = "AnUppercaseXmlSchemeIsRejected")]
+    public void AnXmlSchemeFileIsRejectedAgainstSection15(string path)
+    {
+        // Section 15 gives scheme files the '.json', '.yaml' and '.yml' extensions and excludes
+        // '.xml' by name, because it defines no projection from an XML document to a qualified
+        // directive path. The diagnostic must name Section 15: handing the file to the namespace
+        // parser would report PARSE001 against Section 8.1, naming a contract the file was never
+        // written to and telling the author to add an '=' to syntax that is already correct for
+        // some other one. The code is the same either way, so the anchor is the assertion that
+        // distinguishes the two, and it is reported before the file is read.
+        var sink = new Sink();
+        var sources = new Sources(
+            ("in.txt", "app.name=example\n"),
+            (path, "<app><output>namespace</output></app>\n"));
+
+        var result = Run(sink, sources, "-i", "in.txt", "-s", path);
+
+        result.ExitCode.ShouldBe(1);
+        result.Diagnostics.ShouldHaveSingleItem().Code.ShouldBe("PARSE001");
+        result.Diagnostics[0].Spec.ShouldBe("\u00A715");
+        result.Diagnostics[0].Source.ShouldBe(path);
         sink.Written.ShouldBeEmpty();
     }
 
@@ -474,30 +501,6 @@ public sealed class TransformationTests
         result.State.ShouldBe(PipelineRunState.Finished);
         Codes(result).ShouldNotContain("REFERENCE002");
         sink.Written["app.properties"].ShouldBe("name=x\n");
-    }
-
-    [TestCase("scheme.xml", TestName = "ALowercaseXmlSchemeDeclines")]
-    [TestCase("scheme.XML", TestName = "AnUppercaseXmlSchemeDeclines")]
-    public void AnXmlSchemeFileDeclinesRatherThanBeingReadAsANamespaceProfile(string path)
-    {
-        // Section 15: "Scheme files may use the same case-insensitive format extensions as input
-        // files for compatibility." It names XML and never gives a projection rule for one, so the
-        // question is which way this build says so. Handing the file to the namespace parser
-        // reports PARSE001 against Section 8.1 -- naming a contract the file was never written to,
-        // and telling the author to add an '=' to syntax that is already correct for the contract
-        // Section 15 points them at. A refusal names the capability instead.
-        var sink = new Sink();
-        var sources = new Sources(
-            ("in.txt", "app.name=example\n"),
-            (path, "<app><output>namespace</output></app>\n"));
-
-        var result = Run(sink, sources, "-i", "in.txt", "-s", path);
-
-        result.State.ShouldBe(PipelineRunState.Unsupported);
-        result.ExitCode.ShouldBeNull();
-        result.Unsupported.ShouldNotBeNull().Spec.ShouldBe("\u00A715");
-        Codes(result).ShouldNotContain("PARSE001");
-        sink.Written.ShouldBeEmpty();
     }
 
     /// <summary>

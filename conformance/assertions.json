@@ -285,11 +285,14 @@
       "text": "Every scheme directive and deprecated alias.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
+      "assertions": [
+        "Section 15 gives scheme files the case-insensitive .json, .yaml and .yml extensions and routes every other extension to namespace-profile parsing, so a scheme file named .xml is PARSE001 against Section 15 in the scheme phase, once per failing source, reported before the file is read rather than by handing it to the Section 8.1 namespace parser."
+      ],
       "fixtures": [
         "a-container-value-in-a-structured-scheme-is-scheme001",
         "a-json-scheme-nests-directive-paths",
         "a-yaml-scheme-key-carries-a-wildcard-template",
+        "an-xml-scheme-file-is-not-a-scheme-format",
         "substitute-key-preserves-a-native-string-exactly",
         "substitute-keyonly-is-a-deprecated-alias",
         "substitute-none-disables-interpretation-at-the-matched-node",

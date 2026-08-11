@@ -72,9 +72,9 @@ audit is now the way this table is maintained.
 | Ordered sequences from numeric paths | Implemented | §8.7, §5.4 |
 | Rendering: XML | Implemented | §19.5 |
 | **Scheme files** written as JSON or YAML | Implemented | §15, §9.1, §10.4 |
-| **Scheme files** written as XML | Undecided contract — [#72](https://github.com/stop-cran/namespace2xml/issues/72) | §15 |
+| **Scheme files** written as XML | *(resolved)* Excluded by §15 — see §1.4 | §15 |
 | **References in a scheme value** | Implemented | §15.1 step 1 |
-| **A capture substituted into a directive value** | Implemented | §12.1 |
+| **A capture substituted into a directive value** | Implemented; §12.1 excludes `type` and `output` — see §1.4.2 | §12.1 |
 
 A preview binary returns exit status `70` when an invocation needs a capability one of the rows above
 does not mark `Implemented`.
@@ -271,38 +271,66 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
 - **Processing instructions are discarded**, with one `WARN006` per document that carried any.
   §11.8 places them outside the preservation contract.
 
-### 1.4 XML scheme files are refused because the contract has not settled what one means
+### 1.4 *(resolved)* XML scheme files were refused with exit `70`
 
-§15 says "Scheme files may use the same case-insensitive format extensions as input files for
-compatibility", and that JSON, YAML and XML scheme files "use secure default parsing". JSON and YAML
-scheme files are read: §9.1 and §10.4 each say how a native key becomes one literal name part, and
-that unescaped `*` and `*[identifier]` tokens keep their wildcard-template meaning inside it, so the
-projection is determined and `conformance/a-json-scheme-nests-directive-paths` and
-`conformance/a-yaml-scheme-key-carries-a-wildcard-template` pin it. §15's own preamble settles the
-question this entry used to call open — "Every recognized directive requires a nonempty scalar value
-after format parsing. An empty value, null, **container value**, unknown directive value, or illegal
-option/type combination is `SCHEME001`" — so `output: "json,yaml"` binds and `output: [json, yaml]`
-does not.
+`v3.0.0-preview.1` and `v3.0.0-preview.2` decline a `-s` file whose name ends in `.xml`,
+with exit `70` and no output, because §15 named XML among the scheme formats and never said how an
+XML document projects to directive paths. §6.3 defines only `0` and `1`, so that status could not
+ship.
 
-A `-s` file whose name ends in `.xml` is **declined**, with exit `70` and no output. §15 names XML
-scheme files exactly once, about secure parsing, and never says how an XML document projects to
-directive paths: `<cfg output="namespace"/>` could declare `cfg.@output`, `cfg.output` or `output`,
-and §11.4's canonical `@` marker — the reading the rest of the document implies — would make every
-directive in every XML scheme an unrecognized name and the format unusable. That is a specification
-decision, not unwritten code, and it is
-[#72](https://github.com/stop-cran/namespace2xml/issues/72). Refusing is what a build should do while
-the question is open; guessing would pin the guess with fixtures.
+§15 now **excludes** `.xml` by name. Scheme files use the case-insensitive `.json`, `.yaml` and
+`.yml` extensions, every other extension including none at all is a namespace profile, and an
+`.xml` scheme is `PARSE001` against §15 in the scheme phase, once per failing source, reported
+before the file is read. `conformance/an-xml-scheme-file-is-not-a-scheme-format` pins it.
+[#72 (closed)](https://github.com/stop-cran/namespace2xml/issues/72).
+
+The exclusion is not a narrowing, and measuring 2.4.0 is what settled that. Given
+`<app><output>namespace</output></app>` saved as `s.xml`, 2.4.0 opens the file, produces no
+directives, writes nothing, and reports `Success! Exiting...` at exit `0`. Two controls locate
+it: the same text saved as `s.txt` reports a namespace parse error at exit `1`, so the silence
+comes from the extension rather than the content, and a working `app.output=namespace` scheme over
+the same profile does write its file. **XML scheme files were never supported** — the extension
+selected a reader that produced nothing, and the run reported success for work it did not do. This
+matters because the opposite was true for JSON and YAML: refusing those was a real loss of function,
+which is [#66 (closed)](https://github.com/stop-cran/namespace2xml/issues/66) and §1.4's earlier
+text got the two cases the same way round only by accident.
+
+Excluding is also the only forward-compatible answer. A specified error can become support later
+without breaking anyone; a guessed projection, pinned by fixtures and then corrected, cannot.
 
 The extension decides, not the content — a scheme written in namespace-profile syntax but saved as
-`scheme.xml` is still declined, and one saved as `scheme.ini`, `scheme.sh` or with no extension at
-all is read as a namespace profile, exactly as §7.1 treats input files.
+`scheme.xml` is still rejected, and one saved as `scheme.ini`, `scheme.sh` or with no extension
+at all is read as a namespace profile, exactly as §7.1 treats input files.
 
-**Structured scheme files were a regression, not a new feature.** 2.4.0 reads a JSON or YAML scheme,
-and the two fixtures above were **measured** against it: the baseline produces the same file names,
-the same nesting, the same key order and the same values, differing only in §24's output bytes.
-The preview that refused them was narrower than the tool it replaces, and
-[#66 (closed)](https://github.com/stop-cran/namespace2xml/issues/66) records that. This is worth
-stating plainly because the refusal read as caution and was in fact a loss of function.
+### 1.4.2 *(resolved)* A capture in a `type` or `output` value was refused with exit `70`
+
+`v3.0.0-preview.1` and `v3.0.0-preview.2` decline `a.*.type=arr*y` and `a.*.output=*` with
+exit `70`, naming "a wildcard capture substituted into a directive value" as a capability they
+lack. §12.1 said a scheme directive's value is decided from the captures its selector defines,
+without exception, so the refusal was the build declining to follow its own contract.
+
+§12.1 now **excludes** both values from capture substitution: §16.6 closes the type names and §16.1
+closes the output formats, so a capture could complete either only by accident of the matched data.
+An unescaped `*` in either is literal text and falls to the ordinary §16.1 or §16.6 value check,
+which rejects it as `SCHEME001` in the scheme phase at the declaration's own line. The exclusion
+belongs to the directive, so `cfg.*.output=*` and `cfg.output=*` are the same error.
+`conformance/an-asterisk-in-a-type-value-is-scheme001` and
+`conformance/an-asterisk-in-an-output-value-is-scheme001` pin it.
+[#74 (closed)](https://github.com/stop-cran/namespace2xml/issues/74).
+
+"Only by accident of the matched data" is measurable, and 2.4.0 measures it. With
+`cfg.*.type=arr*y` over a profile holding `cfg.a` alone, the capture text `a` completes
+`array` and 2.4.0 exits `0` having silently applied a type directive nobody wrote; add `cfg.b`
+and the same line yields `arrby`, which reaches `Enum.Parse` unguarded and terminates the process
+at exit `-532462766`. One declaration is a working directive or a crash depending on which data it
+matches. `output` is sharper still, because it **creates** the output instance rather than binding
+to one, so the §14.1 expansion that supplies every other instance-scoped directive's captures runs
+after the value is read: 2.4.0 spliced the matched path part `json` into the format and wrote
+`json.json`, choosing format and destination from the data.
+
+Substitution into every other directive value is unaffected: `filename`, `root`, `delimiter`,
+`filemerge` and the four output-option directives take their captures from the §14.1 expansion at
+step 13, and `key` takes them from its own per-path match at step 16.
 
 ### 1.5 `--max-depth` has a hard safety ceiling of 4096
 

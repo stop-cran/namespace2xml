@@ -1465,11 +1465,13 @@ A selector whose winning declaration is `output=ignore` creates no output instan
 
 ## 15. Scheme language
 
-Scheme files may use the same case-insensitive format extensions as input files for compatibility. Their parsed content must project to qualified directive paths and scalar directive values.
+Scheme files may use the case-insensitive `.json`, `.yaml`, and `.yml` extensions that Section 7.1 gives input files, and every other extension, including none at all, uses namespace-profile parsing. Their parsed content must project to qualified directive paths and scalar directive values.
 
 Namespace-profile scheme files are the canonical and recommended representation.
 
-JSON, YAML, and XML scheme files use secure default parsing because input-option directives cannot affect the parsing of the scheme file that defines them.
+JSON and YAML scheme files use secure default parsing because input-option directives cannot affect the parsing of the scheme file that defines them.
+
+The `.xml` extension is excluded, and a scheme file named with it is `PARSE001` against this section, reported once per failing source in the scheme phase before the file is read. XML is an input format under Section 7.1, and this section defines no projection from an XML document to a qualified directive path. Three questions have no answer here and none of them has an obviously correct one: an element and an attribute are distinct component kinds under Section 11.4 and only one of them can be an ordinary name part, the single root element occupies a position that no JSON or YAML top-level key does, and Section 12.2 spells a capture `*`, which is not a legal XML name, so a selector containing a wildcard cannot be written at all. Reading the file as a namespace profile instead would report Section 8.1 against a document its author never wrote to that contract, naming the wrong rule; accepting it silently would discharge none of the directives it appears to carry. A scheme extension this section does not define is therefore rejected by naming this section.
 
 The final qualified-name part identifies a directive.
 

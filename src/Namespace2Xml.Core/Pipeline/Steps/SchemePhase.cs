@@ -43,25 +43,38 @@ public static class SchemePhase
         ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        // Section 15: "Scheme files may use the same case-insensitive format extensions as input
-        // files for compatibility." Sections 9.1 and 10.4 say how a JSON or YAML key projects to a
-        // name part, so those two are read. Section 15 names XML scheme files once, about secure
-        // parsing, and never says how an XML document projects to directive paths -- see issue #72.
-        // Guessing would pin a guess with fixtures; refusing says the contract has not decided.
+        // Section 15 gives scheme files the case-insensitive '.json', '.yaml' and '.yml'
+        // extensions and routes every other extension, including none at all, to namespace-profile
+        // parsing. Sections 9.1 and 10.4 say how a JSON or YAML key projects to a name part.
+        // '.xml' is excluded by name: Section 15 defines no projection from an XML document to a
+        // qualified directive path, and says so rather than leaving the question open -- see issue
+        // #72. Reported before anything is read, so the namespace parser never sees the file and
+        // never reports Section 8.1 against a document written to no such contract.
+        var rejected = false;
+
         foreach (var path in command.Schemes)
         {
-            if (SourceLoader.StructuredFormat(path) == "XML")
+            if (SourceLoader.StructuredFormat(path) != "XML")
             {
-                return StepOutcome.Unsupported<ImmutableArray<SchemeEntry>>(
-                    new UnsupportedCapability(
-                        "XML scheme files",
-                        $"'{path}' names the XML format. Section 15 permits an XML scheme file and "
-                        + "never states how its elements and attributes project to qualified "
-                        + "directive paths, so this build refuses one rather than choose a "
-                        + "projection the contract has not settled. JSON and YAML scheme files "
-                        + "are read, and Section 15 calls the namespace-profile form canonical.",
-                        "\u00A715"));
+                continue;
             }
+
+            rejected = true;
+
+            diagnostics.Add(new BufferedDiagnostic(DiagnosticCodes.Parse001(
+                DiagnosticPhase.Scheme,
+                "\u00A715",
+                $"'{path}' names the XML format, which Section 15 excludes from the scheme file "
+                + "extensions because it defines no projection from an XML document to a "
+                + "qualified directive path. Scheme files are namespace profiles, JSON, or YAML, "
+                + "and Section 15 calls the namespace-profile form canonical.",
+                cardinalityKey: path,
+                source: path)));
+        }
+
+        if (rejected)
+        {
+            return StepOutcome.Failed<ImmutableArray<SchemeEntry>>();
         }
 
         var loaded = ImmutableArray.CreateBuilder<LoadedSource>();

@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r42+8ca382644091`.**
+**Contract bundle `r43+f6a39935803b`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -3805,6 +3805,15 @@ those that name a shared reason are behaviour 3.0 preserved.
   that exits `1` after refusing one of them for a library-internal reason is doing something
   quite different from the clean tool refusing all six under `RestrictedYaml1`. Diagnostic
   members belong to `expected-diagnostics.json` for exactly this reason.
+
+## Same observable result, no note (1)
+
+These cases declare no verdict. Appendix C.6 reads that as a claim that the baseline
+reproduces the expected result, and the harness checks it against a real run, so their
+silence is verified rather than assumed. They carry no note because nothing about the
+difference needed explaining.
+
+- `an-xml-scheme-file-is-not-a-scheme-format`
 
 ## Something changed that is not listed here
 

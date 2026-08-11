@@ -50,21 +50,11 @@ public static class InputPhase
         ArgumentNullException.ThrowIfNull(substitutes);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        foreach (var input in command.Inputs)
-        {
-            if (SourceLoader.StructuredFormat(input) is { } format
-                and not "JSON"
-                and not "YAML"
-                and not "XML")
-            {
-                return StepOutcome.Unsupported<ImmutableArray<InputContribution>>(
-                    new UnsupportedCapability(
-                        $"{format} input",
-                        $"'{input}' has a {format} extension, which Section 7.1 parses as {format} "
-                        + "rather than as a namespace profile.",
-                        "\u00A77.1"));
-            }
-        }
+        // Section 7.1 lists '.json', '.yaml', '.yml' and '.xml' and routes every other extension,
+        // including none at all, to namespace-profile parsing, so there is no such thing as an
+        // input file in an unsupported format: SourceLoader.StructuredFormat returns one of those
+        // three names or null, and null is a namespace profile. The arm that refused a fourth
+        // format could not be reached and is gone.
 
         // Section 7.3 fixes one ordered stream for the whole invocation: scheme files, then input
         // files, then variables. Scheme ordinals were 0 through Schemes.Length - 1, so inputs

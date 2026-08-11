@@ -1,0 +1,2 @@
+app.name=example
+app.x=1

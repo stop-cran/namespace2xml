@@ -15,7 +15,32 @@ independently.
 
 ### Contract
 
-- `contract-bundle` `r42+8ca382644091`.
+- `contract-bundle` `r43+f6a39935803b`.
+- §15: **XML is no longer a scheme file format.** Scheme files use the case-insensitive `.json`,
+  `.yaml` and `.yml` extensions, every other extension including none at all is a namespace
+  profile, and a scheme file named `.xml` is `PARSE001` against §15 in the scheme phase, once
+  per failing source, reported before the file is read. §15 had named XML once, about secure
+  parsing, and never said how an XML document projects to a qualified directive path — an element
+  and an attribute are distinct component kinds under §11.4 and only one can be an ordinary name
+  part, the single root element sits where no JSON or YAML top-level key does, and §12.2 spells a
+  capture `*`, which is not a legal XML name, so a wildcard selector cannot be written at all.
+  **Caused by [#72](https://github.com/stop-cran/namespace2xml/issues/72).**
+
+  Measuring 2.4.0 is what settled the direction, and it is the opposite of
+  [#66](https://github.com/stop-cran/namespace2xml/issues/66). Given
+  `<app><output>namespace</output></app>` saved as `s.xml`, 2.4.0 opens the file, produces no
+  directives, writes nothing, and reports `Success! Exiting...` at exit `0`. Controls: the same
+  text as `s.txt` reports a namespace parse error at exit `1`, so the extension causes the
+  silence rather than the content; and a working `app.output=namespace` scheme over the same
+  profile does write its file. **XML scheme files were never supported.** Excluding them therefore
+  narrows nothing — it makes an existing silent no-op legible — and it is the only
+  forward-compatible answer, because a specified error can become support later without breaking
+  anyone whereas a guessed projection pinned by fixtures cannot be corrected without doing so.
+
+  Naming §15 rather than §8.1 is the substance of the change. Reading the file as a namespace
+  profile reports the right code against the wrong rule: it cites §8.1 at a document whose author
+  never wrote it to that contract, and advises adding an `=` to syntax already correct for the
+  contract they were aiming at.
 - §12.1: **a `type` value and an `output` value are excluded from capture substitution.**
   §16.6 closes the type names and §16.1 closes the output formats, so a capture could complete
   either only by accident of the matched data. Capture recognition is now disabled in both values
@@ -335,6 +360,11 @@ independently.
   writing `<r b="" d="" />` and ignoring the directive entirely.
 
 ### Fixed
+
+- **An XML scheme file no longer refuses the run.** The preview returned the out-of-contract exit
+  `70` for `-s scheme.xml`. It is now an ordinary `PARSE001` at exit `1` anchored at §15,
+  emitted once per failing source so two XML schemes report two diagnostics, and the extension is
+  matched case-insensitively so `.XML` is rejected too.
 
 - **A capture-shaped `type` or `output` value no longer refuses the run.** The preview returned
   the out-of-contract exit `70` for `cfg.*.type=arr*y` and `cfg.*.output=*`, naming "a wildcard
