@@ -639,27 +639,31 @@ The blank-line case is the same shape of exception with §24 in place of §3.3.
 [#52](https://github.com/stop-cran/namespace2xml/issues/52) asks for the qualifier to be stated
 explicitly, covering all of them rather than this one.
 
-### 1.16 A top-of-file comment binds differently in namespace and YAML input
+### 1.16 A top-of-file comment binds differently in namespace and YAML input *(resolved)*
 
-§8.5 states of namespace input that "consecutive comments are associated with the next entry",
-without qualification, so a comment at the top of a namespace profile becomes a leading comment of
+§8.5 stated of namespace input that "consecutive comments are associated with the next entry",
+without qualification, so a comment at the top of a namespace profile became a leading comment of
 the first entry. §20 classifies comments across every format and scopes its leading rule explicitly
 to "a comment between two payloads or items", which carves the first position out of it: "a comment
 before the first payload or item is document-leading". §10.1 lists the YAML comment positions that
 are supported but states no association rule of its own, so §20 governs YAML.
 
-The same top-of-file comment is therefore classified two ways depending on the format it was read
-from, and the implementation follows each clause as it is written. **verified**
+The same top-of-file comment was therefore classified two ways depending on the format it was read
+from. A plain round trip did not show it, because a document-leading comment and a leading comment
+of the first entry emit in the same place. It became observable once the owning entry stopped being
+emitted: an ignore mask over the first entry took that entry's leading comment with it, as §8.6
+requires of "comments bound to suppressed paths", while a document-leading comment survived.
 
-A plain round trip does not show it, because a document-leading comment and a leading comment of the
-first entry emit in the same place. It becomes observable once the owning entry stops being emitted:
-an ignore mask over the first entry takes that entry's leading comment with it, while a
-document-leading comment survives to the output.
+§8.5 now carries the exception, so the classification is format-independent: "comments preceding the
+first entry of a source are document-leading, as Section 20 classifies the first position for every
+format". A namespace header outlives a mask over the entry below it, and a profile converted between
+formats keeps that header.
 
-Both readings are the plain sense of their own clause, so there is nothing the implementation can
-settle by itself. The candidate resolutions are to give §10.1 an association rule matching §8.5, or
-to restate §20's trichotomy as format-independent and amend §8.5 to match. Choosing between them
-with no use to point at would be guessing, so this is recorded and left for the preview to settle.
+The exception has a cost, and §8.5 states it rather than leaving it to be met: an opening comment is
+bound to no path, so §5.2 does not move it when the first entry is overridden and §16.5 does not
+carry it into a generated record. A source whose first entry needs a comment of its own must be
+written with that entry second. `a-namespace-header-comment-outlives-its-first-entry` and
+`an-opening-comment-does-not-move-with-its-entry` pin both halves.
 Tracked as [#63](https://github.com/stop-cran/namespace2xml/issues/63).
 
 ### 1.17 An unpaired surrogate cannot reach an output, and `-v` loses one silently

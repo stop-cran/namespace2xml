@@ -1,5 +1,4 @@
-only: kept
+# describes first.txt
 tail: end
-# original
 # renamed
 name: second

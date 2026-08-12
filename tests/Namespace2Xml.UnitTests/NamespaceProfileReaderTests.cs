@@ -106,22 +106,66 @@ public class NamespaceProfileReaderTests
     public void AMalformedRecordContributesNothing() =>
         Read("a.b").Overlay.Children.ShouldBeEmpty();
 
-    // Section 8.5: comment binding.
+    // Section 8.5: comment binding. Every case below opens its source with `open=0` so the run
+    // under test is not the source's opening run, which Section 8.5 excepts as document-leading.
 
     [Test]
     public void ARunOfCommentsBindsToTheFollowingEntry()
     {
-        var contribution = Read("#one\n#two\na=1\nb=2");
+        var contribution = Read("open=0\n#one\n#two\na=1\nb=2");
 
         Descend(contribution.Overlay, "a").Comments.Select(comment => comment.Text)
             .ShouldBe(["one", "two"]);
         Descend(contribution.Overlay, "b").Comments.ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// Section 8.5: "comments preceding the first entry of a source are document-leading, as
+    /// Section 20 classifies the first position for every format". The run binds to no path, so an
+    /// ignore mask over the first entry cannot carry it off.
+    /// </summary>
+    [Test]
+    public void TheOpeningRunOfCommentsIsDocumentLeading()
+    {
+        var contribution = Read("#header\na=1\nb=2");
+
+        Descend(contribution.Overlay, "a").Comments.ShouldBeEmpty();
+        contribution.Overlay.Comments.Select(comment => (comment.Text, comment.Placement))
+            .ShouldBe([("header", CommentPlacement.Leading)]);
+    }
+
+    /// <summary>
+    /// Section 8.5 ends the opening run at the first entry, so only that run is document-leading
+    /// and a later run binds normally.
+    /// </summary>
+    [Test]
+    public void OnlyTheFirstRunOfASourceIsDocumentLeading()
+    {
+        var contribution = Read("#header\na=1\n#on b\nb=2");
+
+        contribution.Overlay.Comments.Select(comment => comment.Text).ShouldBe(["header"]);
+        Descend(contribution.Overlay, "b").Comments.Select(comment => comment.Text)
+            .ShouldBe(["on b"]);
+    }
+
+    /// <summary>
+    /// Section 8.5: "A wildcard template is an entry", so a template ends the opening run and a run
+    /// following it binds rather than joining the document header.
+    /// </summary>
+    [Test]
+    public void ATemplateEndsTheOpeningRun()
+    {
+        var contribution = Read("#header\n*.x=1\n#on b\nb=2");
+
+        contribution.Overlay.Comments.Select(comment => comment.Text).ShouldBe(["header"]);
+        Descend(contribution.Overlay, "b").Comments.Select(comment => comment.Text)
+            .ShouldBe(["on b"]);
+    }
+
     /// <summary>Section 8.1 rule 2: "preceding spaces/tabs are not comment text".</summary>
     [Test]
     public void LeadingSpacesAreNotCommentText() =>
-        Descend(Read("  \t#one\na=1").Overlay, "a").Comments.ShouldHaveSingleItem()
+        Descend(Read("open=0\n  \t#one\na=1").Overlay, "a").Comments.ShouldHaveSingleItem()
             .Text.ShouldBe("one");
 
     /// <summary>
@@ -146,7 +190,7 @@ public class NamespaceProfileReaderTests
     [Test]
     public void AMaskDoesNotInterruptARunOfComments()
     {
-        var contribution = Read("#before\n!z.*\n#after\na=1");
+        var contribution = Read("open=0\n#before\n!z.*\n#after\na=1");
 
         Descend(contribution.Overlay, "a").Comments.Select(comment => comment.Text)
             .ShouldBe(["before", "after"]);
@@ -156,20 +200,20 @@ public class NamespaceProfileReaderTests
     /// <summary>Section 8.5, same clause: a Section 8.1 rule 1 record leaves the run open.</summary>
     [Test]
     public void ABlankRecordDoesNotInterruptARunOfComments() =>
-        Descend(Read("#before\n\n#after\na=1").Overlay, "a").Comments
+        Descend(Read("open=0\n#before\n\n#after\na=1").Overlay, "a").Comments
             .Select(comment => comment.Text).ShouldBe(["before", "after"]);
 
     /// <summary>Section 8.5, same clause: a `PARSE001` record leaves the run open.</summary>
     [Test]
     public void AMalformedRecordDoesNotInterruptARunOfComments() =>
-        Descend(Read("#before\nbad\n#after\na=1").Overlay, "a").Comments
+        Descend(Read("open=0\n#before\nbad\n#after\na=1").Overlay, "a").Comments
             .Select(comment => comment.Text).ShouldBe(["before", "after"]);
 
     /// <summary>Section 4.5 orders bound comments by source order.</summary>
     [Test]
     public void CommentsAreBoundInSourceOrder()
     {
-        var comments = Descend(Read("#1\n#2\n#3\na=1").Overlay, "a").Comments;
+        var comments = Descend(Read("open=0\n#1\n#2\n#3\na=1").Overlay, "a").Comments;
 
         comments.Select(comment => comment.Text).ShouldBe(["1", "2", "3"]);
         comments[0].Order.CompareTo(comments[2].Order).ShouldBeLessThan(0);
@@ -182,7 +226,7 @@ public class NamespaceProfileReaderTests
     [Test]
     public void ACommentBindsToTheLeafNotToAnAncestor()
     {
-        var contribution = Read("#c\na.b.c=1");
+        var contribution = Read("open=0\n#c\na.b.c=1");
 
         Descend(contribution.Overlay, "a").Comments.ShouldBeEmpty();
         Descend(contribution.Overlay, "a", "b").Comments.ShouldBeEmpty();
@@ -255,7 +299,7 @@ public class NamespaceProfileReaderTests
     [Test]
     public void ATemplateCarriesItsOwnComments()
     {
-        var contribution = Read("#t\na.*=1\nb=2");
+        var contribution = Read("open=0\n#t\na.*=1\nb=2");
 
         contribution.Templates.ShouldHaveSingleItem()
             .Comments.Select(comment => comment.Text).ShouldBe(["t"]);

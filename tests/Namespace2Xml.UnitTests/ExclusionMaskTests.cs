@@ -184,11 +184,15 @@ public class ExclusionMaskTests
 
     // Section 8.6: "comments bound to suppressed paths are suppressed with them".
 
-    /// <summary>A comment bound to a masked entry goes with the entry.</summary>
+    /// <summary>
+    /// A comment bound to a masked entry goes with the entry. The source opens with <c>open=0</c>
+    /// so the run is not the Section 8.5 opening run, which binds to no path and would therefore
+    /// survive the mask for a different reason.
+    /// </summary>
     [Test]
     public void ACommentBoundToASuppressedPathIsSuppressed()
     {
-        var masked = Masked("#note\na.x=1\n!a.x\n");
+        var masked = Masked("open=0\n#note\na.x=1\n!a.x\n");
 
         Find(masked, "a", "x").ShouldBeNull();
         masked.Comments.ShouldBeEmpty();

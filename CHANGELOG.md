@@ -73,6 +73,29 @@ independently.
 
 ### Changed
 
+- **§8.5 now excepts a source's opening comment run, closing [#63](https://github.com/stop-cran/namespace2xml/issues/63).**
+  §8.5 said, without qualification, that "consecutive comments are associated with the next entry",
+  so a comment at the top of a namespace profile bound to the first entry — while §20 classifies
+  the same position as document-leading for every other format, and §10.1 states no rule of its own
+  and so defers to §20. The same header was therefore classified two ways depending on which format
+  it was read from.
+
+  A round trip could not show it, because both readings emit the comment in the same place. The
+  difference is what happens when the first entry stops being emitted: §8.6 suppresses "comments
+  bound to suppressed paths", so an ignore mask over the first entry silently took the file's header
+  with it. §8.5 now carries the exception and the classification is format-independent.
+
+  The exception has a cost, and §8.5 states it rather than leaving it to be met: an opening comment
+  is bound to no path, so §5.2 does not move it when the first entry is overridden and §16.5 does
+  not carry it into a generated record. **A source whose first entry needs a comment of its own must
+  now be written with that entry second.** This is a behaviour change for any profile whose first
+  line is a comment and whose first entry is later overridden or fed through `key`.
+
+  Two fixtures pin the halves — `a-namespace-header-comment-outlives-its-first-entry` and
+  `an-opening-comment-does-not-move-with-its-entry` — and two existing fixtures were re-authored to
+  open their sources with an entry, because both had been written in the shape the exception now
+  claims and would otherwise have asserted the exception instead of the rule they were built for.
+
 - **§10.4 stated a provenance rule that no fixture asserted.** Extraction turns a sequence beneath a
   wildcard key into canonical numeric mapping children, which carry **explicit** §5.4 provenance
   rather than the implicit provenance a native item has. That decides whether a template's values

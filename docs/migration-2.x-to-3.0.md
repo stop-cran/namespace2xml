@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r48+6eb9c80f3a19`.**
+**Contract bundle `r49+5fde10f899af`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (129)
+## Observable differences (131)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -251,6 +251,27 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: silently substituting a different destination for the one the
   scheme asked for is the failure mode this tool is least able to tolerate, because the output
   looks correct and lands in the wrong place.
+
+### `a-namespace-header-comment-outlives-its-first-entry`
+
+- namespace2xml 2.4.0: **differs**. It writes `cfg.properties` containing only `b=2`, and exits 0.
+  The header comment is gone. The case expects `# describes this file` above `b=2`.
+- Contract: Section 8.5; Section 8.6; Section 20.
+- Legacy observation: 2.4.0 discarded namespace-profile comments outright on the namespace-input
+  path, so the question this case asks could not arise: there was no comment left to be suppressed
+  along with the entry it preceded.
+- Clean behavior: Section 8.6 states that "comments bound to suppressed paths are suppressed with
+  them", so if `# describes this file` were bound to `cfg.a` the ignore mask would take it. It is
+  not bound, because Section 8.5 excepts the opening run: "comments preceding the first entry of a
+  source are document-leading, as Section 20 classifies the first position for every format". A
+  document-leading comment has, in Section 4.5's words, "no value owner", so no mask can reach it,
+  and Section 20 emits it before the source's "first surviving contribution" — here `cfg.b`.
+- The mask is what makes the two readings distinguishable. Without it both readings emit the
+  comment above `b=2`; with it, binding to the first entry deletes the comment and the exception
+  keeps it. The destination is the namespace format itself, so the case also asserts that a profile
+  round-tripped through this tool keeps its header rather than losing it to an unrelated mask.
+- The difference is intentional: an ignore mask is written to remove a setting, and a person adding
+  one to a file does not expect the sentence explaining what the file is to disappear with it.
 
 ### `a-native-key-marker-commits-once-recognized`
 
@@ -688,11 +709,38 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: an author who wrote an empty directive made a mistake that is
   cheap to name and expensive to diagnose from its consequences.
 
-### `an-override-moves-its-key-and-keeps-both-comments`
+### `an-opening-comment-does-not-move-with-its-entry`
 
 - namespace2xml 2.4.0: **differs**. It writes `app.yaml` containing `name: second` followed by
-  `only: kept`, and exits 0. Both comments are gone and the overridden key has not moved. The
-  case expects `only` first, then both comments, then `name: second`.
+  `tail: end`, and exits 0. Both comments are gone and the overridden key has not moved. The case
+  expects `# describes first.txt`, then `tail: end`, then `# renamed`, then `name: second`.
+- Contract: Section 8.5; Section 5.2; Section 20.
+- Legacy observation: 2.4.0 discarded namespace-profile comments outright on the namespace-input
+  path, so no comment classification of any kind was observable, and it kept a mapping key at the
+  position of its first contribution rather than its winning one.
+- Clean behavior: this case pins the cost Section 8.5 names when it excepts a source's opening run
+  — "an opening comment is bound to no path, so Section 5.2 does not move it when the first entry
+  is overridden and Section 16.5 does not carry it into a generated record". `# describes
+  first.txt` precedes the first entry of `first.txt`, so it is document-leading and Section 20
+  places it before "that source's first surviving contribution", at the head of the document.
+  `# renamed` follows an entry, so it binds to `app.name` and travels with it under Section 5.2 to
+  `second.txt`'s position mark.
+- The two comments differ only in whether an entry precedes them in their own file, and they end up
+  in different places, which is exactly the asymmetry the exception creates. A reader who expects
+  the first comment to behave like the second should read Section 8.5's closing sentence: "A source
+  whose first entry needs a comment of its own must be written with that entry second."
+- The case fails an implementation that binds the opening run to the first entry, which would carry
+  `# describes first.txt` down to `name: second`, and it fails one that treats every comment as
+  document-leading, which would hoist `# renamed` to the top.
+- The difference is intentional: a comment at the head of a file usually describes the file, and a
+  tool that lets an override drag the file's header down to wherever the first setting ended up has
+  destroyed the only cue the reader had about what the file is for.
+
+### `an-override-moves-its-key-and-keeps-both-comments`
+
+- namespace2xml 2.4.0: **differs**. It writes `app.yaml` containing `name: second`, `only: kept`
+  and `tail: end`, in that order, and exits 0. Both comments are gone and the overridden key has
+  not moved. The case expects `only`, then `tail`, then both comments, then `name: second`.
 - Contract: Sections 4.5 and 5.2, and Section 3.2 as a correction.
 - Legacy observation: 2.4.0 kept a mapping key at the position of its *first* contribution and
   discarded comments outright on the namespace-input path, so neither half of the rule was
@@ -701,11 +749,17 @@ implemented, its case says so plainly rather than letting the heading imply othe
   the result.
 - Clean behavior: Section 5.2 states that "overriding a mapping key moves that exact key,
   together with comments bound to it, to the winning contribution's position mark". `app.name` is
-  overridden by `second.txt`, so it takes that later position and falls below `app.only`, which
-  no later source touched. Section 4.5 adds that "overriding a payload or container contribution
-  does not detach comments already bound to that logical path", so `# original` is not lost when
-  `first.txt`'s value is; both comments end up bound to the same winning path and are emitted in
-  source order above it.
+  overridden by `second.txt`, so it takes that later position and falls below both `app.only`,
+  which no later source touched, and `app.tail`, which `second.txt` contributed ahead of the
+  override. Section 4.5 adds that "overriding a payload or container contribution does not detach
+  comments already bound to that logical path", so `# original` is not lost when `first.txt`'s
+  value is; both comments end up bound to the same winning path and are emitted in source order
+  above it.
+- Neither source opens with its comment. Section 8.5 excepts the opening run — "comments preceding
+  the first entry of a source are document-leading" — so a comment on line 1 would bind to no path
+  and could not demonstrate movement at all. `app.only` and `app.tail` open their sources so that
+  `# original` and `# renamed` are ordinary bound comments. The companion case
+  `an-opening-comment-does-not-move-with-its-entry` asserts the excepted shape.
 - The case is shaped to fail three different wrong implementations. Leaving the key at its first
   position puts `name` above `only`. Detaching the loser's comment drops `# original`. Binding the
   comment to the value rather than to the logical path drops `# original` as well but keeps the
@@ -1265,12 +1319,12 @@ implemented, its case says so plainly rather than letting the heading imply othe
 
 ### `key-generates-a-string-name-and-moves-comments`
 
-- namespace2xml 2.4.0: **differs**. It writes `cfg.yaml` as four lines — `- name: 42` /
-  `  value: 1` / `- name: other` / `  value: 2` — and exits 0. The case expects the same
-  record shape but with the first record's `name` **quoted** as `'42'` and with the two
-  bound comments emitted between each `name` and its `value`. Two independent defects: the
-  generated key `42` is unquoted, so a YAML reader round-trips it as an integer rather than
-  the string it names; and the comment run bound to each `cfg.<key>.value` entry is
+- namespace2xml 2.4.0: **differs**. It writes `cfg.yaml` as six lines — `- name: 7` / `  value: 0`
+  / `- name: 42` / `  value: 1` / `- name: other` / `  value: 2` — and exits 0. The case expects
+  the same record shape but with the two decimal `name` fields **quoted** as `'7'` and `'42'`, and
+  with the two bound comments emitted between each `name` and its `value`. Two independent defects:
+  a generated key that spells a decimal is unquoted, so a YAML reader round-trips it as an integer
+  rather than the string it names; and the comment run bound to each `cfg.<key>.value` entry is
   discarded.
 - Contract: Section 16.5 `key` transformation and Section 4.5 comment binding; Section 3.2
   as a correction of behaviour "caused by silent loss of multiline values in JSON or XML"
@@ -1282,14 +1336,21 @@ implemented, its case says so plainly rather than letting the heading imply othe
   2.4.0 discarded namespace-profile comments outright on the namespace-input path; the
   comment stream had no representation in the overlay, so a downstream `key` transformation
   had nothing to move. Two different mechanisms produce a single lost feature in the file.
-- Clean behavior: §16.5 states that "the generated key field is inserted first as a string
+- Clean behavior: Section 16.5 states that "the generated key field is inserted first as a string
   scalar containing the decoded mapping-key text; scalar inference is never applied to this
-  generated field", so `42` reaches the YAML writer typed as a string and §19.4 emits it
-  single-quoted under the rule that "a string whose plain spelling would resolve to a
-  non-string kind under `RestrictedYaml1` is emitted single-quoted". Section 16.5 further
-  states that "comments bound to the original child path move with the complete generated
-  record", so the `# comment on 42` block moves onto the emitted record and §20 renders it
-  in the record's normalized position.
+  generated field", so `42` reaches the YAML writer typed as a string and Section 19.4 emits it
+  single-quoted under the rule that "a string whose plain spelling would resolve to a non-string
+  kind under `RestrictedYaml1` is emitted single-quoted". Section 16.5 further states that
+  "comments bound to the original child path move with the complete generated record", so the
+  `# comment on 42` block moves onto the emitted record and Section 20 renders it in the record's
+  normalized position.
+- `cfg.7` carries no comment and exists to open the source. Section 8.5 excepts a source's opening
+  run — "comments preceding the first entry of a source are document-leading" — so a comment on
+  line 1 would bind to no path and Section 16.5 would have nothing to move; the case would then
+  assert the exception rather than the transformation. `7` is chosen rather than a name because
+  Section 5.4 gives a decimal-spelled mapping child an ordering value taken from the number, and
+  `7` therefore precedes `42` in the record order while a non-decimal name would be allocated above
+  the high-water mark and follow it.
 - The difference is intentional: a mapping whose keys are all decimals is a legal way to
   spell an ordered sequence of *named* records — a version list, a numbered menu, an
   ordering-value carried into a normalized record set — and turning the name `42` into the
@@ -1511,17 +1572,19 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - Legacy observation: a comment after the last entry of a namespace profile was read and then
   dropped, because nothing downstream consumed the document-trailing class.
 - Clean behavior: Section 8.5 gives the namespace format its own association rule — "Consecutive
-  comments are associated with the next entry. Trailing comments with no following entry remain
-  document-trailing comments." Both halves are asserted here. `# document leading` and `# leading
-  of b` each have a following entry, so they bind to `cfg.a` and `cfg.b`; `# document trailing` has
-  none, so it stays document-trailing.
+  comments are associated with the next entry, with one exception: comments preceding the first
+  entry of a source are document-leading, as Section 20 classifies the first position for every
+  format. Trailing comments with no following entry remain document-trailing comments." All three
+  halves are asserted here. `# document leading` opens the source, so it is document-leading and
+  binds to no path; `# leading of b` has a following entry, so it binds to `cfg.b`;
+  `# document trailing` has none, so it stays document-trailing.
 
-  Section 8.5's first sentence is unconditional, which is why `# document leading` binds to the
-  first entry rather than becoming a document-leading comment. Section 20's generic classification
-  — "a comment before the first payload or item is document-leading" — applies to a format that
-  does not state its own rule; the namespace format states one. The distinction is not visible in
-  this output, where both readings emit the comment in the same place, but it decides whether the
-  comment would survive an ignore mask on `cfg.a`.
+  The opening run and the generic Section 20 classification — "a comment before the first payload
+  or item is document-leading" — therefore agree, which is what Section 8.5's exception is for: a
+  profile converted between formats keeps its header. The distinction from binding to `cfg.a` is
+  not visible in this output, where both readings emit the comment in the same place, but it
+  decides whether the comment would survive an ignore mask on `cfg.a`. The companion case
+  `a-namespace-header-comment-outlives-its-first-entry` asserts that it does.
 
   Section 4.5 gives a document-trailing comment "no value owner", so it cannot be emitted by
   following the entry it happened to sit after. Section 20 places it instead: "document-trailing

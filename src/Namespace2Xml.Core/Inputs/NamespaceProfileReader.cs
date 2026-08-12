@@ -100,6 +100,7 @@ public static class NamespaceProfileReader
         var masks = ImmutableArray.CreateBuilder<ProfileMask>();
         var templates = ImmutableArray.CreateBuilder<ProfileEntry>();
         var pending = ImmutableArray.CreateBuilder<BoundComment>();
+        var seenEntry = false;
 
         foreach (var record in records)
         {
@@ -134,7 +135,8 @@ public static class NamespaceProfileReader
 
                 case NamespaceRecordKind.Entry:
                     overlay = ReadEntry(
-                        record, key, source, substitutes, diagnostics, overlay, templates, pending);
+                        record, key, source, substitutes, diagnostics, overlay, templates, pending,
+                        ref seenEntry);
                     break;
 
                 default:
@@ -145,31 +147,34 @@ public static class NamespaceProfileReader
         }
 
         return new ProfileContribution(
-            AttachDocumentTrailing(overlay, pending),
+            AttachDocumentComments(overlay, pending, CommentPlacement.Trailing),
             masks.ToImmutable(),
             templates.ToImmutable());
     }
 
     /// <summary>Binds the comments no entry ever claimed to the contribution root.</summary>
     /// <param name="overlay">This source's contributions.</param>
-    /// <param name="pending">The comments still unbound when the source ended.</param>
-    /// <returns>The overlay, carrying any document-trailing comments at its root.</returns>
+    /// <param name="comments">The comments with no entry of their own.</param>
+    /// <param name="placement">Document-leading or document-trailing.</param>
+    /// <returns>The overlay, carrying those comments at its root.</returns>
     /// <remarks>
-    /// A comment still pending at end of source had no following entry to bind to, so Section 20's
-    /// "a comment after the final payload or item is document-trailing" classifies it and Section
-    /// 4.5 leaves it without a value owner. The root is the node that expresses that: it is never
-    /// re-addressed and never removed by an ignore mask, and Section 15.1's view selection carries
-    /// root comments into each output instance, where Section 20 places them after "its final
-    /// surviving contribution".
+    /// A comment with no entry to bind to is classified by Section 20 — "a comment before the first
+    /// payload or item is document-leading", "a comment after the final payload or item is
+    /// document-trailing" — and Section 4.5 leaves it without a value owner. The root is the node
+    /// that expresses that: it is never re-addressed and never removed by an ignore mask, and
+    /// Section 15.1's view selection carries root comments into each output instance, where Section
+    /// 20 places them before its first and after "its final surviving contribution".
     /// </remarks>
-    private static OverlayNode AttachDocumentTrailing(
-        OverlayNode overlay, ImmutableArray<BoundComment>.Builder pending)
+    private static OverlayNode AttachDocumentComments(
+        OverlayNode overlay,
+        IEnumerable<BoundComment> comments,
+        CommentPlacement placement)
     {
         var result = overlay;
 
-        foreach (var comment in pending)
+        foreach (var comment in comments)
         {
-            result = result.WithComment(comment with { Placement = CommentPlacement.Trailing });
+            result = result.WithComment(comment with { Placement = placement });
         }
 
         return result;
@@ -214,7 +219,8 @@ public static class NamespaceProfileReader
         DiagnosticBuffer diagnostics,
         OverlayNode overlay,
         ImmutableArray<ProfileEntry>.Builder templates,
-        ImmutableArray<BoundComment>.Builder pending)
+        ImmutableArray<BoundComment>.Builder pending,
+        ref bool seenEntry)
     {
         var lexedName = QualifiedNameLexer.Lex(record.Name!);
 
@@ -269,6 +275,17 @@ public static class NamespaceProfileReader
 
         var comments = pending.ToImmutable();
         pending.Clear();
+
+        // Section 8.5 excepts the opening run: comments "preceding the first entry of a source are
+        // document-leading". The test is placed here rather than at the call site because this is
+        // where a record becomes an entry — a name fault returns above without consuming the run,
+        // which is the same clause's rule that a PARSE001 record "leaves the run open".
+        if (!seenEntry)
+        {
+            seenEntry = true;
+            overlay = AttachDocumentComments(overlay, comments, CommentPlacement.Leading);
+            comments = [];
+        }
 
         var entry = new ProfileEntry(
             name, lexedValue.Value, key, record.Line, comments);

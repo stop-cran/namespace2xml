@@ -140,10 +140,12 @@ public class OverlayMergerTests
 
     /// <summary>
     /// Section 17.1: comments "accumulate and survive merge whenever their logical path survives".
+    /// Each source opens with <c>open=0</c> so its comment run is not the Section 8.5 opening run,
+    /// which binds to no path.
     /// </summary>
     [Test]
     public void CommentsAccumulateAcrossSources() =>
-        Descend(Merge("#one\na=1", "#two\na=2"), "a")
+        Descend(Merge("open=0\n#one\na=1", "open=0\n#two\na=2"), "a")
             .OrderedComments.Select(comment => comment.Text)
             .ShouldBe(["one", "two"]);
 
@@ -227,7 +229,7 @@ public class OverlayMergerTests
     /// </summary>
     [Test]
     public void ReplaceKeepsCommentsBoundToTheSurvivingPath() =>
-        Descend(Merge(Strategy(MergeStrategy.Replace, "a"), "#one\na=1", "a.b=2"), "a")
+        Descend(Merge(Strategy(MergeStrategy.Replace, "a"), "open=0\n#one\na=1", "a.b=2"), "a")
             .OrderedComments.Select(comment => comment.Text)
             .ShouldBe(["one"]);
 
