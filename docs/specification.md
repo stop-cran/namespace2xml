@@ -1054,7 +1054,7 @@ XML input supports:
 
 The XML declaration is not retained as a data node.
 
-Input decoding is controlled exclusively by Section 7.4. If an XML declaration contains an encoding name, it must agree with the encoding selected by the BOM or strict UTF-8 default; disagreement is a blocking XML error.
+Input decoding is controlled exclusively by Section 7.4. If an XML declaration contains an encoding name, it must agree with the encoding selected by the BOM or strict UTF-8 default; disagreement is a blocking `PARSE002` error, not an `XML0xx` error. The condition is a decoding failure that an XML declaration happens to reveal, so it is reported once per failing source at line 1, column 1 with the rest of Section 7.4's encoding errors, and it is diagnosed before the document is parsed. An XML declaration that is malformed in any other way is `XML002`.
 
 Processing instructions are discarded with a summarized warning.
 

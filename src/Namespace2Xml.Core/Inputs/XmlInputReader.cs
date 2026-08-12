@@ -246,13 +246,19 @@ public static class XmlInputReader
         /// disagrees with the encoding Section 7.4 already selected describes a different document
         /// from the one being read, and Section 11.2 makes that blocking rather than advisory.
         ///
-        /// The code is <c>PARSE002</c> and not <c>XML002</c>, although Section 11.2 calls it "a
-        /// blocking XML error". Appendix B assigns "XML declaration encoding inconsistent with
-        /// decoded input" to <c>PARSE002</c>, carves that condition out of <c>XML002</c> in the
-        /// same table -- "other than byte-encoding disagreement" -- and then states the split a
-        /// third time: "encoding disagreement is `PARSE002`, while an otherwise invalid XML
-        /// declaration is `XML002`". Section 22 requires the most specific code, and both codes are
-        /// scoped once per failing source, so nothing else distinguishes them.
+        /// The code is <c>PARSE002</c> and not <c>XML002</c>. Section 11.2 says so directly, and
+        /// Appendix B assigns "XML declaration encoding inconsistent with decoded input" to
+        /// <c>PARSE002</c>, carves that condition out of <c>XML002</c> in the same table -- "other
+        /// than byte-encoding disagreement" -- and then states the split a third time: "encoding
+        /// disagreement is `PARSE002`, while an otherwise invalid XML declaration is `XML002`".
+        /// Section 22 requires the most specific code, and both codes are scoped once per failing
+        /// source, so nothing else distinguishes them.
+        ///
+        /// Returning <c>false</c> stops the parse, which Section 11.2 requires: the disagreement is
+        /// diagnosed "before the document is parsed", so a source that is also malformed reports
+        /// only this. Every position and name an <c>XmlException</c> could report is derived from
+        /// characters the decoder may have produced incorrectly, so a syntax message from a
+        /// wrongly-decoded document points the reader at a line that may not be wrong.
         /// </remarks>
         private bool Declaration(XmlReader reader, IXmlLineInfo position)
         {

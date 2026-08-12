@@ -681,8 +681,12 @@
       "text": "UTF BOM handling, LF output, no output BOM, and deterministic diagnostic ordering.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
+      "assertions": [
+        "An XML declaration naming an encoding that disagrees with the one Section 7.4 selected is PARSE002 and not XML002, because the condition is a decoding failure the declaration reveals rather than a defect of the markup.",
+        "That PARSE002 is raised before the document is parsed, so a source carrying both an encoding disagreement and a well-formedness error reports only the disagreement, at line 1 column 1, and never reports the tag mismatch."
+      ],
       "fixtures": [
+        "an-encoding-disagreement-precedes-xml-parsing",
         "cross-destination-diagnostic-order",
         "cross-format-replacement-renumbers-the-destination-order",
         "xml-declaration-encoding-disagreement"

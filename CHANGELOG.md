@@ -108,6 +108,20 @@ independently.
 
 ### Changed
 
+- **§11.2 now names `PARSE002` and states when it is raised, closing [#42](https://github.com/stop-cran/namespace2xml/issues/42).**
+  §11.2 called an XML declaration whose encoding disagrees with the decoded input "a blocking XML
+  error". In this specification's own vocabulary "XML error" names the `XML0xx` family, so a reader
+  implementing §11.2 alone would reach for `XML002`; Appendix B says `PARSE002`, and says so three
+  times, including a sentence written to separate this case from `XML002`. §11.2 now names the code
+  and says the condition is a decoding failure an XML declaration happens to reveal, reported at
+  line 1, column 1 with the rest of §7.4's encoding errors. It also now states the ordering the
+  build already had and nothing pinned: the disagreement is diagnosed **before** the document is
+  parsed, so a source carrying both an encoding disagreement and a well-formedness error reports
+  only the disagreement. That order is the point — every position and name in a parser's message is
+  derived from characters a wrong decoder may have mangled, so a tag-mismatch message from such a
+  document sends the reader to a line that may not be wrong. 2.4.0 reports the inverse: the tag
+  mismatch, as a raw .NET stack trace, never mentioning the encoding. Behaviour is unchanged.
+
 - **§15.2 now says `WARN009` tests binding, not effect, closing [#55](https://github.com/stop-cran/namespace2xml/issues/55).**
   §22 said a scheme directive warns when it "binds to no *effective* output/path" while §15.2 said
   "binds to no *concrete output instance*", and the two disagree on exactly one input: a directive
