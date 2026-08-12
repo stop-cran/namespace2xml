@@ -616,28 +616,25 @@ renderer: an exclusive destination emits it as an empty mapping, which is the re
 reappearing. Stripping it at the end of step 18 is safe because step 18 is the last stage that
 allocates a §5.4 ordering value.
 
-### 1.15 A value ending in a blank line is spelled double-quoted, not as a block scalar
+### 1.15 A value ending in a blank line is spelled double-quoted, not as a block scalar *(resolved)*
 
-§19.4 "uses literal block scalars for multiline values", and a value whose content ends in a blank
-line needs the keep indicator `|+` to carry that line. The resulting block ends with two LFs, so it
-cannot be the last thing in the file: §24 requires a text output to "end with exactly one LF". Such
-a value is therefore written in the double-quoted form instead, in every position. **verified**
+Resolved by [#52 (closed)](https://github.com/stop-cran/namespace2xml/issues/52). §19.4 no longer
+promises a block scalar unconditionally: it now reads "uses literal block scalars for multiline
+values that a block scalar can carry exactly and that can legally terminate the document, and the
+double-quoted form otherwise", and names all five conditions that force the quoted form — trailing
+whitespace, a CR line break, a control character outside `c-printable`, an indented first non-empty
+line, and a value ending in a blank line, which needs `|+` and so cannot satisfy §24's single
+trailing LF.
 
-The obvious narrower rule — decline the block only where it would fall last — was rejected. It makes
-a value's spelling depend on where it sorts among its siblings, so adding an unrelated key silently
-rewrites an untouched value. The uniform rule keeps the spelling a property of the value alone.
+§19.4 also now states the position-independence rule and why it was chosen over the narrower one:
+declining the block only where it would fall last also never produces an illegal document, but it
+makes a value's spelling depend on where it sorts among its siblings, so adding an unrelated key
+would silently rewrite an untouched value.
 
-Nothing is lost: the double-quoted form is exact, and a round trip through an independent parser
-returns the value unchanged. What §19.4 promises literally — a block scalar — is not what is
-emitted, which is the reason this is recorded here rather than treated as settled.
-
-The underlying issue is that §19.4's blanket "uses literal block scalars for multiline values" has
-never been the whole rule. A block scalar cannot carry a value containing CR, containing a control
-character, whose lines have trailing whitespace, or whose first non-empty line is indented, and the
-writer has always quoted those instead, because §3.3 requires the round trip to preserve the data.
-The blank-line case is the same shape of exception with §24 in place of §3.3.
-[#52](https://github.com/stop-cran/namespace2xml/issues/52) asks for the qualifier to be stated
-explicitly, covering all of them rather than this one.
+Behaviour is unchanged. Four of the five conditions were already being quoted on §3.3 grounds with
+no clause permitting it, and three had no fixture at all;
+`a-block-scalar-is-declined-when-it-would-not-be-exact` now pins all five against a control value
+that does get a block scalar.
 
 ### 1.16 A top-of-file comment binds differently in namespace and YAML input *(resolved)*
 
@@ -668,11 +665,15 @@ Tracked as [#63 (closed)](https://github.com/stop-cran/namespace2xml/issues/63).
 
 ### 1.17 An unpaired surrogate cannot reach an output, and `-v` loses one silently
 
-§16.9 says that without `EscapeNonAscii` "non-ASCII text is emitted as literal UTF-8". UTF-8 has no
-encoding for an unpaired surrogate, so that sentence cannot be obeyed for one, and the JSON writer
-escapes such a code unit as `\uXXXX` whatever the flag says rather than emit a silent U+FFFD.
+§16.9 now states the qualifier it was missing, resolving
+[#64 (closed)](https://github.com/stop-cran/namespace2xml/issues/64): non-ASCII text is emitted as
+literal UTF-8 "wherever UTF-8 admits it", and a UTF-16 code unit UTF-8 cannot encode — an unpaired
+surrogate — is emitted as a `\uXXXX` escape regardless of the flag, because the alternative is a
+silent U+FFFD that discards the code unit while reporting success.
 
-That branch is unreachable. Every route into the model was tried. **verified**
+The entry remains open because the second half of its title is unresolved: the branch is
+unreachable, so nothing pins it, and `-v` still loses a surrogate before the tool sees it. Every
+route into the model was tried. **verified**
 
 | Route | Result |
 |---|---|
@@ -690,10 +691,9 @@ by starting the apphost directly with a UTF-16 argument list, which rules out th
 
 It is recorded rather than acted on, because refusing U+FFFD in a variable would reject legitimate
 text and there is no other signal to test. A revisit is warranted only if someone reaches it in
-practice. Tracked as [#64](https://github.com/stop-cran/namespace2xml/issues/64), which asks §16.9
-for the qualifier it is missing rather than asking the writer to change — the escape this build
-emits is the right behaviour, it is simply an implementation decision on a default path that the
-contract does not state.
+practice. No conformance fixture is possible while the branch is unreachable, so §16.9's sentence is
+the only thing holding the behaviour; it says so, adding that an implementation "is not required to
+make such text reachable".
 
 ### 1.18 *(resolved)* `NewLineOnAttributes` and the first attribute
 

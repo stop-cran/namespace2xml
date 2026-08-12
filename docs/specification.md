@@ -2076,7 +2076,9 @@ Supported flags:
 
 Default: `Indent`.
 
-`EscapeNonAscii` applies to every JSON mapping key and string scalar value. Each Unicode scalar above U+007F is emitted as uppercase hexadecimal JSON `\uXXXX`; a scalar above U+FFFF is emitted as the corresponding UTF-16 surrogate pair `\uXXXX\uXXXX`. ASCII controls continue to use valid JSON escapes. Without this flag, non-ASCII text is emitted as literal UTF-8. The flag is independent of `Indent` and `Compact`.
+`EscapeNonAscii` applies to every JSON mapping key and string scalar value. Each Unicode scalar above U+007F is emitted as uppercase hexadecimal JSON `\uXXXX`; a scalar above U+FFFF is emitted as the corresponding UTF-16 surrogate pair `\uXXXX\uXXXX`. ASCII controls continue to use valid JSON escapes. Without this flag, non-ASCII text is emitted as literal UTF-8 wherever UTF-8 admits it, and a UTF-16 code unit that UTF-8 cannot encode — an unpaired surrogate — is emitted as a `\uXXXX` escape regardless of the flag. The flag is independent of `Indent` and `Compact`.
+
+The escape is not an exception to the flag but the only way to keep the text. UTF-8 has no encoding for an unpaired surrogate, so a writer obeying the literal rule absolutely would have to substitute U+FFFD, which discards the code unit while reporting success. An implementation is not required to make such text reachable; this states what it emits if it does.
 
 `Indent` uses two ASCII spaces per nesting level. `Compact` emits no insignificant spaces or line breaks.
 
@@ -2408,10 +2410,14 @@ YAML output:
 - preserves mapping and sequence order;
 - preserves supported scalar types;
 - emits retained comments in normalized positions;
-- uses literal block scalars for multiline values;
+- uses literal block scalars for multiline values that a block scalar can carry exactly and that can legally terminate the document, and the double-quoted form otherwise;
 - does not emit `---`;
 - does not preserve original quote style, tag syntax, anchors, aliases, or folded-versus-literal source style;
 - applies structural merge before serialization.
+
+A literal block scalar reproduces its content from its indentation and chomping indicator alone, which is not enough for every multiline value. A line with trailing whitespace, a CR line break, a control character outside YAML's `c-printable`, and a first non-empty line that is itself indented are each altered or lost by a block scalar, and Section 3.3 requires a same-format round trip to preserve them. A value ending in a blank line needs the `|+` indicator, whose block ends with two line breaks and so cannot satisfy Section 24's requirement that a text output end with exactly one LF.
+
+The double-quoted form carries all of these exactly, so it is the fallback rather than a defect. A value that cannot terminate the document is quoted in *every* position, not only where it would fall last; otherwise a value's spelling would depend on where it sorts among its siblings, and adding an unrelated key would silently rewrite an untouched value.
 
 A string whose plain spelling would resolve to a non-string kind under `RestrictedYaml1` is emitted single-quoted, with a literal single quote doubled as `''`.
 

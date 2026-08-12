@@ -108,6 +108,29 @@ independently.
 
 ### Changed
 
+- **§19.4 now states when a block scalar is not used, closing [#52](https://github.com/stop-cran/namespace2xml/issues/52).**
+  §19.4 said, without qualification, that YAML output "uses literal block scalars for multiline
+  values". A block scalar reproduces its content from indentation and a chomping indicator alone,
+  which is not enough for five classes of value: a line with trailing whitespace, a CR line break, a
+  control character outside `c-printable`, an indented first non-empty line, and a value ending in a
+  blank line. The first four lose or alter data §3.3 requires a same-format round trip to preserve;
+  the fifth needs `|+`, whose block ends with two line breaks and so cannot satisfy §24's "end with
+  exactly one LF". The writer has always quoted all five, with no clause permitting it. §19.4 now
+  says so, names each condition, and states that the refusal is a property of the value alone rather
+  than of its position — declining only where the value would fall last also never produces an
+  illegal document, but it makes a spelling depend on where a value sorts, so adding an unrelated
+  key would silently rewrite an untouched one. Three of the five had no fixture at all. Behaviour is
+  unchanged.
+
+- **§16.9 now says what happens to text UTF-8 cannot encode, closing [#64](https://github.com/stop-cran/namespace2xml/issues/64).**
+  Without `EscapeNonAscii`, §16.9 said "non-ASCII text is emitted as literal UTF-8". UTF-8 has no
+  encoding for an unpaired surrogate, so that sentence could not be obeyed for one, and the JSON
+  writer escapes such a code unit as `\uXXXX` whatever the flag says — an implementation decision on
+  a default path that the contract did not state. §16.9 now states it, and says why: the alternative
+  is substituting U+FFFD, which discards the code unit while reporting success. The branch remains
+  unreachable through every input route, so no fixture is possible and the clause notes that an
+  implementation "is not required to make such text reachable". Behaviour is unchanged.
+
 - **§11.2 now names `PARSE002` and states when it is raised, closing [#42](https://github.com/stop-cran/namespace2xml/issues/42).**
   §11.2 called an XML declaration whose encoding disagrees with the decoded input "a blocking XML
   error". In this specification's own vocabulary "XML error" names the `XML0xx` family, so a reader

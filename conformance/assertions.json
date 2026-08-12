@@ -981,9 +981,12 @@
       "assertions": [
         "Section 19.4 indents two ASCII spaces per nesting level and emits no `---`; a block sequence under a key indents its indicator by one step, and a sequence item's own content therefore aligns with a mapping value at the same depth.",
         "Section 19.4 uses a literal block scalar for a multiline value, indented two spaces beyond its owning key or sequence indicator, and its chomping indicator distinguishes no trailing line break, exactly one, and more than one.",
-        "A string whose plain spelling would resolve to a non-string kind under `RestrictedYaml1` is single-quoted with a literal single quote doubled as `''`, while the spellings Section 10.1 keeps as strings stay plain."
+        "A string whose plain spelling would resolve to a non-string kind under `RestrictedYaml1` is single-quoted with a literal single quote doubled as `''`, while the spellings Section 10.1 keeps as strings stay plain.",
+        "Section 19.4 declines the block spelling for a value it could not carry exactly -- trailing whitespace on a line, a CR line break, a control character outside c-printable, or an indented first non-empty line -- and for one ending in a blank line, which needs the keep indicator whose block cannot satisfy Section 24's single trailing LF, writing every one of them double-quoted instead.",
+        "That refusal is a property of the value alone rather than of its position, so a value ending in a blank line is quoted even where it is not last in the document and adding an unrelated key never rewrites an untouched value."
       ],
       "fixtures": [
+        "a-block-scalar-is-declined-when-it-would-not-be-exact",
         "yaml-indentation-block-scalars-and-quoting",
         "yaml-scalars-survive-a-same-format-round-trip"
       ]
