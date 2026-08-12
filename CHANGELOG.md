@@ -141,6 +141,27 @@ independently.
 
 ### Changed
 
+- **`PortableIni1` now says which parsers it is interoperable with, and the answer for 3.0 is none,
+  resolving [#67](https://github.com/stop-cran/namespace2xml/issues/67)'s specification half.** §19.6
+  required that "conformance tests must cover the representative parsers named by the
+  implementation's compatibility documentation" without saying what an implementation that names
+  none has claimed. A silent list is the worst of the options: a reader takes it for "the usual
+  parsers" and picks `QuoteValues` on an assumption nobody made.
+
+  §19.6 now says that naming none is permitted and complete — it states that the dialect is verified
+  against this specification and against no external reader — but that the documentation has to say
+  so explicitly, because an absent list and an empty one are not the same claim. `docs/format-ini.md`
+  and `KNOWN-LIMITS.md` §2.1 make that statement for this release.
+
+  Deciding it that way was not a formality. Running the conformance corpus through Python's
+  `configparser` — the first parser anyone would name — rejects **8 of 13** `.ini` files with
+  `MissingSectionHeaderError`, because §19.6 emits a one-part scalar path as a global key in a
+  preamble ahead of every section header and `configparser` has no default section. The
+  incompatibility is in the projection rule rather than in either dialect switch, so neither of the
+  flags the documentation already warns about would avoid it. Filed as
+  [#88](https://github.com/stop-cran/namespace2xml/issues/88) with four candidate remedies; #67 stays
+  open for the parser list and the harness that would enforce it. Acceptance item 28 stays `pending`.
+
 - **A directive bound beneath a reshaped node now follows its value, closing
   [#49](https://github.com/stop-cran/namespace2xml/issues/49).** Step 16 is a sequence of passes, and
   three of them move values: `type=array` discards mapping keys in favour of ordering values,

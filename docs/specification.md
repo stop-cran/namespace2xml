@@ -2528,7 +2528,7 @@ With `root=x.y`, former global keys are emitted inside section `[x:y]`; `root` p
 
 When the selected output root is a bare scalar, INI retains the final concrete selector part as a global key. `root` places that key in a section without altering it, under the rule above that `root` parts are section-path parts rather than part of the key text: with `root=x.y` the key remains `k` and moves into `[x:y]`.
 
-This dialect is named `PortableIni1`. Consumers must opt into `QuoteValues` or `EscapeMultiline` only when their parser recognizes those escapes. Conformance tests must cover the representative parsers named by the implementation's compatibility documentation.
+This dialect is named `PortableIni1`. Consumers must opt into `QuoteValues` or `EscapeMultiline` only when their parser recognizes those escapes. An implementation's compatibility documentation names the parsers it holds itself interoperable with, and conformance tests must cover every parser it names. Naming none is a permitted and complete answer: it states that the dialect is verified against this specification and against no external reader. The documentation must say so explicitly rather than leaving the list absent, because an absent list and an empty one are not the same claim — a reader who takes silence for "the usual parsers" will choose options on an assumption the implementation never made.
 
 ## 20. Comments across formats
 

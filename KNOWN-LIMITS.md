@@ -771,30 +771,39 @@ did not determine. Appendix B now states the member set each *condition* supplie
 have since been authored — `merge-error-rejects-a-second-source-contribution` for §16.10
 `merge=error`, and `WILDCARD002` across the four wildcard-bound cases.
 
-### 2.1 The INI dialect is not tested against any third-party parser
+### 2.1 The INI dialect names no third-party parser, and is verified against none
 
 Acceptance item 28 asks for "the documented INI dialect against representative parsers", and
-Section 19.6 names the dialect `PortableIni1` and requires that "conformance tests must cover the
-representative parsers named by the implementation's compatibility documentation."
+Section 19.6 names the dialect `PortableIni1`. It also now says what an implementation owes the
+question: the compatibility documentation "names the parsers it holds itself interoperable with,
+and conformance tests must cover every parser it names", and "naming none is a permitted and
+complete answer".
 
-Neither half exists. No document in this repository names a representative parser, and nothing in
-the corpus or the test suite feeds an emitted `.ini` file to one. `IniSerializerTests` and the
-`.ini`-producing fixtures compare the serializer's own bytes against expected bytes, which
-establishes that the output is stable and matches the specification's description of the dialect —
-but not that any real parser reads it back as the same key-value model. Those are different
-claims, and only the second is what item 28 asks for.
+**3.0 names none, deliberately, and this entry is that statement.** `PortableIni1` is verified
+against the specification and against no external reader. `IniSerializerTests` and the
+`.ini`-producing fixtures compare the serializer's own bytes against expected bytes authored from
+Section 19.6, which establishes that the output is stable and matches the specification's
+description of the dialect — not that any real parser reads it back as the same key-value model.
+Those are different claims, and only the second is what item 28 asks for.
 
-This cannot be closed by a fixture. The corpus compares files; establishing round-trip fidelity
-needs harness machinery that invokes an external parser, and a decision about which parsers are
-normative — plausibly Python's `configparser`, `ini4j`, and whatever the Windows profile API
-accepts, each under both `QuoteValues` settings and both `EscapeMultiline` settings, since those
-options are exactly where dialects disagree. Choosing that list is a specification question, not
-an implementation one, and §19.6 makes it normative by referring to it, so it has to be written
-down before any harness is built. Tracked as
-[#67](https://github.com/stop-cran/namespace2xml/issues/67).
+Naming a parser is not paperwork. Feeding the corpus's `.ini` files to Python's `configparser`
+rejects **8 of 13** with `MissingSectionHeaderError`, because Section 19.6 emits a scalar path of one
+part as a global key in a preamble before the first section header and `configparser` has no default
+section. The first parser anyone would name is therefore one this dialect is not compatible with, in
+its most ordinary case, and the incompatibility is in the projection rule rather than in either
+dialect switch — so neither `QuoteValues` nor `EscapeMultiline` avoids it. Tracked as
+[#88](https://github.com/stop-cran/namespace2xml/issues/88).
+
+Building the lane also needs a decision about which parsers are normative — plausibly
+`configparser`, `ini4j`, and whatever the Windows profile API accepts, each under both
+`QuoteValues` settings and both `EscapeMultiline` settings, since those options are where dialects
+disagree elsewhere. That list is a compatibility policy this release does not state, and
+Section 19.6 makes it normative by referring to it, so it has to be written down before any harness
+is built. Tracked as [#67](https://github.com/stop-cran/namespace2xml/issues/67).
 
 Until then, treat `PortableIni1` output as specified-and-self-consistent rather than as verified
-interoperable. Item 28 stays `pending` and is the largest single gap in the corpus.
+interoperable, and read `docs/format-ini.md` before pointing it at a specific consumer. Item 28
+stays `pending` and is the largest single gap in the corpus.
 
 ## 3. Platform and environment
 

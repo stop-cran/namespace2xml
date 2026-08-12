@@ -373,22 +373,29 @@ delimiter, review your paths for delimiter occurrences inside part names.
 The `PortableIni1` dialect is specified in §19.6, self-consistent, and produces byte-identical
 output for identical input on every supported platform. That is what this project verifies.
 
-It is **not** verified against any third-party INI parser. `KNOWN-LIMITS.md` §2.1 records this
-as acceptance item 28 — the largest single gap in the conformance corpus. §19.6 requires that
-"conformance tests must cover the representative parsers named by the implementation's
-compatibility documentation," and neither half of that requirement is met: no document in the
-repository names representative parsers, and nothing in the corpus feeds an emitted `.ini` file
-to one. Both halves are open specification questions rather than implementation debt, because
-which parsers are normative — plausibly Python's `configparser`, `ini4j`, and the Windows profile
-API, each under both `QuoteValues` and `EscapeMultiline` — is a compatibility policy this preview
-has not yet stated.
+It is **not** verified against any third-party INI parser, and §19.6 asks an implementation to say
+so rather than to leave the question open: the compatibility documentation "names the parsers it
+holds itself interoperable with, and conformance tests must cover every parser it names", and
+"naming none is a permitted and complete answer". **This document is that answer for 3.0, and it
+names none.**
+
+That is a stated position, not an oversight, and there is a measurement behind it. Feeding the
+conformance corpus's `.ini` files to Python's `configparser` rejects 8 of 13 with
+`MissingSectionHeaderError`. The cause is not either dialect switch: §19.6 projects a scalar path of
+one part as a **global key**, emitted in a preamble before the first section header, and
+`configparser` has no default section to put those keys in. So the most obvious parser to name is
+one this dialect does not currently interoperate with, in its most ordinary case. That finding is
+filed as [#88](https://github.com/stop-cran/namespace2xml/issues/88); the missing parser list and
+the harness that would enforce it are [#67](https://github.com/stop-cran/namespace2xml/issues/67).
+`KNOWN-LIMITS.md` §2.1 carries both.
 
 If you are aiming this tool at a specific INI consumer, treat `PortableIni1` as
-**specified-and-self-consistent, not verified-interoperable**. In particular, the two dialect
-switches — `QuoteValues` and `EscapeMultiline` — are exactly where INI parsers disagree, and the
-`EscapeMultiline` backslash-doubling rule described above is the single most likely thing to
-surprise a parser that does not know it. Read the KNOWN-LIMITS entry linked here in full before
-picking flags.
+**specified-and-self-consistent, not verified-interoperable**, and check two things by hand before
+you rely on it. First, whether your parser accepts keys before the first section header — give every
+output path at least two parts if it does not. Second, the two dialect switches, `QuoteValues` and
+`EscapeMultiline`, which are where INI parsers disagree elsewhere; the `EscapeMultiline`
+backslash-doubling rule described above is the single most likely thing to surprise a parser that
+does not know it. Read the KNOWN-LIMITS entry linked here in full before picking flags.
 
 ## Traps
 
