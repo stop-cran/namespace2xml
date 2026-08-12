@@ -2419,6 +2419,54 @@ JSON output:
 
 At an overlay containing both payload and container contributions, Section 4.4 selects exactly one JSON shape and warns about the omitted shape.
 
+#### JSON output bytes
+
+Section 24 requires two conforming implementations to produce identical bytes, so the escaping and
+layout below are normative rather than a description of one writer's habits. `Indent` and `Compact`
+are Section 16.9 flags and `EscapeNonAscii` is stated there.
+
+Within a string — both mapping keys and string scalars — exactly these characters are escaped:
+
+| Source | Emitted |
+|---|---|
+| `"` U+0022 | `\"` |
+| `\` U+005C | `\\` |
+| U+0008 | `\b` |
+| U+0009 | `\t` |
+| U+000A | `\n` |
+| U+000C | `\f` |
+| U+000D | `\r` |
+| any other U+0000–U+001F | `\u00XX`, uppercase hexadecimal |
+
+No other character is escaped. In particular `/` is emitted as itself rather than as `\/`; `<`, `>`,
+and `&` are emitted as themselves, because JSON is not consumed as HTML and escaping them would make
+the output depend on a downstream context the tool cannot see; and U+007F, U+0085, U+00A0, U+2028,
+and U+2029 are emitted as literal UTF-8. RFC 8259 requires none of these, and a writer that escapes
+more still produces valid JSON — which is exactly why the set has to be fixed here rather than left
+to the writer. `EscapeNonAscii` and the unpaired-surrogate rule of Section 16.9 are the only
+additions to this set, and the only place uppercase `\uXXXX` applies above U+007F.
+
+Under `Indent`:
+
+- a nonempty mapping is `{`, then for each member a line break, that member's indentation, its key
+  as a string, `:`, one space, and its value, with `,` closing every member but the last; then a
+  line break, the mapping's own indentation, and `}`;
+- a nonempty sequence uses the same shape with `[`, `]`, and no keys, so each item is alone on its
+  line;
+- indentation is two ASCII spaces per nesting level, and the document node is at level zero;
+- an empty mapping is exactly `{}` and an empty sequence exactly `[]`, with no space or line break
+  between the brackets, at any depth.
+
+Under `Compact` no insignificant character appears at all: no line breaks, no indentation, and no
+space after `:` or `,`.
+
+Under both, the document is followed by exactly one LF, as Section 24 requires of every text output.
+
+Section 6.4.3 fixes the diagnostic stream's bytes separately and does not agree with this section in
+every detail — it uses lowercase `\u00xx`, and writes one compact object per line rather than either
+layout here. That is two encodings for two purposes, not one rule stated twice, and neither may be
+inferred from the other.
+
 A mapping key carries the Section 11.4 markers, so an attribute component `x` is the key `@x`, a content component is `#0`, and a qualified element is `Q{uri}local` — the same spellings Section 9.1 reads back. An ordinary component whose own literal text begins with `@`, `#`, `\`, or `Q{` is written with a leading `\`, so that it too reads back as itself. This makes a JSON document this tool writes readable by it, and lets a JSON input name any component an XML input can carry.
 
 Distinct logical paths must never both emit a member of one mapping under the same key. Escaping removes the ordinary case, so a collision now requires two components that are distinct in the model and spell one key regardless — but emitting both would produce a duplicate-key document that Section 9.3 forbids and that this specification's own reader rejects, so a mapping-key collision after projection is blocking `FLAT001`. A later contribution to the *same* logical path is an override under Section 4.4 and is never a collision; both colliding paths remain separately addressable, so an input may override either one to resolve the conflict.
@@ -2460,6 +2508,53 @@ XML output:
 - uses UTF-8;
 - includes an XML declaration under the default `Declaration` option and omits it under `NoDeclaration`;
 - uses normalized indentation outside mixed content by default.
+
+#### XML output bytes
+
+Section 11.8 places prefix choice, declaration placement, empty-element spelling and attribute quote
+style outside the *preservation* contract: this tool does not promise to reproduce the spellings an
+input used. That is not permission to emit whatever a given XML library emits. Section 24 requires
+two conforming implementations to agree byte for byte, so what is emitted is fixed here even though
+what was read is not reproduced.
+
+The declaration, under the default `Declaration` option, is exactly:
+
+```text
+<?xml version="1.0" encoding="utf-8"?>
+```
+
+followed by one LF. Attribute values are delimited by `"` U+0022.
+
+In element text content, exactly `&` U+0026, `<` U+003C, `>` U+003E and CR U+000D are escaped, as
+`&amp;`, `&lt;`, `&gt;` and `&#xD;`. TAB and LF are emitted literally, and `"` and `'` are emitted
+literally because neither can end text content.
+
+In an attribute value, exactly `&`, `<`, `>`, `"`, TAB U+0009, LF U+000A and CR U+000D are escaped,
+as `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#x9;`, `&#xA;` and `&#xD;`. `'` is emitted literally because
+`"` is the delimiter.
+
+CR is escaped in both positions rather than written literally because XML 1.0 line-end normalization
+requires every parser to turn a literal CR into LF, so `&#xD;` is the only spelling that survives a
+round trip. Section 3.3 requires that it does.
+
+An element with no content is emitted as `<name />`, with one space before the slash. An element
+whose content is the empty string is emitted as `<name></name>`. The distinction is meaningful and
+is preserved: the first has no payload and the second has a payload that is the empty string.
+
+A CDATA section whose content contains `]]>` is split so that `]]` ends one section and `>` begins
+the next, which is the only split that does not change the content:
+
+```xml
+<cd><![CDATA[x]]]]><![CDATA[>y]]></cd>
+```
+
+An element whose expanded name carries a namespace URI is emitted with no prefix, and the URI is
+declared as the default namespace on that element unless the default namespace already in scope is
+that URI. An unprefixed attribute is in no namespace, so an attribute whose expanded name carries a
+URI cannot use that declaration and takes a generated prefix instead. The generated prefixes are
+`n1`, `n2`, and so on, numbered in the order their namespaces are first needed in document order,
+and every one of them is declared on the document element. Leaving the name to the writer is what
+makes an XML library's private counter observable in the output of a specified tool.
 
 #### XML sequence projection
 

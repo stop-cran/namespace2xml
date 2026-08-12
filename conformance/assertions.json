@@ -279,10 +279,12 @@
         "xml-cdata-survives-a-round-trip",
         "xml-comments-are-ordered-content-nodes",
         "xml-element-only-children-keep-their-place",
+        "xml-generated-attribute-namespace-prefixes",
         "xml-input-options-are-root-level-only",
         "xml-mixedness-spans-contributions",
         "xml-node-types-select-the-spelling",
         "xml-normalize-formatting-whitespace",
+        "xml-output-escapes-carriage-return",
         "xml-singleton-promotion-spans-contributions",
         "xml-whitespace-is-preserved-by-default"
       ]

@@ -45,6 +45,33 @@ independently.
 
 ### Fixed
 
+- **A carriage return in XML element text was silently rewritten as a line feed.** `XmlWriter`'s
+  default `NewLineHandling.Replace` rewrites a CR inside text content to the configured newline, so
+  `{"k":"a\rb"}` rendered to XML and read back returned `a\nb` — a changed character, no diagnostic,
+  exit 0. The attribute path was already correct, emitting `&#xD;`, so the same run disagreed with
+  itself depending on where the value landed.
+
+  A literal CR could not have been written either: XML 1.0 line-end normalization makes every
+  parser turn one into LF, so `&#xD;` is the only spelling that survives. The writer now uses
+  `NewLineHandling.Entitize`.
+
+  §3.3 requires a round trip to preserve content, and §19.5 now states the escape sets for both
+  positions. Nothing caught this because no fixture carried a CR into an XML output at all;
+  `conformance/xml-output-escapes-carriage-return` closes that, and was proven red against the
+  restored defect.
+
+- **A namespaced XML attribute took a prefix invented by `XmlWriter`.** An unprefixed attribute is
+  in no namespace rather than in the default one, so an attribute carrying a URI must have a
+  prefix. The writer's own scope counter supplied one — `p2` in the observed case. That is
+  deterministic for this library and unguessable for any other implementation of the same
+  specification, which is precisely what §24's byte-identity promise rules out now that it is read
+  between implementations rather than within one.
+
+  Generated prefixes are now `n1`, `n2`, … numbered in order of first need in document order and
+  declared on the document element, as §19.5 states.
+  `conformance/xml-generated-attribute-namespace-prefixes` pins it, including the reuse of an
+  earlier prefix on a later element, and was proven red against the restored defect.
+
 - **`WILDCARD001` named a wildcard rule in the `path` member, which §22 reserves for something
   else.** §22 gives `path` to a condition that "concerns one overlay node or one projected output
   key", and defines a separate `rule` member for "an array of Appendix A canonical wildcard-rule
@@ -140,6 +167,29 @@ independently.
   genuinely owned by a masked entry, which does not.
 
 ### Changed
+
+- **JSON and XML output bytes are now fixed by the specification rather than by whichever library
+  writes them.** §24 promises that two conforming implementations produce identical bytes. Reading
+  that between implementations rather than within one — which is the reading that makes it a
+  contract and not a regression test — exposes a class of decisions the document had never made:
+  which characters are escaped, which spelling an escape takes, where a line break falls, and what
+  an empty container looks like. Each was left to the writer, and every writer answers differently
+  while remaining valid JSON or valid XML.
+
+  §19.3 gains "JSON output bytes": the exact escape set (`"`, `\`, and the C0 controls, with the
+  five short forms and uppercase `\u00XX` for the rest), an explicit statement that `/`, `<`, `>`,
+  `&`, U+007F, U+2028 and U+2029 are *not* escaped, the `Indent` and `Compact` layouts down to the
+  space after `:`, and `{}` / `[]` for empty containers at any depth. It also records that §6.4.3
+  fixes the diagnostic stream separately and differs — lowercase `\u00xx`, one compact object per
+  line — so that neither is inferred from the other.
+
+  §19.5 gains "XML output bytes": the declaration text, `"` as the attribute delimiter, the escape
+  set for text content and for attribute values separately, `<name />` versus `<name></name>` and
+  why that distinction is meaningful, the `]]>` split point, and namespace prefix selection.
+
+  §11.8 is unchanged and still lists prefix choice, declaration placement, empty-element spelling
+  and attribute quote style as outside the contract — but that section is about *preservation*, and
+  it was being read as permission to emit anything. §19.5 now says so directly.
 
 - **Four more specification corrections from the same review round.** Each was a place where two
   clauses answered the same question differently, or a cross-reference named a section that does

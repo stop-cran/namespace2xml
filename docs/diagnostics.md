@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r61+a45925321874`.** 35 codes.
+**Contract bundle `r62+fcdf38f5c0a9`.** 35 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages

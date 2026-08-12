@@ -93,6 +93,45 @@ public sealed class XmlSerializer
         return document;
     }
 
+    /// <summary>
+    /// Section 19.5: declares a generated prefix for every namespace an attribute needs, named
+    /// <c>n1</c>, <c>n2</c>, … in order of first need in document order.
+    /// </summary>
+    /// <remarks>
+    /// An unprefixed attribute is in no namespace, so a namespaced attribute cannot borrow the
+    /// default declaration an element uses and must have a prefix. Left alone, <see cref="XmlWriter"/>
+    /// invents one from its own scope counter, which produced names like <c>p2</c> — deterministic
+    /// for this writer, and unguessable for any other implementation of the same specification.
+    /// Section 24 asks two conforming implementations to agree byte for byte, so the name has to
+    /// come from the specification rather than from the library.
+    /// </remarks>
+    private static XElement Prefixed(XElement document)
+    {
+        var assigned = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var element in document.DescendantsAndSelf())
+        {
+            foreach (var attribute in element.Attributes())
+            {
+                var uri = attribute.Name.NamespaceName;
+
+                if (uri.Length == 0 || attribute.IsNamespaceDeclaration || assigned.ContainsKey(uri))
+                {
+                    continue;
+                }
+
+                assigned.Add(uri, $"n{assigned.Count + 1}");
+            }
+        }
+
+        foreach (var (uri, prefix) in assigned)
+        {
+            document.Add(new XAttribute(XNamespace.Xmlns + prefix, uri));
+        }
+
+        return document;
+    }
+
     private bool TryRender(XmlDocumentProjection document, out byte[] bytes)
     {
         var settings = new XmlWriterSettings
@@ -101,6 +140,11 @@ public sealed class XmlSerializer
             Indent = options.Indents(),
             IndentChars = "  ",
             NewLineChars = "\n",
+            // Section 3.3 requires a round trip to preserve content. XmlWriter's default
+            // NewLineHandling.Replace rewrites a CR inside text content to NewLineChars, and a
+            // literal CR would be lost anyway: XML 1.0 section 2.11 makes every parser normalize
+            // one to LF. Entitize writes '&#xD;', which is the only spelling that survives.
+            NewLineHandling = NewLineHandling.Entitize,
             NewLineOnAttributes = options.BreaksAttributeLines(),
             OmitXmlDeclaration = !options.WritesDeclaration(),
             CloseOutput = false,
@@ -124,7 +168,7 @@ public sealed class XmlSerializer
                     comment.WriteTo(xml);
                 }
 
-                Marked(document.Element).WriteTo(xml);
+                Prefixed(Marked(document.Element)).WriteTo(xml);
 
                 foreach (var comment in document.Trailing)
                 {

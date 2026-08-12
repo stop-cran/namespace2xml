@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cfg xmlns:n1="http://ex/a" xmlns:n2="http://ex/b">
+  <e n1:p="1" plain="2">
+    <k>v</k>
+  </e>
+  <e2 n2:q="3" n1:p="4" />
+</cfg>
