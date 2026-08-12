@@ -106,7 +106,36 @@ independently.
 
 ### Changed
 
-### Changed
+- **`root` wraps a bare scalar's retained key instead of replacing it, closing
+  [#54](https://github.com/stop-cran/namespace2xml/issues/54).** A flat format has to invent a key
+  for an output whose selected view is a bare scalar, and §§19.1, 19.2 and 19.6 each say it retains
+  the final concrete selector part. What `root` then did to that key was stated three different
+  ways: namespace and quoted namespace said it "may rename or wrap" it, INI said it "may place it in
+  a section", and §16.3 said the selector name is not retained unless it appears in the `root` value.
+  The build followed the third, so `k=1` with `k.root=s` emitted `s=1` and the key the format had
+  just gone to the trouble of retaining was destroyed by the very directive that was supposed to
+  wrap it.
+
+  §16.3 now says plainly that "`root` wraps; it never renames", and the three format clauses agree
+  with it. The sentence about the selector name was always about the *selector prefix*, which is a
+  position in the model rather than content; once a flat format has supplied a key, that key is
+  content, and every format bullet in §16.3 already described `root` as prefixing or wrapping
+  content. "Rename" was the one word out of step, and it is gone.
+
+  This changes output. With `k=1`:
+
+  | scheme | before | now |
+  |---|---|---|
+  | `k.output=ini`, `k.root=s` | `s=1` | `[s]` then `k=1` |
+  | `k.output=ini`, `k.root=x.y` | `[x]` then `y=1` | `[x:y]` then `k=1` |
+  | `k.output=namespace`, `k.root=x.y` | `x.y=1` | `x.y.k=1` |
+  | `k.output=quotednamespace`, `k.root=APP` | `APP='1'` | `APP_k='1'` |
+
+  The INI rows were already contrary to a sentence §19.6 has always carried — that `root` parts are
+  section-path parts "rather than part of the key text" — since `y` was a root part serving as key
+  text. The shell row is the one to look at for whether the new reading is the useful one: a bare
+  scalar at `db.password` with `root=APP` now exports `APP_password`, where before the name of the
+  value was thrown away. `conformance/root-wraps-a-bare-scalars-retained-key` pins all five formats.
 
 - **§10.1 now says a merge key is an error, closing [#41](https://github.com/stop-cran/namespace2xml/issues/41).**
   §10.1's `RestrictedYaml1` list used the word "errors" for duplicate keys and for complex keys, but

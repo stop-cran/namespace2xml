@@ -719,25 +719,25 @@ declaration placement and mixed content back from `XmlWriter` — a much larger 
 being wrong in ways nothing else in the contract would catch. Where a clause has teeth, the code
 moves instead.
 
-### 1.19 `root` on a bare-scalar INI output root has two readings
+### 1.19 *(resolved)* `root` on a bare-scalar flat output root had two readings
 
-§16.3 says the output selector prefix is removed and "the original selector name is not retained
-unless it is also present in the `root` value". §19.6 says that when the selected output root is a
-bare scalar, "INI retains the final concrete selector part as a global key" and that "`root` may
-place it in a section", with root parts being "section-path parts rather than part of the key text".
+Resolved by [#54 (closed)](https://github.com/stop-cran/namespace2xml/issues/54). §16.3 now states
+that "`root` wraps; it never renames", and each of §19.1, §19.2 and §19.6 says that `root` prefixes
+the key a flat format retains for a bare scalar rather than replacing it. For `k=1` with
+`k.output=ini` and `k.root=s` the file is `[s]` then `k=1`.
 
-For `k=1` with `k.output=ini` and `k.root=s`, the first clause gives `s=1` and the second gives
-`[s]` with `k=1`. This build emits `s=1`. **verified**
+The question was framed as INI-only and was not. All three flat formats had it, and the two
+namespace clauses were the reason: they offered a rename and a wrap as alternatives, which is
+two answers offered as one. Every format bullet in §16.3 already describes `root` with a wrapping
+verb — prefixes, wraps, emits `{"x":{"y":...}}` — so "rename" was the single word out of step, and
+removing it settles all three formats at once instead of making INI an exception.
 
-It honours §19.6's retention only while `root` is absent — `k=1` alone emits `k=1` — and switches to
-§16.3's replacement as soon as `root` appears, which also makes the bare-scalar case behave
-differently from the ordinary one directly beside it: `a.k=1` with `a.root=x.y` emits `[x:y]` and
-`k=1`, keeping the key and treating root as a section path.
+The reading is also the one that survives contact with use. A shell consumer selecting a bare scalar
+at `db.password` with `root=APP` now gets `APP_password='secret'`; under the replacing reading it got
+`APP='secret'`, discarding the only name the value had.
 
-The one fixture that combines INI with `root`, `ini-projection-and-section-order`, pins only the
-ordinary case, so nothing currently pins this one. Tracked as
-[#54](https://github.com/stop-cran/namespace2xml/issues/54); `docs/format-ini.md` documents the
-question rather than either answer.
+`conformance/root-wraps-a-bare-scalars-retained-key` pins it across namespace, quoted namespace, INI,
+JSON and YAML, beside `root-wraps-uniformly-across-formats` for the container case.
 
 ### 1.20 `WARN009` binds by existence, where §22 said effectiveness
 

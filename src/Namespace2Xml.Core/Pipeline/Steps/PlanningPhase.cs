@@ -14,9 +14,10 @@ namespace Namespace2Xml.Pipeline.Steps;
 /// <param name="FormatOrdinal">Its position within one comma-separated <c>output</c> value.</param>
 /// <param name="View">The Section 14.1 selected view, with the selector prefix already removed.</param>
 /// <param name="Root">
-/// The Section 16.3 root parts to prefix, empty when none apply. A bare scalar view under a
-/// non-root selector carries the final selector part here, which is Section 19.1's "retains the
-/// final concrete selector part as the emitted key".
+/// The Section 16.3 root parts to prefix, empty when none apply. A bare scalar view in a flat
+/// format carries the final selector part here, which is Section 19.1's "retains the final
+/// concrete selector part as the emitted key". A configured <c>root</c> precedes that part rather
+/// than displacing it, because Section 16.3 says <c>root</c> wraps and never renames.
 /// </param>
 public sealed record OutputView(
     OutputInstance Instance,
@@ -1476,33 +1477,37 @@ public static class PlanningPhase
         DiagnosticBuffer diagnostics,
         out ImmutableArray<NamePart> root)
     {
+        // Sections 19.1, 19.2, and 19.6 retain the final concrete selector part as the key a flat
+        // format needs for a bare scalar. Section 19.5 grants XML no such fallback, so an XML
+        // document element must come from `root`.
+        ImmutableArray<NamePart> retained = [];
+
+        if (selected.Payload is not null
+            && format.TryAsFlat(out _)
+            && instance.Selector.Name is { } name)
+        {
+            retained = [name.Parts[^1]];
+        }
+
+        // Section 16.3: "`root` wraps; it never renames." The retained part is content by the time
+        // `root` applies, so a configured root prefixes it rather than replacing it.
         if (instance.Root is { } configured)
         {
-            root = configured.Parts;
+            root = configured.Parts.AddRange(retained);
             return true;
         }
 
         // Section 14.1: "JSON and YAML may emit a scalar document". Only those two are granted a
         // scalar document, so only they need no name for it.
-        if (selected.Payload is null)
+        if (selected.Payload is null || format is OutputFormat.Json or OutputFormat.Yaml)
         {
             root = [];
             return true;
         }
 
-        if (format is OutputFormat.Json or OutputFormat.Yaml)
+        if (!retained.IsEmpty)
         {
-            root = [];
-            return true;
-        }
-
-        // Section 19.1 and 19.2: "When the selected output root is a bare scalar, namespace output
-        // retains the final concrete selector part as the emitted key." Section 19.5 grants XML no
-        // such fallback, and Section 16.3 says "the original selector name is not retained unless it
-        // is also present in the 'root' value", so an XML document element must come from `root`.
-        if (format.TryAsFlat(out _) && instance.Selector.Name is { } name)
-        {
-            root = [name.Parts[^1]];
+            root = retained;
             return true;
         }
 

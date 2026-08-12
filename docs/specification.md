@@ -1739,6 +1739,8 @@ For `root=x.y`:
 - XML emits `<x><y>...</y></x>`;
 - INI prefixes the section/key path with `x` and `y`.
 
+`root` wraps; it never renames. The sentence above is about the *selector prefix*, which names a position in the model rather than content: once it is removed, `root` prefixes whatever content keys remain, and every case in the list above is a wrapping. Where a flat format supplies a key for a bare scalar under Sections 19.1, 19.2, and 19.6, that key is content by the time `root` applies, so `root` prefixes it as well rather than replacing it. With selector `k`, a bare scalar payload, and `root=x.y`, namespace emits `x.y.k`, quoted namespace emits the same parts joined by its delimiter, and INI emits key `k` inside section `[x:y]`.
+
 `\.` represents a literal dot inside one root name part.
 
 Wildcard captures may be substituted into root name parts, per output instance, under the Section 12.1 rule that governs every scheme directive value. `jobs.*.root=*` therefore wraps each concrete instance's content in an element named after that instance's own capture. A capture matches within one qualified-name part, so substituted text cannot introduce a further nesting level.
@@ -2361,7 +2363,7 @@ Typed values use canonical locale-independent text:
 
 XML node kinds such as ordinary text versus CDATA are not represented in ordinary namespace values, but XML addresses are emitted using the canonical typed components above. An extended namespace mode may preserve additional node-kind metadata in the future.
 
-When the selected output root is a bare scalar, namespace output retains the final concrete selector part as the emitted key. `root` may rename or wrap it.
+When the selected output root is a bare scalar, namespace output retains the final concrete selector part as the emitted key. `root` prefixes that key rather than replacing it, as in Section 16.3.
 
 ### 19.2 Quoted namespace
 
@@ -2388,7 +2390,7 @@ NUL is not representable and is an error.
 
 A null payload emits the text `null`, as in Section 19.1. Quoted namespace is namespace output under shell quoting rather than a different value model, so a consumer reading `NAME='null'` learns what a namespace consumer reading `name=null` learns. Emitting an empty assignment instead would make null indistinguishable from the empty string, which is a different payload.
 
-When the selected output root is a bare scalar, quoted namespace retains the final concrete selector part as the assignment name. `root` may rename or wrap it.
+When the selected output root is a bare scalar, quoted namespace retains the final concrete selector part as the assignment name. `root` prefixes that name rather than replacing it, as in Section 16.3, and the parts are joined by the delimiter.
 
 ### 19.3 JSON
 
@@ -2520,7 +2522,7 @@ A section is a projection of a path prefix and not a node, so mapping order does
 
 With `root=x.y`, former global keys are emitted inside section `[x:y]`; `root` parts are section-path parts rather than part of the key text.
 
-When the selected output root is a bare scalar, INI retains the final concrete selector part as a global key. `root` may place it in a section.
+When the selected output root is a bare scalar, INI retains the final concrete selector part as a global key. `root` places that key in a section without altering it, under the rule above that `root` parts are section-path parts rather than part of the key text: with `root=x.y` the key remains `k` and moves into `[x:y]`.
 
 This dialect is named `PortableIni1`. Consumers must opt into `QuoteValues` or `EscapeMultiline` only when their parser recognizes those escapes. Conformance tests must cover the representative parsers named by the implementation's compatibility documentation.
 

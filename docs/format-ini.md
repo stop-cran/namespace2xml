@@ -210,9 +210,20 @@ directive (§16.5) to project the sequence into a mapping of records first.
 
 For an output whose root is a bare scalar — `k=1` with scheme `k.output=ini` — the specification
 says INI "retains the final concrete selector part as a global key" (§19.6), so the file is
-`k=1`. Verified. What happens when `root` is added on top of that (`k.root=s`) is a **specification
-ambiguity** — see the open questions at the end, `KNOWN-LIMITS.md` §1.19, and
-[#54](https://github.com/stop-cran/namespace2xml/issues/54). Do not rely on either reading.
+`k=1`. Verified.
+
+Adding `root` on top of that keeps the key and moves it into a section, because §19.6 makes `root`
+parts section-path parts rather than part of the key text and §16.3 says `root` "wraps; it never
+renames". So `k.root=s` emits:
+
+```ini
+[s]
+k=1
+```
+
+and `k.root=x.y` emits `[x:y]` with the same `k=1`. The key is never spent on a root part. This was
+[#54](https://github.com/stop-cran/namespace2xml/issues/54), resolved in favour of §19.6; earlier
+previews emitted `s=1` and `[x]` / `y=1`.
 
 ## Values
 
@@ -409,16 +420,9 @@ picking flags.
 
 ## Open questions
 
-Two things the specification does not settle that a reader might reasonably ask:
+One thing the specification does not settle that a reader might reasonably ask:
 
-1. **Bare-scalar root under `root`.** §19.6 says INI "retains the final concrete selector part as
-   a global key" when the output root is a bare scalar, and adds that "`root` may place it in a
-   section." Read naturally, `k=1` with `k.output=ini` + `k.root=s` should emit `[s]` / `k=1`;
-   read against §16.3, it should emit `s=1`. The tool emits `s=1`. Which reading is normative is
-   not decidable from §19.6 alone. Do not rely on either behaviour for a bare-scalar root
-   combined with `root`. Filed as
-   [#54](https://github.com/stop-cran/namespace2xml/issues/54).
-2. **Sequences in INI beyond dense global keys.** §8.7 requires INI to "display fresh dense
+1. **Sequences in INI beyond dense global keys.** §8.7 requires INI to "display fresh dense
    indices where its projection requires indices" but §19.6 does not describe sequence
    projection specifically. The current writer treats a numeric mapping key inside a container
    as a section name and a numeric mapping key at the root as a global key, both densified. That
@@ -426,4 +430,9 @@ Two things the specification does not settle that a reader might reasonably ask:
    so, and a consumer that relies on it should test the emitted file against its own INI reader
    before shipping.
 
-Both are candidate specification amendments, not implementation defects.
+That is a candidate specification amendment, not an implementation defect.
+
+A second question stood here until [#54](https://github.com/stop-cran/namespace2xml/issues/54) was
+resolved: whether `root` over a bare-scalar output root replaced the retained key or wrapped it.
+§16.3 now says `root` "wraps; it never renames", and the section on bare-scalar output roots above
+gives the resulting files.

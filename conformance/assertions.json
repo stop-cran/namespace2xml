@@ -355,8 +355,13 @@
       "text": "Uniform `root`.",
       "milestone": "unassigned",
       "status": "pending",
-      "assertions": [],
+      "assertions": [
+        "`root` wraps and never renames. The key a flat format retains for a bare scalar is content by the time `root` applies, so `root=x.y` over a bare scalar selected at `lone` emits `x.y.lone` in namespace output rather than replacing the retained key with the root parts.",
+        "The one rule renders three ways in the flat formats without changing what it means: `x_y_lone` under the quoted-namespace delimiter, and key `lone` inside section `[x:y]` in INI, where Section 19.6 makes root parts section-path parts rather than key text.",
+        "JSON and YAML wrap the same bare scalar with no synthesized key, so the retained key is the flat formats' contribution and not something `root` supplies."
+      ],
       "fixtures": [
+        "root-wraps-a-bare-scalars-retained-key",
         "root-wraps-uniformly-across-formats"
       ]
     },
@@ -891,10 +896,12 @@
         "The bare-scalar question is asked of the rendered view, not the step-15 one: a sequence that a step-16 transform joins into a scalar takes the final concrete selector part as its key, rather than failing with SERIALIZE001 for having no key at all.",
         "Namespace renders the joined LF as the two-character escape and quoted namespace renders it as a literal line break inside single quotes, which Sections 19.1 and 19.2 require separately.",
         "INI renders the bare scalar as a global key with no section header.",
+        "Only the final concrete selector part is retained: a bare scalar at `deep.inner.leaf` with `root=r` emits key `leaf` in section `[r]`, never `inner` or the whole selector path.",
         "NOT COVERED: XML. Section 14.1 gives JSON and YAML a scalar document with no synthesized key, which the structured writers now emit; the XML writer is still declined in this preview with exit 70, so this item cannot become required until it lands."
       ],
       "fixtures": [
         "a-transform-that-makes-a-bare-scalar-still-has-a-key",
+        "root-wraps-a-bare-scalars-retained-key",
         "structured-bare-scalar-and-empty-documents"
       ]
     },
