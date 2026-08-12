@@ -664,7 +664,7 @@ bound to no path, so §5.2 does not move it when the first entry is overridden a
 carry it into a generated record. A source whose first entry needs a comment of its own must be
 written with that entry second. `a-namespace-header-comment-outlives-its-first-entry` and
 `an-opening-comment-does-not-move-with-its-entry` pin both halves.
-Tracked as [#63](https://github.com/stop-cran/namespace2xml/issues/63).
+Tracked as [#63 (closed)](https://github.com/stop-cran/namespace2xml/issues/63).
 
 ### 1.17 An unpaired surrogate cannot reach an output, and `-v` loses one silently
 
