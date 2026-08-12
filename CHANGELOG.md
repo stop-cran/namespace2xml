@@ -45,6 +45,25 @@ independently.
 
 ### Fixed
 
+- **A source that formed no entry lost its comments, and XML lost them whenever the root was
+  implicit.** Two shapes reached the output as silence. Commenting out every line of a namespace
+  profile — the ordinary way a file is switched off — left a source whose comments trailed nothing,
+  and §8.5 read as though a comment always trails the entry before it, so the note explaining *why*
+  a setting was disabled disappeared along with the setting. Separately, an XML output with no
+  `root` promotes the view's one top-level member to the document element (§19.5), and no element
+  then remained for the view's own comments, which were dropped: exit `0`, empty diagnostic stream,
+  the comments gone. JSON, which genuinely cannot represent a comment, warns with `WARN003` in the
+  same situation; the format that *can* represent one said nothing.
+
+  §8.5 now states that a source forming no entry "has no contribution for a comment to trail, so its
+  whole run is the opening run and is document-leading", and the reader places it accordingly.
+  `XmlProjection` returns an `XmlDocumentProjection` carrying prolog and epilogue comments, which
+  `XmlSerializer` writes around the document element — a place XML defines and the tree does not
+  have. Reported as
+  **[#85](https://github.com/stop-cran/namespace2xml/issues/85)**. **Closes #85.** Pinned by
+  `a-commented-out-source-leads-the-document` and
+  `an-implicit-xml-root-carries-document-comments`.
+
 - **A comment that owned no entry was dropped by every flat output, and misplaced by XML.** §4.5
   gives document-leading and document-trailing comments "no value owner", and §20 places them
   anyway: they "precede that source's first surviving contribution" and "follow its final surviving

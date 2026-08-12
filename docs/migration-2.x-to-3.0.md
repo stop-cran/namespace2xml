@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r49+5fde10f899af`.**
+**Contract bundle `r50+8043f5d64243`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (131)
+## Observable differences (132)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -708,6 +708,32 @@ implemented, its case says so plainly rather than letting the heading imply othe
   the clause cited, before any destination is composed.
 - The difference is intentional: an author who wrote an empty directive made a mistake that is
   cheap to name and expensive to diagnose from its consequences.
+
+### `an-implicit-xml-root-carries-document-comments`
+
+- namespace2xml 2.4.0: **differs**. It writes `cfg.xml` as `<cfg only="1" />` and exits 0 — both
+  comments gone, the scalar projected as an attribute, and the selector name kept as the document
+  element. The case expects `<only>1</only>` bracketed by the two comments.
+- Contract: Section 19.5 one document element; Section 20 comment placement; Section 11.5.
+- Legacy observation: 2.4.0 discarded namespace-profile comments outright on the namespace-input
+  path, so no comment could reach an XML document however it was rooted. The attribute projection
+  and the retained selector name are separate divergences, stated here because they change the same
+  file.
+- Clean behavior: no `root` is declared and the selection has exactly one top-level member, so
+  Section 19.5's rule that XML "emits one document element" is satisfied by promoting `only` to it.
+  No element then stands for the view itself, and the comments Section 20 requires to "precede that
+  source's first surviving contribution" and to "follow its final surviving contribution" have
+  nowhere inside the tree to go. XML admits comments in the prolog and the epilogue, so that is
+  where they are written, and the result is a well-formed document that still says what the source
+  said.
+- The alternative an implementation reaches for is to drop them, which is what this case exists to
+  fail. Dropping is visible only by absence: the run exits 0 and reports nothing, so a person
+  converting a commented profile to XML learns that the comments are gone by reading the output.
+  JSON, which genuinely cannot represent a comment, warns with `WARN003`; a format that can
+  represent one has less excuse to be silent than the format that cannot.
+- The companion case `xml-output-places-a-document-trailing-comment-last` covers the same rule with
+  an explicit `root`, where the root element holds the comments instead. Between them the two shapes
+  fix the placement whether or not the view has an element of its own.
 
 ### `an-opening-comment-does-not-move-with-its-entry`
 
@@ -3455,12 +3481,36 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (34)
+## Same observable result as 2.4.0 (35)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
 reject the same thing or entirely different things. Each entry below says which it is, and only
 those that name a shared reason are behaviour 3.0 preserved.
+
+### `a-commented-out-source-leads-the-document`
+
+- namespace2xml 2.4.0: **agrees** on content, modulo CRLF line endings under the Section 24
+  divergence. It writes the same three lines, including the normalized `# cfg.a=1`.
+- Contract: Section 8.5; Section 20; Section 8.6 by contrast.
+- Legacy observation: the baseline emits both comment lines of a source that contributes nothing,
+  ahead of the contributing source's entry. The measurement records no divergence beyond line
+  endings, and the agreement is not evidence about the rule: 2.4.0 has no notion of comment
+  placement to get right, and this case's two comments are already first in source order, so an
+  implementation that simply emitted comments where it met them produces the same bytes.
+- Clean behavior: `disabled.properties` forms no entry at all, and Section 8.5 says a source in that
+  state "has no contribution for a comment to trail, so its whole run is the opening run and is
+  document-leading". Section 20 then places document-leading comments before "that source's first
+  surviving contribution"; the source has none of its own, so the comments lead the merged document
+  and precede `b=2`.
+- The shape is the ordinary way a file gets switched off: a `#` in front of every line. Section 8.6
+  suppresses "comments bound to suppressed paths", and a reading that treated the whole file as
+  suppressed would delete the sentence saying why it was switched off — which is the one line whose
+  survival the person who wrote it depends on. Commenting a line out is not the same act as deleting
+  it, and the note explaining the decision outlives the setting it disabled.
+- `#cfg.a=1` is a comment, not an entry: Section 8.1 rule 2 makes a leading unescaped `#` a comment
+  marker whatever follows it. It is emitted as `# cfg.a=1` because Section 8.5 strips the marker from
+  the text and Section 20 "prefixes every emitted physical line with `# `".
 
 ### `a-cross-format-collision-replaces-the-earlier-plan`
 

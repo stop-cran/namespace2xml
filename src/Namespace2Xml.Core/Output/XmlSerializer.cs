@@ -46,18 +46,18 @@ public sealed class XmlSerializer
     }
 
     /// <summary>Writes the document.</summary>
-    /// <param name="document">The projected document element.</param>
+    /// <param name="document">The projected document.</param>
     /// <param name="writer">The buffer to write into.</param>
     /// <returns>
     /// Whether the whole output was written. A false result is either a budget crossing the caller
     /// reads from the writer's fault, or a refusal already reported here.
     /// </returns>
-    public bool TrySerialize(XElement document, OutputBufferWriter writer)
+    public bool TrySerialize(XmlDocumentProjection document, OutputBufferWriter writer)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(writer);
 
-        if (!TryRender(Marked(document), out var bytes))
+        if (!TryRender(document, out var bytes))
         {
             return false;
         }
@@ -93,7 +93,7 @@ public sealed class XmlSerializer
         return document;
     }
 
-    private bool TryRender(XElement document, out byte[] bytes)
+    private bool TryRender(XmlDocumentProjection document, out byte[] bytes)
     {
         var settings = new XmlWriterSettings
         {
@@ -116,7 +116,20 @@ public sealed class XmlSerializer
         {
             using (var xml = XmlWriter.Create(stream, settings))
             {
-                document.WriteTo(xml);
+                // XML allows comments in the prolog and the epilogue, which is the only place a
+                // Section 20 document comment can go once Section 19.5 has promoted the view's only
+                // member to the document element.
+                foreach (var comment in document.Leading)
+                {
+                    comment.WriteTo(xml);
+                }
+
+                Marked(document.Element).WriteTo(xml);
+
+                foreach (var comment in document.Trailing)
+                {
+                    comment.WriteTo(xml);
+                }
             }
         }
         catch (ArgumentException failure)

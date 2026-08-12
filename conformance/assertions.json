@@ -210,10 +210,14 @@
         "Section 4.5 gives document-leading and document-trailing comments no value owner, and Section 20 places them at the start and the end of each output instance the source reaches rather than binding them to its first or last entry.",
         "Section 8.5 states the namespace format's own association rule, so a namespace comment with a following entry binds to it and one without stays document-trailing instead of being discarded; its one exception is a source's opening run, which is document-leading and therefore outlives an ignore mask over the first entry that Section 8.6 would otherwise suppress it with.",
         "\"Each output instance\" in Section 20 means every destination that emits comments at all, not only the structured ones: a namespace output brackets its entries with the document-leading and document-trailing comments rather than dropping the comments no entry owns, and an XML output emits a document-trailing comment after the final child rather than ahead of the first.",
-        "Section 8.5's exception has a cost the corpus states rather than leaves to be discovered: an opening comment is bound to no path, so Section 5.2 does not move it when the first entry is overridden and Section 16.5 does not carry it into a generated record, while a comment that follows an entry in the same source does both."
+        "Section 8.5's exception has a cost the corpus states rather than leaves to be discovered: an opening comment is bound to no path, so Section 5.2 does not move it when the first entry is overridden and Section 16.5 does not carry it into a generated record, while a comment that follows an entry in the same source does both.",
+        "A source that forms no entry at all still reaches the output: Section 8.5 makes its whole run document-leading, because it has no contribution to trail, so commenting out every line of a file disables its settings without deleting the note that says why.",
+        "Section 19.5 promotes a lone top-level member to the document element, leaving no element for the view itself, and the document comments then go to the XML prolog and epilogue rather than being discarded."
       ],
       "fixtures": [
+        "a-commented-out-source-leads-the-document",
         "a-namespace-header-comment-outlives-its-first-entry",
+        "an-implicit-xml-root-carries-document-comments",
         "an-opening-comment-does-not-move-with-its-entry",
         "namespace-document-trailing-comments-reach-the-output",
         "namespace-output-carries-document-comments",

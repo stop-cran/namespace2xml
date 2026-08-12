@@ -146,8 +146,12 @@ public static class NamespaceProfileReader
             }
         }
 
+        // Section 8.5: a source that never forms an entry has nothing for its comments to trail, so
+        // its whole run is the opening run and is document-leading.
+        var placement = seenEntry ? CommentPlacement.Trailing : CommentPlacement.Leading;
+
         return new ProfileContribution(
-            AttachDocumentComments(overlay, pending, CommentPlacement.Trailing),
+            AttachDocumentComments(overlay, pending, placement),
             masks.ToImmutable(),
             templates.ToImmutable());
     }

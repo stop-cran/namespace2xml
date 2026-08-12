@@ -10,6 +10,18 @@ using Namespace2Xml.Scheme;
 namespace Namespace2Xml.Output;
 
 /// <summary>
+/// A Section 19.5 XML document: its one document element, and the comments no element holds.
+/// </summary>
+/// <param name="Leading">
+/// Comments the Section 19.5 prolog carries, because Section 19.5 promoted the view's only member
+/// to the document element and left the view itself without an element of its own.
+/// </param>
+/// <param name="Element">The document element.</param>
+/// <param name="Trailing">Comments the epilogue carries, for the same reason.</param>
+public sealed record XmlDocumentProjection(
+    ImmutableArray<XComment> Leading, XElement Element, ImmutableArray<XComment> Trailing);
+
+/// <summary>
 /// Projects one output view into the Section 19.5 XML document.
 /// </summary>
 /// <remarks>
@@ -62,19 +74,23 @@ public sealed class XmlProjection
     /// <summary>Projects one view, or null when Section 14.1 refuses it.</summary>
     /// <param name="view">The selected output view.</param>
     /// <param name="root">The Section 16.3 root parts, empty when undeclared.</param>
-    /// <returns>The document element, or null when a blocking type error was raised.</returns>
-    public XElement? Project(OverlayNode view, ImmutableArray<NamePart> root)
+    /// <returns>The document, or null when a blocking type error was raised.</returns>
+    public XmlDocumentProjection? Project(OverlayNode view, ImmutableArray<NamePart> root)
     {
         ArgumentNullException.ThrowIfNull(view);
 
         if (view.Marks.RendersAsSequence)
         {
-            return ProjectRootSequence(view, root);
+            return Document(ProjectRootSequence(view, root));
         }
 
         if (root.IsDefaultOrEmpty)
         {
-            return ProjectImplicitRoot(view);
+            // Section 19.5 promotes the view's only member to the document element, so no element
+            // stands for the view itself and its own comments have nowhere inside the tree to go.
+            // Section 20 still places them "at the start and the end" of the instance, and XML
+            // allows comments before and after the document element, so that is where they go.
+            return Document(ProjectImplicitRoot(view), view);
         }
 
         // Section 16.3: "root=x.y ... XML emits <x><y>...</y></x>". The innermost root part owns
@@ -104,8 +120,35 @@ public sealed class XmlProjection
             element = outer;
         }
 
-        return element;
+        return Document(element);
     }
+
+    /// <summary>Wraps a projected element, hoisting the comments no element could hold.</summary>
+    /// <param name="element">The document element, or null when the projection was refused.</param>
+    /// <param name="view">
+    /// The view whose comments have no element of their own, or null when an element holds them.
+    /// </param>
+    /// <returns>The document, or null when <paramref name="element"/> is null.</returns>
+    private static XmlDocumentProjection? Document(XElement? element, OverlayNode? view = null)
+    {
+        if (element is null)
+        {
+            return null;
+        }
+
+        if (view is null)
+        {
+            return new XmlDocumentProjection([], element, []);
+        }
+
+        return new XmlDocumentProjection(
+            [.. Comments(view, leading: true)], element, [.. Comments(view, leading: false)]);
+    }
+
+    private static IEnumerable<XComment> Comments(OverlayNode view, bool leading) =>
+        view.OrderedComments
+            .Where(comment => (comment.Placement != CommentPlacement.Trailing) == leading)
+            .Select(comment => new XComment(comment.Text));
 
     private XElement? ProjectImplicitRoot(OverlayNode view)
     {
@@ -163,9 +206,21 @@ public sealed class XmlProjection
             return null;
         }
 
+        // The wrapper stands for the view, so Section 20's start-and-end placement is inside it,
+        // exactly as it is for a mapping view under an explicit root.
+        foreach (var comment in Comments(view, leading: true))
+        {
+            wrapper.Add(comment);
+        }
+
         if (!TryAddSequence(wrapper, root[^1], view, []))
         {
             return null;
+        }
+
+        foreach (var comment in Comments(view, leading: false))
+        {
+            wrapper.Add(comment);
         }
 
         for (var index = root.Length - 3; index >= 0; index--)

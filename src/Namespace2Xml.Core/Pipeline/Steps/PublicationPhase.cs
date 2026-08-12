@@ -169,7 +169,7 @@ public static class PublicationPhase
 
         if (view.Format == OutputFormat.Xml)
         {
-            var element = new XmlProjection(
+            var xml = new XmlProjection(
                     diagnostics,
                     destination,
                     view.Types,
@@ -177,9 +177,9 @@ public static class PublicationPhase
                     view.Instance.XmlOptions)
                 .Project(view.View, view.Root);
 
-            return element is not null
+            return xml is not null
                 && new XmlSerializer(view.Instance.XmlOptions, diagnostics, destination)
-                    .TrySerialize(element, writer);
+                    .TrySerialize(xml, writer);
         }
 
         if (view.Format is not (OutputFormat.Json or OutputFormat.Yaml))

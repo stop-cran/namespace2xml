@@ -1,0 +1,5 @@
+-i
+inputs/disabled.properties
+inputs/live.properties
+-s
+schemes/scheme.txt
