@@ -20,6 +20,7 @@ The per-path accumulator rules apply whatever the strategy, and the strategy bul
 >   ordering value;
 > - an explicit item retains its supplied ordering value and patches an existing item at that value
 >   under `deep`;
+> - `append` rebases every later item regardless of provenance;
 > - `replace` discards the visible accumulated projection without lowering the destination
 >   high-water mark.
 

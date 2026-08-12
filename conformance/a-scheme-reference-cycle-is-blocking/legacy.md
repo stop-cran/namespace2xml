@@ -4,10 +4,10 @@ Acceptance item 67. Sections 13.1, 15.1 and 22.
 
 ## The rule this fixture is about
 
-Section 13.1 states that "reference cycles are blocking errors", and Section 22 fixes how one is
-reported:
+Section 13.1 states that "missing references and cycles are blocking errors with a complete source
+chain", and Section 22 fixes how one is reported, giving `REFERENCE003` the reporting rule
 
-> a cycle is reported once per canonically distinct reachable cycle
+> once per canonically distinct reachable cycle
 
 with the canonical form being the least rotation of the member names. Both halves matter. The first
 makes the report independent of which member the resolver happened to reach first; the second is

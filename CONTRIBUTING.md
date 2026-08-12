@@ -322,6 +322,19 @@ pwsh -NoProfile -File tools/sync-docs.ps1
 Adding or changing a conformance fixture needs `sync-assertion-manifest.ps1` and `sync-docs.ps1`,
 because coverage and the migration notes are both derived from the corpus.
 
+An amendment also strands every copy of the amended sentence. Fixture rationales, `KNOWN-LIMITS.md`
+and the format guides quote the contract so a reader can see the rule without leaving the page, and
+a stranded copy goes on asserting the old rule in a blockquote that looks exactly like the clause.
+Run
+
+```
+pwsh -NoProfile -File tools/check-specification-quotations.ps1
+```
+
+after every amendment; CI runs it in the `lint` job. Quote the contract in a **blockquote** and the
+gate covers you. A span that is deliberately not verbatim — a diagnostic message, a superseded
+wording quoted on purpose — belongs in `tools/quotation-exemptions.json` with the reason.
+
 These are generators, not formatters. `spec/diagnostics.registry.json` is derived from the §22 table,
 `spec/diagnostic-stream.schema.json` is extracted verbatim from the §6.4.3 code block, and
 `conformance/assertions.json` derives its item text from §26 while preserving the authored

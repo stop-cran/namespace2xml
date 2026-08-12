@@ -331,6 +331,17 @@ jobs:
           # tracker is a cheap standing check on prose no test can reach.
           pwsh -NoProfile -File tools/check-known-limits-issues.ps1 -RequireGh
 
+      - name: Every quotation of the specification must still be verbatim
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Amending the contract silently invalidates every copy of the amended sentence in the
+          # fixture rationales, the format guides and KNOWN-LIMITS.md. Nothing else notices, and
+          # the result is worse than a stale comment: the quotation is presented as normative and
+          # goes on asserting a rule the contract no longer contains. Two fixtures asserted that
+          # backslashes stay literal in a native key for months after Section 9.1 stopped saying so.
+          pwsh -NoProfile -File tools/check-specification-quotations.ps1
+
       - name: Conformance fixtures must carry no CR bytes
         shell: bash
         run: |

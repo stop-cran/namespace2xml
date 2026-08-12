@@ -82,6 +82,10 @@ pwsh -NoProfile -File tools/sync-docs.ps1
 Adding or changing a conformance fixture also requires `sync-assertion-manifest.ps1` and
 `sync-docs.ps1`, because coverage and the migration notes are both derived from the corpus.
 
+An amendment also strands every copy of the amended sentence elsewhere in the repository, so run
+`tools/check-specification-quotations.ps1` as well. Quote the contract in a blockquote and that gate
+covers you.
+
 See `.github/copilot-instructions.md` for the mechanical traps in this repository — several of them
 fail in ways that point at the wrong file.
 

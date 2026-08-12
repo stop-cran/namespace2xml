@@ -20,6 +20,12 @@ and both printed projections are copied from the specification rather than from 
 > a.key=name
 > ```
 >
+> Logical transformed value:
+>
+> ```text
+> [ { name: "b", x: 1 }, { name: "c", x: 2 } ]
+> ```
+>
 > Namespace projection:
 >
 > ```text

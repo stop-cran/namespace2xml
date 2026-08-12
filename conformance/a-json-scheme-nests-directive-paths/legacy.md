@@ -9,9 +9,10 @@ One namespace profile carries three entries under `app`. One scheme, written as 
 
 ## What Section 15 requires
 
-> Scheme files may use the same case-insensitive format extensions as input files for
-> compatibility. Their parsed content must project to qualified directive paths and scalar
-> directive values.
+> Scheme files may use the case-insensitive `.json`, `.yaml`, and `.yml` extensions that
+> Section 7.1 gives input files, and every other extension, including none at all, uses
+> namespace-profile parsing. Their parsed content must project to qualified directive paths and
+> scalar directive values.
 
 and
 
@@ -19,8 +20,9 @@ and
 
 Section 9.1 supplies the projection a JSON document uses:
 
-> Each object-property name becomes one literal qualified-name part. Dots and backslashes in the
-> native property name remain literal characters.
+> Each object-property name becomes one qualified-name part. Dots and `\u{HEX}` sequences in the
+> native property name remain literal characters: a key is one part's worth of text, not a written
+> qualified name, so nothing in it separates parts.
 
 Applying the second sentence to the first: `{"app": {"output": "json"}}` spells the two parts `app`
 and `output`, the final part `output` identifies the directive, and `app` is what it selects. The

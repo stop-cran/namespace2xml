@@ -28,11 +28,15 @@ Run this before pushing. It is the same order CI uses, cheapest first:
 dotnet build namespace2xml.slnx -c Release
 dotnet test  namespace2xml.slnx --no-build -c Release
 dotnet format namespace2xml.slnx --verify-no-changes --severity error
+pwsh -NoProfile -File tools/check-specification-quotations.ps1
 pwsh -NoProfile -File tools/hash-corpus-outputs.ps1 -Output corpus-hashes.txt
 ```
 CI additionally runs `actionlint` over `.github/workflows/`, and a gate asserting that no path under
 `conformance`, `spec`, `tools` or `spikes` is gitignored and that no conformance fixture carries a
 CR byte.
+
+**Run the quotation gate whenever you touch `docs/specification.md`.** It is the only thing that
+notices when an amendment strands a copy of the amended sentence elsewhere — see the trap below.
 
 **The loop above is necessary and not sufficient.** `cross-os-hash` compares digests from three
 runners and has no local equivalent, so a change that behaves differently on Unix passes everything
@@ -100,6 +104,30 @@ of a generator you changed; do not merely re-run it and observe that nothing mov
 ---
 
 ## Traps
+
+### Amending the specification strands every quotation of the amended sentence
+
+The prose around the contract quotes it constantly: fixture rationales, `KNOWN-LIMITS.md` and the
+format guides all reproduce normative sentences so a reader can see the rule without leaving the
+page. Change the sentence and every copy keeps asserting the old rule, in a blockquote, indented,
+indistinguishable from the clause itself.
+
+This is not hypothetical and it is not rare. Two fixtures asserted that "dots and backslashes in the
+native property name remain literal characters" long after §9.1 replaced backslashes with
+`\u{HEX}` sequences, and `KNOWN-LIMITS.md` §1.20 — the entry backing an open issue — quoted a §22
+condition that a later amendment had rewritten.
+
+`tools/check-specification-quotations.ps1` is the gate. Run it after every amendment. It reads
+blockquotes everywhere and inline double-quoted spans in `KNOWN-LIMITS.md`, normalizing wrapping,
+list markers, emphasis, nested quote characters, case and trailing punctuation, and treating an
+ellipsis as an elision whose fragments must appear in order. Deliberate non-quotations — a
+diagnostic message, a superseded revision quoted on purpose, a report-form example — go in
+`tools/quotation-exemptions.json` **with a reason**; the script refuses to load an entry without one.
+
+Inline spans are checked in `KNOWN-LIMITS.md` only. Measured over the whole tree, one inline span in
+five is deliberately not verbatim, and neither length nor an adjacent section citation predicts
+which, so checking them everywhere would need about a hundred exemptions — a list nobody would read.
+Use a blockquote when you quote the contract in a fixture rationale, and the gate will cover you.
 
 ### An XML comment may not contain `--`
 

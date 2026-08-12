@@ -158,7 +158,7 @@ it.
 
   A residue about **ordering, not capability**, is likewise settled. §10.4's worked example once
   printed the generated key after the record's own keys while introducing the template as the first
-  input, contradicting §5.3's "generated entries inherit the rule's precedence position". This
+  input, contradicting §5.3's rule that generated entries "inherit the rule's precedence position". This
   build implements §5.3 and always did; the example was amended to introduce the data file first,
   so its printed result is valid under §5.3, and it now says outright that sibling order is §5.3's
   to decide. Closed as [#73 (closed)](https://github.com/stop-cran/namespace2xml/issues/73).
@@ -729,7 +729,7 @@ question rather than either answer.
 
 ### 1.20 `WARN009` binds by existence, where §22 says effectiveness
 
-§22 gives the `WARN009` condition as a directive that "binds to no effective output or path"; §15.2
+§22 gives the `WARN009` condition as a directive that "binds to no effective output/path"; §15.2
 gives it as one that "binds to no concrete output instance". §16.1 keeps an `output=ignore` instance
 in existence so a later declaration can restore it, so a directive landing on an ignored instance
 binds under §15.2 and does not bind under §22.

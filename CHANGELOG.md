@@ -13,6 +13,36 @@ independently.
 
 ## [Unreleased]
 
+### Added
+
+- **A gate for quotations of the specification.** The prose around the contract quotes it
+  constantly, and amending a sentence silently invalidates every copy: a fixture rationale, a
+  `KNOWN-LIMITS.md` entry or a format guide goes on asserting the old rule, in a blockquote that
+  looks exactly like the clause it no longer matches. Nothing noticed. Three amendments in the last
+  two releases each stranded quotations that were found by hand, days later, or not at all.
+
+  `tools/check-specification-quotations.ps1` reads every blockquote in the format guides, the
+  fixture rationales, `KNOWN-LIMITS.md`, `CONTRIBUTING.md`, `AGENTS.md` and `README.md`, and every
+  inline double-quoted span in `KNOWN-LIMITS.md`, and requires each to appear in
+  `docs/specification.md`. It normalizes what a faithful quotation may change — line wrapping, list
+  markers reflowed into prose, added emphasis, a nested double quote respelled as a single one, the
+  lowercased first letter of a sentence quoted mid-sentence, trailing punctuation — and treats an
+  ellipsis as an elision whose fragments must appear in order. It runs in the `lint` job.
+
+  Finding it red found six stranded quotations, two of which asserted a rule the contract
+  contradicts: `a-json-scheme-nests-directive-paths` and `a-yaml-scheme-key-carries-a-wildcard-template`
+  both told a reader that "dots and ordinary backslashes remain literal" in a native key, which
+  §9.1 stopped saying when `\u{HEX}` escapes replaced them. `KNOWN-LIMITS.md` §1.20, the entry
+  behind an open specification-ambiguity issue, quoted a §22 condition that a later amendment had
+  rewritten.
+
+  Inline spans are checked in `KNOWN-LIMITS.md` alone, and that limit is deliberate: measured over
+  the whole tree, one inline double-quoted span in five is deliberately not a quotation, and neither
+  span length nor an adjacent section citation predicts which. Checking them everywhere would need
+  about a hundred exemptions, and an exemption list nobody reads is not a gate. Blockquotes carry no
+  such ambiguity, which is why they are checked everywhere and why quoting the contract in a fixture
+  rationale should use one.
+
 ### Changed
 
 - **§10.4 stated a provenance rule that no fixture asserted.** Extraction turns a sequence beneath a

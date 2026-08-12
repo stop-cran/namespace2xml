@@ -10,9 +10,12 @@ One namespace profile carries two children under `app`. One scheme, written as Y
 
 ## What Section 10.4 requires
 
-> YAML mapping keys must be strings. Each key becomes one literal qualified-name part, so dots and
-> ordinary backslashes remain literal. Within that one part, unescaped `*` and `*[identifier]`
-> tokens retain their wildcard-template meaning for compatibility.
+> YAML mapping keys must be strings. Each key becomes one qualified-name part under the
+> Section 9.1 native-key rules: dots and `\u{HEX}` remain literal, the Section 11.4 markers apply
+> to a key beginning with an unescaped `@`, `#`, or `Q{`, and a leading backslash escapes one of
+> those and suppresses marker recognition. Elsewhere a backslash remains literal. Within that
+> part, unescaped `*` and `*[identifier]` tokens use the wildcard-template grammar. `\*`
+> contributes a literal asterisk.
 
 The second sentence is what this fixture is for. A YAML key is *one* name part, so `'*'` cannot be
 read as two; and within that part it is a wildcard, not the literal asterisk that `\*` would spell.
