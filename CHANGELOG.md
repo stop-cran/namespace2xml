@@ -108,6 +108,21 @@ independently.
 
 ### Changed
 
+- **§10.1 now says a merge key is an error, closing [#41](https://github.com/stop-cran/namespace2xml/issues/41).**
+  §10.1's `RestrictedYaml1` list used the word "errors" for duplicate keys and for complex keys, but
+  said merge keys were "unsupported" — and the clause immediately after it says every plain scalar
+  mapping key *is treated as a string*. So "unsupported" could mean refuse, or it could mean the
+  merge *semantics* are absent and `<<` falls through to become an ordinary key. Both readings are
+  faithful to the words, and they differ on whether a document is rejected or silently reshaped.
+  §10.1 now reads "an unquoted merge key (`<<`) is an error; quoting it makes it an ordinary string
+  key", in the same vocabulary as its neighbours. The reason is stated rather than left implicit:
+  accepting `<<` would place the referenced mapping one level too deep, under a member literally
+  named `<<`, so nothing would look missing — the data would all be present, at the wrong path —
+  which is the failure §9.3 exists to prevent. §10.1 also now states the output side, which nothing
+  covered: a component whose text is `<<` is written **quoted**, because a plain spelling would
+  produce a document this tool refuses to read. 2.4.0 writes it plain. Behaviour is unchanged.
+
+
 - **§19.4 now states when a block scalar is not used, closing [#52](https://github.com/stop-cran/namespace2xml/issues/52).**
   §19.4 said, without qualification, that YAML output "uses literal block scalars for multiline
   values". A block scalar reproduces its content from indentation and a chomping indicator alone,

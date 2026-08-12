@@ -608,9 +608,12 @@
       "assertions": [
         "A RestrictedYaml1 document parses, and Section 10.1 decides a plain scalar's kind independently of the host library's own schema.",
         "Anchors, explicit tags, document markers, duplicate keys, merge keys, and complex keys are each PARSE001 against the source that carries them.",
-        "A refusal's reported line counts LF, CRLF and a lone CR and nothing else, so U+0085, U+2028 and U+2029 are data on the line that carries them and do not advance it."
+        "A refusal's reported line counts LF, CRLF and a lone CR and nothing else, so U+0085, U+2028 and U+2029 are data on the line that carries them and do not advance it.",
+        "An unquoted merge key is an error rather than an ordinary key, because RestrictedYaml1 performs no merge and accepting one would place the referenced mapping one level too deep under a member named `<<`, losing nothing visibly while changing the model.",
+        "Quoting the key makes it ordinary data, and a component whose text is `<<` is written quoted on YAML output, so a document carrying it reads back as itself rather than as the merge key Section 10.1 refuses."
       ],
       "fixtures": [
+        "a-quoted-merge-key-is-an-ordinary-key",
         "yaml-indentation-block-scalars-and-quoting",
         "yaml-restricted-schema-and-scalar-kinds",
         "yaml-restricted-schema-refusals",

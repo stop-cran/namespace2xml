@@ -882,10 +882,14 @@ YAML parsing uses the product-defined restricted schema `RestrictedYaml1`, inspi
 - JSON-compatible decimal integers and floating-point values are numeric;
 - values such as `yes`, `no`, `on`, `off`, timestamps, and sexagesimal numbers remain strings;
 - duplicate mapping keys are errors;
-- merge keys are unsupported;
+- an unquoted merge key (`<<`) is an error; quoting it makes it an ordinary string key;
 - every plain or quoted scalar mapping key is treated as a string without scalar tag resolution;
 - complex mapping keys are errors;
 - construction is safe and never instantiates application-defined types.
+
+The merge key is an error rather than an ordinary key because the alternative fails silently. `RestrictedYaml1` performs no merge, so an accepted `<<` would place the referenced mapping one level too deep, under a member literally named `<<`. Nothing would appear to be missing — the data is all present, at the wrong path — which is the failure mode Section 9.3 exists to prevent. An error names the clause instead, and the quoted spelling `"<<"` remains available for a document that means the two characters as data.
+
+A component whose text is `<<` is therefore written quoted on YAML output, as Section 19.4's spelling rule already requires of any scalar whose plain form would not read back as itself. Emitting it plain would produce a document this tool refuses to read.
 
 `RestrictedYaml1` is intentionally not the complete YAML 1.2 Core Schema. A future `yamlinputoptions` mode may add full Core Schema resolution.
 

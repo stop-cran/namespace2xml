@@ -219,8 +219,9 @@ public sealed class YamlSerializer
     /// </summary>
     /// <remarks>
     /// <c>&lt;&lt;</c> is the one key that needs this treatment beyond the value rules: it is an
-    /// ordinary string as a value, but plain as a key it is the merge key, which Section 10.1
-    /// declares unsupported. Quoting it keeps the round trip exact.
+    /// ordinary string as a value, but plain as a key it is the merge key, which Section 10.1 makes
+    /// an error. Quoting it keeps the round trip exact -- Section 10.1 says so directly, because a
+    /// plain spelling would produce a document this tool refuses to read.
     /// </remarks>
     private static string Key(string text) =>
         text is "<<" ? YamlScalarText.SingleQuote(text) : YamlScalarText.Spell(text);

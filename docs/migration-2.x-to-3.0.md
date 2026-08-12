@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r55+cc0c3cb8d1ab`.**
+**Contract bundle `r56+a12f8a9d65f1`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (136)
+## Observable differences (137)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -432,6 +432,30 @@ implemented, its case says so plainly rather than letting the heading imply othe
   retains for evaluation and does not emit "unless independently selected".
 - The baseline's agreement on `raw` alone is a coincidence of it resolving everything, not evidence
   about precedence: it reaches the same text for that one key by applying no directive at all.
+
+### `a-quoted-merge-key-is-an-ordinary-key`
+
+- namespace2xml 2.4.0: **differs**, and the difference is a document it cannot read back. Measured,
+  exit 0, no warning: it writes the key **unquoted**, as
+
+  ```yaml
+  <<: plain
+  j: 2
+  ```
+
+  A YAML reader takes that as a merge key whose value is the scalar `plain`, which is not a mapping,
+  so the document is invalid YAML on its own terms. 2.4.0 read a quoted key and wrote an unquoted
+  one, losing the only thing that distinguished data from syntax.
+- Contract: Section 10.1; Section 19.4; Section 3.3.
+- Clean behavior: `'<<': plain`, single-quoted. Section 19.4 spells a scalar plain only when that is
+  unambiguous, and a plain `<<` is not: read back, it is the merge key Section 10.1 refuses. Single
+  quoting is the first spelling that carries the two characters as data.
+- The case pins the escape hatch Section 10.1 now makes normative. The refusal itself is already
+  pinned by `yaml-restricted-schema-refusals`, but a refusal with no stated way through is a dead
+  end, and nothing tested that the way through works or that its output survives a round trip.
+- `j: 2` is present so the case also shows the quoted key does not disturb its siblings, and so the
+  output is a mapping rather than a single member -- a one-key document would be consistent with a
+  writer that quotes every key it emits.
 
 ### `a-refused-fold-is-reported-once-per-destination`
 
