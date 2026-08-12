@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r62+fcdf38f5c0a9`.**
+**Contract bundle `r63+8eb763031b8b`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (144)
+## Observable differences (146)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1414,6 +1414,29 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: shared array-index state made a fold's result depend on the
   order and shape of contributions rather than on their addressed positions, which is the class
   of defect Section 3.2 exists to remove.
+
+### `ini-output-writes-no-blank-lines`
+
+- namespace2xml 2.4.0: **differs**. It has no `inioutputoptions` directive and its INI writer is
+  handed values alone, with no comments in the model at all, so the comment lines this case
+  expects cannot be produced. It also writes through a third-party formatter using
+  `Environment.NewLine`, so on Windows its line terminators are CRLF rather than the LF Section 24
+  requires.
+- Contract: Section 19.6's "INI output bytes".
+- Clean behavior: no blank line is written anywhere — not between the global preamble and the
+  first section, not between one section's last key and the next section header, and not around a
+  comment. A comment line is the marker, one space, and the text, immediately above the line it
+  belongs to.
+- Why a presentational rule is in the contract: blank lines are the decision an INI writer is most
+  likely to make for readability and least likely to make identically to another writer, and
+  Section 24 asks two conforming implementations for identical bytes. Every INI parser ignores a
+  blank line, so nothing but a stated rule can settle it.
+- Why the case carries a preamble, two sections, a nested section and comments in both regions: a
+  rule that writes no blank lines has no edge cases, and this case is what demonstrates that — each
+  of the four boundaries where a writer might insert one is present, and the expected file shows
+  none.
+- Why the nested section is here: `[s2:n]` follows `[s2]`'s own key, so the case also pins that the
+  nesting delimiter does not introduce spacing of its own.
 
 ### `ini-projection-and-section-order`
 
@@ -2841,8 +2864,10 @@ implemented, its case says so plainly rather than letting the heading imply othe
 
 ### `xml-generated-attribute-namespace-prefixes`
 
-- namespace2xml 2.4.0: **differs**. It has no JSON input reader and no `Q{uri}local` component
-  syntax, so this case cannot be posed to it at all.
+- namespace2xml 2.4.0: **differs**. It reads `.json` inputs, so the case can be posed to it, but it
+  has no `Q{uri}local` component syntax at all. Its only way to name a namespace is an `xmlns:p`
+  key plus a `p:local` name, so the URI has to be written into the document by hand and the prefix
+  is whatever the author chose — there is no prefix for the writer to generate.
 - Contract: Section 19.5's "XML output bytes", and Section 11.4's `@` and `Q{...}` addresses.
 - Clean behavior: an element carrying a namespace URI is emitted unprefixed with that URI declared
   as the default namespace. An attribute cannot do that, because an unprefixed attribute is in no
@@ -2973,8 +2998,10 @@ implemented, its case says so plainly rather than letting the heading imply othe
 
 ### `xml-output-escapes-carriage-return`
 
-- namespace2xml 2.4.0: **differs**. It has no JSON input reader, so this case cannot be posed to
-  it at all.
+- namespace2xml 2.4.0: **differs**. It reads `.json` inputs, so the case can be posed to it, but it
+  has no Section 11.4 marker syntax: the `@v` key is not an attribute address to it, and its XML
+  writer makes every leaf an attribute *unless* the scheme names it an element, which is the
+  opposite default. The document this case describes is not expressible.
 - Contract: Section 19.5's "XML output bytes", and Section 3.3's requirement that a round trip
   preserve content.
 - Clean behavior: a CR U+000D is emitted as `&#xD;` in element text content and in an attribute
@@ -3172,6 +3199,39 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: Section 10.1 makes the subset normative precisely so the answer
   does not depend on which YAML library is linked, and every legacy behavior above loses
   information the source contained.
+
+### `yaml-scalar-style-selection`
+
+- namespace2xml 2.4.0: **differs**. It reads `.json` inputs, so the case can be posed to it, but it
+  emits YAML through its serialization library's default settings and has no `RestrictedYaml1`.
+  Style selection is therefore whatever that library prefers, which is precisely the decision
+  Section 19.4 now takes away from the library.
+- Contract: Section 19.4's "YAML output bytes".
+- Clean behavior: exactly one of four styles is chosen for every scalar, by first match — literal
+  block, then double-quoted, then single-quoted, then plain. Each key in this case selects a
+  different rule, and its name says which.
+- Why the selection is specified at all: YAML offers more spellings of one string than any other
+  supported format, and every one of them is valid. A writer choosing among them by its own taste
+  satisfies YAML and breaks Section 24, which asks two conforming implementations for identical
+  bytes. Nothing else in the corpus distinguishes a legal spelling from the specified one.
+- Why `indicator_mid`, `colon_mid`, `hash_mid`, `dot_first` and `stays` are present: they are the
+  negative half of each rule. A conservative implementation that quotes everything round-trips
+  perfectly and produces different bytes, so the case has to fail on over-quoting as readily as on
+  under-quoting.
+- Why the strictness beyond YAML's own productions is pinned: YAML admits `-`, `?` and `:` as the
+  first character of a plain scalar when the next character is not a space, and refuses a flow
+  indicator only in flow context. This specification refuses both positionally. An implementation
+  applying the productions literally emits `indicator_first` and `flow_mid` plain and fails here,
+  which is the intent — the value's spelling must not depend on where it is written.
+- Why `merge` and the `<<` key are both present: Section 10 refuses to read an *unquoted merge
+  key* back, so a key of `<<` is quoted; nothing resolves a merge key in value position, so a
+  value of `<<` is plain. Authoring this case is what showed that Section 19.4 had stated the
+  quoting rule for both positions, which would have made the specification demand output the tool
+  does not produce and, worse, would have been wrong on its own principle.
+- Why `nbsp` is present: U+00A0 is not YAML whitespace, so it neither forces quoting nor is
+  escaped. It distinguishes "escape what YAML cannot carry" from "escape what is not ASCII".
+- `del` and `ctl` pin the uppercase hexadecimal digits of `\uXXXX`, and `cr` pins that CR takes
+  the short form `\r` while a control with no short form does not.
 
 ### `yaml-scalars-survive-a-same-format-round-trip`
 

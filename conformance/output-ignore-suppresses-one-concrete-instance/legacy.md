@@ -16,7 +16,7 @@ Section 15.2 says the two declarations are not independent:
 member are one stream, and the exact declaration is later in source order. It wins. Section 14.2
 then settles what a winning `ignore` produces:
 
-> A selector whose winning declaration is `output=ignore` creates no output instance and no
+> A selector whose winning declaration is `output=ignore` plans no output instance and no
 > reference-reachability root.
 
 ## What the expected tree asserts

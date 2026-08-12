@@ -129,6 +129,15 @@ five is deliberately not verbatim, and neither length nor an adjacent section ci
 which, so checking them everywhere would need about a hundred exemptions — a list nobody would read.
 Use a blockquote when you quote the contract in a fixture rationale, and the gate will cover you.
 
+**"Run it after every amendment" means run it, not intend to.** The gate's own introducing branch
+pushed two commits that it fails: `adbc7e8` reworded §14.2 from "creates no output instance" to
+"plans no output instance", stranding the blockquote in
+`conformance/output-ignore-suppresses-one-concrete-instance/legacy.md`, and `80b3e0b` inherited it.
+Both were locally green on build, test, format and corpus hashes — the four steps that are habit —
+and red in CI on the fifth. A stranded quotation changes no bytes and fails no fixture, so the only
+thing between an amendment and a shipped false claim is remembering to run one script. Run the whole
+loop, in order, or the one step you skip is the one that would have caught you.
+
 ### An XML comment may not contain `--`
 
 Writing `--version` inside a comment in `Directory.Build.props` is invalid XML. MSBuild recovers by

@@ -1,0 +1,4 @@
+-i
+inputs/in.yaml
+-s
+schemes/scheme.txt

@@ -1,0 +1,3 @@
+output=ini
+filename=o.ini
+inioutputoptions=HashComments

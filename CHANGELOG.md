@@ -191,6 +191,61 @@ independently.
   and attribute quote style as outside the contract — but that section is about *preservation*, and
   it was being read as permission to emit anything. §19.5 now says so directly.
 
+- **YAML and INI output bytes are now fixed too, closing the same gap in the other two formats.**
+  YAML is the worst case: one string has up to five valid spellings, every one of them readable,
+  and the choice was made entirely by the emitter. `a: b`, `a: 'b'` and `a: "b"` are the same
+  document and different files, so §24 was unsatisfiable for a YAML output.
+
+  §19.4 gains "YAML output bytes": a four-rule, first-match style selection — literal block for a
+  value containing a line feed, double-quoted for one carrying a character no other style can spell,
+  single-quoted for one whose plain form would parse as something else, plain otherwise — with the
+  exact trigger set for each, the escape spellings (`\"`, `\\`, `\n`, `\r`, `\t`, and uppercase
+  `\uXXXX` for everything else, the other ten YAML short forms never emitted), the key rule, and the
+  layout down to the indent of a sequence entry.
+
+  Rule 3 is deliberately stricter than YAML's own productions. YAML permits a plain `-ab` and a
+  plain `a,b`; §19.4 refuses an indicator wherever it opens a scalar and a flow indicator in every
+  position. A rule with an exception per context cannot be pinned by a fixture without pinning the
+  exceptions too, and the stricter rule costs two quote characters.
+
+  §19.6 gains "INI output bytes", which is one sentence of substance: no blank line anywhere, not
+  before a section header, not after the preamble, not at end of file. The conventional blank line
+  before a section has three edge cases — the first section, an empty preamble, and a comment that
+  belongs to the following key — and writing nothing has none.
+
+  Both were measured against the current emitter across the full space before being written down,
+  and both found the emitter already right. Pinned by `conformance/yaml-scalar-style-selection`,
+  which selects every rule and the negative half of every rule in one file, and by
+  `conformance/ini-output-writes-no-blank-lines`; both were proven red against a mutated writer.
+
+  One measurement corrected the specification instead. §19.4 as first drafted single-quoted a value
+  of `<<`, on the reasoning that `<<` is the merge key. §10 constrains the merge *key* only: `k: <<`
+  round-trips as the string `<<` and needs no quotes. The fixture caught the error, the document
+  changed, and the implementation did not — which is the order this project claims to work in and
+  it is worth recording an instance of it actually doing so.
+
+- **The specification now names the editions of the standards it depends on.** §2 gains "Normative
+  references", a table of seven: Unicode 16.0.0, RFC 8259, YAML 1.2.2, XML 1.0 fifth edition,
+  Namespaces in XML 1.0 third edition, XDM 3.1 for the `Q{uri}local` notation, and RFC 5234 for the
+  ABNF that Appendix A is written in.
+
+  The Unicode edition is the load-bearing one. §16.4 defines the scalars a namespace name must
+  escape as the general categories `Cc`, `Cf` and `Cs`, and a general category belongs to an
+  edition — a code point unassigned in one is assigned in the next, at which point the same input
+  escapes differently and §24's byte identity fails between two builds that differ only in their
+  character tables. Naming an edition in prose does not make that checkable, and the runtime exposes
+  no Unicode version, so `UnicodeEditionTests` asks the tables directly: eight code points assigned
+  by 16.0.0 must carry their assigned categories, and U+10940, which 17.0.0 encodes, must still be
+  unassigned. A framework upgrade that moves the tables turns that red rather than silently changing
+  what the tool escapes.
+
+  The section also states three consequences that were previously only implied: XML 1.1 input is
+  refused (`PARSE001`, §11.2), YAML 1.1 input is refused, and **every case-insensitive comparison in
+  this specification folds ASCII only** — which closes §7.1, §6.2 and §18 at once. That last one is
+  not theoretical: `char.ToUpperInvariant('ſ')` is `'S'`, so a naive fold would accept `ſtring` as a
+  type name and `1<U+212A>ib` as a byte budget. Both are refused, and both are now refused *because
+  the document says so* rather than because of how the comparison happens to be written.
+
 - **Four more specification corrections from the same review round.** Each was a place where two
   clauses answered the same question differently, or a cross-reference named a section that does
   not contain what was cited.

@@ -625,6 +625,7 @@
         "yaml-indentation-block-scalars-and-quoting",
         "yaml-restricted-schema-and-scalar-kinds",
         "yaml-restricted-schema-refusals",
+        "yaml-scalar-style-selection",
         "yaml-scalars-survive-a-same-format-round-trip",
         "yaml-section-22-line-terminators"
       ]
@@ -838,8 +839,12 @@
       "text": "INI global-key preamble hoisting and rooted-section behavior.",
       "milestone": "M2",
       "status": "required",
-      "assertions": [],
+      "assertions": [
+        "Section 19.6's \"INI output bytes\" writes no blank line anywhere -- not between the global preamble and the first section, not between one section's last key and the next section header, and not around a comment -- so the layout of the preamble and the sections that follow it is fixed rather than presentational.",
+        "An enabled comment line carries its marker, one space, and the comment text, and immediately precedes the line it is attached to."
+      ],
       "fixtures": [
+        "ini-output-writes-no-blank-lines",
         "ini-projection-and-section-order"
       ]
     },
@@ -1007,11 +1012,16 @@
         "Section 19.4 uses a literal block scalar for a multiline value, indented two spaces beyond its owning key or sequence indicator, and its chomping indicator distinguishes no trailing line break, exactly one, and more than one.",
         "A string whose plain spelling would resolve to a non-string kind under `RestrictedYaml1` is single-quoted with a literal single quote doubled as `''`, while the spellings Section 10.1 keeps as strings stay plain.",
         "Section 19.4 declines the block spelling for a value it could not carry exactly -- trailing whitespace on a line, a CR line break, a control character outside c-printable, or an indented first non-empty line -- and for one ending in a blank line, which needs the keep indicator whose block cannot satisfy Section 24's single trailing LF, writing every one of them double-quoted instead.",
-        "That refusal is a property of the value alone rather than of its position, so a value ending in a blank line is quoted even where it is not last in the document and adding an unrelated key never rewrites an untouched value."
+        "That refusal is a property of the value alone rather than of its position, so a value ending in a blank line is quoted even where it is not last in the document and adding an unrelated key never rewrites an untouched value.",
+        "Section 19.4's \"YAML output bytes\" fixes one style per scalar by first-match: literal block, then double-quoted for a character no other style carries exactly, then single-quoted for a plain form that would not read back as itself, then plain.",
+        "The single-quote conditions are refused positionally rather than contextually -- an indicator character wherever it opens the value, and a flow indicator or a TAB in any position -- so a value's spelling does not depend on where it is written.",
+        "A key whose text is `<<` is single-quoted because Section 10 refuses to read an unquoted merge key back, while a *value* of `<<` is written plain, since nothing resolves a merge key in value position.",
+        "A double-quoted scalar uses only `\\\"`, `\\\\`, `\\n`, `\\r` and `\\t`, spelling every other escaped character `\\uXXXX` with uppercase hexadecimal digits, and writes every character outside the escape set as itself in UTF-8."
       ],
       "fixtures": [
         "a-block-scalar-is-declined-when-it-would-not-be-exact",
         "yaml-indentation-block-scalars-and-quoting",
+        "yaml-scalar-style-selection",
         "yaml-scalars-survive-a-same-format-round-trip"
       ]
     },

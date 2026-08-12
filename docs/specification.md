@@ -35,6 +35,30 @@ The words **must**, **must not**, **should**, and **may** are normative.
 - **Should** describes the default unless a documented option explicitly changes it.
 - **May** describes optional implementation behavior that must not alter the specified result.
 
+### Normative references
+
+This document defines its own dialects — `RestrictedYaml1`, `PortableIni1`, the namespace profile language — but it defines them in terms of external standards, and a standard's edition changes what its own text says. The editions below are the ones this document is written against. A later edition does not apply until this document names it.
+
+| Reference | Edition |
+|---|---|
+| The Unicode Standard | Version 16.0.0, including UTF-8 and the general category assignments. |
+| JSON | RFC 8259 (STD 90). |
+| YAML | YAML Ain't Markup Language version 1.2, revision 1.2.2 (2021-10-01). |
+| XML | Extensible Markup Language 1.0, Fifth Edition. |
+| XML namespaces | Namespaces in XML 1.0, Third Edition. |
+| XQuery and XPath Data Model 3.1 | For the `Q{uri}local` notation of Section 11.4 only. |
+| ABNF | RFC 5234, as Appendix A states. |
+
+Four consequences are worth stating rather than deriving.
+
+The Unicode edition is load-bearing rather than decorative. Section 16.4 defines the set of scalars a namespace name must escape as the general categories `Cc`, `Cf` and `Cs` plus three named characters, and a general category is a property of an edition: a code point unassigned in one edition may be assigned to `Cf` in the next, at which point the same input escapes differently. Two implementations built against different Unicode editions therefore produce different bytes for a name containing a recently assigned character, which Section 24 forbids. An implementation must confirm that the character data it actually resolves matches the edition named above, rather than assuming the edition its runtime documents; the assignment is observable, so this is a test an implementation can run rather than a promise it has to make.
+
+XML 1.1 is not supported: it permits C1 control characters that XML 1.0 forbids, and Section 11 rejects them. A document declaring `version="1.1"` is refused by Section 11.2 rather than read as the XML 1.0 text it is not.
+
+YAML 1.1 is not supported either, and this matters more than the XML case because the two revisions disagree about *values* rather than about characters: `yes`, `no`, `on`, `off` and sexagesimal numbers are typed in 1.1 and are strings in 1.2. `RestrictedYaml1` follows 1.2 and Section 10 states the resolutions explicitly, so a reader never has to know which revision an implementation's library was built for.
+
+**Every case-insensitive comparison in this document is ASCII case folding.** A character outside U+0041–U+005A and U+0061–U+007A compares equal only to itself. Section 16.5 says this of the scheme language; it holds equally of input file extensions in Section 7.1, option values in Section 6.2, and the `null` literal in Section 18, none of which repeat it. The rule is deliberately not the case-insensitive comparison a general-purpose library offers: U+017F LATIN SMALL LETTER LONG S uppercases to `S` under invariant casing, and U+212A KELVIN SIGN is a `K` to a reader, so a Unicode-aware fold would accept `ſtring` for the type name `string` and `1KiB` written with U+212A. Both are refused. Every keyword vocabulary in this document is ASCII, and admitting a homoglyph into one would make a directive's meaning depend on which casing table an implementation happened to link.
+
 ## 3. Compatibility policy
 
 ### 3.1 Preserved behavior
@@ -2493,6 +2517,44 @@ At an overlay containing both payload and container contributions, Section 4.4 s
 
 A mapping key carries the Section 11.4 markers and escapes a marker-shaped ordinary component, and a mapping-key collision after projection is blocking `FLAT001`, on the same rules and for the same reasons as Section 19.3.
 
+#### YAML output bytes
+
+Section 24 requires two conforming implementations to produce identical bytes. YAML offers more spellings of one string than any other supported format — plain, single-quoted, double-quoted, literal block, folded block — and a writer that chooses among them by its own taste satisfies YAML while breaking Section 24. The rules above select the block form; the rest of the selection, and the spelling of each style, is fixed here.
+
+Exactly one style is chosen for a scalar, by taking the first rule below that applies.
+
+1. **Literal block scalar**, under the conditions already stated in this section. The indicator is `|` when the value ends with exactly one LF, and `|-` when it ends with any other character; `|+` is never emitted, for the reason given above. Content lines are indented two spaces past the indentation of the key or `-` that introduces the value, and the terminating LF of the last content line is the block's own.
+
+2. **Double-quoted**, when the value contains any character that no other style carries exactly: a C0 control other than TAB (U+0009), a LF that rule 1 declined, U+007F, U+0085, U+2028, U+2029, or U+FEFF. A TAB alone does not select this style, because a single-quoted scalar carries an interior TAB unchanged; rule 3 quotes it there.
+
+3. **Single-quoted**, when the plain form would not read back as the same string. That is the case when the value:
+
+   - is empty;
+   - begins with one of the nineteen YAML indicator characters `-`, `?`, `:`, `,`, `[`, `]`, `{`, `}`, `#`, `&`, `*`, `!`, `|`, `>`, `'`, `"`, `%`, `@`, or `` ` ``;
+   - begins with `...`;
+   - begins or ends with a space or a TAB;
+   - contains a TAB anywhere;
+   - contains `,`, `[`, `]`, `{`, or `}` anywhere;
+   - contains `: ` or ` #` anywhere, or ends with `:`; or
+   - would resolve to a non-string kind under `RestrictedYaml1`.
+
+4. **Plain**, otherwise.
+
+Rule 3 is deliberately stricter than YAML's own plain-scalar productions in two places, and the strictness is the specified behavior rather than a permitted approximation. An indicator character is refused wherever it opens the value, though YAML admits `-`, `?` and `:` there when the next character is not a space; and a flow indicator is refused in every position, though only flow context requires it. Both make the spelling of a value independent of where it is written, which is what lets a fixture pin it. An implementation applying YAML's productions literally emits `-ab` and `a,b` plain and does not conform.
+
+A single-quoted scalar has one escape, `''` for a literal single quote. A double-quoted scalar uses `\"`, `\\`, `\n`, `\r` and `\t`, and spells every other escaped character `\uXXXX` with four uppercase hexadecimal digits. YAML's remaining short forms — `\0`, `\a`, `\b`, `\v`, `\f`, `\e`, `\N`, `\_`, `\L`, `\P` — are never emitted, so that one rule covers the whole range rather than a table of exceptions. A character outside the sets named in rule 2 is written as itself in UTF-8, including U+00A0 and every non-ASCII printable character.
+
+A mapping key is spelled by these same rules, with one addition: a key whose text is `<<` is single-quoted, because Section 10 refuses to read an unquoted merge key back. The addition applies to keys alone. A *value* of `<<` is written plain, since nothing resolves a merge key in value position and the plain form reads back as the two characters it is. `RestrictedYaml1` also resolves no tag on a key, so quoting a key is never required for resolution alone; a key is nevertheless quoted on the same conditions as a value, so that one string has one spelling wherever it appears.
+
+Layout is fixed as well:
+
+- each nesting level indents two spaces;
+- a mapping entry is `key`, `:`, one space, then the value, or `key`, `:`, a line break, and the nested block;
+- a sequence entry begins `- ` at two spaces past its key's indentation; a sequence nested directly in a sequence continues on the parent entry's line, and a mapping nested in a sequence begins its first key on that line;
+- an empty mapping is `{}` and an empty sequence `[]`, at any depth;
+- no `---` and no `...` are written, as stated above;
+- every line ends with one LF, and the document ends with exactly one LF under Section 24.
+
 ### 19.5 XML
 
 XML output:
@@ -2634,6 +2696,18 @@ With `root=x.y`, former global keys are emitted inside section `[x:y]`; `root` p
 When the selected output root is a bare scalar, INI retains the final concrete selector part as a global key. `root` places that key in a section without altering it, under the rule above that `root` parts are section-path parts rather than part of the key text: with `root=x.y` the key remains `k` and moves into `[x:y]`.
 
 This dialect is named `PortableIni1`. Consumers must opt into `QuoteValues` or `EscapeMultiline` only when their parser recognizes those escapes. An implementation's compatibility documentation names the parsers it holds itself interoperable with, and conformance tests must cover every parser it names. Naming none is a permitted and complete answer: it states that the dialect is verified against this specification and against no external reader. The documentation must say so explicitly rather than leaving the list absent, because an absent list and an empty one are not the same claim — a reader who takes silence for "the usual parsers" will choose options on an assumption the implementation never made.
+
+#### INI output bytes
+
+The rules above fix which lines are written and in which order. Their layout on the page is fixed here, because blank lines and alignment are the decisions an INI writer is most likely to make for readability and least likely to make identically to another writer, and Section 24 requires two implementations to agree byte for byte.
+
+- A key line is the key text, `=`, and the value text, with no space on either side of `=`, as stated above.
+- A section header is `[`, the joined section name, and `]`, alone on its line.
+- A comment line, when `inioutputoptions` enables comments, is the marker selected by `SemicolonComments` or `HashComments`, one space, and the comment text; it immediately precedes the line it is attached to, with no blank line between them.
+- **No blank lines are written anywhere**: not between the global preamble and the first section, not between one section's last key and the next section header, and not around comments.
+- Every line ends with one LF, and the file ends with exactly one LF under Section 24.
+
+A blank line before each section header is the more conventional layout and every INI parser ignores it, so the choice here is presentational rather than semantic. It is made in favour of writing nothing, because a rule that writes no blank lines has no edge at the first section, no edge at an empty preamble, and no interaction with the comment rule, while a rule that writes one has three. An implementation that finds the output hard to read may not add spacing: the bytes are the contract.
 
 ## 20. Comments across formats
 
