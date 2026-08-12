@@ -141,6 +141,44 @@ independently.
 
 ### Changed
 
+- **A directive bound beneath a reshaped node now follows its value, closing
+  [#49](https://github.com/stop-cran/namespace2xml/issues/49).** Step 16 is a sequence of passes, and
+  three of them move values: `type=array` discards mapping keys in favour of ordering values,
+  `type=mapping` names sequence items by theirs, and `key` places each mapping child in a record.
+  §15.1 said that scheme paths "address the stable pre-transformation paths produced at step 11" and
+  that a transformation "does not cause scheme matching to restart against newly created paths", and
+  §15.2 said `type` and `key` are "evaluated ... against absolute stable pre-transformation paths".
+  What it did not say was what a *later* pass should do when an earlier one had moved the value its
+  directive was bound to.
+
+  This build looked the directive up by spelling against the previous pass's output, so it found
+  nothing and said nothing. `hosts.type=array` with `hosts.web.line.type=multiline` beneath it left
+  the lines unjoined; the `WARN009` that reports a dead declaration stayed quiet, correctly, because
+  the rule had bound — it was the application that was lost, not the binding.
+
+  Measuring it found three loss sites rather than the one reported: the `multiline` pass, the `key`
+  pass, and the serializer's own read of the bound table for the explicit scalar and XML node kinds,
+  which §16.6 evaluates at serialization rather than in a pass. `type=string` beneath a `type=array`
+  ancestor was lost, and so was `type=string` on either child shape of a `key` transformation.
+
+  §15.1 now states the rule and its limit. A reshaping pass re-addresses the surviving descendants
+  of the node it reshapes, and a directive bound beneath one is re-addressed with the value it bound
+  to — the same operation §17.5 already required of the per-path high-water map. This is not a
+  restart: a directive spelling an address that exists only *after* a reshaping still matches nothing
+  at step 11 and still emits the §15.2 warning. `type=ignore` is the stated exception, because it
+  removes descendants rather than moving them, and §16.6's existing rule for that case is unchanged.
+
+  This changes output. `reg.alpha.weight=1` and `reg.beta=2` with `reg.key=name`,
+  `reg.alpha.weight.type=string` and `reg.beta.type=string` now render both scalars as strings, the
+  first at `reg.0.weight` and the second at `reg.1.value` — two different depths, because §16.5 puts
+  a mapping child's fields at the top of its record and a bare scalar under `value`.
+
+  Two fixtures under acceptance item 54, both mutation-proven.
+  `a-directive-under-a-converted-mapping-follows-its-value` also pins the negative half with a
+  `WARN009` for a directive naming a post-transformation address. namespace2xml 2.4.0 differs on
+  both: it reorders the converted items and writes `null` where a joined value belongs, and it drops
+  a `key`-transformed mapping's scalar child from the output entirely, in silence, with exit `0`.
+
 - **`root` wraps a bare scalar's retained key instead of replacing it, closing
   [#54](https://github.com/stop-cran/namespace2xml/issues/54).** A flat format has to invent a key
   for an output whose selected view is a bare scalar, and §§19.1, 19.2 and 19.6 each say it retains

@@ -43,6 +43,14 @@ public readonly record struct EffectiveTransform(
 /// record paths <c>key</c> had just invented, which is the restart Section 15.1 forbids: "a
 /// transformation does not cause scheme matching to restart against newly created paths".
 /// </para>
+/// <para>
+/// Binding once is not by itself enough to keep that promise, because a reshaping pass moves the
+/// values a later pass has to find. Section 15.1 therefore re-addresses the table together with the
+/// values whenever a pass moves one: <c>type=array</c> replaces a mapping key with an ordering
+/// value, and <c>key</c> puts a child in a record. Without that, a directive bound beneath a
+/// reshaped node would silently do nothing — the pass would look for a spelling the earlier pass
+/// had just destroyed — which is the failure Section 15.1 now names in full.
+/// </para>
 /// </remarks>
 public static class ViewTransformer
 {
@@ -92,7 +100,7 @@ public static class ViewTransformer
             return view;
         }
 
-        var context = new Pass(prefix, table, report);
+        var context = new Pass(prefix, table, paths, report);
 
         var ignored = context.Ignore(view, []);
 
@@ -106,9 +114,18 @@ public static class ViewTransformer
         // shape of the view, so there is nothing for a flat destination to do with them. They are
         // read from the same table at serialization time by the format that has them.
         var shaped = context.Shape(ignored, []);
-        var joined = context.Multiline(shaped, []);
 
-        return context.Key(joined, []);
+        // Section 15.1: a reshaping pass "re-addresses the surviving descendants of that node", so
+        // the passes that follow — and the serializer, which reads the table for the explicit
+        // scalar and XML node kinds — find each directive at the address its value now has.
+        context.Readdress();
+
+        var joined = context.Multiline(shaped, []);
+        var keyed = context.Key(joined, []);
+
+        context.Readdress();
+
+        return keyed;
     }
 
     /// <summary>
@@ -364,8 +381,91 @@ public static class ViewTransformer
     private sealed class Pass(
         ImmutableArray<NamePart> prefix,
         Dictionary<string, EffectiveTransform> effective,
+        Dictionary<string, ImmutableArray<NamePart>> paths,
         Action<DiagnosticOccurrence, StableOrderingKey> report)
     {
+        /// <summary>Where a reshaping pass has moved each child it moved.</summary>
+        /// <remarks>
+        /// Keyed by the path of the node whose children moved, in the coordinates the bound table
+        /// currently uses, and valued by the address each moved child now has relative to that
+        /// node. <see cref="Readdress"/> folds these from the root, so a move recorded for a child
+        /// during the same children-first walk composes with the move recorded for its parent.
+        /// </remarks>
+        private readonly Dictionary<string, Dictionary<NamePart, ImmutableArray<NamePart>>> moves =
+            new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Section 15.1: re-addresses the bound table over the moves the last passes recorded, so
+        /// that a directive bound beneath a reshaped node is applied to the value it bound to
+        /// rather than to a spelling the reshaping destroyed.
+        /// </summary>
+        /// <remarks>
+        /// The moves are consumed, because the next pass records its own in the coordinates this
+        /// call establishes.
+        /// </remarks>
+        public void Readdress()
+        {
+            if (moves.Count == 0)
+            {
+                return;
+            }
+
+            var moved = new List<(string Key, ImmutableArray<NamePart> Path, EffectiveTransform Transform)>();
+
+            foreach (var (key, path) in paths)
+            {
+                var translated = Translate(path);
+
+                moved.Add((CanonicalPath.Of(translated) ?? string.Empty, translated, effective[key]));
+            }
+
+            effective.Clear();
+            paths.Clear();
+
+            foreach (var (key, path, transform) in moved)
+            {
+                effective[key] = transform;
+                paths[key] = path;
+            }
+
+            moves.Clear();
+        }
+
+        /// <summary>Records that one child of <paramref name="relative"/> has moved.</summary>
+        /// <param name="relative">The path of the node whose child moved.</param>
+        /// <param name="from">The name the child had.</param>
+        /// <param name="to">The address the child now has, relative to the node.</param>
+        private void Record(ImmutableArray<NamePart> relative, NamePart from, ImmutableArray<NamePart> to)
+        {
+            var key = CanonicalPath.Of(relative) ?? string.Empty;
+
+            if (!moves.TryGetValue(key, out var at))
+            {
+                at = new Dictionary<NamePart, ImmutableArray<NamePart>>();
+                moves[key] = at;
+            }
+
+            at[from] = to;
+        }
+
+        /// <summary>The address a pre-move path now has.</summary>
+        private ImmutableArray<NamePart> Translate(ImmutableArray<NamePart> path)
+        {
+            var current = ImmutableArray<NamePart>.Empty;
+            var seen = ImmutableArray<NamePart>.Empty;
+
+            foreach (var part in path)
+            {
+                current = moves.TryGetValue(CanonicalPath.Of(seen) ?? string.Empty, out var at)
+                    && at.TryGetValue(part, out var to)
+                        ? current.AddRange(to)
+                        : current.Add(part);
+                seen = seen.Add(part);
+            }
+
+            return current;
+        }
+
         /// <summary>Step 16's first kind: <c>type=ignore</c>.</summary>
         /// <remarks>
         /// Section 16.6: "An effective ignore at path <c>P</c> removes every descendant regardless
@@ -507,6 +607,11 @@ public static class ViewTransformer
                     return node;
                 }
 
+                // The key this discards is the address a directive bound beneath the child still
+                // uses, so Section 15.1 has the child's descendants follow it to the ordering
+                // value. The numbered branch above needs no record: an in-range canonical ordering
+                // value is spelled the same as the item it becomes.
+                Record(relative, name, [OrderingValues.ToNamePart(value)]);
                 sequence = sequence.SetItem(value, SequenceItem.Native(child));
             }
 
@@ -639,11 +744,21 @@ public static class ViewTransformer
                     return node;
                 }
 
+                // Section 16.5 puts a child with no mapping projection under 'value' and leaves a
+                // mapping child's fields at the top of its record, so the two shapes move the
+                // child's own path to different depths.
+                var wrapped = !value.Marks.ContainerIsMapping;
+
                 // Section 16.5: "A child already carrying ordering-value provenance retains that
                 // value and provenance through record construction. A child without ordering
                 // provenance receives a fresh implicit ordering value in mapping order."
                 if (OrderingValues.TryRead(child, out var ordering))
                 {
+                    if (wrapped)
+                    {
+                        Record(relative, child, [OrderingValues.ToNamePart(ordering), ValueField]);
+                    }
+
                     sequence = sequence.SetItem(ordering, SequenceItem.Numbered(record));
                     continue;
                 }
@@ -654,6 +769,12 @@ public static class ViewTransformer
                     return node;
                 }
 
+                Record(
+                    relative,
+                    child,
+                    wrapped
+                        ? [OrderingValues.ToNamePart(allocated), ValueField]
+                        : [OrderingValues.ToNamePart(allocated)]);
                 sequence = sequence.SetItem(allocated, SequenceItem.Native(record));
             }
 

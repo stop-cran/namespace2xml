@@ -539,25 +539,30 @@ so there is nothing outstanding to track. It stays because a reader hitting one 
 argument, not a tracker link — the shape of what the alias does and does not reach is exactly what
 a 2.x scheme runs into.
 
-### 1.11 A directive bound beneath a node that a later step-16 pass reshapes becomes inert
+### 1.11 A directive bound beneath a node that a later step-16 pass reshapes became inert *(resolved)*
 
-§15.1 says "a transformation does not cause scheme matching to restart against newly created paths",
-and this build honours that by binding every rule once, against the pre-transformation paths, before
-any pass runs. The passes then walk in the §15.1 order, each over the previous pass's output.
+Resolved by [#49 (closed)](https://github.com/stop-cran/namespace2xml/issues/49). §15.1 now states
+what happens, and it is the opposite of what this build did: a reshaping pass "re-addresses the
+surviving descendants of that node", and a directive bound beneath one "is re-addressed together
+with the value it bound to, exactly as Section 17.5 re-addresses the per-path high-water map".
 
-The consequence is that a rule bound at, say, `a.b.c` is unreachable to a *later* pass if an
-earlier pass renamed `b` — `type=array` at `a` turns `b` into the ordering value `0`, and `key` at
-`a` turns it into a record. The rule matched a path that no longer exists, and the later pass walks
-the new names, so nothing applies it and nothing reports it: the `WARN009` in §15.2 counts the rule
-as bound, because it did bind.
+The build bound every rule once against the pre-transformation paths, which was right, and then had
+each pass look its rules up by *spelling* against the previous pass's output, which was not. A rule
+bound at `a.b.c` was unreachable to a later pass once an earlier one renamed `b` — `type=array` at
+`a` turns `b` into the ordering value `0`, and `key` at `a` puts it in a record — so the rule
+applied to nothing and reported nothing, because the §15.2 warning counts a rule that bound, and
+this one had bound.
 
-§16.6 specifies this outcome for the one case it considers — a directive under an ignored path is
-"inert and emits the unbound-directive warning" — and says nothing about the conversion cases. The
-behaviour here is inertness without the warning. Order the directives so that a reshaping `type` or
-`key` at an ancestor is the last thing that happens to a subtree, and treat a directive under one as
-having no effect. Tracked as
-[#49](https://github.com/stop-cran/namespace2xml/issues/49), which asks §15.1 to say what the
-outcome should be.
+The measurement that closed it found three loss sites, not the one the report named: the `multiline`
+pass, the `key` pass, and the serializer's own read of the table for the explicit scalar and XML
+node kinds of §16.6. All three were silent. `type=string` beneath a `type=array` ancestor, and
+`type=string` on either child shape of a `key` transformation, were lost the same way.
+
+`type=ignore` remains the stated exception, because it removes descendants rather than moving them;
+§16.6 keeps its rule that a directive matching only a descendant of an ignored path "is inert and
+emits the unbound-directive warning". `conformance/a-directive-under-a-converted-mapping-follows-its-value`
+and `conformance/a-directive-under-a-generated-record-follows-its-value` pin both halves of the new
+rule, the second of them across the two record shapes §16.5 builds.
 
 ### 1.12 §16.5's merge with an independent sequence replaces, and stops saying so
 

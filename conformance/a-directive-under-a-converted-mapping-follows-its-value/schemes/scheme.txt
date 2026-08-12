@@ -1,0 +1,5 @@
+hosts.output=json
+hosts.type=array
+hosts.web.line.type=multiline
+hosts.db.tag.type=string
+hosts.0.tag.type=string

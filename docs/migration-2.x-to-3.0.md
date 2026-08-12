@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r58+abf4c98cbdf8`.**
+**Contract bundle `r59+c5cccae48dab`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (139)
+## Observable differences (141)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -143,6 +143,34 @@ implemented, its case says so plainly rather than letting the heading imply othe
   writes `output: [json, yaml]` because a sequence is the natural YAML spelling of a list gets no
   output and no reason, and has nothing to search for. Exit 0 with an empty output tree is the worst
   available answer, because every downstream check that looks at the status passes.
+
+### `a-directive-under-a-converted-mapping-follows-its-value`
+
+- namespace2xml 2.4.0: **differs**, in three ways at once.
+  - The two items come out in the reverse order, `tag` before `line`, so the conversion does not
+    order items by the mapping order the children were read in.
+  - `line` is emitted as `null` and the value is destroyed, with `warn: Multiline value type is not
+    supported for JSON` on standard error. Section 16.6 gives JSON a rendering for a joined value —
+    "JSON emits a JSON string whose line breaks serialize as `\n`" — so there is nothing here to
+    decline.
+  - Exit `0` in both cases, so a consumer reading only the status sees a successful run that wrote a
+    null where a value was.
+- Contract: Section 15.1 step 16 re-addressing; Section 16.6 `array` and `multiline`; Section 15.2
+  unbound-directive warning.
+- The baseline's `"tag": "7"` is quoted, so it applied that directive; the case does not record why,
+  because it pins the correct answer rather than reconstructing the wrong one.
+
+### `a-directive-under-a-generated-record-follows-its-value`
+
+- namespace2xml 2.4.0: **differs**, and loses data. It emits one record, for `alpha`, and drops
+  `beta` from the output entirely. Exit `0`, and standard error carries nothing beyond the banner:
+  the scalar child of a `key`-transformed mapping is discarded in silence.
+- Contract: Section 15.1 step 16 re-addressing; Section 16.5 record construction for a child with
+  and without a mapping projection.
+- Clean behavior: two records, in source order, each carrying the generated `name` field first, with
+  `alpha` keeping `weight` at the top of its record and `beta` placed under `value`; both scalars
+  rendered as strings because a directive bound at each child's pre-transformation address followed
+  it into the record.
 
 ### `a-generated-contribution-sorts-between-the-sources-that-straddle-it`
 

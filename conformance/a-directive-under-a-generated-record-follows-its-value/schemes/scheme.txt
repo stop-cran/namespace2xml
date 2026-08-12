@@ -1,0 +1,4 @@
+reg.output=json
+reg.key=name
+reg.alpha.weight.type=string
+reg.beta.type=string

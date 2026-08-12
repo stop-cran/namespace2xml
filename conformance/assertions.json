@@ -871,9 +871,14 @@
         "type=mapping turns the Section 8.7 inferred sequence back into an ordered mapping whose keys are the ordering values as canonical decimal strings, which a following key directive then observes by copying those keys into a field.",
         "Without type=mapping the same key directive would be TYPE001 against a sequence-only target, so the directive is what makes the mapping projection exist at step 16.",
         "type=array on a mapping whose keys are not ordering values discards every key and allocates fresh implicit ordering values above the node's high-water mark in current mapping order.",
-        "Section 15.1 step 16 applies type=array before multiline, which is observable because the reverse order would meet a mapping with no sequence projection and be TYPE001 rather than a differently ordered result."
+        "Section 15.1 step 16 applies type=array before multiline, which is observable because the reverse order would meet a mapping with no sequence projection and be TYPE001 rather than a differently ordered result.",
+        "A directive bound beneath a node that an earlier step-16 pass reshaped is re-addressed together with the value it bound to, so multiline beneath a converted mapping still joins and an explicit scalar type beneath one still reaches the serializer.",
+        "The same re-addressing carries a directive beneath a key transformation into the generated record, whether the child kept its fields at the top of the record or was placed under the 'value' field.",
+        "Re-addressing is not a restart of scheme matching: a directive spelling an address that exists only after a reshaping matches nothing at step 11 and emits the Section 15.2 unbound-directive warning."
       ],
       "fixtures": [
+        "a-directive-under-a-converted-mapping-follows-its-value",
+        "a-directive-under-a-generated-record-follows-its-value",
         "array-runs-before-multiline",
         "type-mapping-keeps-numeric-keys-and-array-discards-names"
       ]
