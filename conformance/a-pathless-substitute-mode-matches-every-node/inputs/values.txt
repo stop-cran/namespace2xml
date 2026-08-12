@@ -1,0 +1,4 @@
+lit=X
+cfg.raw=${lit}
+cfg.other=${lit}
+cfg.deep.nested=${lit}

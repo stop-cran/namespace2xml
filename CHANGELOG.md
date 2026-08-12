@@ -106,6 +106,32 @@ independently.
 
 ### Changed
 
+- **§16.7 now states `substitute`'s scope, default, pathless meaning and template matching, closing [#69](https://github.com/stop-cran/namespace2xml/issues/69).**
+  The directive's section named four modes and left every question of *reach* unanswered: whether it
+  governs a subtree or one node, what applies where nothing is declared, what the optional `[path.]`
+  means when omitted, whether a directive path spelling a wildcard matches structurally or by
+  spelling, and whether a §8.6 exclusion mask is subject to it. Four of those five have two
+  defensible readings that produce different output from the same inputs, and the fifth — the
+  default — a reader can only guess at.
+
+  §16.7 now says: the default is `All`; a directive governs the node it matches and not its
+  descendants, on §16.10's model and for the same reason, that a scheme addresses absolute paths;
+  the pathless form matches every node, because under node scoping the alternative reading would
+  govern the overlay root alone and Appendix A.3 gives the root no name to be governed, making the
+  syntax dead; a directive path is matched against "an entry's declared pre-expansion path" as
+  written, so `a.*.b.substitute=None` names the entry declared `a.*.b`, since any structural reading
+  makes the name column of §16.7's own table unreachable; and a mask "is not an entry and is not
+  governed by this directive", so a wildcard mask still expands under `None`.
+
+  That last one is the surprising half. Under the other reading `substitute=None` would silently
+  disable every wildcard mask in the profile it governs, so a directive about value interpretation
+  would change which paths exist. Pinned by `a-pathless-substitute-mode-matches-every-node`, whose
+  third key is nested two levels below any path a directive names, and
+  `an-exclusion-mask-is-not-governed-by-substitute`. Precedence between a pathless and a
+  path-scoped directive is §15.2 source order alone — the narrower one wins by being later, not by
+  being narrower. Behaviour is unchanged; the shipped reading is now the stated one. Bundle
+  revision r51 → r52.
+
 - **§12.2 and §13.3 now state which of them governs an undefined capture, closing [#84](https://github.com/stop-cran/namespace2xml/issues/84).**
   §12.2 said "an undefined capture is an error" and §13.3 required a template's reference to carry
   "only explicit captures already bound by that same template". Both clauses reached

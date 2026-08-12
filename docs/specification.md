@@ -1985,6 +1985,16 @@ Rendering:
 
 Values are case-insensitive.
 
+Default: `All`. Any other default would stop interpreting references in profiles that never name this directive, which the value references Section 3.1 preserves do not admit.
+
+A `substitute` directive governs only the node it matches; descendants use their independently effective mode, defaulting to `All`. The scope is the node rather than the subtree because the table's columns are absolute rather than relative: a subtree reading would have to give `All` at a descendant the meaning "interpret again", which the table does not define, and would leave `substitute` the one path-scoped directive that cannot be narrowed again beneath itself.
+
+The pathless form matches every node. It is therefore not a statement about the root alone, and it competes with a path-scoped form under Section 15.2 like any other pair of directives: the later declaration in source order wins, and being pathless neither strengthens nor weakens it.
+
+Section 15.1 step 6 matches this directive's pattern against "an entry's declared pre-expansion path", and that path may itself be a Section 12 template. It is matched as it was written, one name part at a time, so `a.*.b.substitute=None` governs the entry declared `a.*.b`, and a concrete path such as `a.x.b` does not reach it. Matching a template structurally instead would leave the table's name column unreachable, because the only entries whose *names* have anything to interpret are exactly the entries whose declared paths are not literal text; `Key` and `None` would then differ from `All` and `Value` nowhere, and an implementation could omit half the directive and satisfy every other sentence here.
+
+A Section 8.6 exclusion mask is not an entry and is not governed by this directive. Its pattern is interpreted as written whatever mode is effective at the paths it names, because a mask carries no value and step 6 speaks only of an entry's declared path.
+
 ### 16.8 Format input options
 
 Root-level input options use comma-separated names:

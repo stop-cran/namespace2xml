@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r51+b482ad77db74`.**
+**Contract bundle `r52+ee0ecac1a78e`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -3527,7 +3527,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (35)
+## Same observable result as 2.4.0 (37)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -3638,6 +3638,30 @@ those that name a shared reason are behaviour 3.0 preserved.
   mutation alone, so the corpus is not blind to it; this case is simply downstream of a rule that
   two components agree on.
 
+### `a-pathless-substitute-mode-matches-every-node`
+
+- namespace2xml 2.4.0: **agrees** on the resolved value of `raw`, and the rest of the case has no
+  baseline meaning, because 2.4.0 documents no scope, no default and no pathless rule for
+  `substitute` either. Agreement on one of three keys is not evidence about a rule none of the
+  documents state.
+- Contract: Section 16.7; Section 15.2; Section 14.4.
+- Clean behavior: `substitute=None` carries no path, and Section 16.7 says "the pathless form
+  matches every node", so `other` and `deep.nested` keep their reference text -- including
+  `deep.nested`, which no path-scoped directive names. `cfg.raw.substitute=All` is declared later,
+  and Section 15.2 gives the later matching directive the win "for the same effective setting", so
+  `raw` alone interprets and resolves to `X`.
+- The two halves are the assertion. A reading in which the pathless form governs the root node
+  alone leaves `other` and `deep.nested` interpreting, and a reading in which a pathless directive
+  outranks a path-scoped one leaves `raw` literal. The case is arranged so that each reading changes
+  exactly one line, and the third key is nested two levels deep because a root-only reading and a
+  subtree reading are otherwise indistinguishable.
+- Section 15.2 also says "pattern specificity does not alter precedence", so the more specific
+  `cfg.raw.substitute` wins here by being *later*, not by being narrower. Reversing the two scheme
+  lines would leave every key literal, which is what makes this a source-order rule rather than a
+  specificity rule.
+- `lit` is not emitted. It is a support entry outside the selected subtree, which Section 14.4
+  retains for evaluation and does not emit "unless independently selected".
+
 ### `a-reference-to-an-xml-comment-is-not-a-value`
 
 - namespace2xml 2.4.0: **agrees** on the observable.
@@ -3698,6 +3722,26 @@ those that name a shared reason are behaviour 3.0 preserved.
 - Legacy observation: 2.4.0 emitted the same bytes for this argument order and for the reversed one
   recorded in `a-yaml-wildcard-key-enriches-each-record-of-a-later-file`, so the agreement here is
   a coincidence of a rule it did not implement rather than evidence that it ordered anything.
+
+### `an-exclusion-mask-is-not-governed-by-substitute`
+
+- namespace2xml 2.4.0: **agrees**, and for the same reason it agrees on most `substitute` cases --
+  it has no rule here to disagree with. The baseline never applied substitution modes to masks
+  because it never considered the question.
+- Contract: Section 16.7; Section 8.6; Section 15.1 step 6.
+- Clean behavior: `substitute=None` is in force at every node, and the mask `!cfg.drop.*` still
+  expands, removing both `cfg.drop.x` and `cfg.drop.y`. Section 16.7 says an exclusion mask "is not
+  an entry and is not governed by this directive", and Section 15.1 step 6 matches a `substitute`
+  pattern against "an entry's declared pre-expansion path" -- a mask has a path and no value, so
+  there is no entry for the pattern to match.
+- The alternative reading is not absurd, which is why the case exists: a mask is written in a
+  profile, it contains wildcard syntax, and `None` says names are not interpreted. Under that
+  reading `cfg.drop.*` is a literal name matching nothing, both keys survive, and the output has
+  three lines instead of one. The discriminator is deliberate -- masking a wildcard rather than a
+  literal path is the only shape in which the two readings differ.
+- The consequence of the other reading is worth stating plainly: `substitute=None` would silently
+  disable every wildcard mask in the profile it governs, so a directive about *value* interpretation
+  would change which paths exist. That is the kind of coupling a reader has no reason to expect.
 
 ### `an-unreachable-free-wildcard-reference-does-not-fail-the-run`
 
