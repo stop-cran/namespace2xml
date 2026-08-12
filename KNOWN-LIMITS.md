@@ -559,29 +559,37 @@ having no effect. Tracked as
 [#49](https://github.com/stop-cran/namespace2xml/issues/49), which asks §15.1 to say what the
 outcome should be.
 
-### 1.12 §16.5's merge with an independent sequence describes an unreachable node
+### 1.12 §16.5's merge with an independent sequence replaces, and stops saying so
 
 §16.5 says of the sequence a `key` transformation produces: "If an independent sequence projection
 already exists at the same node, the transformed contribution merges with it under the effective
-`merge` strategy." This build replaces rather than merges. That is a limit only if a node can carry
-both an ordered mapping and an independent sequence, and **it cannot**. **verified**
+`merge` strategy." This build replaces rather than merges, and the replaced items leave no
+diagnostic behind. **verified**
 
-A sequence projection arises at a node in exactly two ways, and both exclude the mapping. §8.7
-infers one only when "all its surviving concrete child names are canonical nonnegative decimal
-ordering values", so a single named child makes the node an ordered mapping instead — `a.0=x` beside
-`a.foo.v=1` yields mapping members named `0` and `foo`, not a sequence and a mapping. A *native*
-sequence contribution contests the mapping under §4.4, which resolves exclusively and **before step
-16**, so the loser is gone before `key` runs; the tool says so at the time, with `TYPE002` naming
-which projection it omitted. The all-numeric node — a genuine independent sequence with no mapping —
-refuses the transform outright with `TYPE001`, "'key=nm' needs an ordered mapping, and this path
-projects a sequence or a scalar only".
+Feed one node a sequence from one input and a mapping from another — `{"reg": [{"x": 9}]}` beside
+`reg.alpha.x=1` and `reg.beta.x=2` — and add `reg.key=name`. The `{"x": 9}` item is absent from the
+output and the diagnostic stream is empty. Remove `key` from that same scheme and the omission is
+announced: `TYPE002` says the flat output renders one container shape and that the sequence items go
+unemitted. Adding a `key` directive therefore converts a **reported** omission into a
+**silent** one, which is the reverse of what a directive added to improve an output should do.
 
-Measured in both source orders across JSON, XML and namespace destinations. The entry is kept
-because the clause is still in the contract and a reader may go looking for the merge it promises.
+The node is reachable because the shape contest is decided **per destination during planning**, not
+in the model before step 16. Both projections survive in the overlay tree — `merge=error` at that
+path fires `TYPE001`, counting two contributions — and each output format then resolves the contest
+for itself. So `key` runs with the independent sequence still present, which is exactly the
+situation the clause describes.
 
-Tracked as [#61](https://github.com/stop-cran/namespace2xml/issues/61), now an amendment request
-rather than a defect. It asked whether the shape was reachable before either fix, which was the
-right order to work in: the answer removed the implementation task instead of scheduling it.
+An earlier revision of this entry asserted the opposite, that no node can hold both shapes at once,
+and marked it verified. It was reasoning from §4.4's exclusivity to a resolution point the
+specification does not place there. The measurements behind it were real; the inference from them
+was not.
+
+The clause is right and needs no amendment: `key` converts the mapping projection *into* a sequence,
+so after the transformation the node carries two sequences, no shape contest remains, and §17.1
+merge applies as written.
+
+Tracked as [#61](https://github.com/stop-cran/namespace2xml/issues/61), a defect with a data-loss
+symptom rather than the amendment request this entry once called it.
 
 ### 1.13 *(resolved)* A destination high-water mark is lost when `replace` removes the path entirely
 
