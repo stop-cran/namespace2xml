@@ -58,19 +58,34 @@ public sealed class FlatTextSerializer
         this.destination = destination;
     }
 
-    /// <summary>Writes every entry.</summary>
-    /// <param name="entries">The keyed entries, in Section 19.1 emission order.</param>
+    /// <summary>Writes every entry, and the comments that own none.</summary>
+    /// <param name="document">The keyed entries in Section 19.1 emission order, and the document comments.</param>
     /// <param name="writer">The buffer to write into.</param>
     /// <returns>
     /// Whether the whole output was written. A false result means either a reported
     /// <c>SERIALIZE001</c> or a budget crossing the caller reads from the writer's fault.
     /// </returns>
-    public bool TrySerialize(IEnumerable<FlatKeyedEntry> entries, OutputBufferWriter writer)
+    /// <remarks>
+    /// Section 20 places the ownerless comments: document-leading ones "precede that source's first
+    /// surviving contribution" and document-trailing ones "follow its final surviving contribution".
+    /// For one output instance that is the top and the bottom of the file, so they bracket the
+    /// entries rather than binding to the first or last of them — which is what lets a document
+    /// comment outlive an ignore mask over the entry it happened to sit against.
+    /// </remarks>
+    public bool TrySerialize(FlatKeyedDocument document, OutputBufferWriter writer)
     {
-        ArgumentNullException.ThrowIfNull(entries);
+        ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(writer);
 
-        foreach (var keyed in entries)
+        foreach (var comment in document.Leading)
+        {
+            if (!TryWriteComment(comment.Text, writer))
+            {
+                return false;
+            }
+        }
+
+        foreach (var keyed in document.Entries)
         {
             foreach (var comment in keyed.Entry.Comments)
             {
@@ -86,6 +101,14 @@ public sealed class FlatTextSerializer
             }
 
             if (!writer.TryWriteLine($"{keyed.Key}={value}"))
+            {
+                return false;
+            }
+        }
+
+        foreach (var comment in document.Trailing)
+        {
+            if (!TryWriteComment(comment.Text, writer))
             {
                 return false;
             }

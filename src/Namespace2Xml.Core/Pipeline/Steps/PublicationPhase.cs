@@ -152,12 +152,17 @@ public static class PublicationPhase
         if (view.Format.TryAsFlat(out var flat))
         {
             var delimiter = view.Instance.Delimiter ?? FlatKeyProjector.DefaultDelimiter(flat);
-            var entries = new FlatProjection(diagnostics, destination).Project(view.View, view.Root);
-            var keyed = new FlatKeyProjector(flat, delimiter, diagnostics, destination).Project(entries);
+            var projected = new FlatProjection(diagnostics, destination).Project(view.View, view.Root);
+            var keyed = new FlatKeyProjector(flat, delimiter, diagnostics, destination).Project(projected);
 
+            // INI takes only the entries: Section 20 gives it a placement rule of its own, and the
+            // half covering document-trailing and inline comments — "normalized to full-line
+            // comments at the nearest deterministic leading position" — does not name a position an
+            // implementation could agree on. Guessing one here would fix a spelling the
+            // specification has not chosen.
             return flat == FlatFormat.Ini
                 ? new IniSerializer(view.Instance.IniOptions, diagnostics, destination)
-                    .TrySerialize(keyed, writer)
+                    .TrySerialize(keyed.Entries, writer)
                 : new FlatTextSerializer(flat, delimiter, diagnostics, destination)
                     .TrySerialize(keyed, writer);
         }

@@ -185,13 +185,41 @@ public sealed class XmlProjection
     }
 
     /// <summary>Fills one element from the node the caller has already named.</summary>
+    /// <remarks>
+    /// Section 4.5 binds a trailing comment to "the immediately preceding entry or item", and
+    /// Section 20 places a document-trailing comment after "its final surviving contribution", so a
+    /// trailing comment is emitted after the element's content rather than ahead of it. Section 11.5
+    /// is the reason the distinction is expressible at all: XML comments are ordered content nodes
+    /// precisely so that one can sit "after the final child".
+    /// </remarks>
     private bool TryFill(XElement element, OverlayNode node, ImmutableArray<NamePart> path)
     {
         foreach (var comment in node.OrderedComments)
         {
-            element.Add(new XComment(comment.Text));
+            if (comment.Placement != CommentPlacement.Trailing)
+            {
+                element.Add(new XComment(comment.Text));
+            }
         }
 
+        if (!TryFillContent(element, node, path))
+        {
+            return false;
+        }
+
+        foreach (var comment in node.OrderedComments)
+        {
+            if (comment.Placement == CommentPlacement.Trailing)
+            {
+                element.Add(new XComment(comment.Text));
+            }
+        }
+
+        return true;
+    }
+
+    private bool TryFillContent(XElement element, OverlayNode node, ImmutableArray<NamePart> path)
+    {
         var kind = Kind(path);
 
         if (kind is TypeValue.Attribute)

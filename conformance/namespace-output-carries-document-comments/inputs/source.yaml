@@ -1,0 +1,6 @@
+# document leading
+cfg:
+  a: 1
+  # leading of b
+  b: 2
+# document trailing

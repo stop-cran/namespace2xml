@@ -208,10 +208,13 @@
         "Section 10.1 lists leading, inline, and trailing comments among YAML input's supported features, and every one of those positions survives a same-format round trip attached to the value it was read against.",
         "Section 20 classifies a comment by the content around it before Section 4.5 binds it, so a comment before the first payload or item is document-leading and a comment between two payloads or items is a leading comment of the following one; a comment at the boundary between a nested container and its parent's next sibling therefore leads that sibling rather than trailing the nested value.",
         "Section 4.5 gives document-leading and document-trailing comments no value owner, and Section 20 places them at the start and the end of each output instance the source reaches rather than binding them to its first or last entry.",
-        "Section 8.5 states the namespace format's own association rule, so a namespace comment with a following entry binds to it and one without stays document-trailing instead of being discarded."
+        "Section 8.5 states the namespace format's own association rule, so a namespace comment with a following entry binds to it and one without stays document-trailing instead of being discarded.",
+        "\"Each output instance\" in Section 20 means every destination that emits comments at all, not only the structured ones: a namespace output brackets its entries with the document-leading and document-trailing comments rather than dropping the comments no entry owns, and an XML output emits a document-trailing comment after the final child rather than ahead of the first."
       ],
       "fixtures": [
         "namespace-document-trailing-comments-reach-the-output",
+        "namespace-output-carries-document-comments",
+        "xml-output-places-a-document-trailing-comment-last",
         "yaml-comment-positions-survive-a-round-trip",
         "yaml-document-comments-have-no-value-owner"
       ]

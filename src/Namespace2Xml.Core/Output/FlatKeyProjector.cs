@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using Namespace2Xml.Diagnostics;
+using Namespace2Xml.Overlay;
 using Namespace2Xml.Pipeline;
 using Namespace2Xml.Profiles;
 
@@ -28,6 +29,15 @@ public enum FlatFormat
 /// </param>
 /// <param name="Key">The key text.</param>
 public sealed record FlatKeyedEntry(FlatEntry Entry, string Section, string Key);
+
+/// <summary>A flat output whose entries have been spelled as keys.</summary>
+/// <param name="Leading">The Section 4.5 document-leading comments, in source order.</param>
+/// <param name="Entries">The keyed entries, in Section 19.1 emission order.</param>
+/// <param name="Trailing">The Section 4.5 document-trailing comments, in source order.</param>
+public sealed record FlatKeyedDocument(
+    ImmutableArray<BoundComment> Leading,
+    ImmutableArray<FlatKeyedEntry> Entries,
+    ImmutableArray<BoundComment> Trailing);
 
 /// <summary>
 /// Spells flat entries as keys and enforces the Section 16.4 rule that "two distinct logical paths
@@ -82,6 +92,21 @@ public sealed partial class FlatKeyProjector
         FlatFormat.Ini => ":",
         _ => throw new ArgumentOutOfRangeException(nameof(format)),
     };
+
+    /// <summary>Spells every entry of a document, carrying its ownerless comments through.</summary>
+    /// <param name="document">The projected flat output.</param>
+    /// <returns>The same document with its entries keyed.</returns>
+    /// <remarks>
+    /// Document comments have no key to spell, so they pass through untouched. They travel with the
+    /// entries rather than beside them because Section 20 places them relative to the entries that
+    /// survive, and a caller holding the two separately can lose that relationship.
+    /// </remarks>
+    public FlatKeyedDocument Project(FlatDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        return new FlatKeyedDocument(document.Leading, Project(document.Entries), document.Trailing);
+    }
 
     /// <summary>Spells every entry and rejects post-projection collisions.</summary>
     /// <param name="entries">The entries, in Section 19.1 emission order.</param>

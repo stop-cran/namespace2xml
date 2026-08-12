@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (127)
+## Observable differences (129)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1585,6 +1585,28 @@ implemented, its case says so plainly rather than letting the heading imply othe
   path with no explicit `merge` directive, because concatenating and patching are both reasonable
   readings of that input and only one of them happens.
 
+### `namespace-output-carries-document-comments`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 4.5; Section 20.
+- Legacy observation: every comment was dropped. The output is `a=1` and `b=2`, carrying neither
+  the document-leading comment, nor the document-trailing comment, nor the leading comment of `b`.
+- Clean behavior: Section 20 tells a namespace destination to "Emit normalized leading `#`
+  comments", and the association each comment carries decides where each one lands. `# leading of
+  b` sits between two payloads, so it "becomes a leading comment of the following payload or item".
+  The other two own no entry at all: Section 4.5 says "document-leading and document-trailing
+  comments have no value owner", and Section 20 places them without one — "document-leading
+  comments precede that source's first surviving contribution and document-trailing comments
+  follow its final surviving contribution". For a single output instance that is the top and the
+  bottom of the file.
+
+  The destination is deliberately namespace rather than YAML, which is where the same rule was
+  already asserted. Reading "Emit normalized leading `#` comments" as a filter admitting only
+  entry-bound comments would delete the other two silently, and the INI row of that same table
+  settles which reading is meant: INI comments are "emitted only as full-line leading comments",
+  and the paragraph below the table then states that "Document-leading comments precede the first
+  global key or section". The wording fixes the form a comment takes, not which comments survive.
+
 ### `namespace-permanent-ignore-masks`
 
 - namespace2xml 2.4.0: **differs**.
@@ -2584,6 +2606,21 @@ implemented, its case says so plainly rather than letting the heading imply othe
   node in element-only content, and the serializer's own indentation is added on top. That
   produces different bytes at `r.xml` and would also weaken the same-format round-trip
   guarantee the fixture uses to distinguish the mode's opt-in effect from the default.
+
+### `xml-output-places-a-document-trailing-comment-last`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 4.5; Section 11.5; Section 20.
+- Legacy observation: the comment is absent. The output is `<cfg a="1" />`; the attribute
+  projection of the scalar is a separate 2.4.0 divergence and is not what this case asserts.
+- Clean behavior: no entry follows the comment, so Section 4.5 leaves it without a value owner and
+  Section 20 places it after the source's "final surviving contribution". Section 11.5 is what
+  makes that position expressible in XML at all: comments "are retained as ordered comment nodes"
+  rather than being forced into a "leading comment for the next value" representation, and the
+  reason it gives is that a comment may occur "after the final child".
+
+  Emitting it ahead of the first child instead would read as a comment about `a`, which is not
+  where the author put it, and is the reassignment Section 11.5 exists to prevent.
 
 ### `xml-sequence-classification-spans-three-contributions`
 

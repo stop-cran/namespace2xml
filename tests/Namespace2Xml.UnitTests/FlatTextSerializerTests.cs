@@ -63,7 +63,7 @@ public class FlatTextSerializerTests
         keyed.Length.ShouldBe(entries.Length);
 
         return new FlatTextSerializer(format, delimiter, diagnostics, new DestinationRef("out.txt", 0))
-            .TrySerialize(keyed, writer);
+            .TrySerialize(new FlatKeyedDocument([], keyed, []), writer);
     }
 
     private bool Fails(FlatFormat format, params FlatEntry[] entries) =>
@@ -260,7 +260,7 @@ public class FlatTextSerializerTests
         var writer = new OutputBufferWriter(new GlobalBudget(ResourceLimits.Defaults));
 
         new FlatTextSerializer(FlatFormat.Namespace, ".", diagnostics)
-            .TrySerialize([], writer)
+            .TrySerialize(new FlatKeyedDocument([], [], []), writer)
             .ShouldBeTrue();
 
         writer.Build().Length.ShouldBe(0);

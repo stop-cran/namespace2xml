@@ -43,6 +43,34 @@ independently.
   such ambiguity, which is why they are checked everywhere and why quoting the contract in a fixture
   rationale should use one.
 
+### Fixed
+
+- **A comment that owned no entry was dropped by every flat output, and misplaced by XML.** §4.5
+  gives document-leading and document-trailing comments "no value owner", and §20 places them
+  anyway: they "precede that source's first surviving contribution" and "follow its final surviving
+  contribution". YAML did that. Namespace and quoted-namespace output discarded them outright — a
+  `# note` at the top of a YAML source and a `# note` after the last entry of a namespace profile
+  both vanished, with exit `0` and an empty diagnostic stream. XML kept them but emitted every one
+  ahead of the first child, so a comment written after the final entry read as a comment about the
+  first.
+
+  The flat serializers only ever saw comments reachable from an entry, and a document comment is
+  bound to the view root, which has no entry. `FlatProjection` now carries the root's comments out
+  as a `FlatDocument`, and `FlatTextSerializer` brackets the entries with them. `XmlProjection`
+  emits trailing-placed comments after an element's content rather than before it — the distinction
+  §11.5 keeps comments as ordered content nodes to express, "because a comment may occur between
+  mixed-content nodes or after the final child".
+
+  Two fixtures assert it, both under acceptance item 13, whose own wording — placement in "each
+  output instance the source reaches" — was already the rule; all three of its existing fixtures
+  rendered to YAML, so nothing exercised the destinations that were wrong. namespace2xml 2.4.0 drops
+  every comment in both cases.
+
+  INI is unchanged and still discards document comments. §20 gives it a placement rule of its own
+  whose second half — document-trailing and inline comments "normalized to full-line comments at the
+  nearest deterministic leading position" — does not name a position two implementations would agree
+  on, and choosing one here would fix a spelling the specification has not.
+
 ### Changed
 
 - **§10.4 stated a provenance rule that no fixture asserted.** Extraction turns a sequence beneath a

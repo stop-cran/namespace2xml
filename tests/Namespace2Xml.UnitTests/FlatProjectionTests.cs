@@ -40,7 +40,7 @@ public class FlatProjectionTests
     private ImmutableArray<FlatEntry> Project(
         OverlayNode view, params string[] root) =>
         new FlatProjection(diagnostics, new DestinationRef("out.txt", 0))
-            .Project(view, [.. root.Select(Ordinary)]);
+            .Project(view, [.. root.Select(Ordinary)]).Entries;
 
     /// <summary>The emitted key paths, spelled with the default delimiter.</summary>
     private static ImmutableArray<string> Keys(ImmutableArray<FlatEntry> entries) =>

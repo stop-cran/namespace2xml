@@ -23,6 +23,22 @@ public sealed record FlatEntry(
     ScalarPayload Payload,
     ImmutableArray<BoundComment> Comments);
 
+/// <summary>A flat output: its entries, and the comments that own no entry.</summary>
+/// <param name="Leading">The Section 4.5 document-leading comments, in source order.</param>
+/// <param name="Entries">The scalar entries, in Section 19.1 emission order.</param>
+/// <param name="Trailing">The Section 4.5 document-trailing comments, in source order.</param>
+/// <remarks>
+/// Section 4.5 gives document-leading and document-trailing comments "no value owner", so they
+/// cannot ride an entry the way every other comment does. Section 20 still places them — "document-
+/// leading comments precede that source's first surviving contribution and document-trailing
+/// comments follow its final surviving contribution" — which is a position in the output rather
+/// than an association with a key, and this record is where a flat output carries it.
+/// </remarks>
+public sealed record FlatDocument(
+    ImmutableArray<BoundComment> Leading,
+    ImmutableArray<FlatEntry> Entries,
+    ImmutableArray<BoundComment> Trailing);
+
 /// <summary>
 /// Flattens an output view into the ordered scalar entries Section 19.1, Section 19.2, and
 /// Section 19.6 spell as keys.
@@ -72,25 +88,34 @@ public sealed class FlatProjection
     /// The Section 16.3 root parts, applied before any spelling. For INI these become section-path
     /// parts rather than key text, which is why the root is prefixed here and not in the encoder.
     /// </param>
-    /// <returns>The scalar entries, in emission order.</returns>
-    public ImmutableArray<FlatEntry> Project(OverlayNode view, ImmutableArray<NamePart> root)
+    /// <returns>The entries in emission order, and the comments that own no entry.</returns>
+    public FlatDocument Project(OverlayNode view, ImmutableArray<NamePart> root)
     {
         ArgumentNullException.ThrowIfNull(view);
 
         var entries = ImmutableArray.CreateBuilder<FlatEntry>();
 
-        Visit(view, root, root, entries);
+        Visit(view, root, root, entries, isRoot: true);
 
         CommentNodes.Report(diagnostics, "\u00A720", destination, discardedComments);
 
-        return entries.ToImmutable();
+        var leading = ImmutableArray.CreateBuilder<BoundComment>();
+        var trailing = ImmutableArray.CreateBuilder<BoundComment>();
+
+        foreach (var comment in view.OrderedComments)
+        {
+            (comment.Placement == CommentPlacement.Trailing ? trailing : leading).Add(comment);
+        }
+
+        return new FlatDocument(leading.ToImmutable(), entries.ToImmutable(), trailing.ToImmutable());
     }
 
     private void Visit(
         OverlayNode node,
         ImmutableArray<NamePart> path,
         ImmutableArray<NamePart> logical,
-        ImmutableArray<FlatEntry>.Builder entries)
+        ImmutableArray<FlatEntry>.Builder entries,
+        bool isRoot = false)
     {
         if (node.Payload is { IsValue: false })
         {
@@ -99,7 +124,10 @@ public sealed class FlatProjection
         }
         else if (node.Payload is { } payload)
         {
-            entries.Add(new FlatEntry(path, logical, payload, [.. node.OrderedComments]));
+            // The view root's comments are the document's, not this entry's: Section 4.5 gives them
+            // "no value owner", and emitting them here as well would print each of them twice.
+            entries.Add(new FlatEntry(
+                path, logical, payload, isRoot ? [] : [.. node.OrderedComments]));
         }
 
         if (node.Marks.HasBothContainers)
