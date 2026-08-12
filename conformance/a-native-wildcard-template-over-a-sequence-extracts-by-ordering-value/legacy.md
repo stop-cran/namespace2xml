@@ -14,6 +14,6 @@
   above, which "do not contribute mapping-presence marks".
 - This case previously expected exit `70`, on the reading that the shape was under-determined
   because a native sequence item takes its ordering value from the destination's high-water mark and
-  the destination is unknown at extraction time. Section 12.4 answers that directly — "a generated
-  contribution reserves or allocates ordering values only when it is generated" — so the timing was
-  never the obstacle it was recorded as.
+  the destination is unknown at extraction time. Section 12.4 answers that directly — a generated
+  contribution "reserves or allocates ordering values … only when it is generated" — so the timing
+  was never the obstacle it was recorded as.

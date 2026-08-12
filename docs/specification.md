@@ -921,7 +921,7 @@ YAML mapping keys must be strings. Each key becomes one qualified-name part unde
 
 Within that part, unescaped `*` and `*[identifier]` tokens use the wildcard-template grammar. `\*` contributes a literal asterisk.
 
-Example template file:
+Example template file, given the data file below on the command line **first**:
 
 ```yaml
 a:
@@ -953,7 +953,7 @@ therefore creates the logical wildcard entries `a.*.b.0=x` and `a.*.b.1=y`, and 
 
 A wildcard key whose value is an **empty mapping or an empty sequence** has no entries for entry-by-entry extraction to find, so the template would contribute nothing at every path it matched. That is `PARSE001` against this section, once per failing source, reported at step 7.
 
-Given another input:
+Given the input
 
 ```yaml
 a:
@@ -961,7 +961,7 @@ a:
   - b: 2
 ```
 
-the result is:
+supplied ahead of the template above, the result is:
 
 ```yaml
 a:
@@ -970,6 +970,8 @@ a:
   - b: 2
     c: XXX
 ```
+
+The argument order matters to this example and the example does not settle it. Mapping-sibling order is governed by Section 5.3 and the Section 4.7 ordering key alone: a generated entry inherits its rule's precedence position, so it sorts against a concrete sibling by the position of the **rule**, not by the moment of generation. Supplying the template first therefore renders `c` ahead of `b`. This example prints the data file first so that its printed result reads naturally; nothing in it overrides Section 5.3.
 
 ## 11. XML input
 
@@ -1273,7 +1275,7 @@ All templates from all sources participate in one deterministic worklist ordered
 
 Every template must be matched against every eligible concrete or generated entry present in the current fixed-point evaluation, regardless of whether the matched entry originated before or after the template. Source order controls precedence, not visibility.
 
-Concrete step-8 ordering allocations are frozen. A generated contribution reserves or allocates ordering values only when it is generated and never retroactively moves a concrete item, even when the rule's source mark is earlier. The rule mark still controls conflict precedence.
+Concrete step-8 ordering allocations are frozen. A generated contribution reserves or allocates ordering values, in the Section 5.4 sense of a sequence's signed 64-bit ordering value under a high-water mark, only when it is generated, and never retroactively moves a concrete item, even when the rule's source mark is earlier. This governs sequence-item numbering only; the mapping-sibling order of a generated entry follows Section 5.3, which gives it the rule's precedence position. The rule mark still controls conflict precedence.
 
 Evaluation proceeds in deterministic breadth waves. One wildcard iteration is one wave that evaluates eligible `(rule,item)` pairs against the items present at the start of that wave; items generated during the wave become eligible in the next wave.
 

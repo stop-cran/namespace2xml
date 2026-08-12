@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r46+85fce567e11e`.**
+**Contract bundle `r47+aa134c8e29ce`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -319,9 +319,9 @@ implemented, its case says so plainly rather than letting the heading imply othe
   above, which "do not contribute mapping-presence marks".
 - This case previously expected exit `70`, on the reading that the shape was under-determined
   because a native sequence item takes its ordering value from the destination's high-water mark and
-  the destination is unknown at extraction time. Section 12.4 answers that directly — "a generated
-  contribution reserves or allocates ordering values only when it is generated" — so the timing was
-  never the obstacle it was recorded as.
+  the destination is unknown at extraction time. Section 12.4 answers that directly — a generated
+  contribution "reserves or allocates ordering values … only when it is generated" — so the timing
+  was never the obstacle it was recorded as.
 
 ### `a-native-wildcard-template-over-an-empty-container-is-parse001`
 
@@ -542,15 +542,16 @@ implemented, its case says so plainly rather than letting the heading imply othe
   says generated entries "inherit the rule's precedence position", Section 4.7 makes that ordinal
   the first component of the stable ordering key, and Section 5.2 states that "the position mark is
   the Section 4.7 stable ordering key". The generated `c` therefore precedes `b`.
-- **Section 10.4's own worked example prints the opposite**, while introducing the template as the
-  first input. That contradiction is filed as
-  [#73](https://github.com/stop-cran/namespace2xml/issues/73). 2.4.0 matches the printed example;
-  3.0 matches the rule. This expectation is authored from Section 5.3 rather than from Section
-  10.4's rendering, and it flips if #73 is decided the other way — which is precisely why the
-  companion case
-  `a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file` exists: it fixes the same
-  enrichment under an argument order where both readings agree, so a #73 decision cannot silently
-  take the capability with it.
+- **Section 10.4's own worked example once printed the opposite**, while introducing the template as
+  the first input. That contradiction was filed as
+  [#73](https://github.com/stop-cran/namespace2xml/issues/73) and resolved in favour of the rule:
+  Section 10.4 now introduces the data file first, so its printed result is valid under Section 5.3
+  and no longer states an ordering the rule contradicts. 2.4.0 matched the old printed example; 3.0
+  matches the rule, and always did. This expectation is authored from Section 5.3. The companion
+  case `a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file` fixes the same enrichment
+  under the argument order both readings agreed on, so the capability is pinned independently of
+  the ordering question — which is why it was written, and it is worth keeping now that the
+  question is settled.
 - Legacy observation: 2.4.0 produced `b` first for **both** argument orders, so its ordering is
   insensitive to where the template file appears. Under Section 5.3 the order is a function of
   source position, so the two orders must differ. The legacy behaviour is not a different rule so
@@ -3404,9 +3405,10 @@ those that name a shared reason are behaviour 3.0 preserved.
 - This is Section 10.4's enrichment with the data file listed first, so the wildcard rule carries
   the later Section 4.7 CLI source ordinal and the generated `c` sorts after the concrete `b` under
   Section 5.3. Both readings of the Section 10.4 / Section 5.3 disagreement filed as
-  [#73](https://github.com/stop-cran/namespace2xml/issues/73) produce this result, which is what
-  makes the case worth pinning separately: it holds the enrichment capability steady no matter how
-  #73 is decided.
+  [#73](https://github.com/stop-cran/namespace2xml/issues/73) produced this result, which is what
+  made the case worth pinning separately while the question was open. #73 was resolved in favour of
+  the rule, and Section 10.4's worked example now introduces the data file first — so this fixture
+  is that example, byte for byte, and pins it.
 - Legacy observation: 2.4.0 emitted the same bytes for this argument order and for the reversed one
   recorded in `a-yaml-wildcard-key-enriches-each-record-of-a-later-file`, so the agreement here is
   a coincidence of a rule it did not implement rather than evidence that it ordered anything.

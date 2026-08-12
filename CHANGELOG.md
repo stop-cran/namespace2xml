@@ -15,6 +15,29 @@ independently.
 
 ### Changed
 
+- **§10.4's worked example printed a sibling order the rules forbid.** The example introduced a
+  wildcard template as the first input, then a data file, and printed the generated `c` *after* the
+  concrete `b`. §5.3 gives a generated entry the rule's precedence position, §4.7 makes the CLI
+  source ordinal the first component of the ordering key, and §5.2 orders mapping siblings by that
+  key — so a template listed first must render `c` first. A reader implementing from the example
+  and a reader implementing from the rules produce different bytes from identical inputs.
+
+  The rules are explicit, mutually consistent and mechanically checkable, and §4.7 names §5.3 as the
+  clause it exists to serve; an example is not where a reader should discover a different ordering
+  rule. The example now introduces the data file first, which preserves its teaching point —
+  extraction and enrichment — leaves its printed result correct, and states outright that sibling
+  order is §5.3's to decide. The corpus already held both argument orders, and
+  `a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file` is now the amended example byte for
+  byte.
+
+  §12.4's "reserves or allocates ordering values" gains an inline pointer to §5.4, because that
+  sentence is about sequence-item numbering and reads, without §5.4 in hand, as though it positioned
+  generated entries at generation time — the opposite of §5.3. It had already misled one reader.
+
+  No behaviour changed: the implementation followed §5.3 throughout, and 2.4.0 followed neither,
+  emitting the same bytes for both argument orders. Reported as
+  **[#73](https://github.com/stop-cran/namespace2xml/issues/73)**. **Closes #73.**
+
 - **A concrete output instance that selects nothing now warns.** A wildcard `output` selector that
   expanded to no instance already drew `WARN009`; a literal selector naming a path that does not
   exist produced a planned output, an empty file, exit 0 and complete silence. The two spellings of
