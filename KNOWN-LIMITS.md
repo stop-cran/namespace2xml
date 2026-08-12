@@ -731,19 +731,15 @@ ordinary case, so nothing currently pins this one. Tracked as
 [#54](https://github.com/stop-cran/namespace2xml/issues/54); `docs/format-ini.md` documents the
 question rather than either answer.
 
-### 1.20 `WARN009` binds by existence, where §22 says effectiveness
+### 1.20 `WARN009` binds by existence, where §22 said effectiveness
 
-§22 gives the `WARN009` condition as a directive that "binds to no effective output/path"; §15.2
-gives it as one that "binds to no concrete output instance". §16.1 keeps an `output=ignore` instance
-in existence so a later declaration can restore it, so a directive landing on an ignored instance
-binds under §15.2 and does not bind under §22.
-
-This build emits no warning: the directive binds to the instance that exists. **verified**
-
-The behaviour predates the entry and was preserved rather than chosen. Both existing `WARN009`
-fixtures concern selectors that bind to nothing at all, which the two readings agree about, so
-nothing pins this case either way. Tracked as
-[#55](https://github.com/stop-cran/namespace2xml/issues/55).
+Resolved by [#55 (closed)](https://github.com/stop-cran/namespace2xml/issues/55). §22 and Appendix B
+now agree with §15.2 that the condition is binding to "no concrete output instance or path", and
+§15.2 states the test as existence rather than effect. A directive naming an `output=ignore`
+instance is silent, because §16.1 keeps that instance in existence so a later declaration can
+restore it; a directive stranded beneath a `type=ignore`, whose path is destroyed, still warns.
+Both sides are pinned — `a-directive-on-an-ignored-output-instance-does-not-warn` and
+`type-ignore-removes-a-subtree-and-strands-its-directives`.
 
 ## 2. Acceptance coverage
 

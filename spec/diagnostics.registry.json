@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "e30207d351a7b42d2bd4d399e259212398093887e8925f38579862f1feee5f82"
+    "sha256": "f8811e772b51e1ae4db164863bfceb1a26ee417baa832bc995b7b3f0d8dae3ec"
   },
   "authoritativeFor": [
     "code",
@@ -456,7 +456,7 @@
       "code": "WARN009",
       "severity": "warning",
       "cardinality": "once per declaration or expanded directive",
-      "condition": "Scheme directive binds to no effective output/path, wildcard output creates no instance, or a concrete output instance selects nothing",
+      "condition": "Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing",
       "fields": [
         "source",
         "line",
@@ -465,7 +465,7 @@
         "declaration"
       ],
       "mappings": [
-        "Directive binds to no effective output/path or wildcard output creates no concrete instance",
+        "Directive binds to no concrete output instance or path, or wildcard output creates no concrete instance",
         "Concrete output instance selects nothing"
       ]
     },

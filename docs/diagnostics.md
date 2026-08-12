@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r52+ee0ecac1a78e`.** 35 codes.
+**Contract bundle `r53+3e8ad5195508`.** 35 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -55,7 +55,7 @@ by preference.
 | `WARN006` | warning | once per input document | Processing instruction discarded | `source` |
 | `WARN007` | warning | once per input document | XML formatting whitespace discarded | `source` |
 | `WARN008` | warning | once per invocation | Output plan contains no destinations | — |
-| `WARN009` | warning | once per declaration or expanded directive | Scheme directive binds to no effective output/path, wildcard output creates no instance, or a concrete output instance selects nothing | `source`, `line`, `column`, `path`, `declaration` |
+| `WARN009` | warning | once per declaration or expanded directive | Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing | `source`, `line`, `column`, `path`, `declaration` |
 | `WARN010` | warning | once per source contribution, canonical mapping path, and output instance | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | `source`, `path`, `destination` |
 | `WARN011` | warning | once per canonical path | Later unmarked contribution aliases an existing XML component instead of overriding it | `source`, `path` |
 
@@ -255,11 +255,11 @@ Each code below lists the situations the specification maps to it (Appendix B).
 
 - Validated output plan contains no destinations
 
-### `WARN009` — Scheme directive binds to no effective output/path, wildcard output creates no instance, or a concrete output instance selects nothing
+### `WARN009` — Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing
 
 *warning, once per declaration or expanded directive.*
 
-- Directive binds to no effective output/path or wildcard output creates no concrete instance
+- Directive binds to no concrete output instance or path, or wildcard output creates no concrete instance
 - Concrete output instance selects nothing
 
 ### `WARN010` — Native JSON/YAML numeric mapping remains inferred as sequence in an output view

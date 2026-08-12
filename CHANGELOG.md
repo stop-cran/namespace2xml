@@ -106,6 +106,20 @@ independently.
 
 ### Changed
 
+### Changed
+
+- **§15.2 now says `WARN009` tests binding, not effect, closing [#55](https://github.com/stop-cran/namespace2xml/issues/55).**
+  §22 said a scheme directive warns when it "binds to no *effective* output/path" while §15.2 said
+  "binds to no *concrete output instance*", and the two disagree on exactly one input: a directive
+  naming an instance that `output=ignore` suppresses. It has bound to a concrete instance and to
+  nothing effective, so one phrasing owed a warning and the other did not, and no fixture pinned
+  which. §15.2, §22's row and Appendix B's row now all read "concrete output instance or path", and
+  the rule is stated as existence rather than effect: an `output=ignore` instance still exists —
+  §16.1 keeps it precisely so a later declaration can restore it — so the directives configuring it
+  have bound and are silent, while a directive stranded beneath a `type=ignore`, whose path was
+  destroyed, still warns. The distinction is whether the thing the directive configures is present.
+  Behaviour is unchanged; the contract now says which behaviour it is.
+
 - **§16.7 now states `substitute`'s scope, default, pathless meaning and template matching, closing [#69](https://github.com/stop-cran/namespace2xml/issues/69).**
   The directive's section named four modes and left every question of *reach* unanswered: whether it
   governs a subtree or one node, what applies where nothing is declared, what the optional `[path.]`

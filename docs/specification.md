@@ -1611,6 +1611,10 @@ Scheme configuration is output-instance-scoped:
 
 A selector-qualified `filename`, `root`, `delimiter`, output-options, `filemerge`, or output-view transformation that binds to no concrete output instance emits one scheme warning and is otherwise inert.
 
+The test is existence, not effect. An output instance suppressed by `output=ignore` still exists — Section 16.1 keeps it precisely so that a later declaration can restore it — so a directive naming that instance has bound, and does not warn. Configuring an output fully and then disabling it with one line is the workflow `output=ignore` exists to serve, and a warning on every directive of a disabled output would make that line noisy in proportion to how completely the output was configured. The instance is also one declaration away from being live, so the warning would be describing a configuration that is about to be correct.
+
+A directive stranded *beneath* an ignore is a different case and does warn. `type=ignore` at `cfg.a` removes `cfg.a` and its descendants from the view, so `cfg.a.p.type=array` names a path that no longer exists and emits `WARN009`. The distinction is what the directive configures: `a.filename` and `a.output=ignore` configure one output instance between them and are read together, whereas `cfg.a.p.type` and `cfg.a.type=ignore` are separate declarations about separate paths, the second of which silently voided the first. A directive warns when the thing it configures is absent, not when that thing is present and producing nothing.
+
 Use `type=ignore` for output-view removal or a namespace `!pattern` permanent mask for run-wide exclusion.
 
 Ignore mechanisms are intentionally distinct:
@@ -2705,7 +2709,7 @@ The normative diagnostic registry is:
 | `WARN006` | warning | Processing instruction discarded | once per input document |
 | `WARN007` | warning | XML formatting whitespace discarded | once per input document |
 | `WARN008` | warning | Output plan contains no destinations | once per invocation |
-| `WARN009` | warning | Scheme directive binds to no effective output/path, wildcard output creates no instance, or a concrete output instance selects nothing | once per declaration or expanded directive |
+| `WARN009` | warning | Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing | once per declaration or expanded directive |
 | `WARN010` | warning | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | once per source contribution, canonical mapping path, and output instance |
 | `WARN011` | warning | Later unmarked contribution aliases an existing XML component instead of overriding it | once per canonical path |
 
@@ -3369,7 +3373,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | XML processing instruction discarded | `WARN006` |
 | XML formatting whitespace discarded | `WARN007` |
 | Validated output plan contains no destinations | `WARN008` |
-| Directive binds to no effective output/path or wildcard output creates no concrete instance | `WARN009` |
+| Directive binds to no concrete output instance or path, or wildcard output creates no concrete instance | `WARN009` |
 | Concrete output instance selects nothing | `WARN009` |
 | JSON/YAML numeric mapping remains inferred as a sequence | `WARN010` |
 | Later unmarked contribution adds an ordinary component aliasing an existing XML component | `WARN011` |

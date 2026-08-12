@@ -307,10 +307,13 @@
         "A substitute directive governs the node it matches and not its descendants, its default is All, and its pathless form matches every node rather than the root alone, so a pathless mode reaches an entry nested two levels below any path a directive names.",
         "A pathless substitute directive and a path-scoped one compete under Section 15.2 by source order alone, so the later declaration wins whichever of the two forms it takes and being more specific does not help the earlier one.",
         "A substitute pattern matches an entry's declared pre-expansion path as it was written, so a directive path spelling a wildcard governs the template declared with that spelling, which is the only way the mode's name column reaches any entry at all.",
-        "A Section 8.6 exclusion mask is not an entry, so substitute does not govern it and a wildcard mask still expands under None rather than becoming a literal path that matches nothing."
+        "A Section 8.6 exclusion mask is not an entry, so substitute does not govern it and a wildcard mask still expands under None rather than becoming a literal path that matches nothing.",
+        "WARN009 tests whether a directive bound to a concrete output instance or path and not whether that instance produced anything, so a directive naming an instance whose output is ignore is silent while a directive stranded beneath a type=ignore is not.",
+        "An output=ignore instance still exists under Section 16.1 so that a later declaration can restore it, which is why the directives configuring it have bound and the run exits 0 with no diagnostic at all."
       ],
       "fixtures": [
         "a-container-value-in-a-structured-scheme-is-scheme001",
+        "a-directive-on-an-ignored-output-instance-does-not-warn",
         "a-json-scheme-nests-directive-paths",
         "a-pathless-substitute-mode-matches-every-node",
         "a-yaml-scheme-key-carries-a-wildcard-template",

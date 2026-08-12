@@ -147,7 +147,7 @@ public static partial class DiagnosticCodes
             []),
         new DiagnosticCodeInfo("WARN009", DiagnosticSeverity.Warning,
             "once per declaration or expanded directive",
-            "Scheme directive binds to no effective output/path, wildcard output creates no instance, or a concrete output instance selects nothing",
+            "Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing",
             ["source", "line", "column", "path", "declaration"]),
         new DiagnosticCodeInfo("WARN010", DiagnosticSeverity.Warning,
             "once per source contribution, canonical mapping path, and output instance",
@@ -769,7 +769,7 @@ public static partial class DiagnosticCodes
         Create("WARN008", DiagnosticSeverity.Warning, phase, spec, message,
             Invocation);
 
-    /// <summary><c>WARN009</c> (warning) — Scheme directive binds to no effective output/path, wildcard output creates no instance, or a concrete output instance selects nothing.</summary>
+    /// <summary><c>WARN009</c> (warning) — Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
