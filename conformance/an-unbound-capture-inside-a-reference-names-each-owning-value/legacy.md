@@ -1,6 +1,8 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. As above, there is no baseline diagnostic stream to compare.
+- namespace2xml 2.4.0: **differs**, and silently. It exits 0, emits `a.x` and `a.y`, and drops the
+  template. As with the companion case, the baseline's output is indistinguishable from that of a
+  profile in which the offending line was never written.
 - Contract: Section 13.3; Section 14.4; Section 22; Appendix A.4.
 - Clean behavior: `a.*[0].copy=${a.*[9]}` writes a capture the owning template does not bind.
   Appendix A.4 calls that a free capture and makes it `REFERENCE001`; Section 13.3 says "a reference

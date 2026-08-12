@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (132)
+## Observable differences (135)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -362,6 +362,33 @@ implemented, its case says so plainly rather than letting the heading imply othe
   mapping-presence marks".
 - This case previously expected exit `70`. Section 6.3 defines `0` and `1` and nothing else, so a
   status outside that set was never something a caller could be asked to handle.
+
+### `a-pathless-substitute-mode-matches-every-node`
+
+- namespace2xml 2.4.0: **differs**, and silently. It exits 0 and resolves every reference --
+  `raw=X`, `other=X`, `deep.nested=X` -- because it ignores a `substitute` directive written with
+  no path at all. The directive is accepted, no message is emitted, and nothing it asks for
+  happens. A profile relying on a pathless `substitute=None` to keep reference text literal is
+  therefore silently substituted anyway.
+- Contract: Section 16.7; Section 15.2; Section 14.4.
+- Clean behavior: `substitute=None` carries no path, and Section 16.7 says "the pathless form
+  matches every node", so `other` and `deep.nested` keep their reference text -- including
+  `deep.nested`, which no path-scoped directive names. `cfg.raw.substitute=All` is declared later,
+  and Section 15.2 gives the later matching directive the win "for the same effective setting", so
+  `raw` alone interprets and resolves to `X`.
+- The two halves are the assertion. A reading in which the pathless form governs the root node
+  alone leaves `other` and `deep.nested` interpreting, and a reading in which a pathless directive
+  outranks a path-scoped one leaves `raw` literal. The case is arranged so that each reading changes
+  exactly one line, and the third key is nested two levels deep because a root-only reading and a
+  subtree reading are otherwise indistinguishable.
+- Section 15.2 also says "pattern specificity does not alter precedence", so the more specific
+  `cfg.raw.substitute` wins here by being *later*, not by being narrower. Reversing the two scheme
+  lines would leave every key literal, which is what makes this a source-order rule rather than a
+  specificity rule.
+- `lit` is not emitted. It is a support entry outside the selected subtree, which Section 14.4
+  retains for evaluation and does not emit "unless independently selected".
+- The baseline's agreement on `raw` alone is a coincidence of it resolving everything, not evidence
+  about precedence: it reaches the same text for that one key by applying no directive at all.
 
 ### `a-refused-fold-is-reported-once-per-destination`
 
@@ -793,6 +820,56 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: a configuration file's comments are written by people to explain
   the values next to them, and an override that silently deletes the explanation while keeping the
   value leaves the reader with less than they started with.
+
+### `an-unbound-capture-inside-a-reference-names-each-owning-value`
+
+- namespace2xml 2.4.0: **differs**, and silently. It exits 0, emits `a.x` and `a.y`, and drops the
+  template. As with the companion case, the baseline's output is indistinguishable from that of a
+  profile in which the offending line was never written.
+- Contract: Section 13.3; Section 14.4; Section 22; Appendix A.4.
+- Clean behavior: `a.*[0].copy=${a.*[9]}` writes a capture the owning template does not bind.
+  Appendix A.4 calls that a free capture and makes it `REFERENCE001`; Section 13.3 says "a reference
+  inside a wildcard template may contain only explicit captures already bound by that same
+  template". Two names match, so the stream carries **two** diagnostics, one per owning value,
+  matching Section 22's "once per reachable owning value".
+- The count is the assertion, and it is the opposite of the companion case's. It is not a stylistic
+  choice: Section 14.4 suppresses a reference error "in entries unreachable from every concrete
+  output instance", so whether this condition is reported at all is decided per owning value. A
+  once-per-rule diagnostic could not say "these two of five hundred", which is why the same
+  authoring mistake is counted one way outside a reference and another way inside one.
+- The phases differ for the same reason. A capture the rule does not define is refused while the
+  entry is read; a reference is resolved only once the Section 14.4 closure is known, which is why
+  this case reports `planning` and the companion reports `input`.
+- Both diagnostics name `line` 3 -- one line of source, two owning values -- so `path` is what
+  distinguishes them, and it is a projected output key here rather than a rule name, which is
+  exactly the distinction Section 22 draws between `path` and `rule`.
+
+### `an-undefined-capture-outside-a-reference-names-its-rule-once`
+
+- namespace2xml 2.4.0: **differs**, and silently. It exits 0, emits `a.x`, `a.y` and `a.z`, and
+  drops the template entirely -- no `copy` key, no message, no non-zero exit. The authoring mistake
+  that this case makes a blocking error leaves the baseline's output looking exactly like a profile
+  that never contained the line.
+- Contract: Section 12.2; Appendix B; Section 22.
+- Clean behavior: `a.*[0].copy=lit*[9]` substitutes a capture its own name never defines. Section
+  12.2 says "an undefined capture outside a reference is an error", and Appendix B maps that
+  condition to `WILDCARD001` by scoping the code to a capture "outside a reference". Three names
+  match the template and the stream carries **one** diagnostic, because the fault is a property of
+  the rule as written and Section 22 counts `WILDCARD001` "once per rule".
+- The count is the assertion. An implementation that evaluated the rule per item would report the
+  same code three times and satisfy every sentence about *which* code applies, so a case pinning the
+  code alone would not notice. The input carries three matching names for that reason.
+- The member set is the second assertion. Section 22 gives `path` to a condition that "concerns one
+  overlay node or one projected output key", and a template's declared name is neither -- it names a
+  rule, which is what the `rule` member exists for: "an array of Appendix A canonical wildcard-rule
+  names, holding one element per rule the condition holds responsible". The condition also supplies
+  `line` without `column`, because Section 22 says a condition "raised over a compiled declaration or
+  a wildcard rule rather than over the text that produced it, supplies `line` without `column`".
+- The companion case `an-unbound-capture-inside-a-reference-names-each-owning-value` writes the same
+  mistake inside a reference and gets a different code, a different phase and a different count.
+  Between them the two cases fix the division that Section 12.2 and Section 13.3 would otherwise
+  each appear to claim. The baseline drops both silently, so it distinguishes nothing here and
+  cannot be consulted about which clause was meant.
 
 ### `an-xml-scheme-file-is-not-a-scheme-format`
 
@@ -2899,7 +2976,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs that crashed 2.4.0 (19)
+## Inputs that crashed 2.4.0 (17)
 
 The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
 reports a diagnostic and exits deliberately.
@@ -2980,52 +3057,6 @@ reports a diagnostic and exits deliberately.
   is not merely to change the exit code but to detect the condition and report it as a stable
   diagnostic. The crash exit code carries no code, no phase, and no spec anchor; an automated
   caller cannot tell it apart from a runtime crash.
-
-### `an-unbound-capture-inside-a-reference-names-each-owning-value`
-
-- namespace2xml 2.4.0: **crashes**. As above, there is no baseline diagnostic stream to compare.
-- Contract: Section 13.3; Section 14.4; Section 22; Appendix A.4.
-- Clean behavior: `a.*[0].copy=${a.*[9]}` writes a capture the owning template does not bind.
-  Appendix A.4 calls that a free capture and makes it `REFERENCE001`; Section 13.3 says "a reference
-  inside a wildcard template may contain only explicit captures already bound by that same
-  template". Two names match, so the stream carries **two** diagnostics, one per owning value,
-  matching Section 22's "once per reachable owning value".
-- The count is the assertion, and it is the opposite of the companion case's. It is not a stylistic
-  choice: Section 14.4 suppresses a reference error "in entries unreachable from every concrete
-  output instance", so whether this condition is reported at all is decided per owning value. A
-  once-per-rule diagnostic could not say "these two of five hundred", which is why the same
-  authoring mistake is counted one way outside a reference and another way inside one.
-- The phases differ for the same reason. A capture the rule does not define is refused while the
-  entry is read; a reference is resolved only once the Section 14.4 closure is known, which is why
-  this case reports `planning` and the companion reports `input`.
-- Both diagnostics name `line` 3 -- one line of source, two owning values -- so `path` is what
-  distinguishes them, and it is a projected output key here rather than a rule name, which is
-  exactly the distinction Section 22 draws between `path` and `rule`.
-
-### `an-undefined-capture-outside-a-reference-names-its-rule-once`
-
-- namespace2xml 2.4.0: **crashes**. The baseline has no diagnostic stream, no stable code, and no
-  cardinality rule, so there is nothing here to compare against; `expected-diagnostics.json` is the
-  whole point of the case.
-- Contract: Section 12.2; Appendix B; Section 22.
-- Clean behavior: `a.*[0].copy=lit*[9]` substitutes a capture its own name never defines. Section
-  12.2 says "an undefined capture outside a reference is an error", and Appendix B maps that
-  condition to `WILDCARD001` by scoping the code to a capture "outside a reference". Three names
-  match the template and the stream carries **one** diagnostic, because the fault is a property of
-  the rule as written and Section 22 counts `WILDCARD001` "once per rule".
-- The count is the assertion. An implementation that evaluated the rule per item would report the
-  same code three times and satisfy every sentence about *which* code applies, so a case pinning the
-  code alone would not notice. The input carries three matching names for that reason.
-- The member set is the second assertion. Section 22 gives `path` to a condition that "concerns one
-  overlay node or one projected output key", and a template's declared name is neither -- it names a
-  rule, which is what the `rule` member exists for: "an array of Appendix A canonical wildcard-rule
-  names, holding one element per rule the condition holds responsible". The condition also supplies
-  `line` without `column`, because Section 22 says a condition "raised over a compiled declaration or
-  a wildcard rule rather than over the text that produced it, supplies `line` without `column`".
-- The companion case `an-unbound-capture-inside-a-reference-names-each-owning-value` writes the same
-  mistake inside a reference and gets a different code, a different phase and a different count.
-  Between them the two cases fix the division that Section 12.2 and Section 13.3 would otherwise
-  each appear to claim.
 
 ### `scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias`
 
@@ -3527,7 +3558,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (37)
+## Same observable result as 2.4.0 (36)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -3637,30 +3668,6 @@ those that name a shared reason are behaviour 3.0 preserved.
   `a-yaml-wildcard-key-enriches-each-record-of-{a-later,an-earlier}-file` do fail on the `Graft`
   mutation alone, so the corpus is not blind to it; this case is simply downstream of a rule that
   two components agree on.
-
-### `a-pathless-substitute-mode-matches-every-node`
-
-- namespace2xml 2.4.0: **agrees** on the resolved value of `raw`, and the rest of the case has no
-  baseline meaning, because 2.4.0 documents no scope, no default and no pathless rule for
-  `substitute` either. Agreement on one of three keys is not evidence about a rule none of the
-  documents state.
-- Contract: Section 16.7; Section 15.2; Section 14.4.
-- Clean behavior: `substitute=None` carries no path, and Section 16.7 says "the pathless form
-  matches every node", so `other` and `deep.nested` keep their reference text -- including
-  `deep.nested`, which no path-scoped directive names. `cfg.raw.substitute=All` is declared later,
-  and Section 15.2 gives the later matching directive the win "for the same effective setting", so
-  `raw` alone interprets and resolves to `X`.
-- The two halves are the assertion. A reading in which the pathless form governs the root node
-  alone leaves `other` and `deep.nested` interpreting, and a reading in which a pathless directive
-  outranks a path-scoped one leaves `raw` literal. The case is arranged so that each reading changes
-  exactly one line, and the third key is nested two levels deep because a root-only reading and a
-  subtree reading are otherwise indistinguishable.
-- Section 15.2 also says "pattern specificity does not alter precedence", so the more specific
-  `cfg.raw.substitute` wins here by being *later*, not by being narrower. Reversing the two scheme
-  lines would leave every key literal, which is what makes this a source-order rule rather than a
-  specificity rule.
-- `lit` is not emitted. It is a support entry outside the selected subtree, which Section 14.4
-  retains for evaluation and does not emit "unless independently selected".
 
 ### `a-reference-to-an-xml-comment-is-not-a-value`
 

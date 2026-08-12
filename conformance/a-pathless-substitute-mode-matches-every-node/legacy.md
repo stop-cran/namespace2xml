@@ -1,9 +1,10 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **agrees** on the resolved value of `raw`, and the rest of the case has no
-  baseline meaning, because 2.4.0 documents no scope, no default and no pathless rule for
-  `substitute` either. Agreement on one of three keys is not evidence about a rule none of the
-  documents state.
+- namespace2xml 2.4.0: **differs**, and silently. It exits 0 and resolves every reference --
+  `raw=X`, `other=X`, `deep.nested=X` -- because it ignores a `substitute` directive written with
+  no path at all. The directive is accepted, no message is emitted, and nothing it asks for
+  happens. A profile relying on a pathless `substitute=None` to keep reference text literal is
+  therefore silently substituted anyway.
 - Contract: Section 16.7; Section 15.2; Section 14.4.
 - Clean behavior: `substitute=None` carries no path, and Section 16.7 says "the pathless form
   matches every node", so `other` and `deep.nested` keep their reference text -- including
@@ -21,3 +22,5 @@
   specificity rule.
 - `lit` is not emitted. It is a support entry outside the selected subtree, which Section 14.4
   retains for evaluation and does not emit "unless independently selected".
+- The baseline's agreement on `raw` alone is a coincidence of it resolving everything, not evidence
+  about precedence: it reaches the same text for that one key by applying no directive at all.

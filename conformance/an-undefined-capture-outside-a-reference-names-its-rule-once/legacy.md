@@ -1,8 +1,9 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. The baseline has no diagnostic stream, no stable code, and no
-  cardinality rule, so there is nothing here to compare against; `expected-diagnostics.json` is the
-  whole point of the case.
+- namespace2xml 2.4.0: **differs**, and silently. It exits 0, emits `a.x`, `a.y` and `a.z`, and
+  drops the template entirely -- no `copy` key, no message, no non-zero exit. The authoring mistake
+  that this case makes a blocking error leaves the baseline's output looking exactly like a profile
+  that never contained the line.
 - Contract: Section 12.2; Appendix B; Section 22.
 - Clean behavior: `a.*[0].copy=lit*[9]` substitutes a capture its own name never defines. Section
   12.2 says "an undefined capture outside a reference is an error", and Appendix B maps that
@@ -21,4 +22,5 @@
 - The companion case `an-unbound-capture-inside-a-reference-names-each-owning-value` writes the same
   mistake inside a reference and gets a different code, a different phase and a different count.
   Between them the two cases fix the division that Section 12.2 and Section 13.3 would otherwise
-  each appear to claim.
+  each appear to claim. The baseline drops both silently, so it distinguishes nothing here and
+  cannot be consulted about which clause was meant.

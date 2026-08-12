@@ -365,6 +365,33 @@ accidentally pass by reading an artifact left behind by a previous run.
 the moment it is introduced, by the person who knows why. Reconstructing that list at release time
 produces a worse migration guide and takes longer.
 
+**The verdict word is an assertion, so measure it — do not reason it out.** `legacy.md` opens with
+`- namespace2xml 2.4.0: **<verdict>**`, where the verdict is one of `agrees`, `differs`, `crashes`
+or `nondeterministic`, and the `differential` CI job runs the pinned 2.4.0 package against the case
+to check it. Guessing produces a plausible verdict that is simply false: two cases whose input is
+obviously malformed were authored as `crashes`, and 2.4.0 in fact exits 0 and silently discards the
+offending entry — which is a far more interesting thing to have told a migrating user. Run the lane
+before you push:
+
+```powershell
+$env:N2X_LEGACY_PACKAGE = '<path>\namespace2xml.2.4.0.nupkg'
+$env:N2X_LEGACY_DOTNET  = '<private .NET 9 root>\dotnet.exe'   # only if 9.0 is not installed
+dotnet test tests\Namespace2Xml.Conformance\Namespace2Xml.Conformance.csproj `
+  --no-build -c Release --filter "FullyQualifiedName~DifferentialTests"
+```
+
+Without `N2X_LEGACY_PACKAGE` the lane ignores itself, so a local run that never downloads the
+baseline says nothing about the verdicts. 2.4.0 targets `net9.0` and the harness pins
+`DOTNET_ROLL_FORWARD=Minor` deliberately — Appendix C.6 forbids observing the baseline on a runtime
+it was never published against — so without a 9.0 runtime every case fails with a host error rather
+than skipping. `N2X_LEGACY_DOTNET` points the baseline, and only the baseline, at a private install.
+
+**On Windows the lane reports about a dozen failures that are not yours.** 2.4.0's writer is
+platform-dependent and emits CRLF there, so every case whose expected output has more than one line
+diverges at the first line ending. CI runs Linux, where 2.4.0 emits LF. Read `first difference at
+byte N (expected 0x0a, actual 0x0d)` as noise — but read the *rest* of the divergence list, because
+a genuine content difference on a later byte is reported underneath it and is easy to skim past.
+
 Before you finish, apply C7 to the case: for each assertion the acceptance items claim, name the
 byte that would change if the claim were false. An input that is refused for reason A cannot be
 evidence about reason B, however plainly it names B — that is how "no external resource is

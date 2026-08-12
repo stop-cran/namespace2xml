@@ -365,6 +365,37 @@ a JSON reader, so a `\u00a7` escape is compared against the emitted `§` and fai
 character. This is the comparer being an independent oracle rather than a mirror, which is the whole
 reason it exists — but it does mean a fixture cannot be authored in ASCII-escaped JSON.
 
+### A `legacy.md` verdict is measured, not inferred
+
+The verdict word is checked in CI by the `differential` job, which runs the pinned 2.4.0 package
+against the case. Inferring it from the input is unreliable in a specific direction: an input
+malformed enough that v3 refuses it is usually one 2.4.0 **accepts and silently discards**, exiting
+0. Two cases were authored `crashes` on that reasoning and both were false — 2.4.0 dropped the
+offending entry and emitted a tree indistinguishable from a profile that never contained the line.
+
+The lane ignores itself unless `N2X_LEGACY_PACKAGE` names the `.nupkg`, so a green local run proves
+nothing about verdicts. It also needs a `net9.0` runtime, because `ToolRunner` pins
+`DOTNET_ROLL_FORWARD=Minor` on purpose; without one every case fails with exit `-2147450730` from
+the host rather than skipping. `N2X_LEGACY_DOTNET` points the baseline at a private install:
+
+```powershell
+$env:N2X_LEGACY_PACKAGE = 'C:\...\namespace2xml.2.4.0.nupkg'
+$env:N2X_LEGACY_DOTNET  = 'C:\Users\<you>\dotnet9\dotnet.exe'
+```
+
+On Windows about a dozen cases then fail on `expected 0x0a, actual 0x0d`: 2.4.0 writes CRLF there
+and LF on the Linux runners. That is §24 platform dependence, not a fixture defect. **Read past it
+to the rest of the list** — a real content divergence is reported on a later byte of the same file
+and looks identical at a glance. One case in this repository claimed `agrees` on that basis while
+2.4.0 was in fact ignoring the directive under test entirely.
+
+To measure a single case by hand, run the baseline DLL directly rather than its apphost, which is
+`win-x64` and will not load on this arm64 workstation:
+
+```powershell
+& C:\Users\<you>\dotnet9\dotnet.exe C:\...\baseline240\x\tools\net9.0\any\namespace2xml.dll -i in.txt -s scheme.txt
+```
+
 ### A mutation that survives is not always a test gap
 
 Three kinds of false survivor have already cost time here, and all three look identical in the
