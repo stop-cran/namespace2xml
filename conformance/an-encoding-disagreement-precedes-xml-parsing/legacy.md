@@ -1,9 +1,17 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**. It reports the *other* fault. Measured: it emits
-  `System.Xml.XmlException: The 'a' start tag on line 2 position 8 does not match the end tag of
-  'b'`, as a raw .NET stack trace naming `ProfileReader.cs:line 143`, and never mentions the encoding
-  disagreement at all. Exit 1, matching only by coincidence of severity.
+- namespace2xml 2.4.0: **agrees**, on the only two things this lane can compare -- it writes no file
+  and exits 1 -- and for an entirely different reason. It reports the *other* fault. Measured: it
+  emits `System.Xml.XmlException: The 'a' start tag on line 2 position 8 does not match the end tag
+  of 'b'` as a raw .NET stack trace naming `ProfileReader.cs:line 143`, and never mentions the
+  encoding at all.
+- The agreement is therefore a coincidence of severity, and this file records it rather than a
+  divergence because a verdict names what the differential lane observes. That lane compares the
+  output tree and the exit code; 2.4.0 has no diagnostic stream to compare, so its message cannot
+  enter the verdict even though the message is the entire subject of the case. Claiming **differs**
+  here fails the lane's own check -- "a divergence nobody can observe is not a correction" -- which
+  is the right answer to the right question, and worth leaving written down: a case can be about
+  something the differential lane structurally cannot see.
 - Contract: Section 11.2; Section 7.4; Appendix B.
 - Clean behavior: `PARSE002` at line 1, column 1, once for the source, and nothing else. The
   document is never parsed, so its well-formedness is not observed and cannot be reported.
@@ -17,6 +25,6 @@
   `XmlException` is derived from characters the decoder may have produced incorrectly. Reporting a
   tag mismatch from such a document tells the reader to go and fix a line that may not be wrong.
   Diagnosing the decode first means every later message is about text that was read correctly.
-- 2.4.0's message also demonstrates the cost of the other order concretely: it names line 2 position
-  8 of a file it decoded as UTF-8 while the file claims windows-1252, so the position is only
-  trustworthy because this particular input happens to be ASCII.
+- 2.4.0's message demonstrates that cost concretely: it names line 2 position 8 of a file it decoded
+  as UTF-8 while the file claims windows-1252, so the position is trustworthy only because this
+  particular input happens to be ASCII.
