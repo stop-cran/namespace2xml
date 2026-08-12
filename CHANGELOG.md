@@ -168,6 +168,38 @@ independently.
 
 ### Changed
 
+- **A `type` directive now survives a destination fold, and `type=multiline` now says what it
+  discards.** Two defects in the same area, both found by measuring the tool against §16.6 and
+  §17.5 rather than by reading its source.
+
+  Where several output declarations folded into one filename, only the *last* contribution's §15.2
+  transform table reached the renderer. `p.a.type=string` published on its own as `{"a": "1"}` and,
+  after adding `p.filename=m.json` and `q.filename=m.json`, silently became `{"a": 1, "b": 2}` — the
+  directive was still declared, still valid, still parsed, and had no effect. §17.5 already required
+  the opposite ("`type` transformations re-address this map together with the associated value"),
+  and §15.2 evaluates `type` "in every output instance containing the path"; an instance does not
+  stop containing a path by being folded into a file with another instance. The tables are now
+  unioned, so a directive's meaning no longer depends on how many other declarations happen to share
+  its filename. §17.5 gains a paragraph fixing this, including which binding wins where two address
+  the same destination path, and that a binding is not extinguished by the loss of the particular
+  value it was written against.
+
+  Separately, at a node supplying both a sequence and a scalar, `type=multiline` reversed the §4.4
+  payload contest — the sequence won where the scalar would otherwise have — *and* suppressed the
+  `TYPE002` that the identical data reports without the directive. The reversal is correct and
+  intended: a directive whose purpose is to consume a sequence must not lose to a scalar. The
+  silence was not, and it was the more serious half, because the directive that caused the reversal
+  was also the thing that hid it. §16.6 now states the precedence outright and requires the omitted
+  scalar to be reported, carrying the projected output key and no `destination` — destinations are
+  not resolved until step 17.
+
+  §16.6 also gains "A type that names a format", closing two cases the document had never reached:
+  `type=string` at a node supplying no scalar payload, and `element`/`attribute`/`text`/`cdata` in a
+  non-XML output instance. Both are inert, and both are inert *deliberately* — `TYPE001` would
+  suppress publication of the very XML file the directive was written for, and `WARN003` is reserved
+  for a concept discarded from a source. §19.5 now names which of them are `TYPE001` at a path with
+  no scalar payload, which is where they are genuinely wrong.
+
 - **JSON and XML output bytes are now fixed by the specification rather than by whichever library
   writes them.** §24 promises that two conforming implementations produce identical bytes. Reading
   that between implementations rather than within one — which is the reading that makes it a

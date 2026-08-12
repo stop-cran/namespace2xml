@@ -1976,6 +1976,10 @@ This directive is the explicit escape hatch for preserving numeric keys as mappi
 
 Forces scalar rendering as a string in the selected output view. It does not change input scalar inference or the typed value forwarded through references.
 
+It applies to the node's scalar payload. At a node that supplies none — one whose only projection is a mapping or a sequence — it has no effect, in every output format including XML, and it does not distribute over the node's descendants. Section 15.2 evaluates `type` against absolute paths, so a directive at `db` governs `db` and not `db.port`; distributing would make `type` the only directive whose effect escapes the path it names.
+
+Having no effect is deliberate rather than an omitted error case. A wildcard form such as `a.*.type=string` is the ordinary way to force string rendering across a group, and such a group will ordinarily contain interior nodes, so making those an error would leave the form unusable. Nor is this the unbound directive of Section 15.2: that warning reports a directive that reached no path at all, and this one reached its path and found nothing there to render.
+
 #### `element`
 
 For XML output, renders a scalar as an element.
@@ -2001,6 +2005,10 @@ Combines the matching sequence of scalar lines using logical LF.
 - a nonempty sequence must contain only scalar or null payloads; null contributes an empty line;
 - a mapping with no sequence projection, a node with no scalar or sequence projection, or a sequence item having only container shape is `TYPE001`.
 
+Where the node supplies both a sequence projection and a scalar payload, the sequence is the operand. This directive exists to join a sequence, so a scalar contribution at the same path does not disable it, and the Section 4.4 payload contest does not choose between the two here. The scalar payload is then omitted from this output instance and reports `TYPE002` once for that path and output instance, carrying `path` and no `destination`: Section 15.1 resolves destinations at step 17, after this pass, so the omission is a fact about the output instance, and two instances folding into one file have each lost their own contribution. The `path` member is the projected output key of Section 22 rather than the overlay node, for the same reason: the scalar is still present in the merged model and is missing only from this projection.
+
+Without the directive the same two contributions resolve the other way and the scalar wins. That reversal is the whole effect of asking for a multiline value, and it is why the omission must be reported: the contribution that loses is one the author wrote, and it is discarded by a directive that names neither it nor the shape contest.
+
 Wildcard capture substitution occurs before scalar inference. Consequently, generated text such as an unquoted captured `1` may be inferred as numeric at pipeline step 12. A value still containing a reference defers inference until reference resolution under Section 13.2. `type=string` may force string rendering in an output view.
 
 Rendering:
@@ -2011,6 +2019,16 @@ Rendering:
 - namespace emits a value using its configured escape rules;
 - quoted namespace emits one shell-quoted value;
 - INI uses the configured multiline strategy or reports an unsupported-value error.
+
+#### A type that names a format
+
+`element`, `attribute`, `text`, and `cdata` name XML node kinds. In an output instance whose format is not XML they have no effect: no diagnostic, no change to the emitted bytes, and no effect on whether the directive bound. Their XML cases, including the error cases, are unchanged and are stated in Section 19.5.
+
+This is the ordinary case rather than a mistake. `output=xml,json` at one selector renders one subtree twice, Section 15.2 evaluates `type` independently in each output instance, and a scheme naming an XML rendering below such a selector is correct as written. Reporting it would put a diagnostic in the stream of every correct multi-format scheme, which is the shape this tool exists to serve.
+
+It is specifically not `TYPE001`. Section 21.2 gates publication on the whole run, so an error raised in the JSON instance would suppress the XML file the directive was written for — the one output where the directive is meaningful and correct. It is also not `WARN003`, which Section 3.3 gives to a concept discarded from a *source*; nothing was discarded here, because the directive selected a rendering for a format that is not being rendered.
+
+`string` names no format and is governed by its own clause above.
 
 ### 16.7 `substitute`
 
@@ -2271,6 +2289,8 @@ Every sequence item retains explicit or implicit provenance into this fold. Each
 Every output contribution carries its complete per-path high-water map, including marks raised by items hidden by output projection. Selector-prefix removal, `root`, `key`, and `type` transformations re-address this map together with the associated value. A destination accumulator absorbs the incoming high-water mark for a path before allocating or patching incoming items at that path.
 
 Ordering values from different original selector paths therefore interact only after they have been transformed to the same destination path, using these destination-fold rules.
+
+A contribution's Section 15.2 transform table travels into the fold in the same way as its high-water map. Where several contributions fold to one destination, that destination's table is the union of theirs, so a `type` bound in a contribution that is not the last one still applies: Section 15.2 evaluates `type` in every output instance containing the path, and a contribution's own instance is one of them. Every table addresses the destination frame once selector-prefix removal has been applied, so their keys compare directly. Where two of them bind the same destination path, the later contribution's binding is the effective one, on the Section 16.11 rule for a collision between output declarations. A transform table addresses paths and not values, so a binding is not extinguished by the loss of the particular value it was written against; a binding whose destination path holds no value after the fold simply has nothing to apply to.
 
 The §17.5 fold key of an output contribution is the tuple already used below: output-declaration source order, format ordinal, wildcard match order, and concrete-selector UTF-8 byte order. Same-format `replace` preserves the earliest prior publication key even when no prior sequence high-water state exists; only cross-format replacement resets it.
 
@@ -2640,6 +2660,8 @@ with `root=cfg` renders conceptually as:
 Sequence items are serialized in stable ordering-value order and are densified only in the emitted sibling order. A scalar or null item uses the repeated element's text content by default. A mapping or XML-element item uses the repeated element as its containing element and projects its fields, attributes, and children normally. A sequence-only item that has no named child element projection is `TYPE001`.
 
 An output view whose document root is itself a sequence requires `root` with at least two element components. The preceding components create the single document-element wrapper and the final component names each repeated item. For example, `root=cfg.item` renders a selected root sequence as one `<cfg>` containing repeated `<item>` elements. Without such a root, or with only one root component, rendering is `TYPE001`.
+
+At a path with no scalar payload, `attribute`, `text`, and `cdata` are `TYPE001`: each names a rendering for one scalar and the path supplies none. `element` is not, because an element is what a mapping projection already emits and the directive therefore agrees with the default. `string` is not either; Section 16.6 makes it inert wherever there is no scalar to render.
 
 At a sequence path:
 

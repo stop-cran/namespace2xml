@@ -1,0 +1,7 @@
+p.output=json
+q.output=json
+p.filename=m.json
+q.filename=m.json
+p.filemerge=deep
+q.filemerge=deep
+p.a.type=string

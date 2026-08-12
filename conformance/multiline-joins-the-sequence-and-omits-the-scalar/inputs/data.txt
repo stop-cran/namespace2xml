@@ -1,0 +1,3 @@
+cfg.m.0=one
+cfg.m.1=two
+cfg.m=direct

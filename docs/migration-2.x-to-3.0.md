@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r63+8eb763031b8b`.**
+**Contract bundle `r64+5db14d638e9d`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (146)
+## Observable differences (148)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -143,6 +143,27 @@ implemented, its case says so plainly rather than letting the heading imply othe
   writes `output: [json, yaml]` because a sequence is the natural YAML spelling of a list gets no
   output and no reason, and has nothing to search for. Exit 0 with an empty output tree is the worst
   available answer, because every downstream check that looks at the status passes.
+
+### `a-destination-fold-keeps-every-contribution-type`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 17.5; Section 15.2.
+- Legacy observation: 2.4.0 logged `Writing output ... m.json` and then
+  `Overriding output ... m.json`, and left `{"b": 2}`. The `p` contribution was not merged into
+  the destination at all but overwritten wholesale, so both its value `a` and its `type=string`
+  vanished. `filemerge=deep` was declared on both contributions and had no effect. The file also
+  carried CRLF line endings.
+- Clean behavior: the two contributions deep-merge, and Section 17.5 carries each one's
+  Section 15.2 transform table into the fold with it.
+
+  > Where several contributions fold to one destination, that destination's table is the union of theirs, so a `type` bound in a contribution that is not the last one still applies
+
+  So `a` renders as the string `"1"` under the `type` declared on `p`, while `b`, which no
+  `type` addresses, keeps its inferred number.
+- The difference is intentional: Section 15.2 evaluates `type` in every output instance
+  containing the path, and an instance does not stop containing the path by being folded into a
+  file with another instance. Taking only the last contribution's directives would make a
+  declaration's meaning depend on how many other declarations happen to share its filename.
 
 ### `a-directive-under-a-converted-mapping-follows-its-value`
 
@@ -1748,6 +1769,27 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: `replace`'s "later complete value" enumeration exists so that
   a shape change does not leave earlier marks describing something that is no longer there,
   and both directions have to work or a defect appears in only one of them.
+
+### `multiline-joins-the-sequence-and-omits-the-scalar`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 16.6; Section 4.4.
+- Legacy observation: 2.4.0 emitted `cfg.json` containing `"m": "direct"`. The `type=multiline`
+  directive had no visible effect: the sequence items `one` and `two` were discarded, the scalar
+  was rendered alone, and nothing was reported. A user who wrote `type=multiline` in order to join
+  a sequence therefore received the one value the directive was meant to replace, silently. The
+  file also carried CRLF line endings, so the same input produced different bytes per platform.
+- Clean behavior: Section 16.6 gives the sequence precedence here and requires the loss to be
+  reported.
+
+  > Where the node supplies both a sequence projection and a scalar payload, the sequence is the operand.
+
+  The omitted scalar is one `TYPE002` for that path and output instance, carrying `path` and no
+  `destination`, because Section 15.1 resolves destinations at step 17 — after this pass.
+- The difference is intentional: without the directive Section 4.4 resolves the same pair the
+  other way and warns. A directive whose whole purpose is to consume a sequence must not lose to
+  a scalar, and reversing the Section 4.4 outcome is exactly why the discarded scalar has to be
+  named rather than dropped quietly.
 
 ### `multiline-on-lone-scalar-empty-sequence-and-scalar-null-sequence`
 

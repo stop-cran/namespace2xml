@@ -1423,8 +1423,55 @@ public static class PlanningPhase
             View = later.View with
             {
                 View = merger.Merge(accumulated.View.View, later.View.View),
+                Types = MergeTypes(accumulated.View.Types, later.View.Types),
             },
         };
+    }
+
+    /// <summary>
+    /// Unions two contributions' Section 15.2 transform tables for a same-format destination fold.
+    /// </summary>
+    /// <param name="accumulated">The table of the plan already accumulated for this destination.</param>
+    /// <param name="later">The table of the contribution being folded onto it.</param>
+    /// <returns>One table addressing every path the folded view now holds.</returns>
+    /// <remarks>
+    /// <para>
+    /// Section 17.5 requires that "selector-prefix removal, <c>root</c>, <c>key</c>, and
+    /// <c>type</c> transformations re-address this map together with the associated value", so a
+    /// <c>type</c> that bound in the earlier contribution travels into the fold with the value it
+    /// bound to. Taking the later view's table whole would discard it, and Section 15.2 evaluates
+    /// <c>type</c> "in every output instance containing the path" — including the one whose
+    /// contribution is not last.
+    /// </para>
+    /// <para>
+    /// Both tables are keyed by canonical path after selector-prefix removal, so they are already
+    /// in the destination's frame and the keys compare directly. Where both bind the same path the
+    /// later one wins, which is the Section 16.11 rule for a genuine conflict between two colliding
+    /// output declarations and the only place the two tables can disagree.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyDictionary<string, EffectiveTransform> MergeTypes(
+        IReadOnlyDictionary<string, EffectiveTransform> accumulated,
+        IReadOnlyDictionary<string, EffectiveTransform> later)
+    {
+        if (accumulated.Count == 0)
+        {
+            return later;
+        }
+
+        if (later.Count == 0)
+        {
+            return accumulated;
+        }
+
+        var merged = new Dictionary<string, EffectiveTransform>(accumulated, StringComparer.Ordinal);
+
+        foreach (var (path, transform) in later)
+        {
+            merged[path] = transform;
+        }
+
+        return merged;
     }
 
     /// <summary>

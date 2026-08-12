@@ -688,6 +688,11 @@ public static class ViewTransformer
 
             var lines = new List<string>();
 
+            if (node.Payload is not null)
+            {
+                Omit(relative);
+            }
+
             foreach (var (_, item) in node.OrderedSequence)
             {
                 // Section 16.6: "a nonempty sequence must contain only scalar or null payloads;
@@ -947,6 +952,34 @@ public static class ViewTransformer
                     line: rule.Declaration.Line,
                     path: absolute,
                     declaration: rule.Declaration.Text),
+                rule.Order);
+        }
+
+        /// <summary>
+        /// Section 16.6: reports the scalar payload that <c>type=multiline</c> displaces when the
+        /// node supplies both a sequence projection and a scalar.
+        /// </summary>
+        /// <param name="relative">The node's path relative to the selector prefix.</param>
+        /// <remarks>
+        /// The <c>path</c> member is the projected output key rather than the overlay node,
+        /// because the scalar survives in the merged model and is missing only from this
+        /// projection. No <c>destination</c> is carried: Section 15.1 resolves destinations at
+        /// step 17, after this pass.
+        /// </remarks>
+        private void Omit(ImmutableArray<NamePart> relative)
+        {
+            var rule = TypeRule(relative);
+            var absolute = CanonicalPath.Of(prefix.AddRange(relative));
+
+            report(
+                DiagnosticCodes.Type002(
+                    DiagnosticPhase.Planning,
+                    "\u00A716.6",
+                    $"'{rule.Declaration.Text}' joins the sequence at '{absolute}': "
+                    + "'type=multiline' takes the sequence as its operand, so this output omits "
+                    + "the scalar here.",
+                    cardinalityKey: CardinalityKey(rule, CanonicalPath.Of(prefix), absolute),
+                    path: CanonicalPath.Of(relative)),
                 rule.Order);
         }
 

@@ -462,6 +462,7 @@
       ],
       "fixtures": [
         "a-cross-format-collision-replaces-the-earlier-plan",
+        "a-destination-fold-keeps-every-contribution-type",
         "a-refused-fold-is-reported-once-per-destination",
         "a-replaced-destination-keeps-the-high-water-mark",
         "a-replacement-keeps-the-mark-of-a-path-it-does-not-name",
@@ -1221,6 +1222,7 @@
       "status": "pending",
       "assertions": [],
       "fixtures": [
+        "multiline-joins-the-sequence-and-omits-the-scalar",
         "multiline-on-lone-scalar-empty-sequence-and-scalar-null-sequence"
       ]
     },
