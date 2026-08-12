@@ -140,23 +140,31 @@ it.
 
   The reading that made the sequence look under-determined was that a native sequence item takes
   its ordering value from the destination's §5.4 high-water mark and the destination is unknown
-  until §12.4 expansion. §12.4 answers that directly — "a generated contribution reserves or
-  allocates ordering values only when it is generated" — so the timing was never the obstacle. What
-  remained was provenance: extracting through ordering values makes the items canonical numeric
-  mapping children, which §5.4 calls explicit, where the source spelled a native sequence, which
-  §5.4 calls implicit. §10.4 already has extraction flatten native shape into namespace-shaped
-  entries for the mapping ancestors above — they "do not contribute mapping-presence marks" — and
-  the alternative would make a native template and its namespace spelling two different rules. See
-  [#75](https://github.com/stop-cran/namespace2xml/issues/75).
+  until §12.4 expansion. §12.4 answers that directly — a generated contribution "reserves or
+  allocates ordering values … only when it is generated" — so the timing was never the obstacle.
+  What remained was provenance: extracting through ordering values makes the items canonical
+  numeric mapping children, which §5.4 calls explicit, where the source spelled a native sequence,
+  which §5.4 calls implicit. That was settled as explicit, on the ground that §10.4 already has
+  extraction flatten native shape into namespace-shaped entries for the mapping ancestors above —
+  they "do not contribute mapping-presence marks" — and that the alternative would make a native
+  template and its namespace spelling two different rules. §10.4 now carries the worked example
+  against a **non-empty** destination, which is the only shape in which the choice is observable,
+  and names `merge=append` as the way to add to a destination's items rather than replace the ones
+  the template addresses. Pinned by
+  `conformance/a-native-sequence-template-overrides-the-destination-items-it-addresses`, its
+  namespace-spelling companion, and
+  `conformance/a-sequence-template-appends-when-the-target-path-says-append`. Closed as
+  [#75 (closed)](https://github.com/stop-cran/namespace2xml/issues/75).
 
-  One further residue is **ordering, not capability**. §10.4's worked example prints the generated
-  key after the record's own keys while introducing the template as the first input, which
-  contradicts §5.3's "generated entries inherit the rule's precedence position". This build
-  implements §5.3. The contradiction is filed as
-  [#73](https://github.com/stop-cran/namespace2xml/issues/73), and
-  `conformance/a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file` fixes the enrichment
-  under an argument order where both readings agree, so a decision on #73 cannot take the
-  capability with it.
+  A residue about **ordering, not capability**, is likewise settled. §10.4's worked example once
+  printed the generated key after the record's own keys while introducing the template as the first
+  input, contradicting §5.3's "generated entries inherit the rule's precedence position". This
+  build implements §5.3 and always did; the example was amended to introduce the data file first,
+  so its printed result is valid under §5.3, and it now says outright that sibling order is §5.3's
+  to decide. Closed as [#73 (closed)](https://github.com/stop-cran/namespace2xml/issues/73).
+  `conformance/a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file` was written to fix the
+  enrichment under an argument order where both readings agreed, so that the decision could not
+  take the capability with it; it is now that worked example, byte for byte.
 
 One §10.1 clause is under-determined and this preview chose a reading. §10.1 lists merge keys among
 the constructs `RestrictedYaml1` excludes without saying whether an unsupported merge key is an
