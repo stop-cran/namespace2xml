@@ -523,10 +523,124 @@ public sealed class WildcardEvaluator
         OverlayNode existing,
         OverlayNode generated,
         ImmutableArray<NamePart> path,
-        StableOrderingKey order) =>
-        order.CompareTo(existing.Marks.Latest) < 0
-            ? merger.MergeAt(generated, existing, path)
-            : merger.MergeAt(existing, generated, path);
+        StableOrderingKey order)
+    {
+        if (order.CompareTo(existing.Marks.Latest) >= 0)
+        {
+            return merger.MergeAt(existing, generated, path);
+        }
+
+        // The generated contribution precedes the latest one already at the path, but it does not
+        // follow that it precedes them all. Section 12.4 merges it "at its deterministic rule/match
+        // position", which is a position among the contributions rather than a side of them, and a
+        // single earlier-or-later choice can only express the two extremes.
+        //
+        // Only `append` can tell the difference. `replace` keeps the last contribution and `deep`
+        // resolves a payload on the Section 4.4 payload mark, so both are decided by a maximum and
+        // are already right under a binary fold; `error` stops the run. `append` is the one strategy
+        // under which every contribution survives into the result, so it is the one that can show a
+        // generated value in the wrong place among them.
+        if (merger.StrategyAt(path) != MergeStrategy.Append || existing.Sequence.IsEmpty)
+        {
+            return merger.MergeAt(generated, existing, path);
+        }
+
+        return FoldIntoSequence(existing, generated, path, order);
+    }
+
+    /// <summary>
+    /// Merges a generated value into an <c>append</c> path at its Section 12.4 position among the
+    /// items already there.
+    /// </summary>
+    /// <param name="existing">What the overlay already holds at the path.</param>
+    /// <param name="generated">The generated value at the same path.</param>
+    /// <param name="path">The shared path, from the overlay root.</param>
+    /// <param name="order">The rule and match position the generated value merges at.</param>
+    /// <remarks>
+    /// <para>
+    /// Each item carries the mark of the contribution that supplied it, so the position is found by
+    /// partitioning the sequence on that mark rather than by comparing against the node. The two are
+    /// not the same question: <see cref="NodeMarks.Latest"/> also answers to a payload, a mapping
+    /// child and an explicit container shape, so a later contribution that supplies no item — an
+    /// empty native sequence declaring the list closed, for instance — moves the node's latest mark
+    /// past the rule while leaving every item before it.
+    /// </para>
+    /// <para>
+    /// When the items fall on one side the answer is a side, and the ordinary binary merge states it
+    /// exactly. When they straddle, appending the generated value to the earlier group and then
+    /// appending the later group to that result runs Section 16.10's rebase three times in source
+    /// order, which is what places the generated items between the two groups.
+    /// </para>
+    /// <para>
+    /// The items keep the ordering values they hold now rather than the ones their authors wrote:
+    /// Section 5.4 already discarded those when the earlier merge rebased them, and only the relative
+    /// order within each group still has to hold. Mapping children, the payload, comments and the
+    /// explicit-shape flags all stay with the earlier group, because Section 16.10 keeps the earlier
+    /// side's mapping projection and discards the later one.
+    /// </para>
+    /// </remarks>
+    private OverlayNode FoldIntoSequence(
+        OverlayNode existing,
+        OverlayNode generated,
+        ImmutableArray<NamePart> path,
+        StableOrderingKey order)
+    {
+        var early = ImmutableDictionary.CreateBuilder<long, SequenceItem>();
+        var late = ImmutableDictionary.CreateBuilder<long, SequenceItem>();
+
+        foreach (var (value, item) in existing.Sequence)
+        {
+            if (item.Node.Marks.Latest.CompareTo(order) < 0)
+            {
+                early[value] = item;
+                continue;
+            }
+
+            late[value] = item;
+        }
+
+        if (late.Count == 0)
+        {
+            return merger.MergeAt(existing, generated, path);
+        }
+
+        if (early.Count == 0)
+        {
+            return merger.MergeAt(generated, existing, path);
+        }
+
+        var earlySequence = early.ToImmutable();
+        var lateSequence = late.ToImmutable();
+
+        var before = OverlayNode.Compose(
+            existing.Marks,
+            existing.Payload,
+            existing.HasExplicitMapping,
+            existing.HasExplicitSequence,
+            existing.Children,
+            earlySequence,
+            existing.Comments,
+            earlySequence.Keys.Max());
+
+        var lateMarks = NodeMarks.At(lateSequence.Values.Min(item => item.Node.Marks.Latest));
+
+        foreach (var item in lateSequence.Values)
+        {
+            lateMarks = lateMarks.WithSequenceItem(item.Node.Marks.Latest);
+        }
+
+        var after = OverlayNode.Compose(
+            lateMarks,
+            null,
+            false,
+            false,
+            ImmutableDictionary<NamePart, OverlayNode>.Empty,
+            lateSequence,
+            ImmutableList<BoundComment>.Empty,
+            lateSequence.Keys.Max());
+
+        return merger.MergeAt(merger.MergeAt(before, generated, path), after, path);
+    }
 
     /// <summary>The leading <paramref name="depth"/> components of a path.</summary>
     /// <param name="path">The path to take a prefix of.</param>

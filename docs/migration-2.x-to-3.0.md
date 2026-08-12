@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (124)
+## Observable differences (126)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -101,6 +101,35 @@ implemented, its case says so plainly rather than letting the heading imply othe
   output and no reason, and has nothing to search for. Exit 0 with an empty output tree is the worst
   available answer, because every downstream check that looks at the status passes.
 
+### `a-generated-contribution-sorts-between-the-sources-that-straddle-it`
+
+- namespace2xml 2.4.0: **differs**. It exits `1` where the contract requires `0`, reporting
+  `Reference OutputRoot.a.p.1 was not found at OutputRoot.b.pick`, and writes `a.json` containing
+  `{ "p": [ "second" ] }` and no `b.properties` at all. The baseline's own diagnostic names the
+  address the contract requires to exist: `a.p.1` is missing there because only one of the three
+  contributions survived, so there is no position to be right or wrong about. That it published
+  `a.json` while failing is a partial write on an unsuccessful run, and is incidental to this case.
+- Contract: Section 12.4 for the generated contribution merging at its rule/match position,
+  Section 16.10 for what `append` rebases, Section 15.1 step 8 for the earliest contribution
+  retaining its supplied values, Section 5.4 for the values being addressable, Section 4.7 for the
+  source ordinals.
+- Legacy observation, with controls. Four baseline runs behave identically:
+
+  | Run | Sources | Scheme | Exit | Output |
+  |---|---|---|---|---|
+  | as specified | first, template, second, probe | `merge=append` | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
+  | template removed | first, second, probe | `merge=append` | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
+  | merge removed | first, template, second, probe | none | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
+  | both removed | first, second, probe | none | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
+
+  Removing the template changes nothing, and removing the merge directive changes nothing. The
+  baseline therefore neither expanded the template nor applied `append`: it overrode at `a.p.0` and
+  kept the last value written. The controls are what distinguish that from an implementation that
+  did something different with the directives it was given.
+- Why the difference is intentional: 2.4.0 has no `append` strategy for an input path, so the
+  divergence is a capability this version adds rather than a behaviour it changes. Section 3 covers
+  it under the input merge strategies.
+
 ### `a-json-scheme-nests-directive-paths`
 
 - namespace2xml 2.4.0: **differs**.
@@ -116,6 +145,33 @@ implemented, its case says so plainly rather than letting the heading imply othe
   implementation that decided a JSON scheme should mean something else would break a file that has
   worked since 2.x. The `\r` and the missing final newline are Section 24's business and are
   asserted in every fixture, not this one's subject.
+
+### `a-later-empty-sequence-does-not-reorder-a-generated-contribution`
+
+- namespace2xml 2.4.0: **differs**. It exits `0` and writes `a.json` containing
+  `{ "p": [ "from-template" ] }` -- one item where the contract requires two, because the generated
+  entry overrode `a.p.0` instead of being appended beside it.
+- Contract: Section 12.4 for the generated contribution merging at its rule/match position,
+  Section 16.10 for an empty sequence contribution having nothing to rebase, Section 15.1 step 8 for
+  the earliest contribution retaining its supplied values, Section 4.4 for a contribution refreshing
+  the container shape-mark, Section 4.7 for the source ordinals.
+- Legacy observation, with controls:
+
+  | Run | Sources | Scheme | Output |
+  |---|---|---|---|
+  | as specified | first, template, empty | `merge=append` | `{ "p": [ "from-template" ] }` |
+  | template removed | first, empty | `merge=append` | `{ "p": [ "first" ] }` |
+  | merge removed | first, template, empty | none | `{ "p": [ "from-template" ] }` |
+  | empty removed | first, template | `merge=append` | `{ "p": [ "from-template" ] }` |
+
+  Unlike the sibling case, the baseline here **does** expand the template: removing it changes the
+  output to `{ "p": [ "first" ] }`, so the generated entry is what replaced `first`. Removing the
+  merge directive changes nothing, so `append` was ignored, and removing the empty document changes
+  nothing, so it contributed nothing either way. The baseline overrode at `a.p.0` and kept the last
+  value written, which for these three sources is the generated one.
+- Why the difference is intentional: 2.4.0 has no `append` strategy for an input path, so the
+  divergence is a capability this version adds rather than a behaviour it changes. Section 3 covers
+  it under the input merge strategies.
 
 ### `a-later-output-declaration-restores-an-ignored-instance`
 

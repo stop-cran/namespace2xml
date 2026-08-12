@@ -395,9 +395,13 @@
         "An explicitly empty native sequence is a sequence contribution with no items to rebase, so appending it leaves the earlier sequence unchanged rather than being rejected as a non-sequence use.",
         "Under replace a later contribution whose container shape differs from the earlier one replaces that shape outright in both directions, without reporting a conflict between the two.",
         "Under error a second contribution at the path is refused outright, and because the condition is a property of the folded node rather than of either contribution the diagnostic names the path and no source.",
-        "A generated contribution remains a separate contribution under append, so a template and every concrete source that contributes at the path all survive into the appended sequence rather than the generated value standing in place of one of them."
+        "A generated contribution remains a separate contribution under append, so a template and every concrete source that contributes at the path all survive into the appended sequence rather than the generated value standing in place of one of them.",
+        "A generated contribution under append merges at its own rule/match position among the concrete contributions, so a template listed between two sources that write the same path publishes its items between theirs rather than beside the node as a whole.",
+        "A later contribution that supplies no item still moves the node's mark, so a generated contribution earlier than that mark but later than every item is appended after the items rather than before them."
       ],
       "fixtures": [
+        "a-generated-contribution-sorts-between-the-sources-that-straddle-it",
+        "a-later-empty-sequence-does-not-reorder-a-generated-contribution",
         "append-onto-a-non-sequence-accumulator-is-an-error",
         "merge-error-rejects-a-second-source-contribution",
         "merge-strategies-over-native-sequence-shapes",

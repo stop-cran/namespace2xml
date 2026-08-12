@@ -57,6 +57,36 @@ independently.
 
 ### Fixed
 
+- **A generated contribution merged as an earlier-or-later neighbour of a path rather than at its
+  own position among the contributions there.** §12.4 makes every generated `(rule,match)` result "a
+  separate contribution for every merge strategy" and merges it "at its deterministic rule/match
+  position"; the fold compared the rule mark against the **latest** mark at the node and chose a
+  side. One binary choice can express the two extremes and nothing in between.
+
+  That is correct for `replace`, `deep` and `error`, each of which is decided by a maximum, and it
+  was wrong for `append` — the one strategy under which every contribution survives into the result,
+  so that a position among them is observable at all. Under `merge=append`, `a.p.0=first`, then the
+  template `a.*.0=from-template`, then `a.p.0=second` published `[from-template, first, second]`
+  where the contract requires `[first, from-template, second]`, and produced output identical to the
+  run that lists the template first.
+
+  A second shape needed no straddling at all. A later contribution that supplies no item — an
+  explicitly empty native sequence, closing a list — still refreshes the node's container shape-mark
+  under §4.4, so the node's latest mark and its latest **item** disagreed, and a generated value
+  later than the only item was published before it.
+
+  Each sequence item already carried the mark of the contribution that supplied it, so the position
+  is found by partitioning the items on that mark and running §16.10's rebase once per group in
+  source order. `KNOWN-LIMITS.md` §1.8 had estimated that fixing this would require retaining every
+  source's contribution at a path; that estimate was wrong, exactly as §1.7's identical estimate had
+  been, and the entry now says so.
+
+  Two fixtures pin it, and the second exists because of the first's blind spot: §5.4 ordering values
+  are exposed densely from zero, so a rendering shows the order but not the values, and a rebase
+  that allocated `0`, `2`, `3` printed the same document. A reference to `a.p.1` is the instrument
+  that sees them. Reported as
+  **[#59](https://github.com/stop-cran/namespace2xml/issues/59)**. **Closes #59.**
+
 - **`--verbosity` did nothing, and no operational message was ever written.** §6.2 gives the option
   seven thresholds and describes it as an output threshold that "never changes what the tool
   computes, only what it writes"; the rewrite parsed the value and then consulted it nowhere, so

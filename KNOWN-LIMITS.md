@@ -414,34 +414,42 @@ set. Diagnosing a missing feature by naming the largest change that would supply
 tractable item comes to look like a blocked one; the estimate outlived the two releases that shipped
 without the warning.
 
-### 1.8 A wildcard contribution merges as one earlier-or-later value, not interleaved
+### 1.8 *(resolved)* A wildcard contribution merged as one earlier-or-later value, not interleaved
 
 §12.4 makes every generated `(rule,match)` result "a separate contribution for every merge strategy"
-and merges it "at its deterministic rule/match position". Where a path already carries contributions
-from several sources, this preview folds the generated value in as a single earlier-or-later
-neighbour of what is already there, by comparing the rule mark against the latest mark at the node.
+and merges it "at its deterministic rule/match position". Through `v3.0.0-preview.3` the generated
+value was folded in as a single earlier-or-later neighbour of what was already at the path, by
+comparing the rule mark against the latest mark at the node.
 
-That is correct whenever the existing contributions all precede or all follow the rule. Where they
-straddle it — an earlier source and a later source both wrote the path, and the template sits
-between them — one binary split cannot express the true interleaving, and the generated value is
-ordered against the whole rather than against each part.
+That is correct whenever the existing contributions all precede or all follow the rule, and it is
+also correct for `replace`, `deep` and `error`, which are each decided by a maximum. It was wrong
+for `append`, the one strategy under which every contribution survives into the result and a
+position among them can therefore be seen.
 
-The case is now constructed, and the answer is that the shape is reachable rather than unreachable.
-Three input files under `merge=append` — `a.p.0=EARLY`, then the template `a.*.0=TEMPLATE`, then
-`a.p.0=LATE`, with `a.p.merge=append` — publish `[TEMPLATE, EARLY, LATE]` where §12.4 requires
-`[EARLY, TEMPLATE, LATE]`, and produce output identical to the run that lists the template *first*.
-Both extremes are correct; every rule position between them collapses onto the earlier one.
+Two shapes showed it. Three input files under `merge=append` — `a.p.0=first`, then the template
+`a.*.0=from-template`, then `a.p.0=second` — published `[from-template, first, second]` where §12.4
+requires `[first, from-template, second]`, output identical to the run that lists the template
+*first*: both extremes were right and every rule position between them collapsed onto the earlier
+one. Separately, a later contribution that supplies **no** item — an explicitly empty native
+sequence — still refreshes the node's shape-mark under §4.4, so the node's mark and its items
+disagreed even with nothing straddling anything, and a generated value later than the only item was
+published before it.
 
-The same probe originally destroyed `EARLY` outright, which is a separate defect with a separate
-cause and is **fixed**: `append` seeded its accumulator from the earlier node's sequence projection
-alone, which is empty for a contribution spelled as an ordering-value mapping, so the earlier items
-were dropped from the result. `conformance/wildcard-generation-appends-beside-every-contribution`
-pins every contribution surviving. What remains here is the ordering, and only the ordering.
+Each sequence item already carries the mark of the contribution that supplied it, so the fix needed
+no new provenance: the position is found by partitioning the items on that mark and running §16.10's
+rebase once per group in source order. The estimate recorded here — that full fidelity would mean
+retaining each source's contribution at a path — was wrong, as §1.7's identical estimate had been
+before it. `conformance/a-generated-contribution-sorts-between-the-sources-that-straddle-it` pins
+the straddling shape and its §5.4 ordering values, and
+`conformance/a-later-empty-sequence-does-not-reorder-a-generated-contribution` pins the second.
+[#59 (closed)](https://github.com/stop-cran/namespace2xml/issues/59).
 
-Full fidelity means retaining each source's contribution at a path instead of the folded result.
-§1.7 previously claimed to need the same change and did not; that estimate was wrong and this one
-is unverified. Tracked as
-[#59](https://github.com/stop-cran/namespace2xml/issues/59).
+The earlier probe for this entry also destroyed the first contribution outright, which was a
+separate defect with a separate cause and is likewise **fixed**: `append` seeded its accumulator
+from the earlier node's sequence projection alone, which is empty for a contribution spelled as an
+ordering-value mapping, so the earlier items were dropped from the result.
+`conformance/wildcard-generation-appends-beside-every-contribution` pins every contribution
+surviving.
 
 ### 1.9 *(resolved)* A canonical reference to an XML comment position
 
