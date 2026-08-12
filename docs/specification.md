@@ -951,6 +951,37 @@ a:
 
 therefore creates the logical wildcard entries `a.*.b.0=x` and `a.*.b.1=y`, and is the same rule as those two entries written in namespace form. The items become canonical numeric mapping children, so Section 5.4 gives them explicit ordering provenance even though the source spelled a native sequence; extraction flattens native shape into namespace-shaped entries here exactly as it does for the mapping ancestors above.
 
+That provenance is observable only against a destination that already holds items, because it decides whether the template's values address the destination's ordering values or extend past them. Given the template
+
+```yaml
+a:
+  '*':
+    tags:
+      - red
+      - blue
+```
+
+supplied after the input
+
+```yaml
+a:
+  x:
+    tags:
+      - green
+```
+
+the destination's `green` holds the implicit ordering value `0`, and the template supplies the explicit values `0` and `1`. Section 5.4 makes reuse of an explicit ordering value override the existing item at that value by ordinary source order, so the result is
+
+```yaml
+a:
+  x:
+    tags:
+      - red
+      - blue
+```
+
+and not `[green, red, blue]`. A template written this way replaces the items it addresses rather than appending to them. To append instead, configure `merge=append` at the target path under Section 16.10.
+
 A wildcard key whose value is an **empty mapping or an empty sequence** has no entries for entry-by-entry extraction to find, so the template would contribute nothing at every path it matched. That is `PARSE001` against this section, once per failing source, reported at step 7.
 
 Given the input

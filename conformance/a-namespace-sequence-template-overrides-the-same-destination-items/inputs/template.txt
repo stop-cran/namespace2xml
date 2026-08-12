@@ -1,0 +1,2 @@
+a.*.tags.0=red
+a.*.tags.1=blue

@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r47+aa134c8e29ce`.**
+**Contract bundle `r48+6eb9c80f3a19`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (126)
+## Observable differences (127)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -477,6 +477,32 @@ implemented, its case says so plainly rather than letting the heading imply othe
   member, with the whole chain rendered so that the author can see what closes the ring.
 - The difference is intentional: a cycle means the author asked for something that has no answer,
   and producing output from a silently discarded directive hides that.
+
+### `a-sequence-template-appends-when-the-target-path-says-append`
+
+- namespace2xml 2.4.0: **differs**. It exits `0` and writes `x.tags.0=red`, `x.tags.1=blue` —
+  the same bytes it writes without the `merge` directive at all, so it discards the destination's
+  `green` and ignores `append` for a generated contribution. CRLF-terminated, under the Section 24
+  divergence.
+- Contract: Section 10.4 for extraction, Section 5.4 for the rebase arithmetic, Section 16.10 for
+  `append`.
+- This case exists because Section 10.4 now tells a reader what to do about the behaviour its
+  sibling `a-native-sequence-template-overrides-the-destination-items-it-addresses` pins: a template
+  spelled as a sequence replaces the items it addresses, and `merge=append` at the target path is
+  the way to add to them instead. That sentence is normative, so it is asserted here rather than
+  left as advice.
+- Why the expectation is `green`, `red`, `blue`. `green` is the sole contribution at `a.x.tags` from
+  the earlier source and Section 5.4 does not rebase "a first or sole source contribution … merely
+  because `merge=append` is configured", so it keeps the implicit value `0`. The generated
+  contribution supplies explicit `0` and `1`; Section 5.4 rebases an appended explicit item in
+  ascending original ordering value, raising the high-water mark to at least the supplied value and
+  then allocating `high-water + 1`. From a high-water mark of `0`: `red` (supplied `0`) allocates
+  `1`, then `blue` (supplied `1`) allocates `2`. Rendering emits dense indices `0`, `1`, `2`.
+- The contrast with the sibling is the point. Identical inputs, one directive apart, and the two
+  readings of Section 10.4 that #75 raised are exactly the two results — except that here the
+  appending result is reached deliberately, by a directive, rather than by an extraction rule the
+  user cannot see. Raised as
+  [#75](https://github.com/stop-cran/namespace2xml/issues/75).
 
 ### `a-transform-that-makes-a-bare-scalar-still-has-a-key`
 
@@ -3329,7 +3355,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (32)
+## Same observable result as 2.4.0 (34)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -3351,6 +3377,70 @@ those that name a shared reason are behaviour 3.0 preserved.
   `filemerge` and no stated model for a cross-format collision at one destination, so how it
   arrived at the same bytes cannot be read off the observable, and this case is not the one that
   would find out.
+
+### `a-namespace-sequence-template-overrides-the-same-destination-items`
+
+- namespace2xml 2.4.0: **agrees** on content and on order, modulo CRLF line endings under the
+  Section 24 divergence.
+- Contract: Section 10.4 for the equivalence, Section 5.4 for ordering-value provenance.
+- This is the namespace spelling of the template in
+  `a-native-sequence-template-overrides-the-destination-items-it-addresses`, over the same
+  destination, expecting the same bytes. Section 10.4 says a sequence beneath a wildcard key "is the
+  same rule as those two entries written in namespace form"; that sentence is a claim about two
+  spellings producing one behaviour, and a claim of equality needs both sides measured.
+- Written directly, `a.*.tags.0=red` and `a.*.tags.1=blue` are canonical numeric mapping children
+  and carry **explicit** Section 5.4 provenance with no extraction step involved. The destination's
+  `green` is a native item at implicit `0`. Section 5.4's override rule gives `0=red` to the later
+  source and `1=blue` above the high-water mark.
+- Alone this case asserts only Section 5.4, which was never in doubt. Its value is the pairing: if
+  extraction were ever changed to carry a native sequence whole and preserve implicit provenance,
+  this case would keep passing while its sibling failed, and the failure would name the extraction
+  rule rather than the merge. Raised as
+  [#75](https://github.com/stop-cran/namespace2xml/issues/75).
+
+### `a-native-sequence-template-overrides-the-destination-items-it-addresses`
+
+- namespace2xml 2.4.0: **agrees** on content and on order, modulo CRLF line endings under the
+  Section 24 divergence.
+- Contract: Section 10.4 for extraction, Section 5.4 for ordering-value provenance.
+- Why the expectation is `red` then `blue`, with `green` gone. `data.yaml` is listed first, so its
+  native item `green` receives the implicit ordering value `0` — Section 5.4 starts the high-water
+  mark at `-1` and allocates `high-water + 1`. Section 10.4 extracts the template entry-by-entry
+  through its items' ordering values, so `a.*.tags` becomes `a.*.tags.0=red` and `a.*.tags.1=blue`,
+  whose items are canonical numeric mapping children and therefore carry **explicit** provenance.
+  Section 5.4 then decides the collision: "reusing an explicit ordering value overrides the existing
+  item at that value by ordinary source order", and the template is the later source, so `red`
+  overrides `green` at `0`. `blue` supplies `1`, which is above the high-water mark and raises it.
+  Rendering sorts by ordering value and emits dense indices, giving `0=red`, `1=blue`.
+- **This is the only shape in which Section 10.4's provenance rule is observable.** Against an empty
+  destination — which is what the sibling case
+  `a-native-wildcard-template-over-a-sequence-extracts-by-ordering-value` uses — the two readings
+  the specification could have taken produce identical bytes, because there is nothing at `0` to
+  override. The rule was stated and, until this case, asserted nowhere: a fixture invariant under
+  the question it appears to settle. Raised as
+  [#75](https://github.com/stop-cran/namespace2xml/issues/75).
+- The reading this case refuses is that extraction carries the sequence whole and its items keep
+  implicit provenance, allocating above the destination's high-water mark. That reading produces
+  `0=green`, `1=red`, `2=blue`. It is not an unreasonable reading of an enrichment idiom, which is
+  why the distinction is worth a fixture rather than a remark.
+- The companion case `a-namespace-sequence-template-overrides-the-same-destination-items` writes the
+  same template in namespace form over the same destination and expects the same bytes. Together the
+  two cases assert Section 10.4's claim that the native spelling "is the same rule as those two
+  entries written in namespace form" — under the refused reading they would diverge, and which
+  result a user got would depend on the file format the template happened to be written in.
+- Legacy observation: 2.4.0 agrees here, but it has no wildcard ordering rule to agree with — see
+  `a-yaml-wildcard-key-enriches-each-record-of-a-later-file`, where it emits the same bytes for both
+  argument orders. The agreement is a coincidence of overwriting by key name.
+- Mutation note, because it is not obvious and cost three inert mutants to find. **Two independent
+  mechanisms implement this rule, and each alone is invariant here.** `WildcardEvaluator.Graft`
+  addresses an existing sequence item by reading the generated part as an ordering value; if that
+  lookup is broken the generated values arrive instead as numeric mapping children, and Section
+  15.1 step 9 inference then patches them onto the same items, giving the same bytes. Break step 9's
+  patch alone and `Graft` has already done the work. Only breaking **both** turns this case red, at
+  `x.tags.0=green`, `x.tags.1=blue` — `verified-in-session`. The sibling ordering cases
+  `a-yaml-wildcard-key-enriches-each-record-of-{a-later,an-earlier}-file` do fail on the `Graft`
+  mutation alone, so the corpus is not blind to it; this case is simply downstream of a rule that
+  two components agree on.
 
 ### `a-reference-to-an-xml-comment-is-not-a-value`
 

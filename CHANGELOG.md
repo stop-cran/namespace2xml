@@ -15,6 +15,29 @@ independently.
 
 ### Changed
 
+- **§10.4 stated a provenance rule that no fixture asserted.** Extraction turns a sequence beneath a
+  wildcard key into canonical numeric mapping children, which carry **explicit** §5.4 provenance
+  rather than the implicit provenance a native item has. That decides whether a template's values
+  *address* a destination's existing ordering values or extend past them — replacement versus
+  concatenation, different bytes. The rule was stated; the only fixture covering it used an **empty**
+  destination, where both readings agree, so the corpus was invariant under the very question the
+  clause settles.
+
+  §10.4 now carries the worked example against a non-empty destination, which is the only shape in
+  which the rule is observable: a template supplying `[red, blue]` over a destination holding
+  `[green]` yields `[red, blue]`, because `green` sits at implicit ordering value `0` and the
+  template supplies explicit `0` and `1`. §10.4 also now names the escape hatch — `merge=append` at
+  the target path appends instead, giving `[green, red, blue]` — because a reader who wanted the
+  other behaviour needs to be told how to ask for it rather than left to conclude the tool cannot.
+
+  Three fixtures were added: the native spelling, the namespace spelling of the same template over
+  the same destination expecting the same bytes (§10.4 claims the two are "the same rule written
+  twice", and a claim of equality needs both sides measured), and the `append` case. 2.4.0 agrees on
+  the first two and **differs** on the third, where it ignores `append` for a generated contribution.
+
+  No behaviour changed. Reported as
+  **[#75](https://github.com/stop-cran/namespace2xml/issues/75)**. **Closes #75.**
+
 - **§10.4's worked example printed a sibling order the rules forbid.** The example introduced a
   wildcard template as the first input, then a data file, and printed the generated `c` *after* the
   concrete `b`. §5.3 gives a generated entry the rule's precedence position, §4.7 makes the CLI
