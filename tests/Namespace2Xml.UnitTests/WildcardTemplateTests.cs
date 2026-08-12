@@ -200,17 +200,20 @@ public sealed class WildcardTemplateTests
     /// </para>
     /// <para>
     /// The code is <c>REFERENCE001</c> against Section 13.3 rather than <c>WILDCARD001</c> against
-    /// Section 12.2's "an undefined capture is an error", because the same construct in an entry
-    /// whose name defines no captures is already <c>REFERENCE001</c> — the corpus pins that in
-    /// <c>reference-scalar-only-and-free-wildcard-rejected</c> — and one construct reporting two
-    /// codes according to whether its owner happened to be a template would be the harder thing to
-    /// explain.
+    /// Section 12.2, because Section 12.2 scopes its error to a capture "outside a reference" and
+    /// Appendix B draws the same line, mapping <c>WILDCARD001</c> to a capture "outside a
+    /// reference" and a "free explicit capture" to <c>REFERENCE001</c>. It is a division rather
+    /// than a preference, and the same construct in an entry whose name defines no captures is
+    /// already <c>REFERENCE001</c> in <c>reference-scalar-only-and-free-wildcard-rejected</c>.
     /// </para>
     /// <para>
-    /// That choice carries a cardinality: Section 22 counts <c>REFERENCE001</c> "once per reachable
-    /// owning value", so a template matching two entries reports twice, where <c>WILDCARD001</c>'s
-    /// "once per rule" would report once for the single authoring mistake. Both counts are
-    /// faithful to their own row. The two expected here are what makes the difference visible.
+    /// The division carries a cardinality, and that is what forces it: Section 22 counts
+    /// <c>REFERENCE001</c> "once per reachable owning value", and Section 14.4 suppresses the
+    /// condition where no concrete output instance reaches the value, so whether it is reported at
+    /// all is decided per value. <c>WILDCARD001</c>'s "once per rule" could not express that. The
+    /// two expected here are what makes the count visible; the corpus pins both sides in
+    /// <c>an-unbound-capture-inside-a-reference-names-each-owning-value</c> and
+    /// <c>an-undefined-capture-outside-a-reference-names-its-rule-once</c>.
     /// </para>
     /// </remarks>
     [Test]

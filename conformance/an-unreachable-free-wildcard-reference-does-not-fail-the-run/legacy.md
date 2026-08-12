@@ -33,8 +33,9 @@
   reachable half fixes the exit code at `1` and would mask the suppression this case exists to
   show.
 - Whether an undefined capture inside a reference is `REFERENCE001` against Section 13.3 or
-  `WILDCARD001` against Section 12.2's "an undefined capture is an error". The two rows carry
-  different cardinalities — once per reachable owning value against once per rule — so the choice
-  is observable when a template matches more than one name. The implementation follows Section
-  13.3, which is what the reachable fixture already pins for a non-template owner; the boundary is
-  raised separately rather than settled here.
+  `WILDCARD001` against Section 12.2. That boundary was raised separately and is now settled:
+  Section 12.2 scopes its error to a capture "outside a reference", Section 13.3 governs one
+  written inside a reference, and Appendix B draws the same line. The two cases
+  `an-undefined-capture-outside-a-reference-names-its-rule-once` and
+  `an-unbound-capture-inside-a-reference-names-each-owning-value` pin both sides, including the
+  differing cardinalities that make the division observable.

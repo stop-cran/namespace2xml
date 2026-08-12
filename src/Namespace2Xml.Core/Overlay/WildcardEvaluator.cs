@@ -698,6 +698,6 @@ public sealed class WildcardEvaluator
                 cardinalityKey: rule.RuleKey,
                 source: rule.Source,
                 line: rule.Source is null ? null : rule.Line,
-                path: CanonicalPath.Of(rule.Name)),
+                rule: [rule.CanonicalName]),
             rule.Order));
 }

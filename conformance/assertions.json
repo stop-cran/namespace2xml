@@ -721,9 +721,13 @@
         "A reference whose name carries a capture that the referring name does not bind is REFERENCE001, because Section 13.3 admits only explicitly bound and mutually consistent captures.",
         "Two reference defects written in one file are ordered by where they were written, not by their codes.",
         "A free-wildcard reference in an entry no concrete output instance reaches does not fail the run, in either of its spellings, whether the owner is unreachable because no declaration selects it or because the winning declaration is output=ignore.",
-        "The reachability suppression covers every member of the Section 14.4 list, so a missing, cyclic and non-scalar reference in the same unreachable position are equally silent."
+        "The reachability suppression covers every member of the Section 14.4 list, so a missing, cyclic and non-scalar reference in the same unreachable position are equally silent.",
+        "Section 12.2 and Section 13.3 divide the undefined-capture condition by position rather than overlapping: outside a reference it is WILDCARD001 once per rule in the input phase, and inside one it is REFERENCE001 once per reachable owning value in the planning phase, so one template matching two names reports one diagnostic in the first case and two in the second.",
+        "A WILDCARD001 raised over a wildcard rule names it in the rule member and supplies no path, because Section 22 gives path to an overlay node or a projected output key and a template's declared name is neither."
       ],
       "fixtures": [
+        "an-unbound-capture-inside-a-reference-names-each-owning-value",
+        "an-undefined-capture-outside-a-reference-names-its-rule-once",
         "an-unreachable-free-wildcard-reference-does-not-fail-the-run",
         "reference-scalar-only-and-free-wildcard-rejected"
       ]

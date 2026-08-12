@@ -45,6 +45,20 @@ independently.
 
 ### Fixed
 
+- **`WILDCARD001` named a wildcard rule in the `path` member, which §22 reserves for something
+  else.** §22 gives `path` to a condition that "concerns one overlay node or one projected output
+  key", and defines a separate `rule` member for "an array of Appendix A canonical wildcard-rule
+  names". A template's declared name is not an overlay node — it is the thing `rule` exists to
+  carry, and `WILDCARD002` already carried it that way. A consumer filtering the stream by `path`
+  therefore saw a value that is not a path, and one filtering by `rule` missed the diagnostic
+  entirely.
+
+  The registry now declares `rule` in place of `path` for the code, which makes the old spelling a
+  **compile error** rather than a test failure: the generated `DiagnosticCodes.Wildcard001` factory
+  no longer has a `path` parameter. Found by authoring `an-undefined-capture-outside-a-reference-names-its-rule-once`
+  from §22 rather than from the tool — the fixture disagreed with the implementation on first run,
+  which is the whole reason expectations are not captured.
+
 - **A source that formed no entry lost its comments, and XML lost them whenever the root was
   implicit.** Two shapes reached the output as silence. Commenting out every line of a namespace
   profile — the ordinary way a file is switched off — left a source whose comments trailed nothing,
@@ -91,6 +105,29 @@ independently.
   on, and choosing one here would fix a spelling the specification has not.
 
 ### Changed
+
+- **§12.2 and §13.3 now state which of them governs an undefined capture, closing [#84](https://github.com/stop-cran/namespace2xml/issues/84).**
+  §12.2 said "an undefined capture is an error" and §13.3 required a template's reference to carry
+  "only explicit captures already bound by that same template". Both clauses reached
+  `a.*[0].copy=${a.*[9]}`, neither named the other, and their codes disagree on more than a label:
+  `WILDCARD001` is counted once per rule in the input phase, `REFERENCE001` once per reachable
+  owning value in the planning phase, and §14.4 suppresses only the second. One template matching
+  five hundred names therefore produced either one diagnostic or five hundred, and either failed
+  the run or did not, according to which clause an implementation read first.
+
+  Appendix B had in fact already settled it — it scopes `WILDCARD001` to a capture "outside a
+  reference" and maps a "free explicit capture" to `REFERENCE001` — so the shipped behaviour was
+  correct and derivable rather than the tie-break the report took it for. What was missing was any
+  trace of that division in the two clauses a reader actually reaches. §12.2 now carries the
+  qualifier and defers to §13.3, §13.3 names the code, cardinality and phase, and §22's registry
+  row matches Appendix B's wording.
+
+  The cardinality is not a preference either, which the new prose states: §14.4 decides suppression
+  per owning value, so a once-per-rule diagnostic could not express "these three of five hundred".
+  Pinned by `an-undefined-capture-outside-a-reference-names-its-rule-once` and
+  `an-unbound-capture-inside-a-reference-names-each-owning-value`, whose differing counts are the
+  assertion — before them **no fixture in the corpus asserted `WILDCARD001` at all**. Bundle
+  revision r50 → r51.
 
 - **§8.5 now excepts a source's opening comment run, closing [#63](https://github.com/stop-cran/namespace2xml/issues/63).**
   §8.5 said, without qualification, that "consecutive comments are associated with the next entry",

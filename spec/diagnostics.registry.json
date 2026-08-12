@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "ba4e88da9284c2697fa15fa1fd5bdb773d60c272ba233a4cb0c401337701dfe5"
+    "sha256": "79cf90d4a3bac195163953eba2a4873a3c4d1f641dca95edae236ace179e157a"
   },
   "authoritativeFor": [
     "code",
@@ -91,12 +91,12 @@
       "code": "WILDCARD001",
       "severity": "error",
       "cardinality": "once per rule",
-      "condition": "Invalid, undefined, or mixed capture",
+      "condition": "Invalid, undefined, or mixed capture outside a reference",
       "fields": [
         "source",
         "line",
         "column",
-        "path"
+        "rule"
       ],
       "mappings": [
         "Invalid, undefined, or mixed wildcard capture outside a reference"

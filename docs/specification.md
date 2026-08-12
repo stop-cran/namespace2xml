@@ -1256,11 +1256,14 @@ Rules:
 - the same identifier reused in the name must match the same text;
 - `*[identifier]` in a value substitutes that capture;
 - `*[identifier]` may appear inside a reference name;
-- an undefined capture is an error;
+- an undefined capture outside a reference is an error;
+- a capture inside a reference is governed by Section 13.3, which requires it to be bound by the owning template;
 - inconsistent repeated captures are nonmatches;
 - a single rule must not mix explicit and legacy unnamed captures.
 
-The first, third and last of those are properties of the rule as written and are decidable before any item is examined, which is what `WILDCARD001`'s "once per rule" cardinality presupposes. Consistency of a repeated capture is a property of a (rule, item) pair, and the same rule may be consistent against one item and inconsistent against the next; it is therefore a nonmatch and never a diagnostic. Inconsistent repetition is how `*[identifier]` *selects* — writing the identifier twice means "only where these two parts agree" — and reporting it would leave that construct with no use.
+Capture scope, value substitution, an undefined capture outside a reference, and mixed capture styles are properties of the rule as written and are decidable before any item is examined, which is what `WILDCARD001`'s "once per rule" cardinality presupposes. Consistency of a repeated capture is a property of a (rule, item) pair, and the same rule may be consistent against one item and inconsistent against the next; it is therefore a nonmatch and never a diagnostic. Inconsistent repetition is how `*[identifier]` *selects* — writing the identifier twice means "only where these two parts agree" — and reporting it would leave that construct with no use.
+
+An unbound capture *inside* a reference is the one capture condition that is not decidable per rule, which is why Section 13.3 governs it and why Appendix B scopes `WILDCARD001` to a capture "outside a reference". Section 14.4 suppresses a reference error in an owning value unreachable from every concrete output instance, so whether the condition is reported at all depends on which of the rule's generated values are reachable; a once-per-rule diagnostic could not express "these three of five hundred". The two conditions also arise in different phases — a capture the rule does not define is refused while the entry is read, and a reference is only resolved once the Section 14.4 closure is known — so a single code covering both would carry two different phases and two different cardinalities.
 
 Capture text inserted into a generated name is literal text inside one name part. It is never re-lexed as delimiter, wildcard, reference, or escape syntax.
 
@@ -1419,6 +1422,8 @@ An exact reference later matched by `type=string` is rendered as a string withou
 Mapping, sequence, XML element, comment, and other structured-node references are unsupported and are blocking reference errors.
 
 Free wildcard references such as `${a.*}` are blocking errors. A reference inside a wildcard template may contain only explicit captures already bound by that same template. After capture substitution, the resulting reference must contain no wildcard and resolves as one canonical or format-agnostic scalar reference.
+
+A capture the owning template does not bind is a free capture, and this section governs it rather than Section 12.2: the code is `REFERENCE001`, reported once per reachable owning value in the planning phase, and Section 14.4 suppresses it where no concrete output instance reaches that value. Appendix B states the same division by scoping `WILDCARD001` to a capture outside a reference.
 
 ### 13.4 Disabled substitution
 
@@ -2663,7 +2668,7 @@ The normative diagnostic registry is:
 | `PARSE002` | error | Invalid or unsupported character encoding | once per failing source |
 | `SCHEME001` | error | Unknown directive, value, or illegal option/type combination | once per declaration |
 | `SCHEME002` | error | Ambiguous canonical/simple scheme path | once per expanded declaration |
-| `WILDCARD001` | error | Invalid, undefined, or mixed capture | once per rule |
+| `WILDCARD001` | error | Invalid, undefined, or mixed capture outside a reference | once per rule |
 | `WILDCARD002` | error | Nonterminating expansion or wildcard limit | once per invocation |
 | `REFERENCE001` | error | Malformed or free-wildcard reference | once per reachable owning value |
 | `REFERENCE002` | error | Missing reference | once per reachable owning value |

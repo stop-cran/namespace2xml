@@ -39,8 +39,8 @@ public static partial class DiagnosticCodes
             ["source", "line", "column", "path", "declaration"]),
         new DiagnosticCodeInfo("WILDCARD001", DiagnosticSeverity.Error,
             "once per rule",
-            "Invalid, undefined, or mixed capture",
-            ["source", "line", "column", "path"]),
+            "Invalid, undefined, or mixed capture outside a reference",
+            ["source", "line", "column", "rule"]),
         new DiagnosticCodeInfo("WILDCARD002", DiagnosticSeverity.Error,
             "once per invocation",
             "Nonterminating expansion or wildcard limit",
@@ -259,7 +259,7 @@ public static partial class DiagnosticCodes
         Create("SCHEME002", DiagnosticSeverity.Error, phase, spec, message,
             cardinalityKey, source: source, line: line, column: column, path: path, declaration: declaration);
 
-    /// <summary><c>WILDCARD001</c> (error) — Invalid, undefined, or mixed capture.</summary>
+    /// <summary><c>WILDCARD001</c> (error) — Invalid, undefined, or mixed capture outside a reference.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
@@ -267,7 +267,7 @@ public static partial class DiagnosticCodes
     /// <param name="source">Section 6.4.3 <c>source</c> member.</param>
     /// <param name="line">Section 6.4.3 <c>line</c> member.</param>
     /// <param name="column">Section 6.4.3 <c>column</c> member.</param>
-    /// <param name="path">Section 6.4.3 <c>path</c> member.</param>
+    /// <param name="rule">Section 6.4.3 <c>rule</c> member.</param>
     /// <remarks>Cardinality: once per rule.</remarks>
     public static DiagnosticOccurrence Wildcard001(
         DiagnosticPhase phase,
@@ -277,9 +277,9 @@ public static partial class DiagnosticCodes
         string? source = null,
         int? line = null,
         int? column = null,
-        string? path = null) =>
+        ImmutableArray<string> rule = default) =>
         Create("WILDCARD001", DiagnosticSeverity.Error, phase, spec, message,
-            cardinalityKey, source: source, line: line, column: column, path: path);
+            cardinalityKey, source: source, line: line, column: column, rule: rule);
 
     /// <summary><c>WILDCARD002</c> (error) — Nonterminating expansion or wildcard limit.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>

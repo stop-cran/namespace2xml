@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r50+8043f5d64243`.**
+**Contract bundle `r51+b482ad77db74`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -2899,7 +2899,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs that crashed 2.4.0 (17)
+## Inputs that crashed 2.4.0 (19)
 
 The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
 reports a diagnostic and exits deliberately.
@@ -2980,6 +2980,52 @@ reports a diagnostic and exits deliberately.
   is not merely to change the exit code but to detect the condition and report it as a stable
   diagnostic. The crash exit code carries no code, no phase, and no spec anchor; an automated
   caller cannot tell it apart from a runtime crash.
+
+### `an-unbound-capture-inside-a-reference-names-each-owning-value`
+
+- namespace2xml 2.4.0: **crashes**. As above, there is no baseline diagnostic stream to compare.
+- Contract: Section 13.3; Section 14.4; Section 22; Appendix A.4.
+- Clean behavior: `a.*[0].copy=${a.*[9]}` writes a capture the owning template does not bind.
+  Appendix A.4 calls that a free capture and makes it `REFERENCE001`; Section 13.3 says "a reference
+  inside a wildcard template may contain only explicit captures already bound by that same
+  template". Two names match, so the stream carries **two** diagnostics, one per owning value,
+  matching Section 22's "once per reachable owning value".
+- The count is the assertion, and it is the opposite of the companion case's. It is not a stylistic
+  choice: Section 14.4 suppresses a reference error "in entries unreachable from every concrete
+  output instance", so whether this condition is reported at all is decided per owning value. A
+  once-per-rule diagnostic could not say "these two of five hundred", which is why the same
+  authoring mistake is counted one way outside a reference and another way inside one.
+- The phases differ for the same reason. A capture the rule does not define is refused while the
+  entry is read; a reference is resolved only once the Section 14.4 closure is known, which is why
+  this case reports `planning` and the companion reports `input`.
+- Both diagnostics name `line` 3 -- one line of source, two owning values -- so `path` is what
+  distinguishes them, and it is a projected output key here rather than a rule name, which is
+  exactly the distinction Section 22 draws between `path` and `rule`.
+
+### `an-undefined-capture-outside-a-reference-names-its-rule-once`
+
+- namespace2xml 2.4.0: **crashes**. The baseline has no diagnostic stream, no stable code, and no
+  cardinality rule, so there is nothing here to compare against; `expected-diagnostics.json` is the
+  whole point of the case.
+- Contract: Section 12.2; Appendix B; Section 22.
+- Clean behavior: `a.*[0].copy=lit*[9]` substitutes a capture its own name never defines. Section
+  12.2 says "an undefined capture outside a reference is an error", and Appendix B maps that
+  condition to `WILDCARD001` by scoping the code to a capture "outside a reference". Three names
+  match the template and the stream carries **one** diagnostic, because the fault is a property of
+  the rule as written and Section 22 counts `WILDCARD001` "once per rule".
+- The count is the assertion. An implementation that evaluated the rule per item would report the
+  same code three times and satisfy every sentence about *which* code applies, so a case pinning the
+  code alone would not notice. The input carries three matching names for that reason.
+- The member set is the second assertion. Section 22 gives `path` to a condition that "concerns one
+  overlay node or one projected output key", and a template's declared name is neither -- it names a
+  rule, which is what the `rule` member exists for: "an array of Appendix A canonical wildcard-rule
+  names, holding one element per rule the condition holds responsible". The condition also supplies
+  `line` without `column`, because Section 22 says a condition "raised over a compiled declaration or
+  a wildcard rule rather than over the text that produced it, supplies `line` without `column`".
+- The companion case `an-unbound-capture-inside-a-reference-names-each-owning-value` writes the same
+  mistake inside a reference and gets a different code, a different phase and a different count.
+  Between them the two cases fix the division that Section 12.2 and Section 13.3 would otherwise
+  each appear to claim.
 
 ### `scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias`
 
