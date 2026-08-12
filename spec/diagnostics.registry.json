@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "5ae907a9ce344817144d3cf3939f22b335e0fecf8dd13351815f3a2382cba335"
+    "sha256": "ae6162417179f0adcec77a9ed77365a23446b5d14870cdc248af80df7f8f68f5"
   },
   "authoritativeFor": [
     "code",
@@ -117,7 +117,7 @@
     {
       "code": "REFERENCE001",
       "severity": "error",
-      "cardinality": "once per reachable owning value",
+      "cardinality": "once per owning value",
       "condition": "Malformed or free-wildcard reference",
       "fields": [
         "source",

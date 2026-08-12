@@ -662,7 +662,8 @@
       "assertions": [],
       "fixtures": [
         "contradictory-output-option-flags-are-scheme001",
-        "later-output-options-replace-earlier-set-completely"
+        "later-output-options-replace-earlier-set-completely",
+        "noindent-with-newline-on-attributes-is-scheme001"
       ]
     },
     {

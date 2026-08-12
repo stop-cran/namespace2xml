@@ -1,0 +1,3 @@
+cfg.output=xml
+cfg.root=root
+cfg.xmloutputoptions=NoIndent,NewLineOnAttributes

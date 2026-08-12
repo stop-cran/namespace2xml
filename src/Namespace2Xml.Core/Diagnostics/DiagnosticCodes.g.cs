@@ -46,7 +46,7 @@ public static partial class DiagnosticCodes
             "Nonterminating expansion or wildcard limit",
             ["rule"]),
         new DiagnosticCodeInfo("REFERENCE001", DiagnosticSeverity.Error,
-            "once per reachable owning value",
+            "once per owning value",
             "Malformed or free-wildcard reference",
             ["source", "line", "column", "path"]),
         new DiagnosticCodeInfo("REFERENCE002", DiagnosticSeverity.Error,
@@ -299,12 +299,12 @@ public static partial class DiagnosticCodes
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
-    /// <param name="cardinalityKey">Identity of the reachable owning value this is emitted once per.</param>
+    /// <param name="cardinalityKey">Identity of the owning value this is emitted once per.</param>
     /// <param name="source">Section 6.4.3 <c>source</c> member.</param>
     /// <param name="line">Section 6.4.3 <c>line</c> member.</param>
     /// <param name="column">Section 6.4.3 <c>column</c> member.</param>
     /// <param name="path">Section 6.4.3 <c>path</c> member.</param>
-    /// <remarks>Cardinality: once per reachable owning value.</remarks>
+    /// <remarks>Cardinality: once per owning value.</remarks>
     public static DiagnosticOccurrence Reference001(
         DiagnosticPhase phase,
         string spec,

@@ -421,8 +421,9 @@ The XML output-options set is §16.9:
                             Declaration | NoDeclaration
 ```
 
-There are three contradictory pairs: `Indent`/`NoIndent`, `PreserveCData`/`CDataAsText`, and
-`Declaration`/`NoDeclaration`. The default is `Indent,PreserveCData,Declaration`. A later
+There are four contradictory pairs: `Indent`/`NoIndent`, `NoIndent`/`NewLineOnAttributes`,
+`PreserveCData`/`CDataAsText`, and `Declaration`/`NoDeclaration`. The default is
+`Indent,PreserveCData,Declaration`. A later
 complete directive replaces the earlier flag set; flags from separate declarations do not
 accumulate; naming both flags of a pair in one declaration is `SCHEME001`; naming neither
 selects that pair's default rather than leaving it unset, because every pair governs a decision
@@ -437,12 +438,16 @@ Verified behaviour:
 - `PreserveCData` (default) keeps imported CDATA as CDATA; `CDataAsText` renders it as ordinary
   text, so the input `<![CDATA[x < y]]>` becomes `x &lt; y`.
 
-`NewLineOnAttributes` is specified as placing each attribute *after the first* on its own line,
-indented two spaces beyond the owning start tag (§16.9). This build places *every* attribute on
-its own line, including the first. The disagreement is filed as
-[#53](https://github.com/stop-cran/namespace2xml/issues/53) and tracked in `KNOWN-LIMITS.md` §1.18,
-which records why no default run is affected. No fixture exercises the flag, so do not rely on
-either spelling until the issue is settled.
+`NewLineOnAttributes` places *every* attribute on its own line, including the first, indented two
+spaces beyond the owning start tag (§16.9). It was once specified as covering only the attributes
+after the first; [#53 (closed)](https://github.com/stop-cran/namespace2xml/issues/53) settled that
+against the older wording, and `KNOWN-LIMITS.md` §1.18 records why the clause moved rather than the
+code. `conformance/xml-newline-on-attributes` now pins the layout.
+
+Because `NewLineOnAttributes` requires a line break and two spaces before every attribute and
+`NoIndent` inserts no formatting whitespace, the two cannot both be honored on any element that
+carries an attribute. §16.9 therefore makes them a contradictory pair, and naming both is
+`SCHEME001` rather than a combination in which one flag is silently discarded.
 
 ## XML output
 

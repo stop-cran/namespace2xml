@@ -141,6 +141,77 @@ independently.
 
 ### Changed
 
+- **Four more specification corrections from the same review round.** Each was a place where two
+  clauses answered the same question differently, or a cross-reference named a section that does
+  not contain what was cited.
+
+  - **A missing `.xml` scheme file is `PARSE001`, not warning-and-ignore.** §7.2 said "only a path
+    that does not exist receives this warning-and-ignore behavior", which is absolute; §15 rejects
+    a scheme file whose extension is `.xml`. Because that check reads the *name* rather than the
+    file, it necessarily precedes the existence test, so the rejection wins. Both sections now say
+    so. Verified against the build, which already exits 1 with `PARSE001`.
+
+  - **§14.4's "creates no output instance" now reads "plans no output instance".** §15.2 says an
+    ignored instance "still exists", and the two sentences read as a contradiction. They are not:
+    the instance exists as a configuration binding target, so directives bound to it do not emit
+    the §15.2 unmatched-directive warning, but it contributes no file, no destination and no
+    reachability root. §14.4 now states the reconciliation rather than leaving it to be inferred.
+
+  - **Four cross-references retargeted.** `--max-total-input-bytes` consumption order cited §16.2
+    (now §23); escaped marker-shaped names cited §21 (now §19.1); the duplicate-JSON-key
+    prohibition cited §3.3 (now §9.3); and §5.2's "the final tie-breaker used in Sections 16.6 and
+    21.3" cited a section that contains no tiebreak at all — the unsigned-byte rule it meant is in
+    §17.5.
+
+  - **§25.10's worked example no longer contradicts §8.5.** The example was written before the
+    §8.5 amendment that fixed comment placement and showed the comment moving down past a
+    reordered entry. Running the tool produces the §8.5 answer instead. The example's input now
+    carries a leading entry, which is load-bearing — §8.5 requires the annotated entry to be
+    "written with that entry second" for the case to be about comment ownership at all — and the
+    text says why.
+
+- **`NoIndent` and `NewLineOnAttributes` are now a contradictory pair, and declaring both is
+  `SCHEME001`.** §16.9 stated that `NoIndent` "inserts no formatting whitespace" and, two sentences
+  later, that `NewLineOnAttributes` places every attribute on its own line indented two spaces
+  beyond its start tag. On any element carrying an attribute those clauses demand different bytes,
+  and the section listed only three contradictory pairs, so a scheme naming both was legal and
+  under-determined. The build resolved it by silently discarding `NewLineOnAttributes`.
+
+  A silently discarded flag is the outcome an author is least able to see: it produces no
+  diagnostic and no visible change, so an author who guessed the other precedence has nothing to
+  observe. §16.9 now names the pair alongside `Indent`/`NoIndent`, and the run is refused at
+  scheme-loading time with both flags named in the message.
+  `conformance/noindent-with-newline-on-attributes-is-scheme001` pins it.
+
+  The alternative — honoring `NewLineOnAttributes` for attribute layout while `NoIndent` governs
+  element nesting — was considered and rejected. It is defensible prose, but it describes a mode no
+  XML writer implements natively, so it would have meant taking attribute escaping, namespace
+  declaration placement and mixed content back from `XmlWriter` for a cosmetic opt-in flag. That is
+  the same reasoning `KNOWN-LIMITS.md` §1.18 records for the first-attribute question.
+
+  Also fixed: `docs/format-xml.md` still described `NewLineOnAttributes` as covering only the
+  attributes *after* the first and pointed at
+  [#53](https://github.com/stop-cran/namespace2xml/issues/53) as open. #53 closed and the clause
+  moved; the page now matches §16.9.
+
+- **`REFERENCE001`'s cardinality no longer claims every occurrence is reachability-scoped.** The
+  §22 table read "once per reachable owning value", but the code covers two conditions found in
+  different phases. Malformed or unterminated reference *syntax* is rejected by §15.1 step 6, in
+  the input phase, before any output instance exists and therefore before reachability is defined;
+  a free wildcard or free capture is a planning-phase failure that §13.3 and §14.4 do scope to
+  reachable values. The table now reads "once per owning value" and §22 states the division.
+
+  The row was deliberately *not* split in two. `cardinality` is a code-level fact the registry is
+  authoritative for, and `tools/sync-diagnostics-registry.ps1` keys its row table by code — a
+  second `REFERENCE001` row would have silently overwritten the first rather than failing.
+
+- **Appendix A.2 no longer makes an unescaped `*` unparseable under `substitute=None`.** §13.4 says
+  `substitute=None` disables interpretation in names, which makes `*` literal. But A.2 excluded an
+  unescaped `*` from `ordinary-scalar` unconditionally *and* restricted `wildcard-token` to
+  contexts where name interpretation is enabled, leaving the character in neither production. The
+  two exclusions are now complementary, so an unescaped `*` is always exactly one of the two. No
+  behaviour change: the build was already correct on both readings.
+
 - **`PortableIni1` now says which parsers it is interoperable with, and the answer for 3.0 is none,
   resolving [#67](https://github.com/stop-cran/namespace2xml/issues/67)'s specification half.** §19.6
   required that "conformance tests must cover the representative parsers named by the

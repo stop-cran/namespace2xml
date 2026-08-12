@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r60+baea93212244`.**
+**Contract bundle `r61+a45925321874`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (141)
+## Observable differences (142)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1207,7 +1207,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   spelled a scalar mapping child as an attribute of the root element, which is a shape choice
   the 3.0 XML writer does not repeat.
 - Clean behavior: §16.9 states that "naming both flags of a contradictory pair in one
-  declaration is `SCHEME001`", and lists `Indent` and `NoIndent` as one of the three XML
+  declaration is `SCHEME001`", and lists `Indent` and `NoIndent` as one of the four XML
   contradictory pairs. Section 22 counts `SCHEME001` "once per declaration", so exactly one
   error is emitted and the run exits 1 with no output tree.
 - The difference is intentional: a directive whose value contradicts itself is one of two things
@@ -1966,6 +1966,28 @@ implemented, its case says so plainly rather than letting the heading imply othe
   reader has already decoded corrupts any value that legitimately contains a backslash or a dollar
   sign — a Windows path or a shell template, say — and does so silently, since the corrupted text
   is still valid output.
+
+### `noindent-with-newline-on-attributes-is-scheme001`
+
+- namespace2xml 2.4.0: **differs**. The entire output-options concept did not exist in 2.4.0, so
+  `cfg.xmloutputoptions` was an unrecognized directive, was ignored without a diagnostic, and its
+  contradictory content was never inspected. The baseline exits 0 and writes a file.
+- Contract: Section 16.9's contradictory pairs and the `SCHEME001` cardinality of Section 22.
+- Clean behavior: Section 16.9 lists `NoIndent` and `NewLineOnAttributes` among the four XML
+  contradictory pairs, so naming both in one declaration is `SCHEME001`. Section 22 counts
+  `SCHEME001` "once per declaration", so exactly one error is emitted, the run exits 1, and
+  Section 21.2's validation gate means no output is written.
+- Why the pair is contradictory rather than a combination: `NoIndent` "inserts no formatting
+  whitespace" and `NewLineOnAttributes` requires a line break and two spaces before every
+  attribute. On any element carrying an attribute the two flags demand different bytes, so no
+  serialization satisfies both.
+- Why refusal rather than precedence: the two available precedence readings each silently discard
+  a flag the author wrote down. A discarded flag produces no diagnostic and no visible change, so
+  an author who chose the wrong one of the two readings has nothing to observe. Refusing names
+  both flags in the message and fails before any input is opened.
+- The input carries both an attribute (`cfg.@a`) and an element child (`cfg.b`) so that the case
+  would still be able to distinguish the two precedence readings if the pair were ever made legal;
+  as specified it is rejected before serialization and neither reading is reachable.
 
 ### `one-destination-folds-by-format-before-match-order`
 

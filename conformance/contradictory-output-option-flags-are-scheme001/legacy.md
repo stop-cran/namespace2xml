@@ -17,7 +17,7 @@
   spelled a scalar mapping child as an attribute of the root element, which is a shape choice
   the 3.0 XML writer does not repeat.
 - Clean behavior: §16.9 states that "naming both flags of a contradictory pair in one
-  declaration is `SCHEME001`", and lists `Indent` and `NoIndent` as one of the three XML
+  declaration is `SCHEME001`", and lists `Indent` and `NoIndent` as one of the four XML
   contradictory pairs. Section 22 counts `SCHEME001` "once per declaration", so exactly one
   error is emitted and the run exits 1 with no output tree.
 - The difference is intentional: a directive whose value contradicts itself is one of two things

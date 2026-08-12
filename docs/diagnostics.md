@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r60+baea93212244`.** 35 codes.
+**Contract bundle `r61+a45925321874`.** 35 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -30,7 +30,7 @@ by preference.
 | `SCHEME002` | error | once per expanded declaration | Ambiguous canonical/simple scheme path | `source`, `line`, `column`, `path`, `declaration` |
 | `WILDCARD001` | error | once per rule | Invalid, undefined, or mixed capture outside a reference | `source`, `line`, `column`, `rule` |
 | `WILDCARD002` | error | once per invocation | Nonterminating expansion or wildcard limit | `rule` |
-| `REFERENCE001` | error | once per reachable owning value | Malformed or free-wildcard reference | `source`, `line`, `column`, `path` |
+| `REFERENCE001` | error | once per owning value | Malformed or free-wildcard reference | `source`, `line`, `column`, `path` |
 | `REFERENCE002` | error | once per reachable owning value | Missing reference | `source`, `line`, `column`, `path` |
 | `REFERENCE003` | error | once per canonically distinct reachable cycle | Reference cycle | `source`, `line`, `column`, `path` |
 | `REFERENCE004` | error | once per reachable owning value | Ambiguous reference alias | `source`, `line`, `column`, `path` |
@@ -107,7 +107,7 @@ Each code below lists the situations the specification maps to it (Appendix B).
 
 ### `REFERENCE001` — Malformed or free-wildcard reference
 
-*error, once per reachable owning value.*
+*error, once per owning value.*
 
 - Malformed/unterminated reference, legacy bare wildcard in reference, free explicit capture
 

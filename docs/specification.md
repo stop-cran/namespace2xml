@@ -294,7 +294,7 @@ Overriding a mapping key moves that exact key, together with comments bound to i
 
 A node that no contribution addresses directly — one that exists only because something deeper needed a container to sit in — takes the position mark of the earliest contribution that required it, and keeps it. This follows from the preceding rule rather than adding to it: every contribution that could materialise such a node is a contribution to a strictly deeper descendant, and no such contribution may move it, so only the first one is free to place it. A later source that adds a second child to an existing intermediate node consequently leaves that node exactly where the first source put it. A node that is intermediate in one source and directly addressed in a later one does move to the later direct contribution, because that contribution addresses the node itself and is an override rather than a descendant.
 
-The position mark is the Section 4.7 stable ordering key, so that key is already exhausted once two position marks are equal. When two sibling keys carry equal position marks, their order is decided by the child component itself: first by component kind, in the order ordinary component, qualified element, typed attribute, typed content; then, within one kind, by the component's own text — its literal text, its URI followed by its local text, its attribute name compared by this same rule, or its numeric ordering value — encoded as UTF-8 and compared by unsigned-byte ordinal order, matching the final tie-breaker used in Sections 16.6 and 21.3. A wildcard token sorts after any literal text at the same position, and two wildcard tokens compare by capture identifier with the bare form first. The component kind is compared before the text because a typed attribute and an ordinary component may carry the same text while naming different things, so text alone is not a total order. Mapping order is therefore total, and no output may depend on the order in which an implementation happened to visit siblings.
+The position mark is the Section 4.7 stable ordering key, so that key is already exhausted once two position marks are equal. When two sibling keys carry equal position marks, their order is decided by the child component itself: first by component kind, in the order ordinary component, qualified element, typed attribute, typed content; then, within one kind, by the component's own text — its literal text, its URI followed by its local text, its attribute name compared by this same rule, or its numeric ordering value — encoded as UTF-8 and compared by unsigned-byte ordinal order, matching the final tie-breaker used in Sections 17.5 and 21.3. A wildcard token sorts after any literal text at the same position, and two wildcard tokens compare by capture identifier with the bare form first. The component kind is compared before the text because a typed attribute and an ordinary component may carry the same text while naming different things, so text alone is not a total order. Mapping order is therefore total, and no output may depend on the order in which an implementation happened to visit siblings.
 
 The same rule applies to comments: refreshing an ancestor's shape-mark through a descendant does not move that ancestor or comments bound to the ancestor path.
 
@@ -549,6 +549,8 @@ A missing input or scheme file:
 
 Only a path that does not exist receives this warning-and-ignore behavior. A path that exists but is unreadable, is a directory where a file is required, changes incompatibly while being read, or fails for another I/O reason is a blocking `PARSE001` source error.
 
+One check precedes this one. Section 15 rejects a scheme file named with the `.xml` extension before the file is read, and therefore before its existence is known, so a missing `.xml` scheme file is that blocking `PARSE001` rather than this warning. Naming the extension is an authoring error whichever answer the file system would have given, and reporting it as an ignorable missing file would name the wrong mistake and let the run continue as though the author had supplied no scheme at all.
+
 ### 7.3 Parsing concurrency
 
 Files may be read and parsed concurrently.
@@ -557,7 +559,7 @@ Merging, array concatenation, wildcard evaluation, and precedence assignment mus
 
 Concurrent parsers maintain per-source counts only. A parser must not be able to observe any global total: it accumulates its own source's contribution and reports it, and nothing more. This is what makes the outcome independent of how work was scheduled, so an implementation should enforce the separation structurally rather than by convention.
 
-After all independently readable sources finish their parse attempt, global input budgets are evaluated deterministically over one ordered input stream: all scheme files in `-s` order, then all input files in `-i` order, then command-line variables in `-v` token order, matching the consumption order Section 16.2 gives `--max-total-input-bytes`. The first source whose cumulative contribution would cross a global bound receives `LIMIT001`; that source and every later source in that stream contribute no parsed model, including later sources of a different kind. Per-file byte limits and per-document depth limits are enforced within each source and are never cumulative across sources.
+After all independently readable sources finish their parse attempt, global input budgets are evaluated deterministically over one ordered input stream: all scheme files in `-s` order, then all input files in `-i` order, then command-line variables in `-v` token order, matching the consumption order Section 23 gives `--max-total-input-bytes`. The first source whose cumulative contribution would cross a global bound receives `LIMIT001`; that source and every later source in that stream contribute no parsed model, including later sources of a different kind. Per-file byte limits and per-document depth limits are enforced within each source and are never cumulative across sources.
 
 ### 7.4 Character encoding
 
@@ -637,7 +639,7 @@ Every other backslash sequence in a name is a blocking parse error.
 
 At the start of a name part, unescaped `@`, `#` followed by canonical decimal digits, and `Q{` introduce typed XML canonical components in namespace-profile input, command-line variables, namespace-profile scheme paths, references, and `root` values. Escaped forms such as `\@x`, `\#0`, and `\Q{urn:x}name` are ordinary literal name parts.
 
-Marker recognition commits. Once an unescaped `@`, `#`, or `Q{` is recognized at the start of a name part, that part must match the typed production in full; text that begins like a typed marker without completing one is `PARSE001`, not an ordinary part. `#1x`, `@`, and `Q{urn:x` are therefore each errors, and the ordinary parts carrying that text are written `\#1x`, `\@`, and `\Q{urn:x`, which is exactly what Section 21 emits for them. The rule keeps the lexer local and total, since it never has to unread a part, and it makes Section 11.4's blocking errors inside `Q{...}` consistent with the other two markers rather than an exception to them. Under the alternative, a one-character edit would silently change a part's kind: `#1` would be a content token and `#1x` an ordinary name.
+Marker recognition commits. Once an unescaped `@`, `#`, or `Q{` is recognized at the start of a name part, that part must match the typed production in full; text that begins like a typed marker without completing one is `PARSE001`, not an ordinary part. `#1x`, `@`, and `Q{urn:x` are therefore each errors, and the ordinary parts carrying that text are written `\#1x`, `\@`, and `\Q{urn:x`, which is exactly what Section 19.1 emits for them. The rule keeps the lexer local and total, since it never has to unread a part, and it makes Section 11.4's blocking errors inside `Q{...}` consistent with the other two markers rather than an exception to them. Under the alternative, a one-character edit would silently change a part's kind: `#1` would be a content token and `#1x` an ordinary name.
 
 JSON and YAML mapping keys are one component that carries the same markers every other name syntax carries, under the native-key rules of Section 9.1: `@x` is an attribute, `#0` is a content component, `Q{uri}x` is a qualified element, and a literal marker-shaped key is escaped `\@x`. Only the delimiter and `\u{HEX}` lose their meaning there, because a key is one part rather than a path. XML input receives typed components from the XML parser rather than by applying this namespace lexer. `filename`, delimiter, option, `key` field-name, and other non-path directive values treat marker-shaped text as ordinary value text.
 
@@ -1521,7 +1523,9 @@ Missing, cyclic, ambiguous, free-wildcard, and non-scalar references in entries 
 
 Selected entries and their transitive reference closure are resolved strictly.
 
-A selector whose winning declaration is `output=ignore` creates no output instance and no reference-reachability root. References reachable only from that suppressed selector are therefore not resolved and cannot fail the run.
+A selector whose winning declaration is `output=ignore` plans no output instance and no reference-reachability root. References reachable only from that suppressed selector are therefore not resolved and cannot fail the run.
+
+"Plans no output instance" is about the output *plan*, and Section 15.2 uses the word `exists` in the other sense: the instance remains a configuration binding target, because Section 16.1 keeps it so that a later declaration can restore it. A directive naming a suppressed instance has therefore bound and does not emit `WARN009`, while the instance still contributes no file, no destination, and no reachability root here. Both are true of the same instance, and a reader who takes either sentence for the whole answer will get the diagnostic stream wrong in one direction or the other.
 
 ## 15. Scheme language
 
@@ -1531,7 +1535,7 @@ Namespace-profile scheme files are the canonical and recommended representation.
 
 JSON and YAML scheme files use secure default parsing because input-option directives cannot affect the parsing of the scheme file that defines them.
 
-The `.xml` extension is excluded, and a scheme file named with it is `PARSE001` against this section, reported once per failing source in the scheme phase before the file is read. XML is an input format under Section 7.1, and this section defines no projection from an XML document to a qualified directive path. Three questions have no answer here and none of them has an obviously correct one: an element and an attribute are distinct component kinds under Section 11.4 and only one of them can be an ordinary name part, the single root element occupies a position that no JSON or YAML top-level key does, and Section 12.2 spells a capture `*`, which is not a legal XML name, so a selector containing a wildcard cannot be written at all. Reading the file as a namespace profile instead would report Section 8.1 against a document its author never wrote to that contract, naming the wrong rule; accepting it silently would discharge none of the directives it appears to carry. A scheme extension this section does not define is therefore rejected by naming this section.
+The `.xml` extension is excluded, and a scheme file named with it is `PARSE001` against this section, reported once per failing source in the scheme phase before the file is read. XML is an input format under Section 7.1, and this section defines no projection from an XML document to a qualified directive path. Three questions have no answer here and none of them has an obviously correct one: an element and an attribute are distinct component kinds under Section 11.4 and only one of them can be an ordinary name part, the single root element occupies a position that no JSON or YAML top-level key does, and Section 12.2 spells a capture `*`, which is not a legal XML name, so a selector containing a wildcard cannot be written at all. Reading the file as a namespace profile instead would report Section 8.1 against a document its author never wrote to that contract, naming the wrong rule; accepting it silently would discharge none of the directives it appears to carry. A scheme extension this section does not define is therefore rejected by naming this section. Because the check reads the name rather than the file, it precedes Section 7.2's existence test: a `.xml` scheme path that does not exist is this error and not that section's warning-and-ignore.
 
 The final qualified-name part identifies a directive.
 
@@ -2064,11 +2068,17 @@ Supported flags:
 - `Declaration`;
 - `NoDeclaration`.
 
-`Indent` and `NoIndent`, `PreserveCData` and `CDataAsText`, and `Declaration` and `NoDeclaration` are contradictory pairs.
+`Indent` and `NoIndent`, `NoIndent` and `NewLineOnAttributes`, `PreserveCData` and `CDataAsText`, and `Declaration` and `NoDeclaration` are contradictory pairs.
 
 Default: `Indent,PreserveCData,Declaration`.
 
 XML `Indent` uses two ASCII spaces per element nesting level outside mixed content. `NewLineOnAttributes` places every attribute on its own line, including the first, indented two spaces beyond the owning start tag; a start tag that carries attributes therefore ends after the element name and its `>` follows the last attribute. `NoIndent` inserts no formatting whitespace.
+
+`NoIndent` and `NewLineOnAttributes` are therefore a contradictory pair as well, and declaring both
+is `SCHEME001`. The line break and the two spaces `NewLineOnAttributes` requires are formatting
+whitespace, so on any element carrying an attribute the two flags demand different bytes. Refusing
+the combination is what makes the conflict visible: the alternative readings each silently discard
+a flag the author wrote down, and a scheme author cannot see a flag that did nothing.
 
 #### JSON
 
@@ -2411,7 +2421,7 @@ At an overlay containing both payload and container contributions, Section 4.4 s
 
 A mapping key carries the Section 11.4 markers, so an attribute component `x` is the key `@x`, a content component is `#0`, and a qualified element is `Q{uri}local` — the same spellings Section 9.1 reads back. An ordinary component whose own literal text begins with `@`, `#`, `\`, or `Q{` is written with a leading `\`, so that it too reads back as itself. This makes a JSON document this tool writes readable by it, and lets a JSON input name any component an XML input can carry.
 
-Distinct logical paths must never both emit a member of one mapping under the same key. Escaping removes the ordinary case, so a collision now requires two components that are distinct in the model and spell one key regardless — but emitting both would produce a duplicate-key document that Section 3.3 forbids and that this specification's own reader rejects, so a mapping-key collision after projection is blocking `FLAT001`. A later contribution to the *same* logical path is an override under Section 4.4 and is never a collision; both colliding paths remain separately addressable, so an input may override either one to resolve the conflict.
+Distinct logical paths must never both emit a member of one mapping under the same key. Escaping removes the ordinary case, so a collision now requires two components that are distinct in the model and spell one key regardless — but emitting both would produce a duplicate-key document that Section 9.3 forbids and that this specification's own reader rejects, so a mapping-key collision after projection is blocking `FLAT001`. A later contribution to the *same* logical path is an override under Section 4.4 and is never a collision; both colliding paths remain separately addressable, so an input may override either one to resolve the conflict.
 
 ### 19.4 YAML
 
@@ -2702,7 +2712,7 @@ The normative diagnostic registry is:
 | `SCHEME002` | error | Ambiguous canonical/simple scheme path | once per expanded declaration |
 | `WILDCARD001` | error | Invalid, undefined, or mixed capture outside a reference | once per rule |
 | `WILDCARD002` | error | Nonterminating expansion or wildcard limit | once per invocation |
-| `REFERENCE001` | error | Malformed or free-wildcard reference | once per reachable owning value |
+| `REFERENCE001` | error | Malformed or free-wildcard reference | once per owning value |
 | `REFERENCE002` | error | Missing reference | once per reachable owning value |
 | `REFERENCE003` | error | Reference cycle | once per canonically distinct reachable cycle |
 | `REFERENCE004` | error | Ambiguous reference alias | once per reachable owning value |
@@ -2740,6 +2750,15 @@ Codes, severities, cardinalities, and ordering fields are compatibility-stable. 
 For XML processing instructions and discarded formatting whitespace, `WARN006` and `WARN007` respectively are more specific than `WARN003`; do not emit both for the same discarded feature occurrence.
 
 Severity, cardinality, and the enumerated fields are properties of the code. Pipeline phase and specification anchor are properties of the individual occurrence, because `TYPE001`, `SERIALIZE001`, and `LIMIT001` each arise in more than one phase and enforce more than one clause.
+
+`REFERENCE001` covers two conditions that are detected in different phases, and its cardinality is
+written "once per owning value" rather than "once per reachable owning value" for that reason.
+Malformed or unterminated reference *syntax* is rejected by Section 15.1 step 6, in the input phase,
+before any output instance exists; reachability is therefore not yet defined and cannot narrow it,
+and such a value is `REFERENCE001` whether or not any output would have selected it. A free wildcard
+or free capture in an otherwise well-formed reference is a planning-phase failure, and Section 13.3
+scopes it to reachable owning values under Section 14.4. The other `REFERENCE00x` codes are resolved
+at step 15 and so are uniformly reachability-scoped.
 
 A conforming distribution must ship a machine-readable diagnostic registry alongside the specification text. The registry is authoritative for exactly the code-level facts enumerated above: code, severity, cardinality, and the set of fields the code may carry. It is not authoritative for phase, anchor, or message prose, and it may not introduce a code that Section 22 and Appendix B do not define. Where the registry and this section disagree within that domain, the registry is a defect and this section governs until the registry is corrected.
 
@@ -3057,6 +3076,7 @@ Conversely, `type=array` converts an ordered mapping with nonnumeric keys to a s
 Input:
 
 ```text
+z=0
 # comment for a
 a=1
 b=2
@@ -3066,12 +3086,19 @@ a=2
 Namespace output is:
 
 ```text
+z=0
 b=2
 # comment for a
 a=2
 ```
 
 The comment remains bound to logical path `a`, and the winning `a` contribution determines their final position.
+
+The leading `z=0` is load-bearing. Section 8.5 makes the comments preceding a source's *first* entry
+document-leading and bound to no path, so a comment written at the very top of this profile would
+describe the file and would not move with `a` at all. Writing one entry ahead of it is what Section
+8.5 means by "a source whose first entry needs a comment of its own must be written with that entry
+second", and without it this example would demonstrate the opposite of the rule it is here to show.
 
 ### 25.11 Permanent ignore mask
 
@@ -3304,14 +3331,14 @@ unicode-escape      = "u{" 1*6HEXDIG "}"
 Semantic requirements:
 
 - an unescaped `.` separates components and cannot begin, end, or occur twice consecutively;
-- `ordinary-scalar` excludes unescaped `.`, `*`, `=`, backslash, physical line terminators, and any scalar consumed as part of a leading typed marker;
+- `ordinary-scalar` excludes unescaped `.`, `=`, backslash, physical line terminators, and any scalar consumed as part of a leading typed marker; it excludes unescaped `*` only where the effective `substitute` mode enables name interpretation;
 - `uri-scalar` excludes `}` and backslash;
 - `unicode-escape` must encode one Unicode scalar and therefore excludes surrogates and values above U+10FFFF;
 - inside `Q{...}`, only `\}` and `\\` are escapes; every other backslash sequence is `PARSE001`;
 - the first unescaped `}` ends `uri-body`;
 - at a component start, typed-marker recognition follows the source-position rules in Section 8.2, and commits: a component beginning with an unescaped marker must match that typed production in full or is `PARSE001`;
 - an escaped leading marker creates an ordinary component;
-- wildcard tokens are legal only in contexts whose effective `substitute` mode enables name interpretation.
+- wildcard tokens are legal only in contexts whose effective `substitute` mode enables name interpretation. Where that mode is `None`, an unescaped `*` is instead an `ordinary-scalar` carrying its own literal character, which is how Section 13.4's "`substitute=None` disables interpretation in names" is realized in this grammar; the two exclusions above are complementary, so an unescaped `*` is always exactly one of the two and never unparseable.
 
 ### A.3 Namespace values
 

@@ -13,7 +13,7 @@ public enum XmlOutputOptions
     /// <summary>No formatting whitespace at all.</summary>
     NoIndent = 2,
 
-    /// <summary>Place each attribute after the first on its own line.</summary>
+    /// <summary>Place every attribute, including the first, on its own line.</summary>
     NewLineOnAttributes = 4,
 
     /// <summary>Re-emit imported CDATA as CDATA. The default.</summary>
@@ -47,7 +47,7 @@ public static class XmlOutput
     public static bool Indents(this XmlOutputOptions options) =>
         !options.HasFlag(XmlOutputOptions.NoIndent);
 
-    /// <summary>Whether each attribute after the first goes on its own line.</summary>
+    /// <summary>Whether each attribute goes on its own line.</summary>
     /// <param name="options">The selected options.</param>
     public static bool BreaksAttributeLines(this XmlOutputOptions options) =>
         options.HasFlag(XmlOutputOptions.NewLineOnAttributes);
@@ -71,6 +71,15 @@ public static class XmlOutput
         if (options.HasFlag(XmlOutputOptions.Indent) && options.HasFlag(XmlOutputOptions.NoIndent))
         {
             contradiction = Pair("Indent", "NoIndent", "layout modes");
+            return false;
+        }
+
+        if (options.HasFlag(XmlOutputOptions.NoIndent)
+            && options.HasFlag(XmlOutputOptions.NewLineOnAttributes))
+        {
+            contradiction = "'NoIndent' inserts no formatting whitespace and 'NewLineOnAttributes' "
+                + "requires a line break and two spaces before every attribute, so Section 16.9 "
+                + "makes them mutually exclusive.";
             return false;
         }
 
