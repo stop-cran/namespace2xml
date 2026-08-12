@@ -155,14 +155,12 @@ public static class PublicationPhase
             var projected = new FlatProjection(diagnostics, destination).Project(view.View, view.Root);
             var keyed = new FlatKeyProjector(flat, delimiter, diagnostics, destination).Project(projected);
 
-            // INI takes only the entries: Section 20 gives it a placement rule of its own, and the
-            // half covering document-trailing and inline comments — "normalized to full-line
-            // comments at the nearest deterministic leading position" — does not name a position an
-            // implementation could agree on. Guessing one here would fix a spelling the
-            // specification has not chosen.
+            // INI takes the whole document: Section 20 places its document-leading comments before
+            // the first global key or section and its document-trailing comments at end of file,
+            // so the ownerless runs are the writer's to position rather than the projector's.
             return flat == FlatFormat.Ini
                 ? new IniSerializer(view.Instance.IniOptions, diagnostics, destination)
-                    .TrySerialize(keyed.Entries, writer)
+                    .TrySerialize(keyed, writer)
                 : new FlatTextSerializer(flat, delimiter, diagnostics, destination)
                     .TrySerialize(keyed, writer);
         }

@@ -66,7 +66,8 @@ public class IniSerializerTests
 
         keyed.Length.ShouldBe(entries.Length);
 
-        return new IniSerializer(options, diagnostics, new DestinationRef("out.ini", 0)).TrySerialize(keyed, writer);
+        return new IniSerializer(options, diagnostics, new DestinationRef("out.ini", 0))
+            .TrySerialize(new FlatKeyedDocument([], keyed, []), writer);
     }
 
     private bool Fails(IniOutputOptions options, params FlatEntry[] entries) =>
@@ -148,7 +149,8 @@ public class IniSerializerTests
     {
         var writer = new OutputBufferWriter(new GlobalBudget(ResourceLimits.Defaults));
 
-        new IniSerializer(IniOutput.Default, diagnostics).TrySerialize([], writer).ShouldBeTrue();
+        new IniSerializer(IniOutput.Default, diagnostics)
+            .TrySerialize(new FlatKeyedDocument([], [], []), writer).ShouldBeTrue();
 
         writer.Build().Length.ShouldBe(0);
     }

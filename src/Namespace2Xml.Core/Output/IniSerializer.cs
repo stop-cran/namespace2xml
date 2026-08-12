@@ -45,8 +45,8 @@ public sealed class IniSerializer
         this.destination = destination;
     }
 
-    /// <summary>Writes every entry.</summary>
-    /// <param name="entries">The keyed entries, in Section 19.1 emission order.</param>
+    /// <summary>Writes every entry, bracketed by the document's ownerless comment runs.</summary>
+    /// <param name="document">The keyed document, in Section 19.1 emission order.</param>
     /// <param name="writer">The buffer to write into.</param>
     /// <returns>
     /// Whether the whole output was written. A false result means either a reported <c>INI001</c>
@@ -65,17 +65,29 @@ public sealed class IniSerializer
     /// nothing written after it can succeed, and continuing would report a limit repeatedly. So
     /// the writer's fault still ends the pass immediately.
     /// </remarks>
-    public bool TrySerialize(IEnumerable<FlatKeyedEntry> entries, OutputBufferWriter writer)
+    public bool TrySerialize(FlatKeyedDocument document, OutputBufferWriter writer)
     {
-        ArgumentNullException.ThrowIfNull(entries);
+        ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(writer);
 
-        var ordered = entries.ToList();
+        var ordered = document.Entries.ToList();
         var marker = options.CommentMarker();
 
-        if (marker is null && ordered.Exists(entry => !entry.Entry.Comments.IsEmpty))
+        if (marker is null
+            && (!document.Leading.IsEmpty
+                || !document.Trailing.IsEmpty
+                || ordered.Exists(entry => !entry.Entry.Comments.IsEmpty)))
         {
             ReportDiscardedComments();
+        }
+
+        // Section 20: "Document-leading comments precede the first global key or section."
+        foreach (var comment in document.Leading)
+        {
+            if (!TryWriteComment(comment.Text, marker, writer))
+            {
+                return false;
+            }
         }
 
         var globals = new List<FlatKeyedEntry>();
@@ -136,25 +148,50 @@ public sealed class IniSerializer
             }
         }
 
+        // Section 20: "Document-trailing comments are emitted at end of file, after the final key
+        // of the final section."
+        foreach (var comment in document.Trailing)
+        {
+            if (!TryWriteComment(comment.Text, marker, writer))
+            {
+                return false;
+            }
+        }
+
         return complete;
+    }
+
+    /// <summary>
+    /// Writes one comment as Section 20 full lines, or nothing when no marker is selected.
+    /// </summary>
+    private static bool TryWriteComment(string text, char? marker, OutputBufferWriter writer)
+    {
+        if (marker is not { } commentMarker)
+        {
+            return true;
+        }
+
+        foreach (var line in text.ReplaceLineEndings("\n").Split('\n'))
+        {
+            if (!writer.TryWriteLine($"{commentMarker} {line}"))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private bool TryWriteEntry(FlatKeyedEntry keyed, char? marker, OutputBufferWriter writer)
     {
-        if (marker is { } commentMarker)
+        foreach (var comment in keyed.Entry.Comments)
         {
-            foreach (var comment in keyed.Entry.Comments)
+            // Section 20 emits INI comments as full lines before the key they attach to, and the
+            // section header is already written, so a section's first key gets its comments
+            // "after the section header and before that key" without a special case here.
+            if (!TryWriteComment(comment.Text, marker, writer))
             {
-                // Section 20 emits INI comments "only as full-line leading comments", and the
-                // section header is already written, so a section's first key gets its comments
-                // "after the section header and before that key" without a special case here.
-                foreach (var line in comment.Text.ReplaceLineEndings("\n").Split('\n'))
-                {
-                    if (!writer.TryWriteLine($"{commentMarker} {line}"))
-                    {
-                        return false;
-                    }
-                }
+                return false;
             }
         }
 

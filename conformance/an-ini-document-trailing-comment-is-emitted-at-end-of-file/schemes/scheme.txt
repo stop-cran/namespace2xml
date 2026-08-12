@@ -1,0 +1,2 @@
+cfg.output=ini,namespace
+cfg.inioutputoptions=HashComments

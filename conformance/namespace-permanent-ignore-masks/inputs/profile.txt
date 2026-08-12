@@ -1,7 +1,8 @@
-# this note names the secret and must not outlive it
+# this note precedes the first entry, so Section 4.5 makes it document-leading
 app.secret=classified
 # this note names a key that survives
 app.name=demo
+# this note names the legacy host and must not outlive it
 app.legacy.host=old
 app.legacy.port=1
 app.keep=kept

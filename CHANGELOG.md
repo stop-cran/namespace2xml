@@ -99,10 +99,45 @@ independently.
   rendered to YAML, so nothing exercised the destinations that were wrong. namespace2xml 2.4.0 drops
   every comment in both cases.
 
-  INI is unchanged and still discards document comments. §20 gives it a placement rule of its own
-  whose second half — document-trailing and inline comments "normalized to full-line comments at the
-  nearest deterministic leading position" — does not name a position two implementations would agree
-  on, and choosing one here would fix a spelling the specification has not.
+  INI was left alone at the time, and the paragraph that stood here said so: §20 gave it a placement
+  rule whose second half did not name a position two implementations would agree on. That was the
+  right reading of the sentence and the wrong conclusion about the file, and the entry below closes
+  it.
+
+- **INI dropped every comment no entry owned, and said nothing, closing
+  [#87](https://github.com/stop-cran/namespace2xml/issues/87).** The report asked a narrow question:
+  §20 named no position for a document-trailing comment in INI, so where does one go? Measuring it
+  found the larger half. INI discarded document-leading comments too, under every setting of
+  `inioutputoptions`, in a build where namespace and YAML emitted both correctly — and the
+  `WARN003` that exists to announce a discarded comment fired only when some *surviving entry* still
+  owned one, so a source whose every comment was ownerless lost them in silence, with exit `0` and
+  an empty diagnostic stream.
+
+  The cause was one argument. `PublicationPhase` handed `IniSerializer` the entry list rather than
+  the document, so the serializer could not see a comment that owned no entry even to complain about
+  it, and a code comment recorded the omission as deliberate on the grounds that §20 named no
+  position for the trailing case. It named one for the leading case in the same sentence.
+
+  §20 now places a document-trailing comment at end of file, after the final key of the final
+  section, with the reasoning stated: source order is preserved, the position agrees with what
+  namespace, quoted namespace and YAML already do for the same input, and a note the author wrote
+  last is not silently reattached to a value it does not describe. `IniSerializer` takes the whole
+  document, brackets the entries with the leading and trailing runs, and raises `WARN003` whenever a
+  comment is discarded rather than only when an entry owned it.
+
+  Two fixtures assert it under acceptance item 57.
+  `an-ini-document-trailing-comment-is-emitted-at-end-of-file` renders one input to INI and to
+  namespace so the three placements can be compared side by side, and
+  `an-ini-discarded-ownerless-comment-is-announced` pins the diagnostic for the silent case.
+  namespace2xml 2.4.0 drops every INI comment, and drops a document-trailing comment even in
+  namespace output.
+
+  Strengthening the gate exposed a fixture passing for the wrong reason.
+  `namespace-permanent-ignore-masks` claimed a comment "must not outlive the entry it annotates",
+  and its comment sat against the *first* entry of the source — which under §4.5 makes it
+  document-leading and owned by nothing, so it legitimately survived the mask and the assertion was
+  never tested. Its input now carries both: one document-leading comment that survives and one
+  genuinely owned by a masked entry, which does not.
 
 ### Changed
 

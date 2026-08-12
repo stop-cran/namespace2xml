@@ -2539,7 +2539,9 @@ Comments are preserved when both the source and destination support the common c
 | JSON | Discard with summarized warning. |
 | INI | Emit only when enabled by `inioutputoptions`; otherwise discard with summarized warning. |
 
-INI comments are emitted only as full-line leading comments. A comment attached to a global key is emitted immediately before that key. A comment attached to the first direct key in a section is emitted after the section header and before that key. Comments attached to later keys are emitted immediately before those keys. Document-leading comments precede the first global key or section; document-trailing and inline comments are normalized to full-line comments at the nearest deterministic leading position.
+INI comments are emitted as full-line comments. A comment attached to a global key is emitted immediately before that key. A comment attached to the first direct key in a section is emitted after the section header and before that key. Comments attached to later keys are emitted immediately before those keys. An inline comment is normalized to a full-line comment immediately before the key it was attached to. Document-leading comments precede the first global key or section. Document-trailing comments are emitted at end of file, after the final key of the final section.
+
+A document-trailing comment is the only one INI cannot place by looking forward, because by the definition below nothing follows it. It is emitted at end of file rather than folded into the nearest preceding key, for three reasons: source order is preserved, the position agrees with namespace, quoted namespace, and YAML output for the same input, and a note the author wrote last is not silently reattached to a value it does not describe. A full-line comment at end of file needs no key to own it, so the placement costs INI nothing it can otherwise represent.
 
 Cross-format comment association follows source order:
 

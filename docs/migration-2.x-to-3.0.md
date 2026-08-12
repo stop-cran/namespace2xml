@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r57+a93ea455f087`.**
+**Contract bundle `r58+abf4c98cbdf8`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (138)
+## Observable differences (139)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -828,6 +828,28 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The companion case `xml-output-places-a-document-trailing-comment-last` covers the same rule with
   an explicit `root`, where the root element holds the comments instead. Between them the two shapes
   fix the placement whether or not the view has an element of its own.
+
+### `an-ini-document-trailing-comment-is-emitted-at-end-of-file`
+
+- namespace2xml 2.4.0: **differs**. It exits 0 and loses comments in both destinations, in two
+  different ways.
+  - `cfg.ini` carries no comment at all, although `HashComments` is selected. All three — the
+    document-leading note, the note owned by the section's first key, and the closing note — are
+    gone. It also writes a blank line after the global key and another at end of file, which the
+    Section 19.6 layout does not describe.
+  - `cfg.properties` keeps the document-leading and owned comments but **drops the closing note**,
+    so the baseline loses a document-trailing comment even in a format that plainly represents one.
+- Contract: Section 20 INI comment emission and placement — document-leading comments precede the
+  first global key or section, a comment owned by a section's first key follows the section header,
+  and document-trailing comments are emitted at end of file. Section 16.9 `inioutputoptions`.
+- The case renders the same input to INI and namespace so the two can be compared directly. The
+  point of the pairing is that the three placements agree: choosing INI must not silently move or
+  delete a note. That is what both baseline files fail, in opposite directions.
+- Issue #87 asked only where a document-trailing comment belongs in INI, and the measurement
+  behind it — that the note vanished — turned out to be the smaller half. 3.0 before this change
+  dropped every comment INI could not attach to an entry, document-leading included, and said
+  nothing; the `WARN003` that announces discarded comments was raised only when some surviving
+  entry still owned one.
 
 ### `an-opening-comment-does-not-move-with-its-entry`
 
@@ -1843,11 +1865,13 @@ implemented, its case says so plainly rather than letting the heading imply othe
 ### `namespace-permanent-ignore-masks`
 
 - namespace2xml 2.4.0: **differs**.
-- Contract: Section 8.6; Section 8.5 for the comment run.
+- Contract: Section 8.6; Section 8.5 for the comment run; Section 20 for INI comment emission.
 - Legacy observation: `!` removal was applied in source order like any other entry, so an entry
   written after the ignore reinstated the path, and an ignore in a later file did not reach a value
   contributed by an earlier one. Whether a comment bound to a removed entry survived was not
-  stated.
+  stated. Measured, `app.ini` keeps a whole `[legacy]` section — `host=old` and `port=1` — that
+  `!app.legacy` names, so the mask does not reach a container path at all, and it writes no comment
+  of any kind despite `HashComments` being selected.
 - Clean behavior: a mask is a permanent run-wide subtree exclusion. It suppresses a matching
   contribution "regardless of whether it appears before or after the ignore entry", a later
   contribution "cannot recreate the path", the exclusion reaches descendants, and comments bound to
@@ -1855,6 +1879,12 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: Section 8.6 names this "an explicit exception to universal
   later-source precedence". A mask exists to guarantee that a value cannot leave the tool, and a
   guarantee an ordinary later entry can revoke is not one.
+- The case carries two comments one line apart to separate the two rules that were previously
+  conflated here. The comment before `app.legacy.host` owns a masked entry and dies with it. The
+  comment at the very top of the file is document-leading under Section 4.5 — it precedes the first
+  entry of the source — so it has no value owner and survives the mask over the entry it sits
+  against. Until issue #87 the INI writer dropped every ownerless comment, and this case passed
+  without ever exercising either rule.
 
 ### `namespace-shape-conflict-precedence`
 
@@ -3652,7 +3682,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (38)
+## Same observable result as 2.4.0 (39)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -3901,6 +3931,22 @@ those that name a shared reason are behaviour 3.0 preserved.
 - The consequence of the other reading is worth stating plainly: `substitute=None` would silently
   disable every wildcard mask in the profile it governs, so a directive about *value* interpretation
   would change which paths exist. That is the kind of coupling a reader has no reason to expect.
+
+### `an-ini-discarded-ownerless-comment-is-announced`
+
+- namespace2xml 2.4.0: **agrees**, for a reason the differential lane cannot see. It exits 0 and
+  writes `cfg.ini` with the single key and no comment, which is the same file 3.0 writes. The
+  baseline has no diagnostic stream at all, so it cannot announce the discard the case is about;
+  the lane compares the output tree and the exit code, and on both it matches.
+- Contract: Section 20 — comments are discarded when `inioutputoptions` selects neither
+  `SemicolonComments` nor `HashComments`, and `WARN003` announces the discard.
+- The comments here are deliberately ownerless: one precedes the first entry of the source and one
+  follows the last, so neither is attached to a key. Before this change 3.0 raised `WARN003` only
+  when a surviving entry still owned a comment, and a file whose every comment was ownerless lost
+  them in silence. This case is the one that fails against that narrower condition.
+- Silence is the whole subject, so the case pins the diagnostic stream rather than the tree. Its
+  companion `an-ini-document-trailing-comment-is-emitted-at-end-of-file` pins placement when the
+  option *is* selected.
 
 ### `an-unreachable-free-wildcard-reference-does-not-fail-the-run`
 

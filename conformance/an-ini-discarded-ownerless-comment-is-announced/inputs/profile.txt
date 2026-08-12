@@ -1,0 +1,3 @@
+# a note no entry owns
+cfg.k=1
+# and a closing one
