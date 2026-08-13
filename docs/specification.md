@@ -1217,7 +1217,7 @@ XML scalarization for references and scalar transformations is:
 
 The element-path scalar and its sole text/CDATA content-token scalar are two canonical addresses for one scalar identity, not two candidates in the simple-alias ambiguity index.
 
-When converting a non-XML mapping to XML, the selected concrete selector supplies the document-element name unless `root` supplies another name. A root-level selector without an XML element identity must specify `root`.
+When converting a non-XML mapping to XML, the document element does not come from the selector. Section 14.1 removes the concrete selector prefix unconditionally and for all six formats, so what remains beneath it is the selected view, and XML requires that view to hold exactly one top-level member: that member becomes the document element. A view holding none, or more than one, names no element, and `root` must supply one — which is why a root-level selector, whose view is usually the whole model, almost always specifies `root`. Section 16.3 governs how `root` wraps the view, and Section 19.5 raises `TYPE001` when neither route yields an element.
 
 ### 11.5 XML comments
 
@@ -2306,8 +2306,7 @@ When XML contributions ultimately target the same destination and have the same 
 - for one expanded child name, if every source contribution contains at most one occurrence, those singleton children deep-merge in source order;
 - if any source contribution contains more than one occurrence, every occurrence of that expanded name forms one sequence and all occurrences concatenate in source order;
 - the classification is computed before folding, so grouping is associative and does not change after an intermediate merge;
-- canonical addresses established before output transformations are never reassigned by destination-level classification; items are ordered or rebased only through the destination-fold ordering rules in Section 17.5;
-- incompatible root names follow the selected `filemerge` strategy, defaulting to later replacement with a warning.
+- canonical addresses established before output transformations are never reassigned by destination-level classification; items are ordered or rebased only through the destination-fold ordering rules in Section 17.5.
 
 This clause governs element merging inside the model, where two contributions supply elements of the same expanded name at one path. It is not a destination-fold rule, and the destination fold has no incompatible-root case to decide: an XML input's document element is an ordinary leading name part, so two inputs with different document elements occupy different paths and never collide, and two output contributions folding to one file merge as views *before* any document element is chosen. The document element of the written file is then selected from the merged view under Section 14.1, so a fold that leaves two top-level members is `TYPE001` asking for an explicit `root` rather than a contest between two names.
 
