@@ -19,6 +19,24 @@ public readonly record struct EffectiveTransform(
     TransformRule? KeyRule);
 
 /// <summary>
+/// Section 16.6: one scalar payload that <c>type=multiline</c> displaced, held until step 17 has
+/// resolved the destination the resulting <c>TYPE002</c> must name.
+/// </summary>
+/// <param name="Path">
+/// The projected output key the scalar is missing from, or null when the view root itself is the
+/// node, which has no key relative to the selector prefix.
+/// </param>
+/// <param name="Message">The rendered diagnostic message.</param>
+/// <param name="CardinalityKey">
+/// The Section 22 fold key, "once per path and output instance". The output instance is supplied by
+/// the caller, because a single view is one instance and the transformer cannot see the others.
+/// </param>
+public readonly record struct ScalarOmission(
+    string? Path,
+    string Message,
+    string CardinalityKey);
+
+/// <summary>
 /// Specification Section 15.1 step 16: the path-scoped transformations, applied to one output view
 /// in the normative order.
 /// </summary>
@@ -69,6 +87,12 @@ public static class ViewTransformer
     /// 16.6's XML node kinds "select an XML rendering for a scalar" without changing the view, so
     /// the format that has them reads them here at serialization rather than in a pass.
     /// </param>
+    /// <param name="omissions">
+    /// Receives one entry per scalar payload that <c>type=multiline</c> displaced. Section 16.6
+    /// requires the resulting <c>TYPE002</c> to carry <c>destination</c>, which Section 15.1 does
+    /// not resolve until step 17, so these are held for the caller to emit rather than reported
+    /// here.
+    /// </param>
     /// <returns>The transformed view, or null when the view root itself was ignored.</returns>
     public static OverlayNode? Transform(
         OverlayNode view,
@@ -76,7 +100,8 @@ public static class ViewTransformer
         ImmutableArray<TransformRule> rules,
         Action<DiagnosticOccurrence, StableOrderingKey> report,
         ISet<StableOrderingKey> bound,
-        out IReadOnlyDictionary<string, EffectiveTransform> effective)
+        out IReadOnlyDictionary<string, EffectiveTransform> effective,
+        out ImmutableArray<ScalarOmission> omissions)
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(report);
@@ -85,6 +110,7 @@ public static class ViewTransformer
         if (rules.IsDefaultOrEmpty)
         {
             effective = ImmutableDictionary<string, EffectiveTransform>.Empty;
+            omissions = [];
             return view;
         }
 
@@ -94,13 +120,15 @@ public static class ViewTransformer
         Bind(view, prefix, [], rules, table, paths, bindings);
         Live(table, bindings, bound);
         effective = table;
+        omissions = [];
 
         if (!ValidateAliases(prefix, bindings, report) || !Validate(prefix, table, paths, report))
         {
             return view;
         }
 
-        var context = new Pass(prefix, table, paths, report);
+        var collected = new List<ScalarOmission>();
+        var context = new Pass(prefix, table, paths, report, collected);
 
         var ignored = context.Ignore(view, []);
 
@@ -124,6 +152,8 @@ public static class ViewTransformer
         var keyed = context.Key(joined, []);
 
         context.Readdress();
+
+        omissions = [.. collected];
 
         return keyed;
     }
@@ -382,7 +412,8 @@ public static class ViewTransformer
         ImmutableArray<NamePart> prefix,
         Dictionary<string, EffectiveTransform> effective,
         Dictionary<string, ImmutableArray<NamePart>> paths,
-        Action<DiagnosticOccurrence, StableOrderingKey> report)
+        Action<DiagnosticOccurrence, StableOrderingKey> report,
+        List<ScalarOmission> omissions)
     {
         /// <summary>Where a reshaping pass has moved each child it moved.</summary>
         /// <remarks>
@@ -963,31 +994,28 @@ public static class ViewTransformer
         }
 
         /// <summary>
-        /// Section 16.6: reports the scalar payload that <c>type=multiline</c> displaces when the
+        /// Section 16.6: records the scalar payload that <c>type=multiline</c> displaces when the
         /// node supplies both a sequence projection and a scalar.
         /// </summary>
         /// <param name="relative">The node's path relative to the selector prefix.</param>
         /// <remarks>
-        /// The <c>path</c> member is the projected output key rather than the overlay node,
-        /// because the scalar survives in the merged model and is missing only from this
-        /// projection. No <c>destination</c> is carried: Section 15.1 resolves destinations at
-        /// step 17, after this pass.
+        /// The record is held rather than reported. Section 16.6 requires it to carry
+        /// <c>destination</c>, and Section 15.1 resolves destinations at step 17 — after this
+        /// pass — so step 17 emits it once the instance has a file. The <c>path</c> member is the
+        /// projected output key rather than the overlay node, because the scalar survives in the
+        /// merged model and is missing only from this projection.
         /// </remarks>
         private void Omit(ImmutableArray<NamePart> relative)
         {
             var rule = TypeRule(relative);
             var absolute = CanonicalPath.Of(prefix.AddRange(relative));
 
-            report(
-                DiagnosticCodes.Type002(
-                    DiagnosticPhase.Planning,
-                    "\u00A716.6",
-                    $"'{rule.Declaration.Text}' joins the sequence at '{absolute}': "
-                    + "'type=multiline' takes the sequence as its operand, so this output omits "
-                    + "the scalar here.",
-                    cardinalityKey: CardinalityKey(rule, CanonicalPath.Of(prefix), absolute),
-                    path: CanonicalPath.Of(relative)),
-                rule.Order);
+            omissions.Add(new ScalarOmission(
+                CanonicalPath.Of(relative),
+                $"'{rule.Declaration.Text}' joins the sequence at '{absolute}': "
+                + "'type=multiline' takes the sequence as its operand, so this output omits "
+                + "the scalar here.",
+                CardinalityKey(rule, CanonicalPath.Of(prefix), absolute)));
         }
 
         private TransformRule TypeRule(ImmutableArray<NamePart> relative) =>

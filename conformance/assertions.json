@@ -1229,6 +1229,7 @@
       "assertions": [],
       "fixtures": [
         "multiline-joins-the-sequence-and-omits-the-scalar",
+        "multiline-omits-the-scalar-once-in-each-output-instance",
         "multiline-on-lone-scalar-empty-sequence-and-scalar-null-sequence"
       ]
     },

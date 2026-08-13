@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r69+f1a94cc52385`.**
+**Contract bundle `r70+56a150cb692e`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (156)
+## Observable differences (157)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1889,7 +1889,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
 ### `multiline-joins-the-sequence-and-omits-the-scalar`
 
 - namespace2xml 2.4.0: **differs**.
-- Contract: Section 16.6; Section 4.4.
+- Contract: Section 16.6; Section 4.4; Section 24.
 - Legacy observation: 2.4.0 emitted `cfg.json` containing `"m": "direct"`. The `type=multiline`
   directive had no visible effect: the sequence items `one` and `two` were discarded, the scalar
   was rendered alone, and nothing was reported. A user who wrote `type=multiline` in order to join
@@ -1900,12 +1900,36 @@ implemented, its case says so plainly rather than letting the heading imply othe
 
   > Where the node supplies both a sequence projection and a scalar payload, the sequence is the operand.
 
-  The omitted scalar is one `TYPE002` for that path and output instance, carrying `path` and no
-  `destination`, because Section 15.1 resolves destinations at step 17 — after this pass.
+  The omitted scalar is one `TYPE002` for that path and output instance, carrying both `path` and
+  `destination`. Section 15.1 resolves destinations at step 17, after the transformation pass, but
+  the stream is emitted once at the end of the run, so the destination is known by the time the
+  record is written.
 - The difference is intentional: without the directive Section 4.4 resolves the same pair the
   other way and warns. A directive whose whole purpose is to consume a sequence must not lose to
   a scalar, and reversing the Section 4.4 outcome is exactly why the discarded scalar has to be
   named rather than dropped quietly.
+
+### `multiline-omits-the-scalar-once-in-each-output-instance`
+
+- namespace2xml 2.4.0: **differs**. It wrote `cfg.json` as `{"m": "direct"}` over three CRLF-
+  terminated lines with no final newline, and `cfg.yaml` as `m: direct` with CRLF, reporting
+  nothing and exiting 0. **verified** — measured against the Appendix C.6 pinned 2.4.0 package.
+- Contract: Section 16.6; Section 24.
+- Legacy observation: the question this fixture asks could not be put to 2.4.0. `type=multiline`
+  was inert in both formats — the sequence items `one` and `two` were discarded and the scalar
+  rendered alone — and no diagnostic was produced at all, so there was no report whose count could
+  be right or wrong. It also wrote `Environment.NewLine` and ended `cfg.json` without a final
+  newline, so the same input produced different bytes per platform.
+- Clean behavior: Section 16.6 counts the omission "once for that path and output instance", and
+  one declaration naming two formats is two instances. Each writes its own file and each loses its
+  own copy of the scalar, so `cfg.json` and `cfg.yaml` are both reported. Section 24 places a
+  per-output-instance diagnostic in group 2 — carrying a destination and no source ordering key —
+  and orders that group by the Section 21.3 destination order, which is why `cfg.json` precedes
+  `cfg.yaml` here rather than the two tying on code and path.
+- Why this is separate from `multiline-joins-the-sequence-and-omits-the-scalar`: that case declares
+  one format, so a single record satisfies it whether the count is per instance, per declaration or
+  per path. Only a declaration with two instances tells those apart, and that distinction is the
+  whole content of the cardinality rule.
 
 ### `multiline-on-lone-scalar-empty-sequence-and-scalar-null-sequence`
 

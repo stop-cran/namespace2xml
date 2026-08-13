@@ -1525,7 +1525,9 @@ A concrete output instance whose selected view contains nothing also emits `WARN
 
 If the empty root selector selects a bare scalar, JSON and YAML may emit a scalar document. XML, namespace, quoted namespace, and INI require an explicit `root`; otherwise rendering is a blocking type error because no key or element identity exists.
 
-This rule is about the selected view, not about the selector that produced it. A non-empty selector whose view is a bare scalar behaves identically: JSON and YAML emit a scalar document, and the other four formats require an explicit `root`. The selector part is not available to stand in as a key, because Section 14.2 removes the selector prefix from every emitted path and a format that kept it would disagree with the flat formats, which retain the final concrete selector part deliberately and say so. So `cfg=5` published as JSON under the `cfg` selector is the document `5`, not `{"cfg": 5}`.
+The rule above is about the selected view, and it turns on the selector being empty. A non-empty selector whose view is a bare scalar does *not* behave identically, because it leaves a concrete name behind. JSON and YAML emit a scalar document, as before. XML still requires an explicit `root`, because an element identity cannot be invented. Namespace, quoted namespace, and INI retain the final concrete selector part as the emitted key under Sections 19.1, 19.2, and 19.6, and `root` then prefixes that key rather than replacing it under Section 16.3.
+
+This is not a format keeping a prefix that Section 14.1 removed. The removal above is unconditional and applies to all six formats. What the three flat formats then do is *supply* a key for a value that would otherwise have none, and the name they supply is the one the author last wrote. They can do this and the other three cannot because a flat format's output is a set of qualified names, so a key it supplies is ordinary content — Section 16.3 says so where it explains that `root` prefixes such a key rather than replacing it. So `cfg=5` published as JSON under the `cfg` selector is the document `5`, not `{"cfg": 5}`, while the same selection published as INI is the global key `cfg=5` and as namespace is the entry `cfg=5`.
 
 ### 14.2 Strict prefix semantics
 
@@ -1563,7 +1565,7 @@ A selector whose winning declaration is `output=ignore` plans no output instance
 
 Scheme files may use the case-insensitive `.json`, `.yaml`, and `.yml` extensions that Section 7.1 gives input files, and every other extension, including none at all, uses namespace-profile parsing. Their parsed content must project to qualified directive paths and scalar directive values.
 
-A directive value that is a sequence is `SCHEME001`, not a set of indexed directives. Section 3.4's rule that a sequence exposes its ordering values as decimal name parts governs *matching* — wildcards, ignore, references, and scheme selectors — and so applies to the path side of a scheme entry. It does not apply to the value side, where Section 15 requires a nonempty scalar. Reading `cfg.output: [json, yaml]` as `cfg.output.0` and `cfg.output.1` would report two unknown-directive errors naming paths the author never wrote, and would quietly make a JSON scheme file mean something different from the namespace file `cfg.output=json,yaml` that expresses the same intent. The comma-separated scalar is the spelling for a multi-valued directive in every format.
+A directive value that is a sequence is `SCHEME001`, not a set of indexed directives. Section 5.4's rule that a sequence exposes its ordering values as decimal name parts governs *matching* — wildcards, ignore, references, and scheme selectors — and so applies to the path side of a scheme entry. It does not apply to the value side, where Section 15 requires a nonempty scalar. Reading `cfg.output: [json, yaml]` as `cfg.output.0` and `cfg.output.1` would report two unknown-directive errors naming paths the author never wrote, and would quietly make a JSON scheme file mean something different from the namespace file `cfg.output=json,yaml` that expresses the same intent. The comma-separated scalar is the spelling for a multi-valued directive in every format.
 
 Namespace-profile scheme files are the canonical and recommended representation.
 
@@ -1868,7 +1870,6 @@ INI projection:
 [a:0]
 name=b
 x=1
-
 [a:1]
 name=c
 x=2
@@ -2017,7 +2018,7 @@ Combines the matching sequence of scalar lines using logical LF.
 - a nonempty sequence must contain only scalar or null payloads; null contributes an empty line;
 - a mapping with no sequence projection, a node with no scalar or sequence projection, or a sequence item having only container shape is `TYPE001`.
 
-Where the node supplies both a sequence projection and a scalar payload, the sequence is the operand. This directive exists to join a sequence, so a scalar contribution at the same path does not disable it, and the Section 4.4 payload contest does not choose between the two here. The scalar payload is then omitted from this output instance and reports `TYPE002` once for that path and output instance, carrying `path` and no `destination`: Section 15.1 resolves destinations at step 17, after this pass, so the omission is a fact about the output instance, and two instances folding into one file have each lost their own contribution. The `path` member is the projected output key of Section 22 rather than the overlay node, for the same reason: the scalar is still present in the merged model and is missing only from this projection.
+Where the node supplies both a sequence projection and a scalar payload, the sequence is the operand. This directive exists to join a sequence, so a scalar contribution at the same path does not disable it, and the Section 4.4 payload contest does not choose between the two here. The scalar payload is then omitted from this output instance and reports `TYPE002` once for that path and output instance, carrying both `path` and `destination`. Section 15.1 resolves destinations at step 17, after this pass, but the stream is emitted once at the end of the run, so the destination of the instance is known by the time the record is written. Where two instances fold into one file, Section 24 governs: the two occurrences agree on phase, ordering key, destination, code and path, and are therefore one record. The destination is required rather than optional, because Section 24 orders a per-output-instance diagnostic in group 2 by its destination, and because a record carrying no destination would tell a consumer neither which file lost a contribution nor, where several did, how many. The `path` member is the projected output key of Section 22 rather than the overlay node, for the same reason: the scalar is still present in the merged model and is missing only from this projection.
 
 Without the directive the same two contributions resolve the other way and the scalar wins. That reversal is the whole effect of asking for a multiline value, and it is why the omission must be reported: the contribution that loses is one the author wrote, and it is discarded by a directive that names neither it nor the shape contest.
 
@@ -2968,7 +2969,7 @@ The normative diagnostic registry is:
 | `WARN011` | warning | Later unmarked contribution aliases an existing XML component instead of overriding it | once per canonical path |
 | `WARN012` | warning | INI output emits a global-key preamble, which a reader requiring a section header will refuse | once per output instance |
 
-`TYPE001` includes a bare scalar selected for a structured output without a configured `root`. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions, and JSON and YAML mapping-key collisions. Ordering-value overflow and every configured resource-bound violation are `LIMIT001`; malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`.
+`TYPE001` includes a bare scalar selected for XML without a configured `root`, and a bare scalar selected by the empty root selector for namespace, quoted namespace, or INI, which in that case have no concrete selector part to supply a key. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions, and JSON and YAML mapping-key collisions. Ordering-value overflow and every configured non-wildcard resource-bound violation are `LIMIT001`, matching that code's registry condition and Appendix B row; a wildcard fixed-point, candidate, generated-node, or iteration bound is `WILDCARD002`. Malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`.
 
 A reference cycle is identified by its ordered ring of canonical paths, independent of discovery entry point. Rotate the ring so its lexicographically smallest canonical path under unsigned UTF-8 byte order is first; when the same smallest path appears more than once, choose the lexicographically smallest resulting rotated sequence. Report the chain from that canonical start and close it by repeating the first path.
 
@@ -3706,13 +3707,19 @@ The harness invokes the compatibility command with these tokens and sets the wor
 
 ### C.4 Expected diagnostics
 
-`expected-diagnostics.json` is the exact content of the `json` diagnostic stream defined in Section 6.4.3: a UTF-8 JSON array in normative emission order, using that section's byte layout and closed schema. Each object may contain:
+`expected-diagnostics.json` is the exact content of the `json` diagnostic stream defined in Section 6.4.3: a UTF-8 JSON array in normative emission order, using that section's byte layout and closed schema. The member catalogue below is exploded across lines so that each member can be annotated; it is **not** the emitted layout. Section 6.4.3 requires each element to be one compact object on its own line, and a fixture is compared as literal text, so an expected file written in the layout below will fail every case. A conforming single element is:
+
+```json
+{"code":"TYPE001","severity":"error","phase":"planning","source":"inputs/example.properties","line":3,"column":1,"path":"a.b","declaration":"a.b.type=multiline","destination":"output.json","spec":"§16.6","message":"…"}
+```
+
+Each object may contain:
 
 ```json
 {
   "code": "TYPE001",
   "severity": "error",
-  "phase": "input",
+  "phase": "planning",
   "source": "inputs/example.properties",
   "line": 3,
   "column": 1,

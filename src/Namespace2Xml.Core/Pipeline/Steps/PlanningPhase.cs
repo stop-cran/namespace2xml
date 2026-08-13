@@ -34,6 +34,16 @@ public sealed record OutputView(
         ImmutableDictionary<string, EffectiveTransform>.Empty;
 
     /// <summary>
+    /// The Section 16.6 scalar payloads that <c>type=multiline</c> displaced in this view.
+    /// </summary>
+    /// <remarks>
+    /// Held from step 16 to step 17 because Section 16.6 reports them "once for that path and
+    /// output instance" and Section 24 orders a per-output-instance diagnostic by its destination,
+    /// which Section 15.1 does not resolve until step 17.
+    /// </remarks>
+    public ImmutableArray<ScalarOmission> Omissions { get; init; } = [];
+
+    /// <summary>
     /// The Section 16.3 root parts already wrapped into <see cref="View"/> by the pre-fold pass.
     /// </summary>
     /// <remarks>
@@ -923,7 +933,8 @@ public static class PlanningPhase
                 configuration.Transforms,
                 (occurrence, order) => diagnostics.Add(new BufferedDiagnostic(occurrence, order)),
                 bound,
-                out var effective);
+                out var effective,
+                out var omissions);
 
             // Section 16.6 removes an ignored subtree "from the selected output instance only". An
             // ignore that reached the view root is already TYPE001, so a null here is unreachable
@@ -942,7 +953,13 @@ public static class PlanningPhase
                     continue;
                 }
 
-                transformed.Add(view with { View = result, Root = root, Types = effective });
+                transformed.Add(view with
+                {
+                    View = result,
+                    Root = root,
+                    Types = effective,
+                    Omissions = omissions,
+                });
             }
         }
 
@@ -1022,6 +1039,7 @@ public static class PlanningPhase
                     view.Instance.Selector.ToString())));
 
             WarnInferredNumericMappings(view, path, diagnostics);
+            ReportOmittedScalars(view, path, diagnostics, bound.Count - 1);
         }
 
         var contributions = bound.ToImmutable();
@@ -1136,6 +1154,52 @@ public static class PlanningPhase
                     path: canonical,
                     destination: destination.Canonical),
                 origin.Key));
+        }
+    }
+
+    /// <summary>
+    /// Section 16.6 <c>TYPE002</c>: the scalar payloads that <c>type=multiline</c> displaced,
+    /// reported "once for that path and output instance, carrying both <c>path</c> and
+    /// <c>destination</c>".
+    /// </summary>
+    /// <param name="view">The output instance, after step 16 has applied its transformations.</param>
+    /// <param name="destination">The instance's canonical destination path.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <param name="order">The instance's Section 21.3 destination order.</param>
+    /// <remarks>
+    /// <para>
+    /// Step 16 detects the omission and cannot report it, because Section 24 orders a
+    /// per-output-instance diagnostic in group 2 — carrying a destination and no source ordering
+    /// key — and Section 15.1 does not resolve destinations until this step. Reporting it there
+    /// put it in group 1 under the declaration's key, and collapsed every instance of one
+    /// declaration into a single record naming no file.
+    /// </para>
+    /// <para>
+    /// The cardinality key carries the destination rather than the instance identity. Section 16.6
+    /// counts per output instance, but where two instances fold into one file it defers to Section
+    /// 24, under which two occurrences agreeing on phase, ordering key, destination, code and path
+    /// are one occurrence. Keying by destination makes that fold structural instead of leaving it
+    /// to a later comparison the buffer does not perform.
+    /// </para>
+    /// </remarks>
+    private static void ReportOmittedScalars(
+        OutputView view,
+        DestinationPath destination,
+        DiagnosticBuffer diagnostics,
+        int order)
+    {
+        foreach (var omission in view.Omissions)
+        {
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Type002(
+                    DiagnosticPhase.Planning,
+                    "\u00A716.6",
+                    omission.Message,
+                    cardinalityKey: string.Join(
+                        '\u001F', omission.CardinalityKey, destination.Canonical),
+                    path: omission.Path,
+                    destination: destination.Canonical),
+                DestinationOrder: order));
         }
     }
 
