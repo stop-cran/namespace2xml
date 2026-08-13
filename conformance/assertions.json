@@ -705,6 +705,7 @@
         "That PARSE002 is raised before the document is parsed, so a source carrying both an encoding disagreement and a well-formedness error reports only the disagreement, at line 1 column 1, and never reports the tag mismatch."
       ],
       "fixtures": [
+        "an-empty-comment-is-its-marker-alone",
         "an-encoding-disagreement-precedes-xml-parsing",
         "cross-destination-diagnostic-order",
         "cross-format-replacement-renumbers-the-destination-order",

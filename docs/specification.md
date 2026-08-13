@@ -228,7 +228,9 @@ A non-XML comment records:
 - association with a logical qualified path, sequence ordering value, or document position;
 - whether it was leading, inline, or trailing where the source format distinguishes those positions.
 
-Exact whitespace surrounding a comment need not be preserved.
+Exact whitespace surrounding a comment in the *source* need not be preserved: leading and trailing spaces and tabs around the text are not part of it, and the marker never is. What each destination then writes is fixed by that format's output-byte rules in Section 19, not left to the writer, because Section 24 requires two implementations to agree on it.
+
+An XML comment is not a non-XML comment and this does not apply to it. Section 11.5 retains it as an ordered content node whose content is the text between `<!--` and `-->`, and Section 19.5 writes that content back unchanged. Spaces and tabs inside it are part of the content and survive, because every conforming XML parser reports comment content without normalizing them; preserving them is not a stronger promise than the format already makes, it is declining to discard what the parser supplies. Line endings are the exception Section 3.3 already names, for the reason given in Section 19.5.
 
 Normalized association rules are:
 
@@ -2595,6 +2597,16 @@ Layout is fixed as well:
 - no `---` and no `...` are written, as stated above;
 - every line ends with one LF, and the document ends with exactly one LF under Section 24.
 
+Comments have their own layout, and it is fixed here for the same reason the scalar styles are: Section 19.4 emits them, so Section 24 requires two implementations to write the same bytes.
+
+- A comment line is `#`, one space, and the comment text. Where the text is empty the separating space is not written either, so the line is `#` alone, under Section 24's rule that no line ends in whitespace. No other spelling is emitted, whatever the source used.
+- A leading or trailing comment occupies its own line at the indentation of the entry it is bound to. A trailing comment of a mapping's last key indents with that key, not with the mapping.
+- An inline comment follows its entry on the same line, separated by exactly one space: `key`, `:`, one space, the value, one space, then the comment line form above.
+- A document-leading comment is written at column zero before the first line of the document, and a document-trailing comment at column zero after the last. Neither is indented, because neither is bound to a value.
+- No blank line is written before, after, or between comments.
+
+The comment text itself is written verbatim after that marker. It cannot contain LF: Section 4.5 admits no multi-line non-XML comment, and the one comment form that can — the standalone XML comment of Section 11.5 — never reaches a YAML destination, being discarded under Section 20.
+
 ### 19.5 XML
 
 XML output:
@@ -2657,6 +2669,35 @@ URI cannot use that declaration and takes a generated prefix instead. The genera
 `n1`, `n2`, and so on, numbered in the order their namespaces are first needed in document order,
 and every one of them is declared on the document element. Leaving the name to the writer is what
 makes an XML library's private counter observable in the output of a specified tool.
+
+A comment is emitted as `<!--`, its content, and `-->`, with nothing added on either side. The
+content of a comment read from XML is the text between those delimiters, so `<!--x-->` and
+`<!--  x  -->` are distinct and both survive a round trip: spaces and tabs there are content, and
+XML normalizes neither. The content of a comment converted from another format under Section 20 is
+that comment's text, which Section 4.5 has already stripped of surrounding spaces and tabs; it
+therefore emits as `<!--text-->`. The writer does not pad either one to the conventional
+`<!-- text -->`, because a rule that padded would make the two indistinguishable in the output and
+break the round trip.
+
+A CR in comment content is the one detail that does not survive, and no implementation can make it.
+XML 1.0 line-end normalization converts CR and CRLF to LF before the parser reports anything, and
+the `&#xD;` escape that rescues CR in text and attribute values does not exist inside a comment,
+where no reference is recognized. A comment containing CR therefore reads back with LF. This is
+within the latitude Section 3.3 already grants — "line endings ... need not be preserved" — and it
+is a property of XML rather than a choice made here.
+
+A comment bound to a value is written immediately before that value's content, inside the element
+that carries it, and a comment bound to no value is written at document level: a document-leading
+comment after the XML declaration and before the document element, and a document-trailing comment
+after the document element. A comment content node read from XML keeps the position its ordering
+value gives it among its siblings, under Section 11.4.
+
+Outside mixed content, a comment occupies its own line, indented like the elements it sits among.
+Inside mixed content nothing is inserted, as stated above. Concretely: a comment whose parent also
+holds text or CDATA is written exactly where it stands, with no line break or indentation added
+around it, and a comment whose parent holds only elements and comments is written on its own line at
+their indentation. Content containing LF is written with that LF literal and no re-indentation,
+since indenting it would alter the comment.
 
 #### XML sequence projection
 
@@ -2761,7 +2802,7 @@ The rules above fix which lines are written and in which order. Their layout on 
 
 - A key line is the key text, `=`, and the value text, with no space on either side of `=`, as stated above.
 - A section header is `[`, the joined section name, and `]`, alone on its line.
-- A comment line, when `inioutputoptions` enables comments, is the marker selected by `SemicolonComments` or `HashComments`, one space, and the comment text; it immediately precedes the line it is attached to, with no blank line between them.
+- A comment line, when `inioutputoptions` enables comments, is the marker selected by `SemicolonComments` or `HashComments`, one space, and the comment text; where the text is empty the separating space is not written either, under Section 24's rule that no line ends in whitespace. It immediately precedes the line it is attached to, with no blank line between them.
 - **No blank lines are written anywhere**: not between the global preamble and the first section, not between one section's last key and the next section header, and not around comments.
 - Every line ends with one LF, and the file ends with exactly one LF under Section 24.
 
@@ -2792,9 +2833,13 @@ Cross-format comment association follows source order:
 - inline YAML comments remain attached to their payload;
 - when several source documents merge, document-leading comments precede that source's first surviving contribution and document-trailing comments follow its final surviving contribution.
 
-Converting YAML comments to XML or XML comments to YAML uses these associations. Exact lexical spacing is not guaranteed.
+Converting a *value-bound* comment between formats uses these associations, in either direction: a namespace, INI or YAML comment reaching an XML destination becomes an XML comment adjacent to the value it is bound to, and a YAML inline comment reaching a flat destination becomes the full-line comment described above.
 
-For namespace and quoted-namespace output, comment text is normalized to LF and every physical line is prefixed independently with `# `. A multiline source comment can therefore never introduce an executable shell assignment or an uncommented namespace entry. NUL is rejected.
+A standalone XML comment does not convert. Section 4.5 keeps it an ordered content node that is "not reassigned to adjacent values", so it has no value association for the rules above to carry, and no non-XML destination can place it. It is therefore discarded by every non-XML destination, with the one summarized `WARN003` per output file and feature category that Section 7 requires of any discarded source concept. This is the asymmetry the model implies rather than an omission: a comment that was never bound to a value cannot acquire a binding by being written somewhere else, and inventing one would attach the author's note to whichever value happened to follow it.
+
+Exact lexical spacing is not guaranteed across a conversion. What each destination writes is not thereby left open: the comment bytes of every format are fixed in Section 19, because Section 24 requires two implementations to agree on them.
+
+For namespace and quoted-namespace output, comment text is normalized to LF and every physical line is prefixed independently with `#` and one space, the space being omitted on a line whose text is empty under Section 24's rule that no line ends in whitespace. Prefixing each physical line independently means a multiline source comment can never introduce an executable shell assignment or an uncommented namespace entry. NUL is rejected.
 
 When rendering a non-XML comment as XML, invalid XML comment sequences are normalized deterministically: every `--` is separated as `- -`, and a terminal `-` receives one trailing space.
 
@@ -3076,7 +3121,10 @@ All text outputs:
 
 - use UTF-8 without a BOM;
 - use LF as the physical line terminator;
-- end with exactly one LF.
+- end with exactly one LF;
+- contain no line ending in a space or a TAB.
+
+The last of these is not presentational. Trailing whitespace is invisible in every editor, is stripped silently by many of them and by a good deal of tooling, and would therefore be the one class of byte in a specified output that a consumer could destroy without noticing — precisely the outcome the byte rules exist to prevent. It binds the writer only where a rule would otherwise produce it, and there is exactly one such place: a comment whose text is empty is written as its marker alone, with no separating space, in every format that emits comments. A block scalar's content lines are exempt in the only sense that matters, because Section 19.4 does not select the block form for a value whose lines end in whitespace.
 
 A text output with no content is zero bytes and satisfies these rules vacuously. The termination rule applies to output that has content, so a single LF is never emitted merely to terminate nothing.
 

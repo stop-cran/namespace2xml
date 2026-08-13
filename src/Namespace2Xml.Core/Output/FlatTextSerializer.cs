@@ -138,7 +138,7 @@ public sealed class FlatTextSerializer
 
         foreach (var line in normalized.Split('\n'))
         {
-            if (!writer.TryWriteLine($"# {line}"))
+            if (!writer.TryWriteLine(line.Length == 0 ? "#" : $"# {line}"))
             {
                 return false;
             }

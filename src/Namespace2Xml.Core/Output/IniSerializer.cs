@@ -198,7 +198,9 @@ public sealed class IniSerializer
 
         foreach (var line in text.ReplaceLineEndings("\n").Split('\n'))
         {
-            if (!writer.TryWriteLine($"{commentMarker} {line}"))
+            var rendered = line.Length == 0 ? $"{commentMarker}" : $"{commentMarker} {line}";
+
+            if (!writer.TryWriteLine(rendered))
             {
                 return false;
             }
