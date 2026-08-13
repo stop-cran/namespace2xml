@@ -123,7 +123,7 @@ public static partial class DiagnosticCodes
             ["source", "line", "column", "declaration"]),
         new DiagnosticCodeInfo("WARN003", DiagnosticSeverity.Warning,
             "once per feature category and output file",
-            "Unsupported metadata/comment discarded or normalized",
+            "Unsupported metadata/comment discarded",
             ["source", "destination"]),
         new DiagnosticCodeInfo("WARN004", DiagnosticSeverity.Warning,
             "once per sequence path",
@@ -677,7 +677,7 @@ public static partial class DiagnosticCodes
         Create("WARN002", DiagnosticSeverity.Warning, phase, spec, message,
             cardinalityKey, source: source, line: line, column: column, declaration: declaration);
 
-    /// <summary><c>WARN003</c> (warning) — Unsupported metadata/comment discarded or normalized.</summary>
+    /// <summary><c>WARN003</c> (warning) — Unsupported metadata/comment discarded.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>

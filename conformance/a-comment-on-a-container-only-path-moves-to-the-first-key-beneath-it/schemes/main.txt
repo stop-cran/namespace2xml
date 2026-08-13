@@ -1,0 +1,3 @@
+cfg.output=yaml,namespace,ini
+cfg.root=cfg
+cfg.inioutputoptions=HashComments

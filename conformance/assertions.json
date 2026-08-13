@@ -1263,6 +1263,7 @@
       "status": "pending",
       "assertions": [],
       "fixtures": [
+        "a-comment-on-a-container-only-path-moves-to-the-first-key-beneath-it",
         "key-generates-a-string-name-and-moves-comments"
       ]
     },

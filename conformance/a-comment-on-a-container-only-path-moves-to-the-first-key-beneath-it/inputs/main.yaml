@@ -1,0 +1,10 @@
+cfg:
+  x: 0
+  # about a
+  a:
+    # about a.b
+    b:
+      c: 1
+  # about d
+  d:
+    e: 2

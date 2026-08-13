@@ -66,6 +66,7 @@ public sealed class FlatProjection
 {
     private readonly DiagnosticBuffer diagnostics;
     private readonly DestinationRef? destination;
+    private readonly List<BoundComment> pending = [];
     private int discardedComments;
 
     /// <summary>Creates a projection.</summary>
@@ -97,6 +98,11 @@ public sealed class FlatProjection
 
         Visit(view, root, root, entries, isRoot: true);
 
+        // Section 19.1: a comment whose container-only path emitted no key beneath it "annotates
+        // content that did not survive selection", so it is dropped without a diagnostic, exactly
+        // as an ignore mask takes the comments bound to the entries it removes.
+        pending.Clear();
+
         CommentNodes.Report(diagnostics, "\u00A720", destination, discardedComments);
 
         var leading = ImmutableArray.CreateBuilder<BoundComment>();
@@ -127,7 +133,14 @@ public sealed class FlatProjection
             // The view root's comments are the document's, not this entry's: Section 4.5 gives them
             // "no value owner", and emitting them here as well would print each of them twice.
             entries.Add(new FlatEntry(
-                path, logical, payload, isRoot ? [] : [.. node.OrderedComments]));
+                path, logical, payload, Claim(isRoot ? Array.Empty<BoundComment>() : node.OrderedComments)));
+        }
+        else if (!isRoot)
+        {
+            // Section 19.1: this path is container-only, so no key spells it and the comments bound
+            // here ride down to "the first key the projection emits for that path or for any path
+            // beneath it". Dropping them here instead is the silent loss the rule forbids.
+            pending.AddRange(node.OrderedComments);
         }
 
         if (node.Marks.HasBothContainers)
@@ -172,6 +185,23 @@ public sealed class FlatProjection
                 Visit(child, path.Add(name), logical.Add(name), entries);
             }
         }
+    }
+
+    /// <summary>
+    /// Takes the comments that ride down from container-only ancestors, Section 19.1, and puts them
+    /// ahead of the entry's own. They lead because the ancestor's comment stood earlier in source.
+    /// </summary>
+    /// <param name="own">The comments bound to this entry's own node, in Section 4.5 source order.</param>
+    /// <returns>The full comment run to emit before this entry.</returns>
+    private ImmutableArray<BoundComment> Claim(IEnumerable<BoundComment> own)
+    {
+        var claimed = ImmutableArray.CreateBuilder<BoundComment>();
+
+        claimed.AddRange(pending);
+        claimed.AddRange(own);
+        pending.Clear();
+
+        return claimed.ToImmutable();
     }
 
     private void ReportShapeConflict(ImmutableArray<NamePart> path, bool sequenceWins)

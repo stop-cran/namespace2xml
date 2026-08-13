@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "bed71e38f25f688e9fc71a2ac61ff5570a6fc6aa5d4e6c20514ed0073c30340f"
+    "sha256": "66d39776b5cd13e97bd1e4884933166bc545033e4252adde36bfd123b9967d6a"
   },
   "authoritativeFor": [
     "code",
@@ -384,13 +384,13 @@
       "code": "WARN003",
       "severity": "warning",
       "cardinality": "once per feature category and output file",
-      "condition": "Unsupported metadata/comment discarded or normalized",
+      "condition": "Unsupported metadata/comment discarded",
       "fields": [
         "source",
         "destination"
       ],
       "mappings": [
-        "Unsupported metadata/comment discarded or normalized"
+        "Unsupported metadata/comment discarded"
       ]
     },
     {

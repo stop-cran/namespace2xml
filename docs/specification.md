@@ -2449,6 +2449,10 @@ Physical output entries are always one line. Multiline scalar data is represente
 
 Comments are emitted as normalized `# comment` lines where their association can be represented. Where it cannot, the comment is converted to the nearest position the format does represent rather than discarded: an inline comment becomes a full-line comment immediately before the key it was attached to, and a document-trailing comment is emitted at end of file. This is the same normalization Section 20 states for INI, and for the same reason — the flat formats carry only full-line comments, so conversion is the only way a comment survives at all, and a comment that moves a line is a smaller loss than one that disappears. Nothing here is `WARN003`, because no concept is discarded.
 
+A comment bound to a container-only path is converted the same way. These formats emit no key for such a path, so the comment is emitted immediately before the first key the projection emits for that path or for any path beneath it. Where the projection emits no key for that path or anything beneath it, the comment is not emitted and nothing is reported: it annotates content that did not survive selection, and a comment must not outlive what it describes — the same reason an `ignore` mask takes the comments bound to the entries it removes.
+
+Re-reading such an output binds the comment to that first key rather than to the container, because these formats have no key for a container-only path to carry the association. This is a normalization and not a discard, so it is not `WARN003`; the alternative is losing the comment outright, which is the larger loss this rule exists to prevent.
+
 Typed values use canonical locale-independent text:
 
 - null: `null`;
@@ -2852,6 +2856,8 @@ Comments are preserved when both the source and destination support the common c
 
 INI comments are emitted as full-line comments. A comment attached to a global key is emitted immediately before that key. A comment attached to the first direct key in a section is emitted after the section header and before that key. Comments attached to later keys are emitted immediately before those keys. An inline comment is normalized to a full-line comment immediately before the key it was attached to. Document-leading comments precede the first global key or section. Document-trailing comments are emitted at end of file, after the final key of the final section.
 
+A comment attached to a container-only path is emitted immediately before the first key the projection emits beneath that path, as Section 19.1 requires. When that key is the first direct key of a section, the comment therefore follows the section header rather than preceding it. INI is given no special case hoisting such a comment above its header, even though the header is a line this format does emit for that path: as with section ordering below, every rule here is a function of the Section 19.1 emission stream alone, and a section is a projection of a path prefix rather than a node, so the writer has no container to attach a comment to. The comment still introduces the section's first key, which is the association these formats can represent.
+
 A document-trailing comment is the only one INI cannot place by looking forward, because by the definition below nothing follows it. It is emitted at end of file rather than folded into the nearest preceding key, for three reasons: source order is preserved, the position agrees with namespace, quoted namespace, and YAML output for the same input, and a note the author wrote last is not silently reattached to a value it does not describe. A full-line comment at end of file needs no key to own it, so the placement costs INI nothing it can otherwise represent.
 
 Cross-format comment association follows source order:
@@ -3032,7 +3038,7 @@ The normative diagnostic registry is:
 | `LIMIT001` | error | Non-wildcard resource limit exceeded | once per invocation |
 | `WARN001` | warning | Missing input or scheme file | once per missing CLI path |
 | `WARN002` | warning | Deprecated alias | once per alias category and scheme |
-| `WARN003` | warning | Unsupported metadata/comment discarded or normalized | once per feature category and output file |
+| `WARN003` | warning | Unsupported metadata/comment discarded | once per feature category and output file |
 | `WARN004` | warning | Native implicit sequences concatenate without explicit merge | once per sequence path |
 | `WARN005` | warning | Output destination collision or cross-format override | once per folded contribution pair |
 | `WARN006` | warning | Processing instruction discarded | once per input document |
@@ -3720,7 +3726,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Ordering-value overflow or any non-wildcard resource limit | `LIMIT001` |
 | Missing CLI input/scheme path | `WARN001` |
 | Deprecated alias | `WARN002` |
-| Unsupported metadata/comment discarded or normalized | `WARN003` |
+| Unsupported metadata/comment discarded | `WARN003` |
 | Native implicit sequences concatenate without explicit merge | `WARN004` |
 | Same-destination fold or cross-format replacement | `WARN005` |
 | XML processing instruction discarded | `WARN006` |
