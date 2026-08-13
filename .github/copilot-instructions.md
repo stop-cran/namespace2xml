@@ -668,6 +668,35 @@ you are least likely to predict. **Check `gh run list --branch v3` after pushing
 red runs went unnoticed here because every local check passed and the failure was in a job with no
 local equivalent.
 
+### The differential lane is skipped locally, and on Windows it is worse than skipped
+
+`DifferentialTests` runs 2.4.0 against every fixture and checks the `legacy.md` verdict. It is
+`Assert.Ignore`d unless `N2X_LEGACY_PACKAGE` points at the pinned nupkg, so a local
+`dotnet test` reports **~210 skipped** and a wrong verdict ships. CI runs it for 13 minutes and
+fails the `differential` job, which is the slowest possible way to learn that a `legacy.md`
+sentence was wrong.
+
+Running it locally needs a **.NET 9 runtime**, which the baseline targets and which the harness
+refuses to roll forward. Without one every case fails with exit `-2147450730` and "missing output",
+which looks like a corpus problem and is not:
+
+```powershell
+& "$env:TEMP\dotnet-install.ps1" -Runtime dotnet -Channel 9.0 -InstallDir "$env:USERPROFILE\.dotnet9" -Architecture arm64
+$env:N2X_LEGACY_PACKAGE = '...\namespace2xml.2.4.0.nupkg'
+$env:N2X_LEGACY_DOTNET  = "$env:USERPROFILE\.dotnet9\dotnet.exe"
+dotnet test tests\Namespace2Xml.Conformance\Namespace2Xml.Conformance.csproj --no-build -c Release --filter FullyQualifiedName~DifferentialTests
+```
+
+Even then, **every `agrees` fixture fails on Windows**, at the first line ending, `expected 0x0a,
+actual 0x0d`. 2.4.0 writes `Environment.NewLine`; the Section 24 divergence is a platform property
+of the baseline, not of the corpus. Only cases that write **no output at all**, or that claim
+`differs` on content, are conclusive locally. Verdicts about bytes must be measured on Linux or
+read out of the CI log.
+
+This also makes a Windows byte measurement a bad source for a `legacy.md` sentence. A case claimed
+`agrees` here on the strength of matching text, and diverged in CI by one byte: 2.4.0 omits the
+**final newline**, which on Windows was hidden inside a 9-byte CRLF difference.
+
 ### The gitignore gate is noisier locally than in CI
 
 `git ls-files --others --ignored --exclude-standard -- conformance spec tools spikes` is clean on a
