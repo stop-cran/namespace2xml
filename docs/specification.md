@@ -2661,7 +2661,10 @@ The declaration, under the default `Declaration` option, is exactly:
 <?xml version="1.0" encoding="utf-8"?>
 ```
 
-followed by one LF. Attribute values are delimited by `"` U+0022.
+followed by one LF. Attribute values are delimited by `"` U+0022. Within a start tag the element name
+and the attributes that follow it are separated by exactly one space U+0020, and attributes are
+written in the order Section 4.6 records. `NewLineOnAttributes` (Section 16.9) replaces each of those
+separators with a line break and an indent, and changes nothing else about the tag.
 
 In element text content, exactly `&` U+0026, `<` U+003C, `>` U+003E and CR U+000D are escaped, as
 `&amp;`, `&lt;`, `&gt;` and `&#xD;`. TAB and LF are emitted literally, and `"` and `'` are emitted
@@ -2675,9 +2678,11 @@ CR is escaped in both positions rather than written literally because XML 1.0 li
 requires every parser to turn a literal CR into LF, so `&#xD;` is the only spelling that survives a
 round trip. Section 3.3 requires that it does.
 
-An element with no content is emitted as `<name />`, with one space before the slash. An element
-whose content is the empty string is emitted as `<name></name>`. The distinction is meaningful and
-is preserved: the first has no payload and the second has a payload that is the empty string.
+An element with no content is emitted as `<name />`, with one space before the slash, and that space
+is present whether or not attributes precede it, so an empty element carrying attributes ends
+`x="1" />`. An element whose content is the empty string is emitted as `<name></name>`. The
+distinction is meaningful and is preserved: the first has no payload and the second has a payload
+that is the empty string.
 
 A CDATA section whose content contains `]]>` is split so that `]]` ends one section and `>` begins
 the next, which is the only split that does not change the content:
@@ -2693,6 +2698,18 @@ URI cannot use that declaration and takes a generated prefix instead. The genera
 `n1`, `n2`, and so on, numbered in the order their namespaces are first needed in document order,
 and every one of them is declared on the document element. Leaving the name to the writer is what
 makes an XML library's private counter observable in the output of a specified tool.
+
+A namespace declaration is written after every ordinary attribute of the element that carries it.
+The generated prefix declarations therefore follow the document element's own attributes, in
+numbering order, and the document element's default-namespace declaration follows them in turn. An
+element in no namespace nested inside a default namespace undeclares it with `xmlns=""`, written in
+that same position.
+
+An element takes no prefix even where one is in scope for its namespace. A writer that reused an
+in-scope prefix would make the spelling of one element depend on whether some attribute elsewhere in
+the document happened to need a prefix at all, so that adding an attribute in one subtree rewrote
+element tags in another. Both spellings denote the same element and neither is more correct as XML;
+what is not acceptable is that a local edit moves bytes far away from it.
 
 A comment is emitted as `<!--`, its content, and `-->`, with nothing added on either side. The
 content of a comment read from XML is the text between those delimiters, so `<!--x-->` and

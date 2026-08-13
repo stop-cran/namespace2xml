@@ -280,6 +280,7 @@
         "xml-a-reference-does-not-import-a-spelling",
         "xml-canonical-addresses",
         "xml-cdata-survives-a-round-trip",
+        "an-element-takes-no-prefix-when-an-attribute-has-one",
         "an-xml-comment-is-written-after-the-value-it-sits-beside",
         "xml-comments-are-ordered-content-nodes",
         "xml-element-only-children-keep-their-place",

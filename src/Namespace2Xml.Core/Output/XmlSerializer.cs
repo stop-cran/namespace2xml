@@ -132,6 +132,45 @@ public sealed class XmlSerializer
         return document;
     }
 
+    /// <summary>
+    /// Section 19.5: gives every namespaced element an explicit default-namespace declaration, so
+    /// that no element name is written with a prefix.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="XmlWriter"/> spells an element with any in-scope prefix bound to its namespace,
+    /// so the attribute prefixes <see cref="Prefixed"/> declares on the document element reached
+    /// element names too: adding one namespaced attribute anywhere rewrote
+    /// <c>&lt;b xmlns="urn:p"&gt;</c> as <c>&lt;n1:b&gt;</c> everywhere in the document. Section 19.5
+    /// gives an element no prefix, and an element's spelling must not depend on an attribute
+    /// somewhere else in the document.
+    /// </remarks>
+    private static XElement Defaulted(XElement document)
+    {
+        Declare(document, string.Empty);
+
+        return document;
+
+        // After this element the in-scope default is exactly its own namespace: either it was
+        // inherited, or the declaration below establishes it, or the element is in no namespace and
+        // the writer undeclares with xmlns="" on its own.
+        static void Declare(XElement element, string inherited)
+        {
+            var uri = element.Name.NamespaceName;
+
+            if (uri.Length > 0
+                && !string.Equals(uri, inherited, StringComparison.Ordinal)
+                && element.Attribute("xmlns") is null)
+            {
+                element.Add(new XAttribute("xmlns", uri));
+            }
+
+            foreach (var child in element.Elements())
+            {
+                Declare(child, uri);
+            }
+        }
+    }
+
     private bool TryRender(XmlDocumentProjection document, out byte[] bytes)
     {
         var settings = new XmlWriterSettings
@@ -168,7 +207,7 @@ public sealed class XmlSerializer
                     comment.WriteTo(xml);
                 }
 
-                Prefixed(Marked(document.Element)).WriteTo(xml);
+                Defaulted(Prefixed(Marked(document.Element))).WriteTo(xml);
 
                 foreach (var comment in document.Trailing)
                 {
