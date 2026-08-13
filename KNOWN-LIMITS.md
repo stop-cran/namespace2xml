@@ -763,6 +763,28 @@ restore it; a directive stranded beneath a `type=ignore`, whose path is destroye
 Both sides are pinned — `a-directive-on-an-ignored-output-instance-does-not-warn` and
 `type-ignore-removes-a-subtree-and-strands-its-directives`.
 
+### 1.21 An XML comment moves to the far side of the value it sits beside
+
+`<a><!--c-->1</a>` emits as `<a>1<!--c--></a>`. The comment survives with its text intact, in the
+same element, and so does the value — but a comment written **before** an element's text is written
+**after** it, so this one aspect of an XML → XML round trip is not byte-identical.
+
+The cause is structural rather than an oversight in the writer. §11.4 exposes an element's lone text
+run as the scalar at the element path — that is what makes `<a>1</a>` the value `1` rather than the
+content node `a.#0` — and a scalar exposed that way carries no content-token ordering value. The
+comment beside it does carry one, so the writer has nothing to compare it against and emits the
+value first. §19.5 states this outcome rather than leaving it to the implementation.
+
+Mixed content is **not** affected: `<a>x<!--c-->y</a>` gives every run its own ordering value, and
+the comment keeps its place. Nor is a comment among element-only children. The limit is confined to
+an element holding exactly one text run and at least one comment.
+
+Lifting it means carrying an ordering value for the exposed scalar through the overlay beside its
+payload, so that a later contribution replacing the value does not inherit the position of the value
+it replaced. That is a change to the shared node marks rather than to the XML writer, which is why
+it is not in 3.0. Pinned by `an-xml-comment-is-written-after-the-value-it-sits-beside`, so the
+behaviour cannot drift while the limit stands.
+
 ## 2. Acceptance coverage
 
 `conformance/assertions.json` records **every** acceptance requirement from specification §26, each

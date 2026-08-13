@@ -2706,7 +2706,20 @@ A comment bound to a value is written immediately before that value's content, i
 that carries it, and a comment bound to no value is written at document level: a document-leading
 comment after the XML declaration and before the document element, and a document-trailing comment
 after the document element. A comment content node read from XML keeps the position its ordering
-value gives it among its siblings, under Section 11.4.
+value gives it among the element and comment nodes it sits among, under Section 11.4.
+
+Its position relative to the element's own text is not preserved. Section 11.4 exposes a lone text
+run as the scalar at the element path rather than as a content node, so that run holds no ordering
+value to be compared against, and the scalar is written first, ahead of every comment node the
+element carries: `<a><!--c-->1</a>` emits as `<a>1<!--c--></a>`. Mixed content is unaffected,
+because there every run is a content node with an ordering value of its own and the general rule
+applies.
+
+This is a limit rather than a preference, and `KNOWN-LIMITS.md` records it. Lifting it means giving
+the exposed scalar an ordering value the overlay carries alongside its payload, so that a later
+contribution replacing the value does not silently inherit the position of the one it replaced. The
+comment, its text, its element and the value all survive the round trip; only which side of the
+value the comment sits on does not.
 
 Outside mixed content, a comment occupies its own line, indented like the elements it sits among.
 Inside mixed content nothing is inserted, as stated above. Concretely: a comment whose parent also
