@@ -1,0 +1,7 @@
+cfg:
+  # lead one
+  # first
+  # lead two
+  a: |- # second
+    one
+    two

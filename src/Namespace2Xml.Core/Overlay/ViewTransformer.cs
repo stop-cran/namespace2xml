@@ -718,6 +718,7 @@ public static class ViewTransformer
             }
 
             var lines = new List<string>();
+            var moved = node.Comments;
 
             if (node.Payload is not null)
             {
@@ -737,6 +738,11 @@ public static class ViewTransformer
                 }
 
                 lines.Add(payload.IsNull ? string.Empty : payload.ToCanonicalText());
+
+                // Section 4.5: a collapse moves the comments of every consumed value onto the one
+                // result. Placement is carried unchanged, because the accumulation rule that keeps
+                // the latest inline comment inline is applied where the comments are rendered.
+                moved = moved.AddRange(item.Node.Comments);
             }
 
             // An empty sequence joins no lines and becomes the empty string, which is what Section
@@ -749,7 +755,7 @@ public static class ViewTransformer
                 hasExplicitSequence: false,
                 ImmutableDictionary<NamePart, OverlayNode>.Empty,
                 ImmutableDictionary<long, SequenceItem>.Empty,
-                node.Comments,
+                moved,
                 node.SequenceHighWater);
         }
 

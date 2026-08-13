@@ -1,13 +1,13 @@
 {
-  "revision": "r74+fec6b30db8ff",
-  "revisionCounter": 74,
+  "revision": "r75+533cba978b41",
+  "revisionCounter": 75,
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "66d39776b5cd13e97bd1e4884933166bc545033e4252adde36bfd123b9967d6a"
+    "sha256": "8738f9a584f371bc38d80e4330d7863228c0277e7e06d2e7f13a3a8bd1c98f05"
   },
   "registry": {
     "path": "spec/diagnostics.registry.json",
-    "sha256": "70dd0d07c5320ee137aa1011dd608eacf46268e863e607d97b92797219589d75"
+    "sha256": "89af6752cfaeb9b0dabdd1f79de3937731fa02ddc0d8346f936d7f64cc81661b"
   },
   "generatedBy": "tools/sync-contract-bundle.ps1"
 }

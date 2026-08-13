@@ -1264,6 +1264,7 @@
       "assertions": [],
       "fixtures": [
         "a-comment-on-a-container-only-path-moves-to-the-first-key-beneath-it",
+        "multiline-carries-the-comments-of-the-items-it-joins",
         "key-generates-a-string-name-and-moves-comments"
       ]
     },
