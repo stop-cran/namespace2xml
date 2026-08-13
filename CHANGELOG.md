@@ -168,6 +168,15 @@ independently.
 
 ### Changed
 
+- **An empty path token is now a diagnosed command-line failure rather than a crash.** `-i ''`,
+  `-s ''`, `-v ''` and `-o ''` reached `Path.GetFullPath` and threw an unhandled `ArgumentException`,
+  printing a .NET stack trace and exiting `-532462766`. The empty token names nothing, so it can be
+  neither the missing file §7.2 forgives nor the I/O failure it blocks on; it is now `CLI001` at
+  §6.2 with exit 1, naming the option that received it. The overwhelmingly common way one arrives is
+  a shell expanding an unset variable inside quotes, and by then the option is the only part of the
+  invocation still visible. 2.4.0 did the same thing, one layer lower: it printed the exception and
+  a stack trace naming a source file of the tool on a build agent.
+
 - **A `type` directive now survives a destination fold, and `type=multiline` now says what it
   discards.** Two defects in the same area, both found by measuring the tool against §16.6 and
   §17.5 rather than by reading its source.

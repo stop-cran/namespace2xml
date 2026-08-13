@@ -575,6 +575,8 @@ Only a path that does not exist receives this warning-and-ignore behavior. A pat
 
 One check precedes this one. Section 15 rejects a scheme file named with the `.xml` extension before the file is read, and therefore before its existence is known, so a missing `.xml` scheme file is that blocking `PARSE001` rather than this warning. Naming the extension is an authoring error whichever answer the file system would have given, and reporting it as an ignorable missing file would name the wrong mistake and let the run continue as though the author had supplied no scheme at all.
 
+Another check precedes both. An empty token supplied to `-i`, `-s`, `-v`, or `-o` is a blocking `CLI001` at Section 6.2 option-value validation, before any path is resolved. The empty token names nothing: it cannot be tested for existence, so it is neither the missing file this section forgives nor the I/O failure it blocks on, and it is indistinguishable from an option whose value the caller's own quoting silently dropped — the overwhelmingly common way one arrives. Reporting it against the option that received it names the mistake where it was made. This is a command-line failure rather than a source failure, so it is `CLI001` and not `PARSE001`, and it is diagnosed even for `-o`, which resolves no source at all.
+
 ### 7.3 Parsing concurrency
 
 Files may be read and parsed concurrently.
@@ -946,6 +948,8 @@ Future input options may define additional safe tag behavior; no tag is accepted
 Multiple YAML documents in one input stream are not supported in this version.
 
 Encountering any explicit document marker is an error.
+
+A stream holding *no* document node is the symmetric case and is also an error: a YAML source is exactly one value, and a stream that is empty, or holds only comments and blank lines, supplies none. It is a `PARSE001` source error under Section 10.1 rather than an empty contribution, because the two readings are not distinguishable afterwards — a source that contributes nothing and a source that was never valid produce the same merged model, and only one of them is a mistake worth naming. A source deliberately reduced to nothing is expressed by omitting it from `-i`, or by an empty mapping `{}`, which *is* one document node.
 
 ### 10.4 Wildcard templates supplied as YAML
 
@@ -1519,6 +1523,8 @@ A concrete output instance whose selected view contains nothing also emits `WARN
 
 If the empty root selector selects a bare scalar, JSON and YAML may emit a scalar document. XML, namespace, quoted namespace, and INI require an explicit `root`; otherwise rendering is a blocking type error because no key or element identity exists.
 
+This rule is about the selected view, not about the selector that produced it. A non-empty selector whose view is a bare scalar behaves identically: JSON and YAML emit a scalar document, and the other four formats require an explicit `root`. The selector part is not available to stand in as a key, because Section 14.2 removes the selector prefix from every emitted path and a format that kept it would disagree with the flat formats, which retain the final concrete selector part deliberately and say so. So `cfg=5` published as JSON under the `cfg` selector is the document `5`, not `{"cfg": 5}`.
+
 ### 14.2 Strict prefix semantics
 
 An output selector pattern `P` selects a concrete name `E` only when:
@@ -1554,6 +1560,8 @@ A selector whose winning declaration is `output=ignore` plans no output instance
 ## 15. Scheme language
 
 Scheme files may use the case-insensitive `.json`, `.yaml`, and `.yml` extensions that Section 7.1 gives input files, and every other extension, including none at all, uses namespace-profile parsing. Their parsed content must project to qualified directive paths and scalar directive values.
+
+A directive value that is a sequence is `SCHEME001`, not a set of indexed directives. Section 3.4's rule that a sequence exposes its ordering values as decimal name parts governs *matching* — wildcards, ignore, references, and scheme selectors — and so applies to the path side of a scheme entry. It does not apply to the value side, where Section 15 requires a nonempty scalar. Reading `cfg.output: [json, yaml]` as `cfg.output.0` and `cfg.output.1` would report two unknown-directive errors naming paths the author never wrote, and would quietly make a JSON scheme file mean something different from the namespace file `cfg.output=json,yaml` that expresses the same intent. The comma-separated scalar is the spelling for a multi-valued directive in every format.
 
 Namespace-profile scheme files are the canonical and recommended representation.
 
@@ -1596,7 +1604,7 @@ Every recognized directive requires a nonempty scalar value after format parsing
 
 The normative processing pipeline is:
 
-1. Parse scheme syntax using secure format defaults and resolve references among scheme entries. Scheme references cannot target input data.
+1. Parse scheme syntax using secure format defaults and resolve references among scheme entries. Scheme references cannot target input data. A scheme reference resolves against the directive entries of the scheme set and nothing else: its target is another scheme entry's value, addressed by that entry's qualified directive path, so `cfg.filename=${cfg.output}` is legal and yields that directive's resolved text. A reference naming a path that is not a scheme entry is `REFERENCE002` in the `scheme` phase, reported as an unrecognized directive at the named path rather than as input data that happens to be absent, because at step 1 no input has been read and the two cannot be told apart. A reference chain that returns to its own start is `REFERENCE003` in the `scheme` phase, anchored at Section 13.1, and names the whole cycle so that no directive in it is reported as merely unresolvable. These two are reported per owning directive rather than under the Section 13 "once per reachable owning value" rule, because reachability is a Section 14.4 property computed at step 13 and does not yet exist here.
 2. Compile root-level input options.
 3. Compile `substitute` path patterns. These patterns may contain name wildcards but no references.
 4. Compile literal-path input `merge` directives. Input `merge` paths must not contain wildcards or references. `filemerge` is not consulted during input processing.
@@ -1626,6 +1634,8 @@ This is not a restart of scheme matching. No directive acquires a path that step
 At step 9, a mapping child whose name is an in-range canonical ordering value and the sequence item with that value at the same path are one structural overlay node for merging, comments, references, selectors, generation, and wildcard candidacy, whether or not step-11 inference ultimately applies. When both are present, step 9 forms that node by merging them in source order under the effective input `merge` strategy at their shared path, because they are one literal path that step 8 could not yet recognize as one; under the default `deep` the later contribution therefore patches the earlier item at its ordering value, as Section 8.7 requires of an explicit indexed contribution. The combined item keeps the ordering provenance the sequence item already had, because the value was acquired when that item was placed and step 9 supplies no new value. Its matching position is the latest surviving contribution mark at that path. A `(rule, logical path)` pair therefore generates at most once.
 
 This phase order is acyclic. Data-dependent references or wildcards are prohibited in directives required before the phase that supplies their matching data.
+
+Within one step-16 pass, where directives of the same kind bind at a node and at one of its descendants, the descendant is applied first: the pass proceeds deepest-first. Every directive therefore sees the subtree its own address named at step 11, and no directive is handed a shape another directive built in the same pass. The alternative strands work silently — a `key` at a node turns its children into sequence items, so an outermost-first pass would delete the very path a descendant directive bound to, and an author who wrote both would get neither the descendant's reshaping nor a warning, because the directive did match something at step 11. Deepest-first composes instead: `a.type=array` together with `a.x.type=array` converts `x` and then converts `a`, which is what writing both plainly asks for. Order between directives of the same kind at the *same* path remains the Section 16.5 tie-break, and order between kinds remains the pass order above.
 
 ### 15.2 Directive precedence
 
@@ -2196,6 +2206,8 @@ Values are case-insensitive.
 
 Default: `deep`.
 
+Non-sequence use of `append` is a blocking `TYPE001` in the input phase, anchored at Section 16.10, and it is raised only when a second contribution actually has to be appended. A sole contribution at the path is not appended to anything, so the strategy never engages and the value publishes unchanged; `append` is a rule for combining contributions, not an assertion that the path holds a sequence. Making a lone contribution fail would break the common case of declaring one strategy across a wildcard whose matches do not all collide.
+
 A contribution is **at path `P`** when it contributes a payload, explicit container presence, sequence projection, or any descendant under `P`. A `merge` directive governs only the node it matches; descendants use their independently effective strategy, defaulting to `deep`.
 
 `merge` applies only to common-model input and wildcard-generated contributions at pipeline steps 8 through 11. It never configures output-destination collisions.
@@ -2212,7 +2224,7 @@ Input `merge` directives required at pipeline step 4 must use literal paths and 
 
 - `deep`: structurally merge same-format document models using Section 17;
 - `replace`: the later same-format output contribution replaces the complete earlier visible document model while retaining destination high-water state as specified in Section 17.5;
-- `append`: append/rebase sequence contributions; a non-sequence contribution is a blocking scheme/type error;
+- `append`: append/rebase sequence contributions; a non-sequence contribution is a blocking `TYPE001` in the planning phase, anchored at Section 17.5, carrying the `destination` and no `path`, because the fold is a property of the destination rather than of either contribution;
 - `error`: any second contribution to that destination is a blocking collision error.
 
 Default: `deep`.
@@ -2268,6 +2280,8 @@ When XML contributions ultimately target the same destination and have the same 
 - the classification is computed before folding, so grouping is associative and does not change after an intermediate merge;
 - canonical addresses established before output transformations are never reassigned by destination-level classification; items are ordered or rebased only through the destination-fold ordering rules in Section 17.5;
 - incompatible root names follow the selected `filemerge` strategy, defaulting to later replacement with a warning.
+
+This clause governs element merging inside the model, where two contributions supply elements of the same expanded name at one path. It is not a destination-fold rule, and the destination fold has no incompatible-root case to decide: an XML input's document element is an ordinary leading name part, so two inputs with different document elements occupy different paths and never collide, and two output contributions folding to one file merge as views *before* any document element is chosen. The document element of the written file is then selected from the merged view under Section 14.1, so a fold that leaves two top-level members is `TYPE001` asking for an explicit `root` rather than a contest between two names.
 
 When XML destination-fold intent is ambiguous, `filemerge=replace` provides deterministic whole-document override.
 
@@ -2409,7 +2423,7 @@ Values use the inverse of the namespace value lexer:
 
 Physical output entries are always one line. Multiline scalar data is represented through escapes, never literal record-breaking line terminators.
 
-Comments are emitted as normalized `# comment` lines where their association can be represented.
+Comments are emitted as normalized `# comment` lines where their association can be represented. Where it cannot, the comment is converted to the nearest position the format does represent rather than discarded: an inline comment becomes a full-line comment immediately before the key it was attached to, and a document-trailing comment is emitted at end of file. This is the same normalization Section 20 states for INI, and for the same reason — the flat formats carry only full-line comments, so conversion is the only way a comment survives at all, and a comment that moves a line is a smaller loss than one that disappears. Nothing here is `WARN003`, because no concept is discarded.
 
 Typed values use canonical locale-independent text:
 
@@ -2996,12 +3010,14 @@ Limits are configured by the CLI options in Section 6.2. Concurrent work never r
 
 - `--max-input-bytes` applies independently to each input file, scheme file, and command-line variable after encoding a variable as UTF-8;
 - `--max-total-input-bytes` includes all scheme files in `-s` order, then all input files in `-i` order, then command-line variables in `-v` token order, matching pipeline consumption;
-- document/path depth is checked per source;
+- document/path depth is checked per source, at parse time, against the paths the source itself supplies;
 - XML attributes are checked per element within each source under `--max-xml-attributes`, as specified in Section 11.1;
 - parsed node, comment, and comment-byte totals are accumulated at the parse-phase join in CLI source order as specified in Section 7.3;
 - wildcard, reference, output, and serialization budgets are consumed in their normative pipeline order.
 
 The source or operation that first crosses a cumulative limit is therefore independent of worker scheduling.
+
+`--max-depth` is a parse-time guard on what a source may make the tool hold, not a constraint on the shape of what it writes. Paths produced later — by wildcard generation, by `key`, or by a `root` that wraps the selected view in further levels — are not checked against it, and a `root` of four parts legitimately writes a document deeper than `--max-depth` allows a source to be. The limit exists to bound the cost of parsing untrusted input, and that cost is already bounded once the source is parsed; re-checking generated paths would make a scheme author's `root` fail on a limit describing input they did not write, and would couple two settings that answer different questions.
 
 `--max-generated` counts newly materialized overlay nodes, including carrier containers required for a generated descendant. A generated contribution targeting only already-existing nodes consumes no generated-node count.
 

@@ -242,20 +242,16 @@ public static class CommandLineParser
             switch (spec.Name)
             {
                 case "--input":
-                    inputs.Add(value);
-                    return null;
+                    return Path(spec, value, () => inputs.Add(value));
 
                 case "--scheme":
-                    schemes.Add(value);
-                    return null;
+                    return Path(spec, value, () => schemes.Add(value));
 
                 case "--variables":
-                    variables.Add(value);
-                    return null;
+                    return Path(spec, value, () => variables.Add(value));
 
                 case "--output":
-                    outputRoot = value;
-                    return null;
+                    return Path(spec, value, () => outputRoot = value);
 
                 case "--verbosity":
                     return AcceptVerbosity(value);
@@ -266,6 +262,31 @@ public static class CommandLineParser
                 default:
                     return AcceptLimit(spec.Name, value);
             }
+        }
+
+        /// <summary>
+        /// Section 7.2: accepts a path-valued option, rejecting an empty token.
+        /// </summary>
+        /// <param name="spec">The option the value was given to.</param>
+        /// <param name="value">The token supplied as the path.</param>
+        /// <param name="accept">Records the path once it is known to be non-empty.</param>
+        /// <returns>A fault message, or <see langword="null" /> when the value was accepted.</returns>
+        /// <remarks>
+        /// Section 7.2's warn-and-ignore behaviour is for "a path that does not exist", which
+        /// presumes a path was named. The empty token names nothing, so it cannot be resolved,
+        /// cannot be reported as missing, and cannot be distinguished from an option whose value
+        /// the caller's own quoting dropped. It is rejected here, before any file access, so the
+        /// failure carries the option that caused it.
+        /// </remarks>
+        private static string? Path(OptionSpec spec, string value, Action accept)
+        {
+            if (value.Length == 0)
+            {
+                return $"'{spec.Name}' requires a path, and the value given is empty.";
+            }
+
+            accept();
+            return null;
         }
 
         /// <summary>Reports what the completed vector still lacks, or <see langword="null"/>.</summary>

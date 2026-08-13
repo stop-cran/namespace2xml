@@ -14,6 +14,7 @@
       "status": "pending",
       "assertions": [],
       "fixtures": [
+        "an-empty-path-token-is-rejected",
         "cli-option-missing-value-rejected"
       ]
     },
@@ -220,6 +221,7 @@
         "an-implicit-xml-root-carries-document-comments",
         "an-opening-comment-does-not-move-with-its-entry",
         "namespace-document-trailing-comments-reach-the-output",
+        "namespace-normalizes-an-inline-comment",
         "namespace-output-carries-document-comments",
         "xml-output-places-a-document-trailing-comment-last",
         "yaml-comment-positions-survive-a-round-trip",
@@ -886,6 +888,7 @@
         "Re-addressing is not a restart of scheme matching: a directive spelling an address that exists only after a reshaping matches nothing at step 11 and emits the Section 15.2 unbound-directive warning."
       ],
       "fixtures": [
+        "a-descendant-directive-applies-before-its-ancestor",
         "a-directive-under-a-converted-mapping-follows-its-value",
         "a-directive-under-a-generated-record-follows-its-value",
         "array-runs-before-multiline",
@@ -1344,6 +1347,7 @@
       "status": "required",
       "assertions": [],
       "fixtures": [
+        "an-empty-path-token-is-rejected",
         "cli-end-of-options-values",
         "cli-informational-in-value-position",
         "cli-inline-value-accepted",

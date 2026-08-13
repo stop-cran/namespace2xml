@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r64+5db14d638e9d`.**
+**Contract bundle `r65+7f4a811aac65`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (148)
+## Observable differences (150)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -814,6 +814,22 @@ implemented, its case says so plainly rather than letting the heading imply othe
   data rather than by the scheme.
 - Section 12.1 also fixes that `cfg.*.output=*` and `cfg.output=*` are the same error, because
   the exclusion belongs to the directive and not to the declaration.
+
+### `an-empty-path-token-is-rejected`
+
+- namespace2xml 2.4.0: **differs**. It accepted the empty token as a path, carried it to
+  `Path.GetFullPath`, and printed the resulting `System.ArgumentException` — message, type name and
+  a stack trace naming `/home/runner/work/namespace2xml/.../FileStreamFactory.cs:line 25` — before
+  exiting nonzero.
+- Contract: Section 7.2, "an empty token supplied to `-i`, `-s`, `-v`, or `-o` is a blocking
+  `CLI001` at Section 6.2 option-value validation"; Section 26 item 1.
+- Legacy observation: exit status 1, with the failure rendered as a .NET exception dump on the log
+  stream. No stable code, no machine-readable stream, and the file named in the report is a source
+  file of the tool on a build agent rather than anything the caller wrote.
+- Clean behavior: `CLI001` with `spec` `§6.2` and exit 1, naming the option that received the
+  empty value. The overwhelmingly common way an empty token arrives is a shell expanding an unset
+  variable inside quotes, so the report has to point at the option, which is the only part of the
+  invocation still visible by the time the tool sees it.
 
 ### `an-empty-qualifier-escapes-the-alias-ambiguity`
 
@@ -1914,6 +1930,24 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: Section 3 makes the merge strategy an explicit part of the
   contract, and the `pat`/`app` contrast is the reason. The same two sources produce a patched
   two-item sequence or a concatenated three-item one purely by declaration.
+
+### `namespace-normalizes-an-inline-comment`
+
+- namespace2xml 2.4.0: **differs**. It writes `a=1` and `b=2` and nothing else, dropping both the
+  inline comment on `b` and the document-trailing comment.
+- Contract: Section 19.1, which normalizes an inline comment to a full-line comment before the key
+  it annotates and keeps a document-trailing comment at end of file; Section 26 item 13.
+- Legacy observation: the two comments are read from the YAML source and then lost on the way to
+  the namespace encoding, silently. Nothing in the run says a comment was discarded.
+- Clean behavior: the namespace encoding has no inline comment form, so an inline comment becomes
+  a full-line comment immediately above its key rather than being dropped. Section 19.1 states this
+  rather than leaving it to the writer, because the alternative reachable answers — discard, or
+  append after the record — are each defensible and mutually incompatible, and a comment that
+  explains a setting is worth less the further it drifts from it.
+- The inline comment is deliberately on the **second** key. On the first key, "before its key" and
+  "at the top of the document" are the same line, and the case would pass against an owner binding
+  that had been lost entirely. Rebinding the comment to the document instead of to `b` moves it,
+  and the case fails, which is the property being fixed here.
 
 ### `namespace-numeric-map-inference`
 
@@ -3881,7 +3915,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (39)
+## Same observable result as 2.4.0 (40)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -3927,6 +3961,21 @@ those that name a shared reason are behaviour 3.0 preserved.
   `filemerge` and no stated model for a cross-format collision at one destination, so how it
   arrived at the same bytes cannot be read off the observable, and this case is not the one that
   would find out.
+
+### `a-descendant-directive-applies-before-its-ancestor`
+
+- namespace2xml 2.4.0: **agrees** on content, modulo CRLF line endings under the Section 24
+  divergence. It writes the same `{"a": [[1, 2], {"m": 3}]}` shape.
+- Contract: Section 15.1, "within one pass a directive at a deeper path applies before a directive
+  at a shallower path"; Section 26 item 54.
+- Legacy observation: the baseline converts `cfg.a.x` to an array first and then converts `cfg.a`,
+  so the already-converted `x` enters its parent as a sequence element and the unconverted `y`
+  enters as a mapping. The measurement records agreement, which is the point of the case: this
+  order was never written down anywhere, in either project, and the corpus is now what holds it.
+- This is the one directive-ordering question with two defensible answers and no diagnostic to
+  distinguish them. Outermost-first would consume `cfg.a`'s children before `cfg.a.x.type` was ever
+  consulted, and the descendant directive would vanish without a word. A fixture is the only thing
+  that keeps the answer from drifting, because nothing in the output says which order produced it.
 
 ### `a-directive-on-an-ignored-output-instance-does-not-warn`
 

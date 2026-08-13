@@ -145,9 +145,29 @@ public sealed class CommandLineParserTests
     public void TheFirstEqualsSeparatesAndTheRemainderIsVerbatim() =>
         ParseOk([.. Minimal, "--output=a=b=c"]).OutputRoot.ShouldBe("a=b=c");
 
+    /// <summary>
+    /// The inline form separates at the first <c>=</c>, so <c>--output=</c> supplies an empty value
+    /// rather than no value. Section 7.2 then rejects it: an empty token names nothing, and every
+    /// path option treats it alike, so the tokenizer's willingness to produce an empty remainder is
+    /// visible only as the diagnostic that follows.
+    /// </summary>
     [Test]
-    public void AnEmptyRemainderIsAnEmptyValue() =>
-        ParseOk([.. Minimal, "--output="]).OutputRoot.ShouldBe(string.Empty);
+    public void AnEmptyRemainderIsRejectedAsAPathValue()
+    {
+        var diagnostic = ParseFail([.. Minimal, "--output="]);
+
+        diagnostic.Code.ShouldBe("CLI001");
+        diagnostic.Spec.ShouldBe("\u00a76.2");
+    }
+
+    [Test]
+    public void EveryPathOptionRejectsAnEmptyValue()
+    {
+        foreach (var argument in new[] { "--input=", "--scheme=", "--variables=", "--output=" })
+        {
+            ParseFail([.. Minimal, argument]).Code.ShouldBe("CLI001");
+        }
+    }
 
     /// <summary>
     /// "--input=--" supplies the literal value "--"; the following "-o" is still an option.

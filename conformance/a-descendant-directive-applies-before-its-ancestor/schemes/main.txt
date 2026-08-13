@@ -1,0 +1,3 @@
+cfg.output=json
+cfg.a.type=array
+cfg.a.x.type=array
