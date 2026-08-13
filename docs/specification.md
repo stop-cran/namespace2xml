@@ -1884,7 +1884,7 @@ The target must be an ordered mapping.
 
 `key` operates on the mapping projection of an overlay and leaves any independent scalar payload available to formats that can represent both. If no mapping projection exists, it is a blocking type error.
 
-The transformed mapping becomes a sequence contribution carrying the mapping projection's source mark. A child already carrying ordering-value provenance retains that value and provenance through record construction. A child without ordering provenance receives a fresh implicit ordering value in mapping order. If an independent sequence projection already exists at the same node, the transformed contribution merges with it under the effective `merge` strategy.
+The transformed mapping becomes a sequence contribution carrying the mapping projection's source mark. A child already carrying ordering-value provenance retains that value and provenance through record construction. A child without ordering provenance receives a fresh implicit ordering value in mapping order. If an independent sequence projection already exists at the same node, the transformed contribution combines with it as the later contribution under the Section 17.1 sequence rules: a record that received a fresh implicit ordering value concatenates above the node's Section 5.4 high-water mark, and a record that retained an explicit ordering value addresses the item already at that value. A `merge` directive does not configure this fold, because Section 16.10 confines `merge` to pipeline steps 8 through 11 and this is step 16. The rendered order is therefore the Section 5.4 ascending order of the combined set, which may place an item the node already held between two generated records.
 
 For each mapping entry:
 
@@ -2212,7 +2212,7 @@ Non-sequence use of `append` is a blocking `TYPE001` in the input phase, anchore
 
 A contribution is **at path `P`** when it contributes a payload, explicit container presence, sequence projection, or any descendant under `P`. A `merge` directive governs only the node it matches; descendants use their independently effective strategy, defaulting to `deep`.
 
-`merge` applies only to common-model input and wildcard-generated contributions at pipeline steps 8 through 11. It never configures output-destination collisions.
+`merge` applies only to common-model input and wildcard-generated contributions at pipeline steps 8 through 11. It never configures output-destination collisions, and it does not configure the Section 16.5 fold of `key`-generated records onto an independent sequence, which follows Section 17.1 directly.
 
 Input `merge` directives required at pipeline step 4 must use literal paths and must not contain wildcards or references.
 

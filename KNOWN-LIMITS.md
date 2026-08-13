@@ -564,19 +564,18 @@ emits the unbound-directive warning". `conformance/a-directive-under-a-converted
 and `conformance/a-directive-under-a-generated-record-follows-its-value` pin both halves of the new
 rule, the second of them across the two record shapes §16.5 builds.
 
-### 1.12 §16.5's merge with an independent sequence replaces, and stops saying so
+### 1.12 *(resolved)* §16.5's merge with an independent sequence replaced, and stopped saying so
 
-§16.5 says of the sequence a `key` transformation produces: "If an independent sequence projection
-already exists at the same node, the transformed contribution merges with it under the effective
-`merge` strategy." This build replaces rather than merges, and the replaced items leave no
-diagnostic behind. **verified**
+§16.5 says of the sequence a `key` transformation produces that it "combines with it as the later
+contribution under the Section 17.1 sequence rules". This build replaced rather than merged, and the
+replaced items left no diagnostic behind.
 
 Feed one node a sequence from one input and a mapping from another — `{"reg": [{"x": 9}]}` beside
-`reg.alpha.x=1` and `reg.beta.x=2` — and add `reg.key=name`. The `{"x": 9}` item is absent from the
-output and the diagnostic stream is empty. Remove `key` from that same scheme and the omission is
+`reg.alpha.x=1` and `reg.beta.x=2` — and add `reg.key=name`. The `{"x": 9}` item was absent from the
+output and the diagnostic stream was empty. Remove `key` from that same scheme and the omission is
 announced: `TYPE002` says the flat output renders one container shape and that the sequence items go
-unemitted. Adding a `key` directive therefore converts a **reported** omission into a
-**silent** one, which is the reverse of what a directive added to improve an output should do.
+unemitted. Adding a `key` directive therefore converted a **reported** omission into a **silent**
+one, which is the reverse of what a directive added to improve an output should do.
 
 The node is reachable because the shape contest is decided **per destination during planning**, not
 in the model before step 16. Both projections survive in the overlay tree — `merge=error` at that
@@ -589,12 +588,22 @@ and marked it verified. It was reasoning from §4.4's exclusivity to a resolutio
 specification does not place there. The measurements behind it were real; the inference from them
 was not.
 
-The clause is right and needs no amendment: `key` converts the mapping projection *into* a sequence,
-so after the transformation the node carries two sequences, no shape contest remains, and §17.1
-merge applies as written.
+Fixed, from [#61 (closed)](https://github.com/stop-cran/namespace2xml/issues/61).
+`ViewTransformer.ToRecords` seeds the record sequence from the node's existing sequence instead of
+an empty one; the ordering allocator already started at the node's §5.4 high-water mark, so every
+generated record with a fresh implicit value was already landing above the items that were being
+discarded. `conformance/key-records-merge-with-an-independent-sequence` pins the result, including
+the consequence that makes folding distinguishable from replacing: a native item the transformation
+never touched sits *between* two generated records, because §5.4 sorts the combined set by ordering
+value rather than by origin.
 
-Tracked as [#61](https://github.com/stop-cran/namespace2xml/issues/61), a defect with a data-loss
-symptom rather than the amendment request this entry once called it.
+A second revision of this entry said the clause was right and needed no amendment. That was wrong
+in one respect. §16.5 used to route the fold through the effective `merge` strategy, while §16.10
+says `merge` "applies only to common-model input and wildcard-generated contributions at pipeline
+steps 8 through 11" — and `key` is step 16, so the two clauses could not both hold. §16.5 now names
+§17.1 directly and §16.10 says so explicitly, which changes no behaviour under the default strategy
+and removes a contradiction that would otherwise have surfaced the first time anyone wrote
+`merge=replace` beside a `key`.
 
 ### 1.13 *(resolved)* A destination high-water mark is lost when `replace` removes the path entirely
 

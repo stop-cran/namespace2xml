@@ -378,10 +378,12 @@
       "assertions": [
         "The Section 16.5 worked example transforms an ordered mapping into a sequence of records, with the generated key field first in Section 5.2 mapping order and the child's own mapping fields following it.",
         "The generated field holds the decoded mapping-key text, and each record receives a fresh implicit ordering value in mapping order because neither child carried ordering-value provenance.",
-        "The transformation is output-neutral: it happens once at pipeline step 16, so namespace and INI files from one output instance show the same records differing only in how Section 19 spells a sequence."
+        "The transformation is output-neutral: it happens once at pipeline step 16, so namespace and INI files from one output instance show the same records differing only in how Section 19 spells a sequence.",
+        "When an independent sequence projection already exists at the target, the generated records fold onto it under Section 17.1 rather than replacing it: a record that retained an explicit ordering value addresses that value, a record allocated a fresh implicit value lands above the high-water mark, and the untouched native items keep their own values, so Section 5.4 ascending order can place a native item between two generated records."
       ],
       "fixtures": [
-        "key-projects-an-ordered-mapping-as-records"
+        "key-projects-an-ordered-mapping-as-records",
+        "key-records-merge-with-an-independent-sequence"
       ]
     },
     {

@@ -45,6 +45,27 @@ independently.
 
 ### Fixed
 
+- **`key` discarded an independent sequence at its target, silently.** When a node carried both a
+  mapping projection and a native sequence — a JSON or YAML array beside named namespace children at
+  the same path — the records `key` generated *replaced* the array instead of merging with it. The
+  discarded items produced no diagnostic and exit 0. Removing the `key` directive from the same
+  scheme made the omission visible again as `TYPE002`, so adding a directive to improve an output
+  turned a reported omission into a silent one.
+
+  `ViewTransformer.ToRecords` seeded its record sequence from an empty dictionary. The ordering
+  allocator was already correct — it starts at the node's §5.4 high-water mark, so every generated
+  record with a fresh implicit value was already landing above the items being thrown away. Seeding
+  from the node's own sequence is the whole fix.
+
+  The observable consequence that distinguishes folding from replacing is that §5.4 sorts the
+  combined set by ordering value rather than by origin, so a native item can sit *between* two
+  generated records. `conformance/key-records-merge-with-an-independent-sequence` pins exactly that.
+
+  §16.5 also carried a contradiction this exposed: it routed the fold through the effective `merge`
+  strategy, while §16.10 confines `merge` to pipeline steps 8 through 11 and `key` is step 16. §16.5
+  now names §17.1 directly and §16.10 says so, which changes no behaviour under the default strategy.
+  From [#61](https://github.com/stop-cran/namespace2xml/issues/61).
+
 - **A carriage return in XML element text was silently rewritten as a line feed.** `XmlWriter`'s
   default `NewLineHandling.Replace` rewrites a CR inside text content to the configured newline, so
   `{"k":"a\rb"}` rendered to XML and read back returned `a\nb` — a changed character, no diagnostic,

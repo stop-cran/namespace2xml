@@ -21,20 +21,21 @@ projection exists, it is a blocking type error".
 Section 16.5 also says, of the sequence a `key` transformation produces:
 
 > If an independent sequence projection already exists at the same node, the transformed
-> contribution merges with it under the effective `merge` strategy.
+> contribution combines with it as the later contribution under the Section 17.1 sequence rules
 
-That clause has no reachable input, and this fixture is one of the two rules that makes it so.
-A sequence projection reaches a node in exactly two ways. Section 8.7 infers one only when *every*
-surviving child name is an ordering value, so a single named child makes the node an ordered mapping
-instead and there is no sequence to merge with. A native sequence contribution instead contests the
-mapping under Section 4.4, which resolves exclusively and before step 16, so the loser is gone before
-`key` runs. What remains is the case here — a genuine sequence with no mapping at all — and Section
-16.5 refuses it rather than reaching the merge.
+That fold is reachable, and `conformance/key-records-merge-with-an-independent-sequence` exercises
+it: a node carrying a native sequence *and* named mapping children keeps both projections through
+step 16, because the Section 4.4 shape contest is decided per destination during planning rather
+than in the model. This fixture is the neighbouring case, where the mapping projection is missing
+entirely, and it pins the boundary between the two. With no mapping there is nothing to transform,
+so Section 16.5 refuses rather than folding an empty record set onto the sequence and publishing it
+unchanged — an outcome that would look like success and would leave `key` silently inert.
 
-The unreachability argument is recorded in `KNOWN-LIMITS.md` section 1.12 and tracked as
-[#61](https://github.com/stop-cran/namespace2xml/issues/61), which proposes amending the clause. An
-amendment resting on this behavior needs the behavior pinned: if `key` ever began accepting a
-sequence-only target, the clause would become reachable again and the amendment silently wrong.
+An earlier revision of this file argued that the fold clause had no reachable input and that this
+fixture was one of two rules making it so. That was wrong. It reasoned from Section 8.7's inference
+condition and Section 4.4's exclusivity to a resolution point the specification does not place
+there. The refutation, the measurement behind it, and the fix are recorded in `KNOWN-LIMITS.md`
+section 1.12 and in [#61](https://github.com/stop-cran/namespace2xml/issues/61).
 
 ## Why the diagnostic carries these members and not others
 

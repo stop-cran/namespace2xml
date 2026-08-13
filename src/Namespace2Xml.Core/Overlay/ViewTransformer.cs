@@ -739,7 +739,14 @@ public static class ViewTransformer
             }
 
             var name = new OrdinaryPart([new LiteralToken(field)]);
-            var sequence = ImmutableDictionary<long, SequenceItem>.Empty;
+
+            // Section 16.5: "If an independent sequence projection already exists at the same node,
+            // the transformed contribution combines with it as the later contribution under the
+            // Section 17.1 sequence rules: a record that received a fresh implicit ordering value
+            // concatenates above the node's Section 5.4 high-water mark". The allocator starts at
+            // that mark, which is at or above every value already present, so no allocation can
+            // land on an item this node already holds.
+            var sequence = node.Sequence;
             var allocator = SequenceOrderingAllocator.From(node.SequenceHighWater);
 
             foreach (var (child, value) in node.OrderedChildren)
