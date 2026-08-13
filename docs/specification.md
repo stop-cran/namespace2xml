@@ -206,6 +206,22 @@ When a destination requires one exclusive shape:
 4. the losing shape is omitted from that output and produces one shape-conflict warning;
 5. the internal overlay remains unchanged for other outputs.
 
+A destination that discards a category of member — today only the Section 11.5 comment nodes, which
+Section 20 keeps in XML and discards everywhere else — applies the discard before step 2, so a
+container whose members are all discarded there is not a container contribution at that destination
+and the scalar wins step 3 unopposed. No shape-conflict warning arises, because at that destination
+no shape lost; the summarized discard warning still reports the comments.
+
+Resolving in the other order loses strictly more. The node would take container shape, step 4 would
+omit the scalar, and the members that shape rested on would then be discarded during rendering, so
+the output would carry an empty container where the source had a value — both the comment and the
+value gone, and the value is the one the author cannot reconstruct from the file. A comment is
+metadata about a value, and metadata must not be able to delete what it annotates.
+
+This is not the empty-container case. A container that has no members at all is not discarding
+anything, so it still contests under step 2 and an explicitly written empty mapping still wins a
+scalar it follows, exactly as stated above.
+
 Example:
 
 ```text

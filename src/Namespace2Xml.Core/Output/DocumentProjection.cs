@@ -105,6 +105,21 @@ public sealed class DocumentProjection
         var comments = ImmutableArray.CreateRange(node.OrderedComments);
         var marks = node.Marks;
 
+        // Section 4.4 resolves shape at this destination, and this destination discards Section
+        // 11.5 comment nodes. A container whose every member is such a comment therefore has
+        // nothing left to contest the scalar with, so the scalar wins and only the comment is
+        // lost. Deciding before the discard instead would lose both: the node would render as an
+        // empty mapping, and the value an XML comment happened to sit beside would be gone.
+        if (marks.RendersAsContainer
+            && !marks.HasBothContainers
+            && node.Payload is { IsValue: true } surviving
+            && EveryMemberIsADiscardedComment(node, marks))
+        {
+            DiscardCommentMembers(node, marks);
+
+            return new DocumentScalar(ForcedString(path) ? AsString(surviving) : surviving, comments);
+        }
+
         Report(marks, path);
 
         if (marks.RendersAsSequence)
@@ -169,6 +184,71 @@ public sealed class DocumentProjection
         }
 
         return new DocumentMapping(members.ToImmutable(), comments);
+    }
+
+    /// <summary>
+    /// Whether this node's rendering container has members and every one of them is a comment
+    /// this destination discards.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <param name="marks">Its Section 4.4 marks.</param>
+    /// <returns>Whether the container is left with nothing once the comments go.</returns>
+    /// <remarks>
+    /// A container with no members at all is excluded deliberately. Section 4.4 makes an empty
+    /// mapping "participate in precedence even though it has no children", so an author who wrote
+    /// one after a scalar meant it to win, and nothing about it is discarded here.
+    /// </remarks>
+    private static bool EveryMemberIsADiscardedComment(OverlayNode node, NodeMarks marks)
+    {
+        var any = false;
+
+        if (marks.RendersAsSequence)
+        {
+            foreach (var (_, item) in node.OrderedSequence)
+            {
+                if (!CommentNodes.Vanishes(item.Node))
+                {
+                    return false;
+                }
+
+                any = true;
+            }
+
+            return any;
+        }
+
+        foreach (var (_, child) in node.OrderedChildren)
+        {
+            if (!CommentNodes.Vanishes(child))
+            {
+                return false;
+            }
+
+            any = true;
+        }
+
+        return any;
+    }
+
+    /// <summary>Counts the comment members this node loses when its scalar wins instead.</summary>
+    /// <param name="node">The node.</param>
+    /// <param name="marks">Its Section 4.4 marks.</param>
+    private void DiscardCommentMembers(OverlayNode node, NodeMarks marks)
+    {
+        if (marks.RendersAsSequence)
+        {
+            foreach (var _ in node.OrderedSequence)
+            {
+                discardedComments++;
+            }
+
+            return;
+        }
+
+        foreach (var _ in node.OrderedChildren)
+        {
+            discardedComments++;
+        }
     }
 
     /// <summary>
