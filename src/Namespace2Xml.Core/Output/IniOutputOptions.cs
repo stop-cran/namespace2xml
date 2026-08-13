@@ -26,6 +26,11 @@ public enum IniOutputOptions
 
     /// <summary>Emit double-quoted values, escaping <c>\</c> and <c>"</c>.</summary>
     QuoteValues = 16,
+
+    /// <summary>
+    /// Emit global keys in a section named <c>global</c> rather than in a preamble.
+    /// </summary>
+    GlobalSection = 32,
 }
 
 /// <summary>Reads the Section 16.9 INI options.</summary>
@@ -55,6 +60,19 @@ public static class IniOutput
     /// </remarks>
     public static bool EscapesMultiline(this IniOutputOptions options) =>
         options.HasFlag(IniOutputOptions.EscapeMultiline);
+
+    /// <summary>
+    /// The Section 19.6 name of the section global keys are hoisted into, or
+    /// <see langword="null"/> when they are written in a preamble.
+    /// </summary>
+    /// <param name="options">The selected options.</param>
+    /// <remarks>
+    /// Section 19.6 fixes the name rather than making it configurable, because <c>root</c> already
+    /// names a section for global keys and does so for every format at once. It is deliberately not
+    /// <c>DEFAULT</c>, which <c>configparser</c> inherits into every other section on read-back.
+    /// </remarks>
+    public static string? GlobalSectionName(this IniOutputOptions options) =>
+        options.HasFlag(IniOutputOptions.GlobalSection) ? "global" : null;
 
     /// <summary>Reports the Section 16.9 contradiction two options make, if any.</summary>
     /// <param name="options">The selected options.</param>

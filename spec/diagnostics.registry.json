@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "e40bb8d855e67b0922079028a133a627b44a7c51e4d141c0c53adfb00423e4c0"
+    "sha256": "7e0ad7cbda0c8b0fe3972d419e45a3964637a403a5b346207f66b55d5e0d22e2"
   },
   "authoritativeFor": [
     "code",
@@ -494,6 +494,18 @@
       ],
       "mappings": [
         "Later unmarked contribution adds an ordinary component aliasing an existing XML component"
+      ]
+    },
+    {
+      "code": "WARN012",
+      "severity": "warning",
+      "cardinality": "once per output instance",
+      "condition": "INI output emits a global-key preamble, which a reader requiring a section header will refuse",
+      "fields": [
+        "destination"
+      ],
+      "mappings": [
+        "INI output writes a global-key preamble without `GlobalSection`"
       ]
     }
   ]

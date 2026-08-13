@@ -2187,11 +2187,14 @@ The initial portable options are:
 - `HashComments`;
 - `RejectMultiline`;
 - `EscapeMultiline`;
-- `QuoteValues`.
+- `QuoteValues`;
+- `GlobalSection`.
 
 `SemicolonComments` and `HashComments` each enable comment emission and select its marker; they are mutually exclusive. `RejectMultiline` and `EscapeMultiline` are mutually exclusive.
 
-Default: `RejectMultiline`. Comments are discarded unless `SemicolonComments` or `HashComments` is selected.
+Default: `RejectMultiline`. Comments are discarded unless `SemicolonComments` or `HashComments` is selected, and global keys are emitted in a preamble unless `GlobalSection` is selected.
+
+`GlobalSection` belongs to no exclusive pair. Its absence is not a choice between two spellings of one decision but the dialect's stated default, in the same way as `QuoteValues`.
 
 ### 16.10 `merge`
 
@@ -2698,7 +2701,7 @@ INI output targets a conservative interoperable subset:
 
 - UTF-8;
 - one key per line;
-- all global keys are emitted in one preamble before the first section;
+- all global keys are emitted in one preamble before the first section, or, under `GlobalSection`, in one section named `global` written in the position that preamble would have occupied;
 - global keys preserve their winning source order;
 - sections follow their mapping order under Section 5.2, which for a section is the position of its first key in the emission order of Section 19.1; a section with no direct keys is not emitted;
 - hoisting global keys ahead of sections is a format projection and does not change value precedence;
@@ -2730,6 +2733,22 @@ An overlay may emit both a scalar INI key and descendant sections when their pro
 A section is a projection of a path prefix and not a node, so mapping order does not by itself place a section relative to a section nested beneath it. The order above resolves that: a section takes the position of its first key. The consequence is that a nested section precedes its parent whenever the parent's own keys come later in mapping order, as they do when a container child is declared before a scalar sibling. This is deliberate. INI output is a projection of the Section 19.1 emission stream, and every rule in this section is a function of that stream alone; ordering sections by the tree position of their prefix would require the INI writer to consult structure the projection has already discarded, and INI readers do not ascribe meaning to section order.
 
 With `root=x.y`, former global keys are emitted inside section `[x:y]`; `root` parts are section-path parts rather than part of the key text.
+
+#### Global keys and the `GlobalSection` option
+
+A preamble is the one construct in `PortableIni1` that a widely deployed reader may refuse outright. Python's `configparser`, among others, requires a section header before the first key and raises rather than skipping the preamble, so a document with any one-part scalar path is unreadable to it in its entirety and not merely in part.
+
+`GlobalSection` removes the preamble. Under it, global keys are written inside a section named `global`, placed where the preamble would have been — before every other section — and keeping their winning source order. Nothing else about the projection changes: the keys are the same keys, in the same order, with the same values, and the option is a decision about section framing rather than about content.
+
+The name is fixed rather than configurable. An author who needs a particular name already has `root`, which this section already defines as placing former global keys inside a section; the difference is that `root` restructures the output view for every format the run produces, while `GlobalSection` is a projection detail of one. Offering a second, INI-only way to spell a section name would make two directives answer the same question differently.
+
+The name is not `DEFAULT`. `configparser` gives `[DEFAULT]` a defined special meaning — its keys are inherited by every other section on read-back — so a file written under that name to be readable would read back carrying keys in sections that never declared them. A name chosen for compatibility that changes the document's meaning in the reader it was chosen for is worse than the preamble it replaces.
+
+A path that already projects to a section named `global` collides with the hoisted section, and the collision is blocking `FLAT001`. The two have different origins — one is a set of one-part scalar paths, the other a path of two or more parts — and silently merging them would make the document's content depend on a name this specification chose rather than on anything the author wrote. `GlobalSection` is opt-in, so the author who meets this has both the option and the section in view. The diagnostic names the first path that projects to that section in the order Section 19.6 fixes, so that a document with several has one stated place to start.
+
+When no global key survives, `GlobalSection` writes nothing: there is no empty `[global]` header, for the same reason Section 19.6 does not emit a section with no direct keys.
+
+An INI destination that writes a preamble emits `WARN012` once per output instance, naming the destination. The preamble is produced by ordinary input rather than by an option the author selected, so without the warning nothing in the run would tell them that the file they just wrote may be unreadable where they intend to use it. Selecting `GlobalSection`, or configuring `root`, removes the preamble and the warning together. A document with no global keys never had a preamble and never warns.
 
 When the selected output root is a bare scalar, INI retains the final concrete selector part as a global key. `root` places that key in a section without altering it, under the rule above that `root` parts are section-path parts rather than part of the key text: with `root=x.y` the key remains `k` and moves into `[x:y]`.
 
@@ -2947,6 +2966,7 @@ The normative diagnostic registry is:
 | `WARN009` | warning | Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing | once per declaration or expanded directive |
 | `WARN010` | warning | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | once per source contribution, canonical mapping path, and output instance |
 | `WARN011` | warning | Later unmarked contribution aliases an existing XML component instead of overriding it | once per canonical path |
+| `WARN012` | warning | INI output emits a global-key preamble, which a reader requiring a section header will refuse | once per output instance |
 
 `TYPE001` includes a bare scalar selected for a structured output without a configured `root`. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions, and JSON and YAML mapping-key collisions. Ordering-value overflow and every configured resource-bound violation are `LIMIT001`; malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`.
 
@@ -3458,6 +3478,7 @@ An implementation is conforming only when automated black-box tests cover:
 85. `--version` contract-bundle reporting and machine-readable field layout, and registry agreement with the Section 22 code-level facts.
 86. The uniform option-token grammar of Section 6.2: the `--name=value` inline form on every long option, the absence of an inline form on short options, a value that is not attached to any option, an option token that ends the argument vector still requiring a value, and `-` as an ordinary value.
 87. Marker-carrying JSON and YAML mapping keys: reading an attribute, content, and qualified-element key, the leading-backslash escape and its suppression of marker recognition, `PARSE001` for a key that begins like a marker without completing it, escaping on output, and an XML → JSON → XML round trip that preserves attributes.
+88. INI global-key framing: `WARN012` on a written preamble and its absence when no global key survives, `GlobalSection` hoisting the global keys into a leading section named `global` that a reader requiring a section header accepts, no empty header when the hoisted section would be empty, and the blocking `FLAT001` when a path of two or more parts already projects to that section.
 
 ## 27. Deferred features
 
@@ -3631,6 +3652,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Concrete output instance selects nothing | `WARN009` |
 | JSON/YAML numeric mapping remains inferred as a sequence | `WARN010` |
 | Later unmarked contribution adds an ordinary component aliasing an existing XML component | `WARN011` |
+| INI output writes a global-key preamble without `GlobalSection` | `WARN012` |
 
 `COLLISION001` has severity error and cardinality once per rejected destination contribution after the first. It is compatibility-stable with the Section 22 registry.
 

@@ -157,6 +157,10 @@ public static partial class DiagnosticCodes
             "once per canonical path",
             "Later unmarked contribution aliases an existing XML component instead of overriding it",
             ["source", "path"]),
+        new DiagnosticCodeInfo("WARN012", DiagnosticSeverity.Warning,
+            "once per output instance",
+            "INI output emits a global-key preamble, which a reader requiring a section header will refuse",
+            ["destination"]),
     ];
 
     /// <summary><c>CLI001</c> (error) — Invalid command line or option value.</summary>
@@ -830,4 +834,20 @@ public static partial class DiagnosticCodes
         string? path = null) =>
         Create("WARN011", DiagnosticSeverity.Warning, phase, spec, message,
             cardinalityKey, source: source, path: path);
+
+    /// <summary><c>WARN012</c> (warning) — INI output emits a global-key preamble, which a reader requiring a section header will refuse.</summary>
+    /// <param name="phase">Emission phase of this occurrence.</param>
+    /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
+    /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
+    /// <param name="cardinalityKey">Identity of the output instance this is emitted once per.</param>
+    /// <param name="destination">Section 6.4.3 <c>destination</c> member.</param>
+    /// <remarks>Cardinality: once per output instance.</remarks>
+    public static DiagnosticOccurrence Warn012(
+        DiagnosticPhase phase,
+        string spec,
+        string message,
+        string cardinalityKey,
+        string? destination = null) =>
+        Create("WARN012", DiagnosticSeverity.Warning, phase, spec, message,
+            cardinalityKey, destination: destination);
 }

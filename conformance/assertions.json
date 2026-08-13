@@ -1371,6 +1371,19 @@
         "a-native-key-marker-commits-once-recognized",
         "xml-typed-components-recognized-and-an-escaped-json-key-stays-literal"
       ]
+    },
+    {
+      "item": 88,
+      "text": "INI global-key framing: `WARN012` on a written preamble and its absence when no global key survives, `GlobalSection` hoisting the global keys into a leading section named `global` that a reader requiring a section header accepts, no empty header when the hoisted section would be empty, and the blocking `FLAT001` when a path of two or more parts already projects to that section.",
+      "milestone": "M2",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "an-ini-preamble-is-announced",
+        "ini-global-section-collides-with-an-existing-section",
+        "ini-global-section-hoists-the-preamble",
+        "ini-global-section-writes-no-empty-header"
+      ]
     }
   ]
 }

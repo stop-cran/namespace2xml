@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r67+f3f3d4fb7fbe`.**
+**Contract bundle `r69+f1a94cc52385`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (152)
+## Observable differences (156)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -938,6 +938,18 @@ implemented, its case says so plainly rather than letting the heading imply othe
   nothing; the `WARN003` that announces discarded comments was raised only when some surviving
   entry still owned one.
 
+### `an-ini-preamble-is-announced`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 19.6 — an INI destination that writes a preamble emits `WARN012` once per output
+  instance, and a destination with no global key never had a preamble and never warns.
+- Legacy observation: 2.4.0 has no diagnostic stream, so it cannot announce the preamble; and it
+  writes a blank line before each section header, so `app.ini` diverges on bytes as well. `bare.ini`
+  agrees, which is the half of the case that matters: the warning is per destination, not per run.
+- The difference is intentional: the preamble is produced by ordinary input rather than by an option
+  the author selected, so without the warning nothing in the run would report that the file may be
+  unreadable where it is meant to be used.
+
 ### `an-opening-comment-does-not-move-with-its-entry`
 
 - namespace2xml 2.4.0: **differs**. It writes `app.yaml` containing `name: second` followed by
@@ -1473,6 +1485,46 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: shared array-index state made a fold's result depend on the
   order and shape of contributions rather than on their addressed positions, which is the class
   of defect Section 3.2 exists to remove.
+
+### `ini-global-section-collides-with-an-existing-section`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 19.6 — a path that already projects to a section named `global` collides with
+  the hoisted section, and the collision is blocking `FLAT001`.
+- Legacy observation: 2.4.0 exits 0 and writes both the preamble and a `[global]` section, because
+  it has no hoisting option and therefore no collision to detect. Its output is the file 3.0 would
+  have written had the option been absent, plus its usual blank lines.
+- The difference is intentional: the two origins are a set of one-part scalar paths and a path of
+  two or more parts, and merging them would make the document's content depend on the name this
+  specification chose rather than on the paths the author wrote.
+
+### `ini-global-section-hoists-the-preamble`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 19.6 — under `GlobalSection` the global keys are written inside a section named
+  `global`, placed where the preamble would have been.
+- Legacy observation: 2.4.0 has no `inioutputoptions` directive at all. It reads the scheme, ignores
+  the key in silence, exits 0, and writes the preamble the option exists to remove. It also writes a
+  blank line before each section header, which Section 19.6 forbids everywhere.
+- The difference is intentional twice over: the option is new, and the layout it produces is fixed
+  by the byte rules of Section 19.6 rather than by the writer's taste.
+- Silently ignoring an unrecognized directive is the 2.4.0 behavior this specification replaces with
+  `SCHEME001`; that replacement has its own cases and is not what this one measures.
+
+### `ini-global-section-writes-no-empty-header`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 19.6 — "When no global key survives, `GlobalSection` writes nothing: there is no
+  empty `[global]` header."
+- Legacy observation: 2.4.0 has no `inioutputoptions` directive, ignores it in silence, and exits 0.
+  It reaches the same set of sections with the same keys, and diverges only on the blank line it
+  writes before each section header, which Section 19.6 forbids.
+- The difference is intentional: the emptiness rule is what keeps `GlobalSection` a framing option
+  rather than a structural one, so a profile that happens to have no one-part path produces the same
+  file whether or not the option is selected.
+- This case exists because a mutation that emitted the header unconditionally survived the whole
+  corpus and was caught only by a unit test. A rule stated in the specification and pinned nowhere
+  in the oracle is a rule the corpus does not enforce.
 
 ### `ini-output-writes-no-blank-lines`
 

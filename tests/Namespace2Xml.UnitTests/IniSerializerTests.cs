@@ -99,6 +99,123 @@ public class IniSerializerTests
         Serialize(IniOutput.Default, Entry("b", "1"), Entry("a", "2"))
             .ShouldBe("b=1\na=2\n");
 
+    // ---- Section 19.6 GlobalSection ---------------------------------------------------------------
+
+    /// <summary>
+    /// Section 19.6: a destination that writes a preamble emits <c>WARN012</c>, because the
+    /// preamble comes from ordinary input rather than from an option the author selected.
+    /// </summary>
+    [Test]
+    public void APreambleWarnsThatARequiringReaderWillRefuseIt()
+    {
+        Serialize(IniOutput.Default, Entry("a", "1"), Entry("s.x", "2"))
+            .ShouldBe("a=1\n[s]\nx=2\n");
+
+        SoleCode().ShouldBe("WARN012");
+    }
+
+    /// <summary>
+    /// Section 19.6: "A document with no global keys never had a preamble and never warns."
+    /// </summary>
+    [Test]
+    public void ADocumentWithNoGlobalKeyDoesNotWarn()
+    {
+        Serialize(IniOutput.Default, Entry("s.x", "1")).ShouldBe("[s]\nx=1\n");
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 19.6: under <c>GlobalSection</c> global keys are "written inside a section named
+    /// <c>global</c>, placed where the preamble would have been — before every other section — and
+    /// keeping their winning source order". Removing the preamble removes the warning with it.
+    /// </summary>
+    [Test]
+    public void GlobalSectionHoistsTheGlobalKeysIntoALeadingNamedSection()
+    {
+        Serialize(
+            IniOutputOptions.GlobalSection,
+            Entry("b", "1"),
+            Entry("s.x", "2"),
+            Entry("a", "3"))
+            .ShouldBe("[global]\nb=1\na=3\n[s]\nx=2\n");
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 19.6: "When no global key survives, <c>GlobalSection</c> writes nothing: there is no
+    /// empty <c>[global]</c> header."
+    /// </summary>
+    [Test]
+    public void GlobalSectionWritesNoHeaderWhenNoGlobalKeySurvives()
+    {
+        Serialize(IniOutputOptions.GlobalSection, Entry("s.x", "1")).ShouldBe("[s]\nx=1\n");
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 19.6: "A path that already projects to a section named <c>global</c> collides with
+    /// the hoisted section, and the collision is blocking <c>FLAT001</c>."
+    /// </summary>
+    [Test]
+    public void APathProjectingToTheHoistedSectionIsABlockingCollision()
+    {
+        Fails(IniOutputOptions.GlobalSection, Entry("a", "1"), Entry("global.z", "2"))
+            .ShouldBeTrue();
+
+        SoleCode().ShouldBe("FLAT001");
+    }
+
+    /// <summary>
+    /// The collision is a property of the hoist, not of the section name: without
+    /// <c>GlobalSection</c> a <c>global</c> section is an ordinary section and nothing collides.
+    /// </summary>
+    [Test]
+    public void AGlobalSectionNameIsOrdinaryWithoutTheOption()
+    {
+        Serialize(IniOutput.Default, Entry("a", "1"), Entry("global.z", "2"))
+            .ShouldBe("a=1\n[global]\nz=2\n");
+
+        SoleCode().ShouldBe("WARN012");
+    }
+
+    /// <summary>
+    /// Section 19.6 makes the collision a property of the whole document, so it is reported before
+    /// anything is written rather than after the ambiguity has reached the file.
+    /// </summary>
+    [Test]
+    public void TheCollisionIsReportedBeforeAnyByteIsWritten()
+    {
+        var writer = new OutputBufferWriter(new GlobalBudget(ResourceLimits.Defaults));
+
+        Write(
+            IniOutputOptions.GlobalSection,
+            writer,
+            Entry("global.z", "1"),
+            Entry("a", "2"))
+            .ShouldBeFalse();
+
+        writer.Build().Length.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// Section 16.9 places <c>GlobalSection</c> in no exclusive pair, so it combines with the
+    /// options that do belong to one.
+    /// </summary>
+    [Test]
+    public void GlobalSectionCombinesWithTheOptionsThatFormExclusivePairs()
+    {
+        Serialize(
+            IniOutputOptions.GlobalSection | IniOutputOptions.QuoteValues
+                | IniOutputOptions.HashComments,
+            Entry("a", " x", "note"))
+            .ShouldBe("[global]\n# note\na=\" x\"\n");
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
     /// <summary>
     /// Section 19.6 orders sections by their Section 5.2 mapping order, which the Section 19.1
     /// emission order presents as first appearance — not by name. Keys of one section are gathered
@@ -182,7 +299,7 @@ public class IniSerializerTests
     [TestCase("x\ry")]
     public void ALineBreakIsRejectedByDefault(string value)
     {
-        Fails(IniOutput.Default, Entry("a", value)).ShouldBeTrue();
+        Fails(IniOutput.Default, Entry("s.a", value)).ShouldBeTrue();
 
         SoleCode().ShouldBe("INI001");
     }
@@ -196,7 +313,7 @@ public class IniSerializerTests
     [TestCase(IniOutputOptions.EscapeMultiline | IniOutputOptions.QuoteValues)]
     public void NulIsRejectedUnderEveryOption(IniOutputOptions options)
     {
-        Fails(options, Entry("a", "x\0y")).ShouldBeTrue();
+        Fails(options, Entry("s.a", "x\0y")).ShouldBeTrue();
 
         SoleCode().ShouldBe("INI001");
     }
@@ -209,10 +326,10 @@ public class IniSerializerTests
     [TestCase("#not a comment")]
     public void AValueThatWouldReadBackAsACommentNeedsQuoting(string value)
     {
-        Fails(IniOutput.Default, Entry("a", value)).ShouldBeTrue();
+        Fails(IniOutput.Default, Entry("s.a", value)).ShouldBeTrue();
         SoleCode().ShouldBe("INI001");
 
-        Serialize(IniOutputOptions.QuoteValues, Entry("a", value)).ShouldBe($"a=\"{value}\"\n");
+        Serialize(IniOutputOptions.QuoteValues, Entry("s.a", value)).ShouldBe($"[s]\na=\"{value}\"\n");
     }
 
     /// <summary>
@@ -224,10 +341,10 @@ public class IniSerializerTests
     [TestCase("\tx")]
     public void PaddingWhitespaceNeedsQuoting(string value)
     {
-        Fails(IniOutput.Default, Entry("a", value)).ShouldBeTrue();
+        Fails(IniOutput.Default, Entry("s.a", value)).ShouldBeTrue();
         SoleCode().ShouldBe("INI001");
 
-        Serialize(IniOutputOptions.QuoteValues, Entry("a", value)).ShouldBe($"a=\"{value}\"\n");
+        Serialize(IniOutputOptions.QuoteValues, Entry("s.a", value)).ShouldBe($"[s]\na=\"{value}\"\n");
     }
 
     /// <summary>
@@ -297,7 +414,7 @@ public class IniSerializerTests
     [TestCase(IniOutputOptions.HashComments, '#')]
     public void TheSelectedOptionChoosesTheCommentMarker(IniOutputOptions options, char marker)
     {
-        Serialize(options, Entry("a", "1", "note")).ShouldBe($"{marker} note\na=1\n");
+        Serialize(options, Entry("s.a", "1", "note")).ShouldBe($"[s]\n{marker} note\na=1\n");
 
         diagnostics.Drain().ShouldBeEmpty();
     }
@@ -328,8 +445,8 @@ public class IniSerializerTests
     [Test]
     public void DiscardedCommentsWarnOncePerOutputFile()
     {
-        Serialize(IniOutput.Default, Entry("a", "1", "one"), Entry("b", "2", "two"))
-            .ShouldBe("a=1\nb=2\n");
+        Serialize(IniOutput.Default, Entry("s.a", "1", "one"), Entry("s.b", "2", "two"))
+            .ShouldBe("[s]\na=1\nb=2\n");
 
         SoleCode().ShouldBe("WARN003");
     }
@@ -341,7 +458,7 @@ public class IniSerializerTests
     [Test]
     public void NoWarningIsEmittedWhenThereAreNoComments()
     {
-        Serialize(IniOutput.Default, Entry("a", "1")).ShouldBe("a=1\n");
+        Serialize(IniOutput.Default, Entry("s.a", "1")).ShouldBe("[s]\na=1\n");
 
         diagnostics.Drain().ShouldBeEmpty();
     }
@@ -369,7 +486,7 @@ public class IniSerializerTests
     {
         IniOutputOptions.QuoteValues.EscapesMultiline().ShouldBeFalse();
 
-        Fails(IniOutputOptions.QuoteValues, Entry("a", "x\ny")).ShouldBeTrue();
+        Fails(IniOutputOptions.QuoteValues, Entry("s.a", "x\ny")).ShouldBeTrue();
         SoleCode().ShouldBe("INI001");
     }
 

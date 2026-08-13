@@ -15,6 +15,41 @@ independently.
 
 ### Added
 
+- **`inioutputoptions=GlobalSection`, and `WARN012` on an unguarded preamble.** §19.6 projects a
+  scalar path of one part as a global key in a preamble before the first section header. Python's
+  `configparser` — the INI reader most likely to be on the other end of this tool — refuses such a
+  file outright with `MissingSectionHeaderError` rather than skipping the preamble, so a single
+  one-part path made the whole document unreadable to it. Measured over the corpus, 10 of 17 emitted
+  `.ini` files were rejected, and neither dialect switch helped: the incompatibility was in the
+  projection rule itself. The tool could not express a file that parser accepts.
+
+  `GlobalSection` writes the global keys inside a section named `global`, placed where the preamble
+  would have been and keeping their winning source order. Nothing else changes — same keys, same
+  order, same values — so it is a decision about framing rather than about content. The name is
+  fixed rather than configurable because `root` already covers the configurable case, for every
+  format rather than for INI alone; offering a second, INI-only spelling would make two directives
+  answer one question. It is deliberately not `DEFAULT`: `configparser` inherits `[DEFAULT]` keys
+  into every other section on read-back, so a name chosen for compatibility would have changed the
+  document's meaning in the reader it was chosen for.
+
+  A destination that writes a preamble anyway now emits **`WARN012`**, once per output instance,
+  naming the destination. The preamble is produced by ordinary input rather than by an option the
+  author selected, so without the warning nothing in the run reported that the file may be
+  unreadable where it is meant to be used. Selecting `GlobalSection`, or configuring `root`, removes
+  the preamble and the warning together; a document with no global key never warns.
+
+  A path of two or more parts that already projects to a section named `global` is a blocking
+  `FLAT001` naming the first such path, rather than a silent merge — the two have different origins,
+  and merging them would make the file's content depend on the name this specification chose rather
+  than on the paths the author wrote. When no global key survives, no header is written at all.
+
+  Reported as [#88](https://github.com/stop-cran/namespace2xml/issues/88), found by exploratory
+  testing against the published preview rather than by the corpus, which had asserted the preamble's
+  bytes for releases without ever asking whether anything could read them. Specification §16.9,
+  §19.6, §22 and Appendix B amended; acceptance item 88 added, with four fixtures. A mutation that
+  emitted an empty `[global]` header survived the entire corpus and was caught only by a unit test,
+  which is why `ini-global-section-writes-no-empty-header` exists.
+
 - **A gate for quotations of the specification.** The prose around the contract quotes it
   constantly, and amending a sentence silently invalidates every copy: a fixture rationale, a
   `KNOWN-LIMITS.md` entry or a format guide goes on asserting the old rule, in a blockquote that

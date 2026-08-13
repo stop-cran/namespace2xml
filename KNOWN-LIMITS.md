@@ -796,14 +796,25 @@ description of the dialect — not that any real parser reads it back as the sam
 Those are different claims, and only the second is what item 28 asks for.
 
 Naming a parser is not paperwork. Feeding the corpus's `.ini` files to Python's `configparser`
-rejects **8 of 13** with `MissingSectionHeaderError`, because Section 19.6 emits a scalar path of one
+rejects **10 of 17** with `MissingSectionHeaderError`, because Section 19.6 emits a scalar path of one
 part as a global key in a preamble before the first section header and `configparser` has no default
-section. The first parser anyone would name is therefore one this dialect is not compatible with, in
-its most ordinary case, and the incompatibility is in the projection rule rather than in either
-dialect switch — so neither `QuoteValues` nor `EscapeMultiline` avoids it. Tracked as
-[#88](https://github.com/stop-cran/namespace2xml/issues/88).
+section. The first parser anyone would name is therefore one this dialect could not be made to
+satisfy at all, in its most ordinary case, and the incompatibility was in the projection rule rather
+than in either dialect switch — so neither `QuoteValues` nor `EscapeMultiline` avoided it.
 
-Building the lane also needs a decision about which parsers are normative — plausibly
+That much is now fixed. `inioutputoptions=GlobalSection` writes the global keys into a leading
+section named `global` instead of a preamble, and a file produced under it is accepted by
+`configparser`; the option, its `WARN012` counterpart on an unguarded preamble, and the blocking
+`FLAT001` when a path already projects to that section are pinned by acceptance item 88. Tracked as
+[#88 (closed)](https://github.com/stop-cran/namespace2xml/issues/88). The count above is what the
+corpus looks like with the option *not* selected, which is how most of its cases are written: they
+are about something else and set no INI options at all.
+
+What remains is the original item-28 claim, which the option does not settle. That a `GlobalSection`
+file is accepted by one parser on one machine is a spot check, not a verification lane: there is
+still no named parser list, no coverage of the dialect switches against real readers, and no harness
+that would notice a regression. Building the lane also needs a decision about which parsers are
+normative — plausibly
 `configparser`, `ini4j`, and whatever the Windows profile API accepts, each under both
 `QuoteValues` settings and both `EscapeMultiline` settings, since those options are where dialects
 disagree elsewhere. That list is a compatibility policy this release does not state, and

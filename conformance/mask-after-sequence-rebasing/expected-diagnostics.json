@@ -1,1 +1,3 @@
-[]
+[
+{"code":"WARN012","severity":"warning","phase":"planning","destination":"a.ini","spec":"§19.6"}
+]

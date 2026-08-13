@@ -106,6 +106,42 @@ All globals emit before any section. This is a **format projection**, not a prec
 hoisting the globals ahead of sections is a rearrangement of the same emission stream. Global
 keys keep their winning source order among themselves.
 
+A preamble is the one construct in `PortableIni1` that a widely deployed reader may refuse
+outright — Python's `configparser` raises `MissingSectionHeaderError` on the first key rather than
+skipping it, so one one-part path makes the whole file unreadable to it. A destination that writes
+a preamble therefore emits `WARN012`, once per output instance, naming the destination.
+
+Two directives remove both the preamble and the warning:
+
+- `inioutputoptions=GlobalSection` writes the global keys inside a section named `global`, placed
+  where the preamble would have been and keeping their winning source order. Nothing else changes:
+  same keys, same order, same values. The name is fixed — `root` already covers the configurable
+  case for every format — and it is deliberately not `DEFAULT`, because `configparser` inherits
+  `[DEFAULT]` keys into every other section on read-back, which would change the document's meaning
+  in the reader the name was chosen for.
+- `root` (§16.3) wraps the whole output view in a section of your choosing, for every format the
+  declaration produces rather than for INI alone.
+
+When no global key survives, `GlobalSection` writes no header at all; there is no empty `[global]`.
+A path of two or more parts that already projects to a section named `global` collides with the
+hoisted section and is a blocking `FLAT001`, naming the first such path — the two have different
+origins, and merging them would make the file's content depend on the name the option chose rather
+than on the paths you wrote. Without `GlobalSection`, a `global` section is an ordinary section and
+nothing collides.
+
+```text
+# profile                # scheme                                # app.ini
+app.name=demo            app.output=ini                          [global]
+app.db.host=localhost    app.inioutputoptions=GlobalSection      name=demo
+app.port=8080                                                    port=8080
+                                                                 [db]
+                                                                 host=localhost
+```
+
+Verified by the conformance cases `an-ini-preamble-is-announced`,
+`ini-global-section-hoists-the-preamble`, and
+`ini-global-section-collides-with-an-existing-section`.
+
 ### Section order
 
 A section takes the position of its **first key** in the §19.1 emission order. §19.1's pre-order
@@ -380,19 +416,24 @@ holds itself interoperable with, and conformance tests must cover every parser i
 names none.**
 
 That is a stated position, not an oversight, and there is a measurement behind it. Feeding the
-conformance corpus's `.ini` files to Python's `configparser` rejects 8 of 13 with
-`MissingSectionHeaderError`. The cause is not either dialect switch: §19.6 projects a scalar path of
-one part as a **global key**, emitted in a preamble before the first section header, and
-`configparser` has no default section to put those keys in. So the most obvious parser to name is
-one this dialect does not currently interoperate with, in its most ordinary case. That finding is
-filed as [#88](https://github.com/stop-cran/namespace2xml/issues/88); the missing parser list and
-the harness that would enforce it are [#67](https://github.com/stop-cran/namespace2xml/issues/67).
-`KNOWN-LIMITS.md` §2.1 carries both.
+conformance corpus's `.ini` files to Python's `configparser` rejects 10 of 17 with
+`MissingSectionHeaderError` — every one of them for the same reason, and none for either dialect
+switch: §19.6 projects a scalar path of one part as a **global key**, emitted in a preamble before
+the first section header, and `configparser` has no default section to put those keys in.
+
+That finding was filed as [#88 (closed)](https://github.com/stop-cran/namespace2xml/issues/88) and
+is answered by `inioutputoptions=GlobalSection`, described above: it removes the preamble, and the
+corpus cases that select it are accepted by `configparser`. The count above is what the corpus
+looks like *without* the option, because most of its cases are about something else and set no INI
+options at all. The remaining gap is narrower than it was: the dialect can now produce a file
+`configparser` accepts, but there is still no named parser list and no harness enforcing one, which
+is [#67](https://github.com/stop-cran/namespace2xml/issues/67). `KNOWN-LIMITS.md` §2.1 carries it.
 
 If you are aiming this tool at a specific INI consumer, treat `PortableIni1` as
 **specified-and-self-consistent, not verified-interoperable**, and check two things by hand before
-you rely on it. First, whether your parser accepts keys before the first section header — give every
-output path at least two parts if it does not. Second, the two dialect switches, `QuoteValues` and
+you rely on it. First, whether your parser accepts keys before the first section header — select
+`GlobalSection`, or give every output path at least two parts, if it does not. Second, the two
+dialect switches, `QuoteValues` and
 `EscapeMultiline`, which are where INI parsers disagree elsewhere; the `EscapeMultiline`
 backslash-doubling rule described above is the single most likely thing to surprise a parser that
 does not know it. Read the KNOWN-LIMITS entry linked here in full before picking flags.
@@ -410,7 +451,8 @@ does not know it. Read the KNOWN-LIMITS entry linked here in full before picking
   file, no warning. §19.6 permits it because their projected identities differ.
 - **All globals hoist to the preamble.** Global keys appear before any section, even when
   declared later in source order than a sectioned key. This is a format projection with no
-  precedence effect.
+  precedence effect. It also emits `WARN012`, because a preamble is what `configparser` and
+  parsers like it refuse; `inioutputoptions=GlobalSection` removes both.
 - **Sequences densify.** Ordering values `0` and `5` render as `0` and `1`. Downstream code that
   reads INI keys as identifiers will see a different set of keys than the overlay contains.
 - **Default multiline mode rejects.** Under `RejectMultiline` (the default), CR, LF, NUL,

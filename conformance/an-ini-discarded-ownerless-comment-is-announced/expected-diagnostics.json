@@ -1,3 +1,4 @@
 [
-{"code":"WARN003","severity":"warning","phase":"planning","destination":"cfg.ini"}
+{"code":"WARN003","severity":"warning","phase":"planning","destination":"cfg.ini"},
+{"code":"WARN012","severity":"warning","phase":"planning","destination":"cfg.ini","spec":"§19.6"}
 ]

@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r67+f3f3d4fb7fbe`.** 35 codes.
+**Contract bundle `r69+f1a94cc52385`.** 36 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -58,6 +58,7 @@ by preference.
 | `WARN009` | warning | once per declaration or expanded directive | Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing | `source`, `line`, `column`, `path`, `declaration` |
 | `WARN010` | warning | once per source contribution, canonical mapping path, and output instance | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | `source`, `path`, `destination` |
 | `WARN011` | warning | once per canonical path | Later unmarked contribution aliases an existing XML component instead of overriding it | `source`, `path` |
+| `WARN012` | warning | once per output instance | INI output emits a global-key preamble, which a reader requiring a section header will refuse | `destination` |
 
 ## Conditions in detail
 
@@ -273,6 +274,12 @@ Each code below lists the situations the specification maps to it (Appendix B).
 *warning, once per canonical path.*
 
 - Later unmarked contribution adds an ordinary component aliasing an existing XML component
+
+### `WARN012` — INI output emits a global-key preamble, which a reader requiring a section header will refuse
+
+*warning, once per output instance.*
+
+- INI output writes a global-key preamble without `GlobalSection`
 
 ## Disagreeing with a diagnostic
 

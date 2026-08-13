@@ -114,6 +114,31 @@ public sealed class IniSerializer
 
         var complete = true;
 
+        // Section 19.6: under 'GlobalSection' the global keys go into a section "written in the
+        // position that preamble would have occupied", and a path that already projects to a
+        // section of that name "collides with the hoisted section". The check runs before anything
+        // is written, because the collision is a property of the whole document rather than of one
+        // entry, and a partially written file would report it after emitting the ambiguity.
+        var globalSection = options.GlobalSectionName();
+
+        if (globalSection is not null && globals.Count > 0)
+        {
+            if (bySection.TryGetValue(globalSection, out var occupant))
+            {
+                ReportGlobalSectionCollision(globalSection, occupant[0]);
+                return false;
+            }
+
+            if (!writer.TryWriteLine($"[{globalSection}]"))
+            {
+                return false;
+            }
+        }
+        else if (globalSection is null && globals.Count > 0)
+        {
+            ReportGlobalPreamble();
+        }
+
         foreach (var keyed in globals)
         {
             if (!TryWriteEntry(keyed, marker, writer))
@@ -325,6 +350,32 @@ public sealed class IniSerializer
                 "comments were discarded because neither 'SemicolonComments' nor 'HashComments' "
                 + "is selected in 'inioutputoptions'.",
                 cardinalityKey: FlatIdentity.Key(destination?.Canonical, "comments"),
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
+
+    private void ReportGlobalPreamble() =>
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Warn012(
+                DiagnosticPhase.Planning,
+                "\u00A719.6",
+                "this file begins with a global-key preamble, which a reader requiring a section "
+                + "header before the first key will refuse; select 'GlobalSection' in "
+                + "'inioutputoptions', or configure 'root', to place these keys in a section.",
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, "preamble"),
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
+
+    private void ReportGlobalSectionCollision(string section, FlatKeyedEntry first) =>
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Flat001(
+                DiagnosticPhase.Planning,
+                "\u00A719.6",
+                $"'GlobalSection' hoists this file's global keys into section '{section}', and "
+                + $"'{FlatIdentity.PathText(first.Entry.LogicalPath)}' already projects to section "
+                + $"'{section}': Section 19.6 refuses to merge them, because their content would "
+                + "then depend on the name the option chose rather than on the paths written.",
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, $"{section}\u0000"),
+                path: FlatIdentity.PathText(first.Entry.LogicalPath),
                 destination: destination?.Canonical),
             DestinationOrder: destination?.Order));
 }

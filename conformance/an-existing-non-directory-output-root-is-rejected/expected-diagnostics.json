@@ -1,3 +1,4 @@
 [
+{"code":"WARN012","severity":"warning","phase":"planning","destination":"app.ini","spec":"§19.6"},
 {"code":"PATH001","severity":"error","phase":"publication","spec":"§21.1"}
 ]
