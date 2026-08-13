@@ -168,6 +168,14 @@ independently.
 
 ### Changed
 
+- **A comment from a source that contributes nothing now provably reaches every output document.**
+  §8.5 already made such a comment document-leading and bound to no path, and the planning phase
+  already lifted it into each instance, but nothing said so and nothing tested it: every comment
+  fixture in the corpus rendered a single document, where "the first instance" and "every instance"
+  are the same file. 2.4.0 writes the note into the first document and drops it from the rest,
+  silently. §8.5 now states the rule, and a two-instance fixture holds it — a mutation reproducing
+  2.4.0's behaviour fails that fixture and nothing else.
+
 - **An empty path token is now a diagnosed command-line failure rather than a crash.** `-i ''`,
   `-s ''`, `-v ''` and `-o ''` reached `Path.GetFullPath` and threw an unhandled `ArgumentException`,
   printing a .NET stack trace and exiting `-532462766`. The empty token names nothing, so it can be

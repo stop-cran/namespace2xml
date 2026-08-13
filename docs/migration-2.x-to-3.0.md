@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r65+7f4a811aac65`.**
+**Contract bundle `r66+d5e42628eaee`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (150)
+## Observable differences (151)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -143,6 +143,26 @@ implemented, its case says so plainly rather than letting the heading imply othe
   writes `output: [json, yaml]` because a sequence is the natural YAML spelling of a list gets no
   output and no reason, and has nothing to search for. Exit 0 with an empty output tree is the worst
   available answer, because every downstream check that looks at the status passes.
+
+### `a-contributionless-source-comments-every-instance`
+
+- namespace2xml 2.4.0: **differs**. It writes both comment lines into `p.properties` and none into
+  `q.properties`, so the note survives in one of the two documents it describes.
+- Contract: Section 8.5, "a document-leading comment is bound to no path ... and it is emitted in
+  every output instance the run produces"; Section 26 item 13.
+- Legacy observation: the comment-only source contributes nothing, so its run is document-leading
+  and belongs to no path. 2.4.0 attaches it to whichever instance is rendered first and drops it
+  from the rest, silently — nothing in the run says a second document was expected to carry it.
+- Clean behavior: both documents carry both lines. An output instance is a standalone file that has
+  to be readable on its own, and the specification cannot name a winner among instances whose order
+  is a rendering detail; announcing the omission from the others would still leave those documents
+  missing a note whose whole purpose is to sit next to the settings it explains.
+- The case exists because it is the only one in the corpus with **two** output instances and an
+  ownerless comment. Every other comment fixture renders a single document, where "the first
+  instance" and "every instance" are the same file and the rule is unobservable.
+- The invocation also records a second divergence in passing: 2.4.0 rejects a repeated `-i` with
+  "Option 'i, input' is defined multiple times" and requires `-i a b`, while Section 6.2 accepts
+  both forms on a list option.
 
 ### `a-destination-fold-keeps-every-contribution-type`
 

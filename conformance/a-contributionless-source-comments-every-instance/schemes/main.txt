@@ -1,0 +1,2 @@
+p.output=namespace
+q.output=namespace

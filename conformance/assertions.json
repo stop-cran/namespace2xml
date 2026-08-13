@@ -217,6 +217,7 @@
       ],
       "fixtures": [
         "a-commented-out-source-leads-the-document",
+        "a-contributionless-source-comments-every-instance",
         "a-namespace-header-comment-outlives-its-first-entry",
         "an-implicit-xml-root-carries-document-comments",
         "an-opening-comment-does-not-move-with-its-entry",
