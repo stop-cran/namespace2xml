@@ -1,11 +1,11 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r44+a91f25bf49ec`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r75+533cba978b41`. Dated 2026-08.**
 
-The published `3.0.0-preview.3` binary is built from that branch and carries that same bundle, so
-this file and the current preview agree. Earlier previews do not: `3.0.0-preview.2` carries
-`r37+2d644be6926e` and `3.0.0-preview.1` is older still, and where an entry is marked *(resolved)*
-the fix is absent from both. Compare the `contract-bundle` line of `--version` against the revision
+This file tracks the branch, and the branch runs ahead of the last published preview:
+`3.0.0-preview.3` carries `r44+a91f25bf49ec`, `3.0.0-preview.2` carries `r37+2d644be6926e`, and
+`3.0.0-preview.1` carries `r30+35e144372ca0`. Where an entry is marked *(resolved)* the fix may be
+absent from the binary you are running. Compare the `contract-bundle` line of `--version` against the revision
 above before concluding an entry does or does not apply to you — an entry marked *(resolved)* is a
 statement about a bundle, not about every binary named `3.0.0-preview`. Those entries exist for that
 comparison alone: **when 3.0.0 ships, every *(resolved)* entry is deleted**, because a released

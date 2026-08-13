@@ -20,6 +20,12 @@
     The annotation is what lets a *(resolved)* entry keep pointing at the work that resolved it,
     and it tells a reader which links are live work without following any of them.
 
+    The header revision is checked for the same reason. It tells a reader which build the file
+    describes, and every *(resolved)* entry is a statement about that revision rather than about
+    every binary sharing a version number -- so a stale header silently reassigns seventeen such
+    claims to a contract that never made them. Nothing regenerates it, and it had already rotted
+    from r44 to r75 before anything noticed.
+
 .PARAMETER RepositoryRoot
     Repository root. Defaults to the parent of the directory holding this script.
 
@@ -46,6 +52,36 @@ if (-not (Test-Path -LiteralPath $limitsPath)) {
     exit 1
 }
 
+$text = [IO.File]::ReadAllText($limitsPath)
+
+# The header revision, before the gh probe below so that the absence of the CLI cannot skip it.
+$bundlePath = Join-Path $RepositoryRoot 'spec/contract-bundle.json'
+if (-not (Test-Path -LiteralPath $bundlePath)) {
+    Write-Error "spec/contract-bundle.json not found at $bundlePath"
+    exit 1
+}
+
+$revision = (Get-Content -LiteralPath $bundlePath -Raw | ConvertFrom-Json).revision
+$header = [regex]::Match(
+    $text, '(?m)^\*\*Describes the `v3` branch at contract bundle `(?<revision>[^`]+)`')
+
+if (-not $header.Success) {
+    Write-Error (
+        'KNOWN-LIMITS.md has no "**Describes the `v3` branch at contract bundle `...`" header. ' +
+        'The revision check would pass vacuously; restore the header rather than the check.')
+    exit 1
+}
+
+if ($header.Groups['revision'].Value -ne $revision) {
+    Write-Host (
+        "KNOWN-LIMITS.md names contract bundle $($header.Groups['revision'].Value), but " +
+        "spec/contract-bundle.json is at $revision.`n`n" +
+        '  The contract moved and the file did not. Re-read the entries against the current ' +
+        "build before updating the header: the revision is what tells a reader whether a " +
+        "*(resolved)* entry applies to the binary they are running.`n")
+    exit 1
+}
+
 $gh = Get-Command gh -ErrorAction SilentlyContinue
 if ($null -eq $gh) {
     if ($RequireGh) {
@@ -55,8 +91,6 @@ if ($null -eq $gh) {
     Write-Host 'gh not found; skipping the KNOWN-LIMITS.md issue-state check.'
     exit 0
 }
-
-$text = [IO.File]::ReadAllText($limitsPath)
 
 # [#59](https://github.com/owner/name/issues/59) or [#58 (closed)](...same...). The link text and
 # the URL must agree on the number, which also catches a copy-edit that renumbered only one of them.
