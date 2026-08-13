@@ -164,6 +164,24 @@ implemented, its case says so plainly rather than letting the heading imply othe
   "Option 'i, input' is defined multiple times" and requires `-i a b`, while Section 6.2 accepts
   both forms on a list option.
 
+### `a-descendant-directive-applies-before-its-ancestor`
+
+- namespace2xml 2.4.0: **differs**. It produces the same `{"a": [[1, 2], {"m": 3}]}` shape and the
+  same interior bytes, and then omits the final newline: 81 bytes ending `\r\n}`, which is 71 bytes
+  ending `\n}` once the Section 24 CRLF divergence is normalized away, against 72 ending `\n}\n`.
+- Contract: Section 15.1, "within one pass a directive at a deeper path applies before a directive
+  at a shallower path"; Section 21 for the terminating newline; Section 26 item 54.
+- Legacy observation: the baseline agrees about the *ordering*, which is the rule this case exists
+  for. It converts `cfg.a.x` to an array first and then converts `cfg.a`, so the already-converted
+  `x` enters its parent as a sequence element and the unconverted `y` enters as a mapping. The
+  divergence is confined to the last byte of the file.
+- That distinction is the reason the case is here. This ordering was never written down in either
+  project, and agreement is not evidence: nothing in the output says which order produced it, and
+  outermost-first would consume `cfg.a`'s children before `cfg.a.x.type` was ever consulted, so the
+  descendant directive would vanish without a word. The corpus is now what holds the answer.
+- The missing terminator is worth recording separately. A file that does not end in a newline is
+  not a POSIX text file, and appending to it or concatenating it silently joins two records.
+
 ### `a-destination-fold-keeps-every-contribution-type`
 
 - namespace2xml 2.4.0: **differs**.
@@ -834,22 +852,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   data rather than by the scheme.
 - Section 12.1 also fixes that `cfg.*.output=*` and `cfg.output=*` are the same error, because
   the exclusion belongs to the directive and not to the declaration.
-
-### `an-empty-path-token-is-rejected`
-
-- namespace2xml 2.4.0: **differs**. It accepted the empty token as a path, carried it to
-  `Path.GetFullPath`, and printed the resulting `System.ArgumentException` — message, type name and
-  a stack trace naming `/home/runner/work/namespace2xml/.../FileStreamFactory.cs:line 25` — before
-  exiting nonzero.
-- Contract: Section 7.2, "an empty token supplied to `-i`, `-s`, `-v`, or `-o` is a blocking
-  `CLI001` at Section 6.2 option-value validation"; Section 26 item 1.
-- Legacy observation: exit status 1, with the failure rendered as a .NET exception dump on the log
-  stream. No stable code, no machine-readable stream, and the file named in the report is a source
-  file of the tool on a build agent rather than anything the caller wrote.
-- Clean behavior: `CLI001` with `spec` `§6.2` and exit 1, naming the option that received the
-  empty value. The overwhelmingly common way an empty token arrives is a shell expanding an unset
-  variable inside quotes, so the report has to point at the option, which is the only part of the
-  invocation still visible by the time the tool sees it.
 
 ### `an-empty-qualifier-escapes-the-alias-ambiguity`
 
@@ -3982,21 +3984,6 @@ those that name a shared reason are behaviour 3.0 preserved.
   arrived at the same bytes cannot be read off the observable, and this case is not the one that
   would find out.
 
-### `a-descendant-directive-applies-before-its-ancestor`
-
-- namespace2xml 2.4.0: **agrees** on content, modulo CRLF line endings under the Section 24
-  divergence. It writes the same `{"a": [[1, 2], {"m": 3}]}` shape.
-- Contract: Section 15.1, "within one pass a directive at a deeper path applies before a directive
-  at a shallower path"; Section 26 item 54.
-- Legacy observation: the baseline converts `cfg.a.x` to an array first and then converts `cfg.a`,
-  so the already-converted `x` enters its parent as a sequence element and the unconverted `y`
-  enters as a mapping. The measurement records agreement, which is the point of the case: this
-  order was never written down anywhere, in either project, and the corpus is now what holds it.
-- This is the one directive-ordering question with two defensible answers and no diagnostic to
-  distinguish them. Outermost-first would consume `cfg.a`'s children before `cfg.a.x.type` was ever
-  consulted, and the descendant directive would vanish without a word. A fixture is the only thing
-  that keeps the answer from drifting, because nothing in the output says which order produced it.
-
 ### `a-directive-on-an-ignored-output-instance-does-not-warn`
 
 - namespace2xml 2.4.0: **agrees**. It writes `b.properties` with `k=2`, writes nothing for `a`, and
@@ -4148,6 +4135,25 @@ those that name a shared reason are behaviour 3.0 preserved.
 - Legacy observation: 2.4.0 emitted the same bytes for this argument order and for the reversed one
   recorded in `a-yaml-wildcard-key-enriches-each-record-of-a-later-file`, so the agreement here is
   a coincidence of a rule it did not implement rather than evidence that it ordered anything.
+
+### `an-empty-path-token-is-rejected`
+
+- namespace2xml 2.4.0: **agrees** on the tree and the exit code, which are what Appendix C.6
+  observes: both builds write no output file and exit 1.
+- Contract: Section 7.2, "an empty token supplied to `-i`, `-s`, `-v`, or `-o` is a blocking
+  `CLI001` at Section 6.2 option-value validation"; Section 26 items 1 and 86.
+- The agreement is the finding, not an absence of one. Everything that changed here is in the
+  report, and the report is the thing this case fixes. 2.4.0 carried the empty token to
+  `Path.GetFullPath` and printed the resulting `System.ArgumentException` — message, type name and
+  a stack trace naming `/home/runner/work/namespace2xml/.../FileStreamFactory.cs:line 25`, a source
+  file of the tool on a build agent. The clean build emits `CLI001` with `spec` `§6.2`, naming the
+  option that received the empty value.
+- Before this change the clean build did the same thing 2.4.0 does, one layer higher: an unhandled
+  `ArgumentException` and exit `-532462766`. The tree-and-exit lane could not see that either,
+  which is why the case is carried by `expected-diagnostics.json` rather than by this file.
+- The overwhelmingly common way an empty token arrives is a shell expanding an unset variable
+  inside quotes. By the time the tool is running, the option is the only part of the invocation
+  still visible, so it is the only thing a useful report can name.
 
 ### `an-encoding-disagreement-precedes-xml-parsing`
 
