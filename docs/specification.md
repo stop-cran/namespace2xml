@@ -3099,6 +3099,10 @@ For XML processing instructions and discarded formatting whitespace, `WARN006` a
 
 Severity, cardinality, and the enumerated fields are properties of the code. Pipeline phase and specification anchor are properties of the individual occurrence, because `TYPE001`, `SERIALIZE001`, and `LIMIT001` each arise in more than one phase and enforce more than one clause.
 
+The anchor is determined rather than chosen. An occurrence carries the numbered clause that *states* the rule it enforces, spelled at the deepest numbering the specification gives that statement. A clause that cites the rule, restates it for one format, or describes what the rule produces is not the anchor: `type=multiline` applied to a mapping is `TYPE001` at Section 16.6, which says what `multiline` may be applied to, and not at Section 19.4, which says only how YAML writes a block scalar. Where a rule is stated at section level and that section has no numbered subdivision stating it, the anchor is the section.
+
+This is required rather than advisory because `spec` is a structured field, and Section 24 makes structured fields identical across conforming implementations. An anchor whose clause or granularity were left to the implementation could not meet that requirement, and Appendix C.4 would conceal the disagreement rather than detect it, because it compares `spec` only where a fixture declares one. The registry is silent on the anchor for the same reason it is silent on the phase: both are properties of the condition, and the registry records the code.
+
 `REFERENCE001` covers two conditions that are detected in different phases, and its cardinality is
 written "once per owning value" rather than "once per reachable owning value" for that reason.
 Malformed or unterminated reference *syntax* is rejected by Section 15.1 step 6, in the input phase,

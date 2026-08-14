@@ -50,6 +50,22 @@ public class SpecificationAnchorTests
         .Select(match => match.Groups["section"].Value)
         .ToHashSet(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Every section that has at least one numbered subdivision, derived from the headings rather
+    /// than listed, so an amendment that subdivides a section brings its anchors into question.
+    /// </summary>
+    private static HashSet<string> Subdivided { get; } = Sections
+        .Where(section => section.Contains('.', StringComparison.Ordinal))
+        .Select(section => section[..section.LastIndexOf('.')])
+        .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Sections anchored at section level although they are subdivided, each because the rule is
+    /// stated in the section's own preamble: section 15 enumerates the recognized directives and
+    /// declares an unknown one a blocking error before section 15.1 begins.
+    /// </summary>
+    private static HashSet<string> PreambleRules { get; } = new(StringComparer.Ordinal) { "15" };
+
     private static IEnumerable<TestCaseData> Anchors()
     {
         var source = Path.Combine(RepositoryLayout.Root, "src");
@@ -96,4 +112,39 @@ public class SpecificationAnchorTests
     [TestCase("99")]
     [TestCase("23.99")]
     public void AnInventedSectionDoesNotResolve(string section) => Sections.ShouldNotContain(section);
+
+    /// <summary>
+    /// Section 22 requires an anchor to name the rule's clause "at the deepest numbering the
+    /// specification gives that statement", so an anchor that stops at section level while the
+    /// section is subdivided is a claim that the rule is stated in the preamble.
+    /// </summary>
+    /// <remarks>
+    /// This is the mechanical half of the section 22 rule. The other half — that the clause states
+    /// the rule rather than citing it — needs a reader. Reaching for the section number because
+    /// finding the subsection is work is the failure this catches, and it is the likely one.
+    /// </remarks>
+    /// <param name="section">The section number the anchor names.</param>
+    /// <param name="file">The file that emits it, named so a failure says where to look.</param>
+    [TestCaseSource(nameof(Anchors))]
+    public void ASectionLevelAnchorNamesAnUndividedSectionOrAPreambleRule(string section, string file)
+    {
+        if (section.Contains('.', StringComparison.Ordinal) || !Subdivided.Contains(section))
+        {
+            return;
+        }
+
+        PreambleRules.ShouldContain(
+            section,
+            $"{file} emits the anchor \u00A7{section}, but section {section} is subdivided; "
+                + "name the subsection that states the rule, or record here why the preamble does");
+    }
+
+    /// <summary>
+    /// The gate above is vacuous unless the derivation finds subdivisions, so pin one section that
+    /// has them and one that does not.
+    /// </summary>
+    [TestCase("16", true)]
+    [TestCase("20", false)]
+    public void TheSubdivisionsOfASectionAreFound(string section, bool subdivided) =>
+        Subdivided.Contains(section).ShouldBe(subdivided);
 }
