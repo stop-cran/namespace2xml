@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r83+f0996880aeb3`.**
+**Contract bundle `r84+9d50d23dd7ec`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -4319,7 +4319,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (41)
+## Same observable result as 2.4.0 (42)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -4498,6 +4498,30 @@ those that name a shared reason are behaviour 3.0 preserved.
   thing that can separate the codes is whether the model still holds the comment. A build that
   reported `REFERENCE002` for both would satisfy the exit code, the output tree and the legacy
   verdict, and would be wrong.
+
+### `a-repeated-missing-path-warns-once-per-occurrence`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 7.2's rule that "each `-i` or `-s` token that names a path which does not exist
+  emits its own warning, so a path written twice warns twice", and Section 22's `WARN001`
+  cardinality of "once per missing-file occurrence on the command line". Section 22 adds that where
+  a cardinality is stated per source "the unit is one `-i`, `-s`, or `-v` occurrence and not one
+  distinct path", because "the displaced occurrence can differ in `phase`".
+- Legacy observation: the baseline emits `File ... not found` four times -- twice for the repeated
+  input occurrence, once for the shared path as an input and once for it as a scheme -- writes
+  `k=1`, and exits 0.
+- Clean behavior: the run reports four `WARN001` occurrences -- one scheme-phase and three
+  input-phase -- and exits 0, writing `k=1`.
+- Why the difference is intentional: there is none to justify here, and that is worth recording.
+  The baseline counts these warnings per occurrence, which is what Section 7.2 now requires; it was
+  the clean implementation that collapsed them, keying the cardinality slot on the path text alone.
+  The collapse was invisible in the ordinary case, where two identical occurrences produce two
+  identical warnings, and damaging in the case this fixture also pins: the same path supplied once
+  as an input and once as a scheme fails in both phases, and a path-keyed slot reported only the
+  scheme, leaving a missing input file unmentioned while appearing to have reported it. The
+  baseline reaching the right count is not evidence that it reasoned about phases: it warns from
+  the read site with no cardinality mechanism at all, so it cannot collapse anything. Here that
+  costs it nothing.
 
 ### `a-wildcard-in-a-native-json-key-is-a-template`
 

@@ -151,7 +151,7 @@ public sealed class SourceLoader
         ArgumentException.ThrowIfNullOrEmpty(path);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        var origin = ProfileSource.OfFile(Normalize(path));
+        var origin = ProfileSource.OfFile(Normalize(path), ordinal);
         var key = StableOrderingKey.FromSource(ordinal, 0);
         var read = reader.Read(path);
 
@@ -164,7 +164,7 @@ public sealed class SourceLoader
                         "\u00A77.2",
                         $"'{read.ResolvedPath}' does not exist, so it contributes no data. "
                         + "Section 7.2 does not make a missing file a failure by itself.",
-                        cardinalityKey: origin.Identity,
+                        cardinalityKey: origin.SourceKey,
                         source: origin.File),
                     key));
                 return null;
@@ -177,7 +177,7 @@ public sealed class SourceLoader
                         $"'{read.ResolvedPath}' exists but could not be read: {read.Reason} "
                         + "Section 7.2 makes that a blocking source error rather than the warning "
                         + "a missing file receives.",
-                        cardinalityKey: origin.Identity,
+                        cardinalityKey: origin.SourceKey,
                         source: origin.File),
                     key));
                 return null;
@@ -290,7 +290,7 @@ public sealed class SourceLoader
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        var origin = ProfileSource.OfVariable(position);
+        var origin = ProfileSource.OfVariable(position, ordinal);
         var key = StableOrderingKey.FromSource(ordinal, 0);
         var budget = new SourceBudget(limits, ordinal);
 

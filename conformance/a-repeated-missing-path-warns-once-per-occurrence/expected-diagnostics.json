@@ -1,0 +1,6 @@
+[
+{"code":"WARN001","severity":"warning","phase":"scheme","source":"shared/gone.properties","spec":"§7.2"},
+{"code":"WARN001","severity":"warning","phase":"input","source":"inputs/gone.properties","spec":"§7.2"},
+{"code":"WARN001","severity":"warning","phase":"input","source":"inputs/gone.properties","spec":"§7.2"},
+{"code":"WARN001","severity":"warning","phase":"input","source":"shared/gone.properties","spec":"§7.2"}
+]

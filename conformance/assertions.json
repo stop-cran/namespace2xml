@@ -35,6 +35,7 @@
       "status": "pending",
       "assertions": [],
       "fixtures": [
+        "a-repeated-missing-path-warns-once-per-occurrence",
         "cli-end-of-options-values"
       ]
     },

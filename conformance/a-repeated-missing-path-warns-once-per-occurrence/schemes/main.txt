@@ -1,0 +1,2 @@
+cfg.output=namespace
+cfg.filename=out

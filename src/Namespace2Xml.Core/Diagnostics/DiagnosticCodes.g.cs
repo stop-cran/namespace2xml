@@ -114,7 +114,7 @@ public static partial class DiagnosticCodes
             "Non-wildcard resource limit exceeded",
             ["source", "line", "column", "path"]),
         new DiagnosticCodeInfo("WARN001", DiagnosticSeverity.Warning,
-            "once per missing CLI path",
+            "once per missing-file occurrence on the command line",
             "Missing input or scheme file",
             ["source"]),
         new DiagnosticCodeInfo("WARN002", DiagnosticSeverity.Warning,
@@ -643,9 +643,9 @@ public static partial class DiagnosticCodes
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
-    /// <param name="cardinalityKey">Identity of the missing CLI path this is emitted once per.</param>
+    /// <param name="cardinalityKey">Identity of the missing-file occurrence on the command line this is emitted once per.</param>
     /// <param name="source">Section 6.4.3 <c>source</c> member.</param>
-    /// <remarks>Cardinality: once per missing CLI path.</remarks>
+    /// <remarks>Cardinality: once per missing-file occurrence on the command line.</remarks>
     public static DiagnosticOccurrence Warn001(
         DiagnosticPhase phase,
         string spec,

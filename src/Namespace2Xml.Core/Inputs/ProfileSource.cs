@@ -24,24 +24,28 @@ namespace Namespace2Xml.Inputs;
 /// The one-based <c>-v</c> position when this source is a command-line variable, otherwise
 /// <c>null</c>.
 /// </param>
-public sealed record ProfileSource(string? File, string Identity, int? VariablePosition = null)
+/// <param name="Ordinal">This source's Section 4.7 CLI source ordinal.</param>
+public sealed record ProfileSource(
+    string? File, string Identity, int? VariablePosition = null, long Ordinal = 0)
 {
     /// <summary>A source read from an input or scheme file.</summary>
     /// <param name="path">The path as diagnostics report it.</param>
-    public static ProfileSource OfFile(string path)
+    /// <param name="ordinal">The Section 4.7 CLI source ordinal of this occurrence.</param>
+    public static ProfileSource OfFile(string path, long ordinal = 0)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
 
-        return new ProfileSource(path, path);
+        return new ProfileSource(path, path, null, ordinal);
     }
 
     /// <summary>A source supplied as one <c>--variables</c> argument.</summary>
     /// <param name="position">The variable's one-based position in <c>-v</c> token order.</param>
-    public static ProfileSource OfVariable(int position)
+    /// <param name="ordinal">The Section 4.7 CLI source ordinal of this occurrence.</param>
+    public static ProfileSource OfVariable(int position, long ordinal = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(position);
 
-        return new ProfileSource(null, $"-v[{position}]", position);
+        return new ProfileSource(null, $"-v[{position}]", position, ordinal);
     }
 
     /// <summary>
@@ -67,10 +71,24 @@ public sealed record ProfileSource(string? File, string Identity, int? VariableP
     /// <param name="column">The one-based column within this source.</param>
     public int? ColumnOf(int column) => File is null ? null : column;
 
+    /// <summary>
+    /// What every Section 22 cardinality key of this source is built on: the occurrence, not the
+    /// path.
+    /// </summary>
+    /// <remarks>
+    /// A path written twice on the command line is two sources, not one. Section 4.7 gives each
+    /// occurrence its own ordinal, and the two contribute separately -- one file of
+    /// <c>{"list":["a"]}</c> supplied twice yields <c>["a","a"]</c>. A key built on the path alone
+    /// would therefore let one source's diagnostic evict another's, and the evicted one may differ
+    /// in <c>phase</c>: <c>-i gone.txt -s gone.txt</c> is one missing input and one missing scheme,
+    /// and reporting only the scheme leaves the missing input unmentioned.
+    /// </remarks>
+    private string KeyBase => $"{Identity}#{Ordinal}";
+
     /// <summary>The Section 22 cardinality key of a condition at one position in this source.</summary>
     /// <param name="line">The one-based line.</param>
     /// <param name="column">The one-based column.</param>
-    public string Key(int line, int column) => $"{Identity}:{line}:{column}";
+    public string Key(int line, int column) => $"{KeyBase}:{line}:{column}";
 
     /// <summary>The Section 22 cardinality key of a condition scoped to one record.</summary>
     /// <param name="line">The one-based line the record begins on.</param>
@@ -79,15 +97,15 @@ public sealed record ProfileSource(string? File, string Identity, int? VariableP
     /// scopes "once per rule" or "once per reachable owning value". Adding the column would split
     /// one rule into as many occurrences as it has faulty positions.
     /// </remarks>
-    public string RecordKey(int line) => $"{Identity}:{line}";
+    public string RecordKey(int line) => $"{KeyBase}:{line}";
 
     /// <summary>
     /// The Section 22 cardinality key of a condition scoped to the whole source, which is what
     /// "once per failing source" means for <c>PARSE001</c> and <c>PARSE002</c>.
     /// </summary>
-    public string SourceKey => Identity;
+    public string SourceKey => KeyBase;
 
     /// <summary>The Section 22 cardinality key of a condition scoped to this source as a whole.</summary>
     /// <param name="aspect">What the code is emitted once per within one source.</param>
-    public string Key(string aspect) => $"{Identity}:{aspect}";
+    public string Key(string aspect) => $"{KeyBase}:{aspect}";
 }

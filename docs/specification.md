@@ -597,6 +597,8 @@ A missing input or scheme file:
 
 Only a path that does not exist receives this warning-and-ignore behavior. A path that exists but is unreadable, is a directory where a file is required, changes incompatibly while being read, or fails for another I/O reason is a blocking `PARSE001` source error.
 
+Each `-i` or `-s` token that names a path which does not exist emits its own warning, so a path written twice warns twice. Section 4.7 gives every occurrence its own source ordinal and the model treats each as a separate source, which is observable for files that do exist: a JSON input holding `["a"]` supplied twice concatenates to `["a","a"]`. Counting the warning per distinct path rather than per occurrence would report fewer missing sources than the invocation actually named, and where the same path is supplied once as an input and once as a scheme the two occurrences differ in `phase`, which Section 22 makes a property of the individual occurrence. Reporting only one of those would leave the other missing file unmentioned while appearing to have reported it.
+
 One check precedes this one. Section 15 rejects a scheme file named with the `.xml` extension before the file is read, and therefore before its existence is known, so a missing `.xml` scheme file is that blocking `PARSE001` rather than this warning. Naming the extension is an authoring error whichever answer the file system would have given, and reporting it as an ignorable missing file would name the wrong mistake and let the run continue as though the author had supplied no scheme at all.
 
 Another check precedes both. An empty token supplied to `-i`, `-s`, `-v`, or `-o` is a blocking `CLI001` at Section 6.2 option-value validation, before any path is resolved. The empty token names nothing: it cannot be tested for existence, so it is neither the missing file this section forgives nor the I/O failure it blocks on, and it is indistinguishable from an option whose value the caller's own quoting silently dropped — the overwhelmingly common way one arrives. Reporting it against the option that received it names the mistake where it was made. This is a command-line failure rather than a source failure, so it is `CLI001` and not `PARSE001`, and it is diagnosed even for `-o`, which resolves no source at all.
@@ -3004,6 +3006,8 @@ The `rule` member is an array of Appendix A canonical wildcard-rule names, holdi
 
 Note that the cardinality column does not answer this question. Cardinality states how many occurrences of a code one run may report, not what identifies one: `PARSE001` is counted once per failing source and still names the record that failed, while `LIMIT001` and `WILDCARD002` are counted once per invocation and still name what crossed the bound.
 
+Where a cardinality is stated per source, the unit is one `-i`, `-s`, or `-v` occurrence and not one distinct path. A path written twice is two sources under Section 4.7, each with its own ordinal and its own contribution, so each may report the code once. Counting per path would let one source's occurrence displace another's, and the displaced occurrence can differ in `phase` — the same path supplied once as an input and once as a scheme fails in both phases — which would make the stream report a condition in one phase while silently dropping it in another.
+
 The tie-breaker, where a condition could be attributed to more than one place, is that these members name **where the condition is, not where its subject came from**. A condition raised over the merged model, an output plan, or the invocation as a whole therefore supplies no `source`, even where a contributing entry could be traced back to one and even where doing so would be helpful. A `merge=error` conflict at a path is a property of that path after folding, so it supplies `path` and no `source`; the same holds for the Section 8.7 concatenation warning. Attributing such a condition to one of its contributions would make the diagnostic depend on which contribution the implementation happened to hold, which Section 24 forbids.
 
 A member this rule does not reach is omitted rather than defaulted, and `column` additionally requires `line`.
@@ -3072,7 +3076,7 @@ The normative diagnostic registry is:
 | `PATH001` | error | Invalid, escaping, or insecure output path | once per destination |
 | `PATH002` | error | Publication/open/write/flush failure | once, for the failing destination |
 | `LIMIT001` | error | Non-wildcard resource limit exceeded | once per invocation |
-| `WARN001` | warning | Missing input or scheme file | once per missing CLI path |
+| `WARN001` | warning | Missing input or scheme file | once per missing-file occurrence on the command line |
 | `WARN002` | warning | Deprecated alias | once per alias category and scheme |
 | `WARN003` | warning | Unsupported metadata/comment discarded | once per feature category and output file |
 | `WARN004` | warning | Native implicit sequences concatenate without explicit merge | once per sequence path |

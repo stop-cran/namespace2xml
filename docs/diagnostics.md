@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r83+f0996880aeb3`.** 36 codes.
+**Contract bundle `r84+9d50d23dd7ec`.** 36 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -47,7 +47,7 @@ by preference.
 | `PATH001` | error | once per destination | Invalid, escaping, or insecure output path | `declaration`, `destination` |
 | `PATH002` | error | once, for the failing destination | Publication/open/write/flush failure | `destination` |
 | `LIMIT001` | error | once per invocation | Non-wildcard resource limit exceeded | `source`, `line`, `column`, `path` |
-| `WARN001` | warning | once per missing CLI path | Missing input or scheme file | `source` |
+| `WARN001` | warning | once per missing-file occurrence on the command line | Missing input or scheme file | `source` |
 | `WARN002` | warning | once per alias category and scheme | Deprecated alias | `source`, `line`, `column`, `declaration` |
 | `WARN003` | warning | once per feature category and output file | Unsupported metadata/comment discarded | `source`, `destination` |
 | `WARN004` | warning | once per sequence path | Native implicit sequences concatenate without explicit merge | `source`, `path` |
@@ -210,7 +210,7 @@ Each code below lists the situations the specification maps to it (Appendix B).
 
 ### `WARN001` — Missing input or scheme file
 
-*warning, once per missing CLI path.*
+*warning, once per missing-file occurrence on the command line.*
 
 - Missing CLI input/scheme path
 
