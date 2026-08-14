@@ -2994,7 +2994,7 @@ The `rule` member is an array of Appendix A canonical wildcard-rule names, holdi
 
 **Which members a condition supplies.** The field list below is the set of members a *code* may carry. A code covers several conditions, and they do not all carry the same members, so the list alone does not determine any one diagnostic. Each member is supplied when the condition itself has the fact that member names, and omitted otherwise:
 
-- `source` — the condition arises at one identifiable input, scheme, or command-line origin, and names that origin;
+- `source` — the condition arises at one identifiable input or scheme file, and names that file. A condition arising inside a command-line variable supplies no `source`, and therefore no `line` or `column`, for the reason Section 8.1 gives: a variable is not a file, and a synthetic name in this member would be indistinguishable from a real one. Such a condition identifies the variable in its `message` instead, by the variable's one-based position in `-v` token order;
 - `line` — the condition further names one physical record within that origin;
 - `column` — the condition further names one position within that record. A condition about a whole record, such as one raised over a compiled declaration or a wildcard rule rather than over the text that produced it, supplies `line` without `column` rather than inventing a precision it does not have;
 - `path` — the condition concerns one overlay node or one projected output key, and names its Appendix A canonical spelling;

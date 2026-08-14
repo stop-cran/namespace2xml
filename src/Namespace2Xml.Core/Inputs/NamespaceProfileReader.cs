@@ -116,8 +116,9 @@ public static class NamespaceProfileReader
                         DiagnosticCodes.Parse001(
                             DiagnosticPhase.Input,
                             "\u00A78.1",
-                            "this record is neither a comment nor a mask and has no separating '=', "
-                            + "so Section 8.1 rule 5 makes it a parse error.",
+                            source.Say(
+                                "this record is neither a comment nor a mask and has no "
+                                + "separating '=', so Section 8.1 rule 5 makes it a parse error."),
                             cardinalityKey: source.SourceKey,
                             source: source.File,
                             line: source.LineOf(record.Line),
@@ -382,7 +383,7 @@ public static class NamespaceProfileReader
             ? DiagnosticCodes.Wildcard001(
                 DiagnosticPhase.Input,
                 "\u00A78.2",
-                fault.Message,
+                source.Say(fault.Message),
                 cardinalityKey: source.RecordKey(line),
                 source: source.File,
                 line: source.LineOf(line),
@@ -390,7 +391,7 @@ public static class NamespaceProfileReader
             : DiagnosticCodes.Parse001(
                 DiagnosticPhase.Input,
                 "\u00A78.2",
-                fault.Message,
+                source.Say(fault.Message),
                 cardinalityKey: source.SourceKey,
                 source: source.File,
                 line: source.LineOf(line),
@@ -412,7 +413,7 @@ public static class NamespaceProfileReader
             ValueFaultKind.Reference => DiagnosticCodes.Reference001(
                 DiagnosticPhase.Input,
                 "\u00A78.4",
-                fault.Message,
+                source.Say(fault.Message),
                 cardinalityKey: source.RecordKey(line),
                 source: source.File,
                 line: source.LineOf(line),
@@ -420,7 +421,7 @@ public static class NamespaceProfileReader
             ValueFaultKind.Wildcard => DiagnosticCodes.Wildcard001(
                 DiagnosticPhase.Input,
                 "\u00A78.3",
-                fault.Message,
+                source.Say(fault.Message),
                 cardinalityKey: source.RecordKey(line),
                 source: source.File,
                 line: source.LineOf(line),

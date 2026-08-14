@@ -310,8 +310,9 @@ public sealed class SourceLoader
                 DiagnosticCodes.Parse001(
                     DiagnosticPhase.Input,
                     "\u00A78.1",
-                    $"variable {position} is a comment record, and Section 8.1 accepts ordinary "
-                    + "entries and permanent '!' masks as variables but not comment records.",
+                    origin.Say(
+                        "this is a comment record, and Section 8.1 accepts ordinary entries "
+                        + "and permanent '!' masks as variables but not comment records."),
                     cardinalityKey: origin.Key("kind")),
                 key));
             return null;

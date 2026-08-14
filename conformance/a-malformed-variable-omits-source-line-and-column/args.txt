@@ -1,0 +1,7 @@
+-i
+inputs/in.txt
+-s
+schemes/main.txt
+-v
+cfg.ok=1
+no-equals-here

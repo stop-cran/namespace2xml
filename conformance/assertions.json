@@ -1077,6 +1077,7 @@
       "assertions": [],
       "fixtures": [
         "a-literal-asterisk-in-an-ordinary-value-reaches-the-output",
+        "a-malformed-variable-omits-source-line-and-column",
         "namespace-parse001-classification-and-literal-star"
       ]
     },

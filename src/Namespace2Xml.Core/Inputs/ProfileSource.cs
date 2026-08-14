@@ -20,7 +20,11 @@ namespace Namespace2Xml.Inputs;
 /// </remarks>
 /// <param name="File">The Section 6.4.3 <c>source</c> member, or <c>null</c> for a variable.</param>
 /// <param name="Identity">The distinct name this source is keyed by, never <c>null</c>.</param>
-public sealed record ProfileSource(string? File, string Identity)
+/// <param name="VariablePosition">
+/// The one-based <c>-v</c> position when this source is a command-line variable, otherwise
+/// <c>null</c>.
+/// </param>
+public sealed record ProfileSource(string? File, string Identity, int? VariablePosition = null)
 {
     /// <summary>A source read from an input or scheme file.</summary>
     /// <param name="path">The path as diagnostics report it.</param>
@@ -37,8 +41,23 @@ public sealed record ProfileSource(string? File, string Identity)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(position);
 
-        return new ProfileSource(null, $"-v[{position}]");
+        return new ProfileSource(null, $"-v[{position}]", position);
     }
+
+    /// <summary>
+    /// The message a diagnostic from this source carries, identified as Section 8.1 requires.
+    /// </summary>
+    /// <param name="message">The condition's own prose.</param>
+    /// <remarks>
+    /// A variable "omits <c>source</c>, and therefore also omits <c>line</c> and <c>column</c>",
+    /// so the members that would locate a file's diagnostic are all absent and the message is the
+    /// only place left to say which argument failed. Section 8.1 identifies it "by its one-based
+    /// position in <c>-v</c> token order", spelled here as the <see cref="Identity"/> the whole
+    /// tool uses. A file needs no prefix: its members already say where it is, and prefixing them
+    /// would restate what the reader can see.
+    /// </remarks>
+    public string Say(string message) =>
+        VariablePosition is null ? message : $"{Identity}: {message}";
 
     /// <summary>The line to report, which is nothing when there is no file to report it against.</summary>
     /// <param name="line">The one-based line within this source.</param>

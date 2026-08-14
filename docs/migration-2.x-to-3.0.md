@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r82+d14276a475ae`.**
+**Contract bundle `r83+f0996880aeb3`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (165)
+## Observable differences (166)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -419,6 +419,27 @@ implemented, its case says so plainly rather than letting the heading imply othe
   per environment gets a missing file in one environment and a present one in another, with no
   diagnostic to attribute the difference to. Reported as issue 79, whose finding was that the
   silence, not the file, is what makes the two spellings of one typo behave differently.
+
+### `a-malformed-variable-omits-source-line-and-column`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 8.1's rule that "a diagnostic reporting a condition inside a command-line
+  variable omits `source`, and therefore also omits `line` and `column`", because "the Section
+  6.4.3 `source` member names an input or scheme file, and a variable is neither; a synthetic file
+  name there would be indistinguishable from a real one". The variable "is identified in the
+  diagnostic's message by its one-based position in `-v` token order".
+- Legacy observation: the baseline reports `Error parsing input: Unexpected end of input reached,
+  file: <command line>, line: 1, column: 15` and exits 1.
+- Clean behavior: the run reports one `PARSE001` in the input phase carrying no `source`, no
+  `line` and no `column`, and exits 1.
+- Why the difference is intentional: `<command line>` is exactly the synthetic file name Section
+  8.1 rules out. A consumer reading the baseline's stream cannot tell that string from a real path
+  without knowing the convention, and `line: 1, column: 15` locates the fault inside a file that
+  does not exist. The location members are also the wrong instrument here: with two `-v` tokens the
+  baseline's `line: 1` is true of both, so the one thing the reader needs — which argument failed —
+  is the one thing the message does not say. 3.0 drops all three members, which makes the absence
+  of a file explicit rather than simulated, and names the argument as `-v[2]` in the message
+  instead.
 
 ### `a-missing-scheme-reference-is-blocking`
 
