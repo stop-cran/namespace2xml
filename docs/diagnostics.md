@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r85+982346ceb170`.** 36 codes.
+**Contract bundle `r86+1e96658137f2`.** 36 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -36,7 +36,7 @@ by preference.
 | `REFERENCE004` | error | once per reachable owning value | Ambiguous reference alias | `source`, `line`, `column`, `path` |
 | `REFERENCE005` | error | once per reachable owning value | Non-scalar reference target | `source`, `line`, `column`, `path` |
 | `TYPE001` | error | once per path and applicable source/output instance | Invalid shape, input merge conflict, root removal, or transformation target | `source`, `line`, `column`, `path`, `declaration`, `destination` |
-| `TYPE002` | warning | once per path and output instance | Shape conflict resolved by precedence | `source`, `path`, `destination` |
+| `TYPE002` | warning | once per projected path and destination | Shape conflict resolved by precedence | `source`, `path`, `destination` |
 | `FLAT001` | error | once per projected key and output instance | Distinct logical paths collide after output projection or normalization | `path`, `destination` |
 | `SHELL001` | error | once per projected key and output instance | Invalid quoted-namespace shell identifier | `path`, `destination` |
 | `XML001` | error | once per failing document | DTD, external entity/resource, or prohibited XML feature | `source`, `line`, `column` |
@@ -144,7 +144,7 @@ Each code below lists the situations the specification maps to it (Appendix B).
 
 ### `TYPE002` — Shape conflict resolved by precedence
 
-*warning, once per path and output instance.*
+*warning, once per projected path and destination.*
 
 - Exclusive-shape projection omits a scalar or container contribution
 

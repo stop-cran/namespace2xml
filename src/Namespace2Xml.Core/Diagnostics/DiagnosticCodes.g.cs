@@ -70,7 +70,7 @@ public static partial class DiagnosticCodes
             "Invalid shape, input merge conflict, root removal, or transformation target",
             ["source", "line", "column", "path", "declaration", "destination"]),
         new DiagnosticCodeInfo("TYPE002", DiagnosticSeverity.Warning,
-            "once per path and output instance",
+            "once per projected path and destination",
             "Shape conflict resolved by precedence",
             ["source", "path", "destination"]),
         new DiagnosticCodeInfo("FLAT001", DiagnosticSeverity.Error,
@@ -439,11 +439,11 @@ public static partial class DiagnosticCodes
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
-    /// <param name="cardinalityKey">Identity of the path and output instance this is emitted once per.</param>
+    /// <param name="cardinalityKey">Identity of the projected path and destination this is emitted once per.</param>
     /// <param name="source">Section 6.4.3 <c>source</c> member.</param>
     /// <param name="path">Section 6.4.3 <c>path</c> member.</param>
     /// <param name="destination">Section 6.4.3 <c>destination</c> member.</param>
-    /// <remarks>Cardinality: once per path and output instance.</remarks>
+    /// <remarks>Cardinality: once per projected path and destination.</remarks>
     public static DiagnosticOccurrence Type002(
         DiagnosticPhase phase,
         string spec,

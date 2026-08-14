@@ -475,6 +475,7 @@
       "fixtures": [
         "a-cross-format-collision-replaces-the-earlier-plan",
         "a-destination-fold-keeps-every-contribution-type",
+        "a-fold-creates-a-shape-conflict-no-contribution-has",
         "a-refused-fold-is-reported-once-per-destination",
         "a-replaced-destination-keeps-the-high-water-mark",
         "a-replacement-keeps-the-mark-of-a-path-it-does-not-name",

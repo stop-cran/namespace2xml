@@ -1,0 +1,4 @@
+a.output=json
+a.filename=out.json
+b.output=json
+b.filename=out.json

@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "fe54b48658baccecfa36ebb4f15ef143d47fcce92bdd1ccf9c51aa9097997e01"
+    "sha256": "7b4ec6e4b0815a52e93befc701373d76e4b83154b070a4dd01eb4b433e2231c0"
   },
   "authoritativeFor": [
     "code",
@@ -209,7 +209,7 @@
     {
       "code": "TYPE002",
       "severity": "warning",
-      "cardinality": "once per path and output instance",
+      "cardinality": "once per projected path and destination",
       "condition": "Shape conflict resolved by precedence",
       "fields": [
         "source",

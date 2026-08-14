@@ -1,0 +1,4 @@
+[
+{"code":"TYPE002","severity":"warning","phase":"planning","path":"x","destination":"out.json"},
+{"code":"WARN005","severity":"warning","phase":"planning","destination":"out.json"}
+]
