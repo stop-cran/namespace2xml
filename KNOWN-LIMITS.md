@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r89+10f1edf78c95`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r90+e172e0ba4d2a`. Dated 2026-08.**
 
 This file tracks the branch, and the branch runs ahead of the last published preview:
 `3.0.0-preview.3` carries `r44+a91f25bf49ec`, `3.0.0-preview.2` carries `r37+2d644be6926e`, and
@@ -784,11 +784,16 @@ Mixed content is **not** affected: `<a>x<!--c-->y</a>` gives every run its own o
 the comment keeps its place. Nor is a comment among element-only children. The limit is confined to
 an element holding exactly one text run and at least one comment.
 
+The exposed run still consumes the index it would have occupied, so the comments beside it keep the
+values they would otherwise have had and a directive written against the gap matches nothing:
+`<a><!--c-->1<!--d--></a>` addresses its comments as `a.#0` and `a.#2`, and `a.#1` emits `WARN009`.
+
 Lifting it means carrying an ordering value for the exposed scalar through the overlay beside its
 payload, so that a later contribution replacing the value does not inherit the position of the value
 it replaced. That is a change to the shared node marks rather than to the XML writer, which is why
-it is not in 3.0. Pinned by `an-xml-comment-is-written-after-the-value-it-sits-beside`, so the
-behaviour cannot drift while the limit stands.
+it is not in 3.0. Pinned by `an-xml-comment-is-written-after-the-value-it-sits-beside` and
+`xml-an-exposed-scalar-consumes-its-content-token-index`, so the behaviour cannot drift while the
+limit stands.
 
 ## 2. Acceptance coverage
 

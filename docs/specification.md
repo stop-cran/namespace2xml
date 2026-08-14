@@ -1177,6 +1177,8 @@ Inside `Q{...}`, a backslash followed by any character other than `}` or backsla
 
 Every XML parent assigns stable content-token ordering values across all child elements, text, CDATA, and comments, including element-only parents. Element-only children retain ordinary element-name addressing while also carrying their content-token ordering value for deterministic placement. A comment in `<a><b/><!--c--><d/></a>` is therefore addressed as `a.#1`.
 
+One content node stands outside that addressing. An element with no child elements and exactly one non-comment text or CDATA node exposes that run as the scalar at the element path rather than as a content node, under the scalarization rule below, so the run is not addressable as `#n` and the scalar the overlay carries at the element path holds no ordering value of its own. The index the run would have occupied is consumed rather than reassigned: in `<a><!--c-->1<!--d--></a>` the comments are `a.#0` and `a.#2`, while `a.#1` matches nothing and a directive written against it emits `WARN009`. Section 19.5 states what the absent ordering value costs — such a comment cannot be placed relative to the value and is written after it — and `KNOWN-LIMITS.md` records that limit. The exception is stated here because the general rule above is otherwise read as promising that the position survives, which for this one shape it does not.
+
 Example:
 
 ```xml
