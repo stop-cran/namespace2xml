@@ -35,6 +35,25 @@ independently.
   trusted name. Verified against `3.0.0-preview.4`, which passes, and proven able to fail by judging
   the published `3.0.0-preview.3` package with the current corpus.
 
+- **A fixture for the five §8.3 value escapes that had none.** §8.3 defines six escapes inside an
+  interpreted namespace value, and only `\*` was pinned. `a-namespace-value-decodes-every-section-8-3-escape`
+  covers `\\`, `\${`, `\n`, `\r`, `\t` and the unrecognized-sequence rule, with the expected file
+  composed from §8.3 and §6.4.3's JSON string escapes rather than captured.
+
+  The consequence reached readers, not just the corpus. `docs/migration-2.x-to-3.0.md` is generated
+  from the fixtures, so an escape with no fixture cannot appear in the migration guide — and these
+  five are the ones a 2.x profile is most likely to contain already. `a\nb` used to deliver a
+  backslash and the letter `n` and now delivers a line feed, with no diagnostic and a valid output
+  either way.
+
+### Fixed
+
+- **A legacy claim that measurement contradicts.** The `\*` case asserted that 2.4.0 decoded `\\`
+  and the C-style whitespace escapes and passed other backslashes through. Measured against the
+  pinned baseline, it decoded none of the six, and `\${` still opened a reference. The claim was
+  recalled rather than measured, and because the migration guide is generated from these notes it
+  told migrating readers that escapes they rely on already worked in 2.4.0.
+
 ## [3.0.0-preview.4] - 2026-08-14
 
 ### Contract
