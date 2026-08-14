@@ -800,8 +800,8 @@ limit stands.
 Resolved by [#90 (closed)](https://github.com/stop-cran/namespace2xml/issues/90), and present in
 `3.0.0-preview.3`. Where a JSON or YAML document wrote a mapping at a path and a **later** document
 wrote a sequence there, §17.1 kept the later container and the run then also raised `WARN010`
-against the first document — naming it as having written a mapping "whose keys are all canonically
-numeric" whatever its keys actually were, and offering `type=mapping` to undo a §8.7 inference that
+against the first document — naming it as having written a mapping whose keys were all canonically
+numeric, whatever its keys actually were, and offering `type=mapping` to undo a §8.7 inference that
 never ran. Every factual clause of the message was false for that input.
 
 The warning is advisory, so nothing was mis-rendered; what it cost was the diagnostic's credibility

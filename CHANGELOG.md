@@ -901,6 +901,55 @@ independently.
   the index cannot silently miss the package, or land at a path its relative links do not
   resolve to.
 
+### Fixed
+
+- **The legacy differential lane confirmed exactly the claims it could not test.** The harness
+  never checked that the pinned 2.4.0 baseline could start. Where the required .NET 9 runtime is
+  absent the host exits without writing anything, and a baseline that produces nothing diverges
+  from *every* case — so it failed each fixture claiming `agrees` and **confirmed** each one
+  claiming `differs` or `crashes`. The failure list it produced was plausible, and acting on it by
+  flipping the verdicts it named would have turned the whole corpus green while measuring nothing.
+  `LegacyBaseline.RequiredRuntimeMajor` had been declared, documented as performing this check, and
+  never wired up. The lane now establishes the runtime in `OneTimeSetUp` and refuses to observe a
+  baseline it cannot launch; Appendix C.6 states the rule, because a harness that reports a missing
+  runtime as a divergence is not measuring the baseline. Verified by observation rather than by
+  mutation — the development workstation genuinely lacks .NET 9, so the gate fires against the real
+  package.
+
+- **A conformance verdict claimed a divergence nobody can observe.**
+  `a-malformed-variable-omits-source-line-and-column` recorded `differs` on the strength of a
+  diagnostic's wording, which Appendix C.6 excludes: a verdict is "a claim about the observable
+  result — the output tree and the exit code — and nothing else". The baseline produces the same
+  tree and the same exit code, so the case `agrees`, and the correction the replacement makes is
+  argued in the prose where the other message-level corrections already live.
+
+- **`WARN010` was raised for a mapping nothing inferred.** §3.2 scopes the warning to "a JSON or
+  YAML mapping inferred at step 11 [that] remains projected as a sequence". Step 17 tested the
+  rendered shape instead, reasoning that §8.7 inference is the only thing that can make a node some
+  document wrote as an object render as a sequence. §17.1's shape contest does it too, on the
+  strength of a different contribution — so where a JSON mapping and a later JSON array met at one
+  path, the run named the file that wrote the mapping, told its author that its keys were all
+  canonically numeric whatever they were, and offered `type=mapping` to undo an inference that never
+  ran. Every factual clause of the message was false, on precisely the case where a reader most
+  needs it. Step 11 now discards the provenance at a node it declined to infer, so the surviving
+  record means *inferred* rather than *written as an object*. Pinned by
+  `warn010-is-not-owed-when-a-sequence-wins-the-shape-contest`, which asserts the whole diagnostic
+  stream rather than one record: the defect was an extra warning, and only a stream assertion can
+  fail on an extra.
+  **Closes [#90](https://github.com/stop-cran/namespace2xml/issues/90).**
+
+### Changed
+
+- **§11.4 now says what the exposed scalar costs.** The section stated that every XML parent
+  assigns content-token ordering values "across all child elements, text, CDATA, and comments",
+  while §19.5 separately described the one content node that falls outside that addressing. Read
+  together they contradicted each other. The exception is now stated where the general rule is,
+  including the part neither section said: the exposed run **consumes** the index it would have
+  occupied rather than having it reassigned, so `<a><!--c-->1<!--d--></a>` addresses its comments
+  as `a.#0` and `a.#2` and a directive written against `a.#1` matches nothing and emits `WARN009`.
+  Pinned by `xml-an-exposed-scalar-consumes-its-content-token-index`; tracked for 3.1 as
+  [#91](https://github.com/stop-cran/namespace2xml/issues/91).
+
 ## [3.0.0-preview.3] - 2026-08-11
 
 ### Contract
