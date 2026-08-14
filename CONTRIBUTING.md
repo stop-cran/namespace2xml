@@ -551,6 +551,31 @@ only worth printing if the URL serves bytes that hash to that value. It fetches 
 the tool points at and compares. A release whose contract identity cannot be resolved is worse than
 no release, because a report filed against it cannot be acted on.
 
+### 9.2 Preparing the tag
+
+The tag is the only irreversible step, so everything the tag will bake in has to be right in the
+commit it points at. In order:
+
+1. **Roll `CHANGELOG.md`.** Rename `## [Unreleased]` to `## [<version>] - <date>`, give it a
+   `### Contract` line naming the bundle revision, and open a fresh empty `## [Unreleased]` above
+   it. The workflow extracts the section between this version's heading and the next and **refuses
+   to publish a release with empty notes**, so a missing section fails the tag rather than shipping
+   a blank release.
+2. **Bump `<Version>` in `Directory.Build.props`.** The workflow refuses a tag that does not match
+   it exactly.
+3. **Update the two fixtures that pin the version literally** — `conformance/cli-version` and
+   `conformance/cli-informational-in-value-position`. Both assert that `--version` reports the
+   version and pins every documentation link to `v<version>` rather than to `master`. Appendix C.5
+   closes the placeholder set, so there is deliberately no `${version}`: the expected text is
+   written out, and updating it is part of cutting the release. Forgetting this fails
+   `dotnet test`, which is the point.
+4. **Update the published-bundle list in the `KNOWN-LIMITS.md` preamble.** Readers use it to decide
+   whether an entry marked *(resolved)* applies to the binary they are running, and an entry that
+   names no bundle cannot answer that.
+5. **Run the full loop, push the commit, and wait for CI to be green.** The tag builds the same
+   commit; discovering a failure after the tag is pushed costs a version number, permanently.
+6. **Then tag.**
+
 ---
 
 ## 10. Promotion restraint

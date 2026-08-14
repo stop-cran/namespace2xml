@@ -2,8 +2,9 @@
 
 **Describes the `v3` branch at contract bundle `r90+e172e0ba4d2a`. Dated 2026-08.**
 
-This file tracks the branch, and the branch runs ahead of the last published preview:
-`3.0.0-preview.3` carries `r44+a91f25bf49ec`, `3.0.0-preview.2` carries `r37+2d644be6926e`, and
+This file tracks the branch, and the branch normally runs ahead of the last published preview:
+`3.0.0-preview.4` carries `r90+e172e0ba4d2a`, `3.0.0-preview.3` carries `r44+a91f25bf49ec`,
+`3.0.0-preview.2` carries `r37+2d644be6926e`, and
 `3.0.0-preview.1` carries `r30+35e144372ca0`. Where an entry is marked *(resolved)* the fix may be
 absent from the binary you are running. Compare the `contract-bundle` line of `--version` against the revision
 above before concluding an entry does or does not apply to you — an entry marked *(resolved)* is a

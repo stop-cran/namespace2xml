@@ -13,6 +13,12 @@ independently.
 
 ## [Unreleased]
 
+## [3.0.0-preview.4] - 2026-08-14
+
+### Contract
+
+- `contract-bundle` `r90+e172e0ba4d2a`.
+
 ### Added
 
 - **`inioutputoptions=GlobalSection`, and `WARN012` on an unguarded preamble.** §19.6 projects a
@@ -1587,6 +1593,7 @@ defines**, end to end. `3.0.0-preview.1` read namespace profiles only.
 |---|---|---|---|---|
 | 1 | 2026-08 | Initial: ownership chain, rules C1–C6, four-route feedback protocol, two worked examples. | — | — |
 | 2 | 2026-08 | Rule C7, evidence must be able to fail; §7 judgment list for specializing a foreign document and pinning depended-on behaviour. | — | Gate verification work that found three kinds of false survivor in the mutation harness. |
+| 3 | 2026-08 | §9.2, the pre-tag checklist: what a release commit must contain, in what order, and why the two version-pinning fixtures are updated by hand. | — | Cutting `3.0.0-preview.4`, where those fixtures failed after the version bump and nothing in the repository recorded that they existed. |
 
 ## 2.x
 
