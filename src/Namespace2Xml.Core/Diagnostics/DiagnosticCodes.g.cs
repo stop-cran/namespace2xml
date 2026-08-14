@@ -93,6 +93,10 @@ public static partial class DiagnosticCodes
             "once per path and output instance",
             "Value or name unsupported by `PortableIni1` options",
             ["path", "destination"]),
+        new DiagnosticCodeInfo("NAMESPACE001", DiagnosticSeverity.Error,
+            "once per path and output instance",
+            "Value unsupported by the namespace destination's options",
+            ["path", "destination"]),
         new DiagnosticCodeInfo("COLLISION001", DiagnosticSeverity.Error,
             "once per rejected contribution after the first",
             "`filemerge=error` rejects a second contribution to one destination",
@@ -161,6 +165,10 @@ public static partial class DiagnosticCodes
             "once per output instance",
             "INI output emits a global-key preamble, which a reader requiring a section header will refuse",
             ["destination"]),
+        new DiagnosticCodeInfo("WARN013", DiagnosticSeverity.Warning,
+            "once per path and output instance",
+            "Namespace output writes a value ending in a space under `AllowTrailingWhitespace`",
+            ["path", "destination"]),
     ];
 
     /// <summary><c>CLI001</c> (error) — Invalid command line or option value.</summary>
@@ -551,6 +559,24 @@ public static partial class DiagnosticCodes
         Create("INI001", DiagnosticSeverity.Error, phase, spec, message,
             cardinalityKey, path: path, destination: destination);
 
+    /// <summary><c>NAMESPACE001</c> (error) — Value unsupported by the namespace destination's options.</summary>
+    /// <param name="phase">Emission phase of this occurrence.</param>
+    /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
+    /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
+    /// <param name="cardinalityKey">Identity of the path and output instance this is emitted once per.</param>
+    /// <param name="path">Section 6.4.3 <c>path</c> member.</param>
+    /// <param name="destination">Section 6.4.3 <c>destination</c> member.</param>
+    /// <remarks>Cardinality: once per path and output instance.</remarks>
+    public static DiagnosticOccurrence Namespace001(
+        DiagnosticPhase phase,
+        string spec,
+        string message,
+        string cardinalityKey,
+        string? path = null,
+        string? destination = null) =>
+        Create("NAMESPACE001", DiagnosticSeverity.Error, phase, spec, message,
+            cardinalityKey, path: path, destination: destination);
+
     /// <summary><c>COLLISION001</c> (error) — `filemerge=error` rejects a second contribution to one destination.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
@@ -850,4 +876,22 @@ public static partial class DiagnosticCodes
         string? destination = null) =>
         Create("WARN012", DiagnosticSeverity.Warning, phase, spec, message,
             cardinalityKey, destination: destination);
+
+    /// <summary><c>WARN013</c> (warning) — Namespace output writes a value ending in a space under `AllowTrailingWhitespace`.</summary>
+    /// <param name="phase">Emission phase of this occurrence.</param>
+    /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
+    /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
+    /// <param name="cardinalityKey">Identity of the path and output instance this is emitted once per.</param>
+    /// <param name="path">Section 6.4.3 <c>path</c> member.</param>
+    /// <param name="destination">Section 6.4.3 <c>destination</c> member.</param>
+    /// <remarks>Cardinality: once per path and output instance.</remarks>
+    public static DiagnosticOccurrence Warn013(
+        DiagnosticPhase phase,
+        string spec,
+        string message,
+        string cardinalityKey,
+        string? path = null,
+        string? destination = null) =>
+        Create("WARN013", DiagnosticSeverity.Warning, phase, spec, message,
+            cardinalityKey, path: path, destination: destination);
 }

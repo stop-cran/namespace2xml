@@ -1631,6 +1631,7 @@ Recognized compatibility directives are:
 - `yamlinputoptions`;
 - `yamloutputoptions`;
 - `inioutputoptions`;
+- `namespaceoutputoptions`;
 - `merge`;
 - `filemerge`.
 
@@ -2145,6 +2146,24 @@ For every output-options directive, the later complete directive replaces the ea
 
 Flag names are case-insensitive and surrounding whitespace is ignored, as for the comma-separated values of Section 16.1. Naming both flags of a contradictory pair in one declaration is `SCHEME001`; naming neither selects that group's default rather than leaving the group unset, because every flag group governs a decision the serializer has to make.
 
+#### Namespace
+
+```text
+[selector.]namespaceoutputoptions=AllowTrailingWhitespace
+```
+
+The initial portable options are:
+
+- `AllowTrailingWhitespace`.
+
+Default: no flag, under which Section 19.1 refuses an entry whose value ends in a space.
+
+`AllowTrailingWhitespace` belongs to no exclusive pair. Its absence is not a choice between two spellings of one decision but the format's stated default, in the same way as `QuoteValues` below.
+
+The flag relaxes the Section 24 byte rule for one destination and is the only thing in this specification that does. It exists because Section 8.1 preserves a value's trailing spaces on read and Section 8.3 gives values no escape for them, so this format can carry a value it cannot write: an author whose consumer is a program rather than a repository can select the flag and get the bytes, and every value it lets through is reported as `WARN013`.
+
+This directive governs the `namespace` destination only. Section 19.2 writes every quoted-namespace value inside single quotes, so no `quotednamespace` line ends in a value's own whitespace and the decision does not arise there. Declaring it against an output instance that produces no namespace file is `WARN009` under the ordinary rule for a directive that binds to nothing.
+
 #### XML
 
 ```text
@@ -2467,6 +2486,12 @@ Values use the inverse of the namespace value lexer:
 - literal reference start as `\${`.
 
 Physical output entries are always one line. Multiline scalar data is represented through escapes, never literal record-breaking line terminators.
+
+An entry whose emitted value ends in a space is refused. The condition is blocking `NAMESPACE001`, naming the path and the destination, and is anchored here. Under `namespaceoutputoptions=AllowTrailingWhitespace` the entry is written with its trailing space intact and the condition is `WARN013` instead, at the same cardinality.
+
+Only a space reaches this rule. A TAB is emitted as `\t` by the escape list above, so no entry ends in a literal TAB, and Section 8.3 gives values no `\u{HEX}` form, so a trailing space has no escaped spelling to fall back on. Refusing the entry is therefore the only way to keep the Section 24 byte rule while writing this format at all, and the remedy is a format that quotes: Section 19.2 writes `NAME='value  '` and preserves the value exactly, which is what `QuoteValues` does for INI under Section 19.6. Section 24 states why the rule names a space and a TAB rather than every character carrying the Unicode `White_Space` property; a value ending in U+00A0 or U+3000 is written literally here and read back unchanged.
+
+Leading whitespace in a value is not refused. Section 8.1 takes every character after the separating `=` as the value, so a leading space is unambiguous on re-read and ends no line. INI refuses leading and trailing whitespace alike under Section 19.6 because INI readers trim both; this format trims neither, so only the byte rule constrains it.
 
 Comments are emitted as normalized `# comment` lines where their association can be represented. Where it cannot, the comment is converted to the nearest position the format does represent rather than discarded: an inline comment becomes a full-line comment immediately before the key it was attached to, and a document-trailing comment is emitted at end of file. This is the same normalization Section 20 states for INI, and for the same reason — the flat formats carry only full-line comments, so conversion is the only way a comment survives at all, and a comment that moves a line is a smaller loss than one that disappears. Nothing here is `WARN003`, because no concept is discarded.
 
@@ -3035,6 +3060,7 @@ Blocking errors include:
 - invalid XML name or unbound namespace;
 - invalid shell identifier;
 - unsupported INI value under the chosen dialect;
+- namespace value that cannot be written without ending its line in a space;
 - destination collision rejected by `filemerge=error`;
 - resource-limit violation;
 - output rendering or publication failure.
@@ -3052,7 +3078,8 @@ Warnings include:
 - processing instruction discarded;
 - normalized XML whitespace discarded;
 - native JSON/YAML numeric mapping inferred as a sequence;
-- scheme directive binds to no concrete output instance or survives only beneath an ignored ancestor.
+- scheme directive binds to no concrete output instance or survives only beneath an ignored ancestor;
+- namespace value written with a trailing space by explicit option.
 
 Warnings do not change the success exit code.
 
@@ -3079,6 +3106,7 @@ The normative diagnostic registry is:
 | `XML001` | error | DTD, external entity/resource, or prohibited XML feature | once per failing document |
 | `XML002` | error | Invalid XML name, namespace, declaration, or canonical address | once per failing node or document |
 | `INI001` | error | Value or name unsupported by `PortableIni1` options | once per path and output instance |
+| `NAMESPACE001` | error | Value unsupported by the namespace destination's options | once per path and output instance |
 | `COLLISION001` | error | `filemerge=error` rejects a second contribution to one destination | once per rejected contribution after the first |
 | `SERIALIZE001` | error | Output view cannot be serialized under the selected format/options | once per output instance |
 | `PATH001` | error | Invalid, escaping, or insecure output path | once per destination |
@@ -3096,8 +3124,9 @@ The normative diagnostic registry is:
 | `WARN010` | warning | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | once per source contribution, canonical mapping path, and output instance |
 | `WARN011` | warning | Later unmarked contribution aliases an existing XML component instead of overriding it | once per canonical path |
 | `WARN012` | warning | INI output emits a global-key preamble, which a reader requiring a section header will refuse | once per output instance |
+| `WARN013` | warning | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | once per path and output instance |
 
-`TYPE001` includes a bare scalar selected for XML without a configured `root`, and a bare scalar selected by the empty root selector for namespace, quoted namespace, or INI, which in that case have no concrete selector part to supply a key. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions, and JSON and YAML mapping-key collisions. Ordering-value overflow and every configured non-wildcard resource-bound violation are `LIMIT001`, matching that code's registry condition and Appendix B row; a wildcard fixed-point, candidate, generated-node, or iteration bound is `WILDCARD002`. Malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`.
+`TYPE001` includes a bare scalar selected for XML without a configured `root`, and a bare scalar selected by the empty root selector for namespace, quoted namespace, or INI, which in that case have no concrete selector part to supply a key. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions, and JSON and YAML mapping-key collisions. Ordering-value overflow and every configured non-wildcard resource-bound violation are `LIMIT001`, matching that code's registry condition and Appendix B row; a wildcard fixed-point, candidate, generated-node, or iteration bound is `WILDCARD002`. Malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`. `NAMESPACE001` is more specific than `SERIALIZE001` for a namespace value the destination's options cannot write, and names the path rather than the output instance alone.
 
 A reference cycle is identified by its ordered ring of canonical paths, independent of discovery entry point. Rotate the ring so its lexicographically smallest canonical path under unsigned UTF-8 byte order is first; when the same smallest path appears more than once, choose the lexicographically smallest resulting rotated sequence. Report the chain from that canonical start and close it by repeating the first path.
 
@@ -3219,9 +3248,15 @@ All text outputs:
 - use UTF-8 without a BOM;
 - use LF as the physical line terminator;
 - end with exactly one LF;
-- contain no line ending in a space or a TAB.
+- contain no line ending in a space or a TAB, except where a Section 16.9 output option explicitly relaxes the rule for one destination.
 
-The last of these is not presentational. Trailing whitespace is invisible in every editor, is stripped silently by many of them and by a good deal of tooling, and would therefore be the one class of byte in a specified output that a consumer could destroy without noticing — precisely the outcome the byte rules exist to prevent. It binds the writer only where a rule would otherwise produce it, and there is exactly one such place: a comment whose text is empty is written as its marker alone, with no separating space, in every format that emits comments. A block scalar's content lines are exempt in the only sense that matters, because Section 19.4 does not select the block form for a value whose lines end in whitespace.
+The last of these is not presentational. Trailing whitespace is invisible in every editor, is stripped silently by many of them and by a good deal of tooling, and would therefore be the one class of byte in a specified output that a consumer could destroy without noticing — precisely the outcome the byte rules exist to prevent.
+
+The rule names a space and a TAB rather than every character carrying the Unicode `White_Space` property, because the hazard is what a consumer strips and not what is merely invisible. Widely deployed tooling strips exactly these two: a trailing U+00A0, U+2000, U+202F or U+3000 survives the trailing-whitespace checks and fixups that remove a trailing space. The narrower set is also the one this format already recognizes, since Section 8.1 ignores a record containing only spaces and tabs and trims spaces and tabs before a comment or mask marker; a writer refusing a wider set than its own reader calls whitespace would reject data the format elsewhere treats as ordinary. Whitespace outside this pair is written literally and read back unchanged.
+
+The rule binds the writer wherever a rule would otherwise produce such a line, and there are two such places. A comment whose text is empty is written as its marker alone, with no separating space, in every format that emits comments. A namespace entry whose value ends in a space would end its line in one, and Section 8.3 gives namespace values no `\u{HEX}` form, so no escaped spelling is available to write it another way; Section 19.1 therefore refuses the entry rather than emitting it, and `namespaceoutputoptions=AllowTrailingWhitespace` is the one option that relaxes this rule, warning on every value it lets through. No TAB reaches either place, because Section 19.1 emits a TAB in a value as `\t`.
+
+A block scalar's content lines are exempt in the only sense that matters, because Section 19.4 does not select the block form for a value whose lines end in whitespace.
 
 A text output with no content is zero bytes and satisfies these rules vacuously. The termination rule applies to output that has content, so a single LF is never emitted merely to terminate nothing.
 
@@ -3625,6 +3660,7 @@ An implementation is conforming only when automated black-box tests cover:
 86. The uniform option-token grammar of Section 6.2: the `--name=value` inline form on every long option, the absence of an inline form on short options, a value that is not attached to any option, an option token that ends the argument vector still requiring a value, and `-` as an ordinary value.
 87. Marker-carrying JSON and YAML mapping keys: reading an attribute, content, and qualified-element key, the leading-backslash escape and its suppression of marker recognition, `PARSE001` for a key that begins like a marker without completing it, escaping on output, and an XML → JSON → XML round trip that preserves attributes.
 88. INI global-key framing: `WARN012` on a written preamble and its absence when no global key survives, `GlobalSection` hoisting the global keys into a leading section named `global` that a reader requiring a section header accepts, no empty header when the hoisted section would be empty, and the blocking `FLAT001` when a path of two or more parts already projects to that section.
+89. Namespace trailing-whitespace framing: the blocking `NAMESPACE001` for a value that would end its line in a space, `namespaceoutputoptions=AllowTrailingWhitespace` writing that value intact under `WARN013`, leading whitespace passing unreported in both modes, and whitespace outside the Section 24 pair reaching the output literally.
 
 ## 27. Deferred features
 
@@ -3781,6 +3817,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | DTD, external entity/resource, network retrieval, or prohibited XML feature | `XML001` |
 | Invalid XML name/namespace/canonical address/declaration structure other than byte-encoding disagreement | `XML002` |
 | Value/name/comment cannot be represented by effective `PortableIni1` options | `INI001` |
+| Namespace value ends in a space and no option permits writing it | `NAMESPACE001` |
 | `filemerge=error` rejects a second destination contribution | `COLLISION001` |
 | Final output model cannot be serialized under its selected format/options | `SERIALIZE001` |
 | Invalid, escaping, insecure, traversal, portability-key-colliding, or uncontainable destination path | `PATH001` |
@@ -3799,6 +3836,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | JSON/YAML numeric mapping remains inferred as a sequence | `WARN010` |
 | Later unmarked contribution adds an ordinary component aliasing an existing XML component | `WARN011` |
 | INI output writes a global-key preamble without `GlobalSection` | `WARN012` |
+| Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `WARN013` |
 
 `COLLISION001` has severity error and cardinality once per rejected destination contribution after the first. It is compatibility-stable with the Section 22 registry.
 

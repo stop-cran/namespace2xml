@@ -57,6 +57,7 @@ public class DestinationFoldTests
             Root: null,
             Delimiter: null,
             IniOutput.Default,
+            NamespaceOutput.Default,
             JsonOutput.Default,
             YamlOutput.Default,
             XmlOutput.Default,
@@ -71,6 +72,7 @@ public class DestinationFoldTests
             JsonOptionsDeclaration: null,
             YamlOptionsDeclaration: null,
             XmlOptionsDeclaration: null,
+            NamespaceOptionsDeclaration: null,
             site);
     }
 

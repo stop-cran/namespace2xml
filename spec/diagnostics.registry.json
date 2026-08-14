@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "f5c0549cb27fcd8e31bf77f1dc2b25952dbf811c1d9a1e70ed9198e84e473888"
+    "sha256": "0efddc3071f18a16f169ca38996e04cceb2fc3b0d90d21ea9b3ee83bab131063"
   },
   "authoritativeFor": [
     "code",
@@ -289,6 +289,19 @@
       ]
     },
     {
+      "code": "NAMESPACE001",
+      "severity": "error",
+      "cardinality": "once per path and output instance",
+      "condition": "Value unsupported by the namespace destination's options",
+      "fields": [
+        "path",
+        "destination"
+      ],
+      "mappings": [
+        "Namespace value ends in a space and no option permits writing it"
+      ]
+    },
+    {
       "code": "COLLISION001",
       "severity": "error",
       "cardinality": "once per rejected contribution after the first",
@@ -506,6 +519,19 @@
       ],
       "mappings": [
         "INI output writes a global-key preamble without `GlobalSection`"
+      ]
+    },
+    {
+      "code": "WARN013",
+      "severity": "warning",
+      "cardinality": "once per path and output instance",
+      "condition": "Namespace output writes a value ending in a space under `AllowTrailingWhitespace`",
+      "fields": [
+        "path",
+        "destination"
+      ],
+      "mappings": [
+        "Namespace output writes a value ending in a space under `AllowTrailingWhitespace`"
       ]
     }
   ]

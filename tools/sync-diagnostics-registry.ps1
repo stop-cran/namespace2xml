@@ -82,6 +82,7 @@ $seedFields = @{
     XML001       = @('source', 'line', 'column')
     XML002       = @('source', 'line', 'column', 'path')
     INI001       = @('path', 'destination')
+    NAMESPACE001 = @('path', 'destination')
     COLLISION001 = @('declaration', 'destination')
     SERIALIZE001 = @('destination')
     PATH001      = @('declaration', 'destination')
@@ -99,6 +100,7 @@ $seedFields = @{
     WARN010      = @('source', 'path', 'destination')
     WARN011      = @('source', 'path')
     WARN012      = @('destination')
+    WARN013      = @('path', 'destination')
 }
 
 $codes = foreach ($code in $rows.Keys) {

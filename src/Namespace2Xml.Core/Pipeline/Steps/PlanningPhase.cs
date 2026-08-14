@@ -260,6 +260,7 @@ public static class PlanningPhase
         (InstanceOptionWinner Winner, WildcardCaptures Captures)? root = null;
         (InstanceOptionWinner Winner, WildcardCaptures Captures)? delimiter = null;
         (InstanceOptionWinner Winner, WildcardCaptures Captures)? iniOptions = null;
+        (InstanceOptionWinner Winner, WildcardCaptures Captures)? namespaceOptions = null;
         (InstanceOptionWinner Winner, WildcardCaptures Captures)? jsonOptions = null;
         (InstanceOptionWinner Winner, WildcardCaptures Captures)? yamlOptions = null;
         (InstanceOptionWinner Winner, WildcardCaptures Captures)? xmlOptions = null;
@@ -304,6 +305,14 @@ public static class PlanningPhase
                     if (Later(iniOptions, winner))
                     {
                         iniOptions = (winner, captures);
+                    }
+
+                    break;
+
+                case SchemeDirective.NamespaceOutputOptions:
+                    if (Later(namespaceOptions, winner))
+                    {
+                        namespaceOptions = (winner, captures);
                     }
 
                     break;
@@ -398,6 +407,20 @@ public static class PlanningPhase
                 {
                     IniOptions = value,
                     IniOptionsDeclaration = SiteOf(iniWinner.Winner.Entry),
+                };
+            }
+        }
+
+        if (namespaceOptions is { } namespaceWinner)
+        {
+            if (SchemeCompiler.CompileInstanceOption(
+                    namespaceWinner.Winner, updated.Formats, namespaceWinner.Captures, diagnostics)
+                is NamespaceOutputOptions value)
+            {
+                updated = updated with
+                {
+                    NamespaceOptions = value,
+                    NamespaceOptionsDeclaration = SiteOf(namespaceWinner.Winner.Entry),
                 };
             }
         }
@@ -572,6 +595,11 @@ public static class PlanningPhase
                     : instance.IniOptions,
                 IniOptionsDeclaration =
                     instance.IniOptionsDeclaration ?? accumulated.IniOptionsDeclaration,
+                NamespaceOptions = instance.NamespaceOptionsDeclaration is null
+                    ? accumulated.NamespaceOptions
+                    : instance.NamespaceOptions,
+                NamespaceOptionsDeclaration =
+                    instance.NamespaceOptionsDeclaration ?? accumulated.NamespaceOptionsDeclaration,
                 JsonOptions = instance.JsonOptionsDeclaration is null
                     ? accumulated.JsonOptions
                     : instance.JsonOptions,

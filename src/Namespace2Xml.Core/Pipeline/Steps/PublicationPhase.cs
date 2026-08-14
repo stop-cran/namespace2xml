@@ -161,7 +161,8 @@ public static class PublicationPhase
             return flat == FlatFormat.Ini
                 ? new IniSerializer(view.Instance.IniOptions, diagnostics, destination)
                     .TrySerialize(keyed, writer)
-                : new FlatTextSerializer(flat, delimiter, diagnostics, destination)
+                : new FlatTextSerializer(
+                        flat, delimiter, view.Instance.NamespaceOptions, diagnostics, destination)
                     .TrySerialize(keyed, writer);
         }
 

@@ -52,6 +52,9 @@ public enum SchemeDirective
     /// <summary>Section 16.9.</summary>
     IniOutputOptions,
 
+    /// <summary>Section 16.9.</summary>
+    NamespaceOutputOptions,
+
     /// <summary>Section 16.10.</summary>
     Merge,
 
@@ -112,6 +115,7 @@ public static class SchemeDirectives
             ["yamlinputoptions"] = (SchemeDirective.YamlInputOptions, SchemeAlias.None),
             ["yamloutputoptions"] = (SchemeDirective.YamlOutputOptions, SchemeAlias.None),
             ["inioutputoptions"] = (SchemeDirective.IniOutputOptions, SchemeAlias.None),
+            ["namespaceoutputoptions"] = (SchemeDirective.NamespaceOutputOptions, SchemeAlias.None),
             ["merge"] = (SchemeDirective.Merge, SchemeAlias.None),
             ["filemerge"] = (SchemeDirective.FileMerge, SchemeAlias.None),
         };

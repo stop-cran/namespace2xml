@@ -1,0 +1,5 @@
+cfg.trail=tail  
+cfg.lead=  head
+cfg.tabbed=body	
+cfg.nbsp=body 
+cfg.plain=body

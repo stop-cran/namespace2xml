@@ -57,6 +57,7 @@ public readonly record struct DeclarationSite(string Text, string Source, int Li
 /// <param name="Root">The Section 16.3 wrapping path, or null when content is not wrapped.</param>
 /// <param name="Delimiter">The Section 16.4 delimiter, or null for each format's own default.</param>
 /// <param name="IniOptions">The Section 16.9 INI options, defaulted when undeclared.</param>
+/// <param name="NamespaceOptions">The Section 16.9 namespace options, defaulted when undeclared.</param>
 /// <param name="JsonOptions">The Section 16.9 JSON options, defaulted when undeclared.</param>
 /// <param name="YamlOptions">The Section 16.9 YAML options, defaulted when undeclared.</param>
 /// <param name="XmlOptions">The Section 16.9 XML options, defaulted when undeclared.</param>
@@ -99,6 +100,10 @@ public readonly record struct DeclarationSite(string Text, string Source, int Li
 /// The site of the winning <c>xmloutputoptions</c> declaration, or null when the instance takes the
 /// Section 16.9 defaults, for the same reason as <paramref name="IniOptionsDeclaration"/>.
 /// </param>
+/// <param name="NamespaceOptionsDeclaration">
+/// The site of the winning <c>namespaceoutputoptions</c> declaration, or null when the instance
+/// takes the Section 16.9 defaults, for the same reason as <paramref name="IniOptionsDeclaration"/>.
+/// </param>
 /// <param name="Declaration">
 /// The written text of the winning <c>output</c> declaration, its source, and the line it was
 /// written on. Section 22 supplies a diagnostic's <c>source</c>, <c>line</c>, and
@@ -114,6 +119,7 @@ public sealed record OutputInstance(
     QualifiedName? Root,
     string? Delimiter,
     IniOutputOptions IniOptions,
+    NamespaceOutputOptions NamespaceOptions,
     JsonOutputOptions JsonOptions,
     YamlOutputOptions YamlOptions,
     XmlOutputOptions XmlOptions,
@@ -126,6 +132,7 @@ public sealed record OutputInstance(
     DeclarationSite? JsonOptionsDeclaration,
     DeclarationSite? YamlOptionsDeclaration,
     DeclarationSite? XmlOptionsDeclaration,
+    DeclarationSite? NamespaceOptionsDeclaration,
     DeclarationSite Declaration)
 {
     /// <summary>
@@ -309,6 +316,7 @@ public static class SchemeCompiler
                 case SchemeDirective.Root:
                 case SchemeDirective.Delimiter:
                 case SchemeDirective.IniOutputOptions:
+                case SchemeDirective.NamespaceOutputOptions:
                 case SchemeDirective.JsonOutputOptions:
                 case SchemeDirective.YamlOutputOptions:
                 case SchemeDirective.XmlOutputOptions:
@@ -462,6 +470,13 @@ public static class SchemeCompiler
                 CompileDelimiter(winners, selector, formats, diagnostics),
                 Compile(winners, selector, SchemeDirective.IniOutputOptions, diagnostics, CompileIniOptions)
                     ?? IniOutput.Default,
+                Compile(
+                        winners,
+                        selector,
+                        SchemeDirective.NamespaceOutputOptions,
+                        diagnostics,
+                        CompileNamespaceOptions)
+                    ?? NamespaceOutput.Default,
                 Compile(winners, selector, SchemeDirective.JsonOutputOptions, diagnostics, CompileJsonOptions)
                     ?? JsonOutput.Default,
                 Compile(winners, selector, SchemeDirective.YamlOutputOptions, diagnostics, CompileYamlOptions)
@@ -478,6 +493,7 @@ public static class SchemeCompiler
                 Site(winners, selector, SchemeDirective.JsonOutputOptions),
                 Site(winners, selector, SchemeDirective.YamlOutputOptions),
                 Site(winners, selector, SchemeDirective.XmlOutputOptions),
+                Site(winners, selector, SchemeDirective.NamespaceOutputOptions),
                 new DeclarationSite(
                     winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)));
         }
@@ -534,6 +550,7 @@ public static class SchemeCompiler
             SchemeDirective.Root => CompileRoot(entry, diagnostics),
             SchemeDirective.Delimiter => CompileDelimiterValue(entry, formats, diagnostics),
             SchemeDirective.IniOutputOptions => CompileIniOptions(entry, diagnostics),
+            SchemeDirective.NamespaceOutputOptions => CompileNamespaceOptions(entry, diagnostics),
             SchemeDirective.JsonOutputOptions => CompileJsonOptions(entry, diagnostics),
             SchemeDirective.YamlOutputOptions => CompileYamlOptions(entry, diagnostics),
             SchemeDirective.XmlOutputOptions => CompileXmlOptions(entry, diagnostics),
@@ -799,6 +816,37 @@ public static class SchemeCompiler
             options |= IniOutputOptions.RejectMultiline;
         }
 
+        return options;
+    }
+
+    /// <summary>Section 16.9.</summary>
+    private static NamespaceOutputOptions? CompileNamespaceOptions(
+        SchemeEntry entry,
+        DiagnosticBuffer diagnostics)
+    {
+        var options = NamespaceOutputOptions.None;
+
+        foreach (var name in Split(entry.Value.LiteralText!))
+        {
+            if (!IsName(name)
+                || !Enum.TryParse<NamespaceOutputOptions>(name, ignoreCase: true, out var flag)
+                || !Enum.IsDefined(flag)
+                || flag == NamespaceOutputOptions.None)
+            {
+                Reject(
+                    entry,
+                    diagnostics,
+                    "\u00A716.9",
+                    $"'{name}' is not one of the Section 16.9 namespace output options."
+                    + AcceptedValues.OfFlags<NamespaceOutputOptions>());
+                return null;
+            }
+
+            options |= flag;
+        }
+
+        // Section 16.9 gives this directive no mutually exclusive group, so there is no default to
+        // reapply when a replacement omits a flag, as there is for the INI multiline group.
         return options;
     }
 

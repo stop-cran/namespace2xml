@@ -24,12 +24,14 @@ public sealed class FlatTextSerializer
 {
     private readonly FlatFormat format;
     private readonly string delimiter;
+    private readonly NamespaceOutputOptions options;
     private readonly DiagnosticBuffer diagnostics;
     private readonly DestinationRef? destination;
 
     /// <summary>Creates a serializer.</summary>
     /// <param name="format">Namespace or quoted namespace.</param>
     /// <param name="delimiter">The Section 16.4 delimiter, which reference names inside a value use.</param>
+    /// <param name="options">The Section 16.9 namespace options, which govern the namespace format alone.</param>
     /// <param name="diagnostics">The buffer serialization faults accumulate in.</param>
     /// <param name="destination">The Section 6.4.3 <c>destination</c> this instance writes to.</param>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -38,6 +40,7 @@ public sealed class FlatTextSerializer
     public FlatTextSerializer(
         FlatFormat format,
         string delimiter,
+        NamespaceOutputOptions options,
         DiagnosticBuffer diagnostics,
         DestinationRef? destination = null)
     {
@@ -54,6 +57,7 @@ public sealed class FlatTextSerializer
 
         this.format = format;
         this.delimiter = delimiter;
+        this.options = options;
         this.diagnostics = diagnostics;
         this.destination = destination;
     }
@@ -164,6 +168,15 @@ public sealed class FlatTextSerializer
                 out var encoded,
                 out var fault))
         {
+            // Section 19.1 checks the emitted text rather than the payload, because the escape table
+            // decides what actually reaches the line: a TAB leaves as '\t' and ends it in a letter.
+            if (NamespaceOutput.EndsInForbiddenWhitespace(encoded!)
+                && !ReportTrailingWhitespace(key))
+            {
+                value = null;
+                return false;
+            }
+
             value = encoded!;
             return true;
         }
@@ -171,6 +184,50 @@ public sealed class FlatTextSerializer
         Report(fault.Message);
         value = null;
         return false;
+    }
+
+    /// <summary>
+    /// Reports the Section 19.1 trailing-whitespace condition, and says whether the entry may be
+    /// written anyway.
+    /// </summary>
+    /// <param name="key">The projected key, which Section 22 carries as the diagnostic's path.</param>
+    /// <returns>
+    /// Whether <c>AllowTrailingWhitespace</c> admits the entry, so the caller writes it after a
+    /// <c>WARN013</c> rather than refusing it as <c>NAMESPACE001</c>.
+    /// </returns>
+    /// <remarks>
+    /// Both codes occur "once per path and output instance", so both take the same cardinality key.
+    /// Section 24 relaxes its byte rule only here, and only because Section 8.1 preserves a value's
+    /// trailing spaces on read while Section 8.3 gives values no escape to write them with.
+    /// </remarks>
+    private bool ReportTrailingWhitespace(string key)
+    {
+        var allowed = options.AllowsTrailingWhitespace();
+
+        diagnostics.Add(new BufferedDiagnostic(
+            allowed
+                ? DiagnosticCodes.Warn013(
+                    DiagnosticPhase.Planning,
+                    "\u00A719.1",
+                    $"the value at '{key}' is written with trailing whitespace because "
+                    + "'AllowTrailingWhitespace' is selected, so this line ends in a space that an "
+                    + "editor or a formatter may strip without reporting it.",
+                    cardinalityKey: FlatIdentity.Key(destination?.Canonical, key),
+                    path: key,
+                    destination: destination?.Canonical)
+                : DiagnosticCodes.Namespace001(
+                    DiagnosticPhase.Planning,
+                    "\u00A719.1",
+                    $"the value at '{key}' cannot be written: it ends in whitespace that would end "
+                    + "the line in a space, Section 8.3 gives namespace values no escape for it, and "
+                    + "Section 24 forbids it. Use 'quotednamespace', or select "
+                    + "'namespaceoutputoptions=AllowTrailingWhitespace' to write it anyway.",
+                    cardinalityKey: FlatIdentity.Key(destination?.Canonical, key),
+                    path: key,
+                    destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
+
+        return allowed;
     }
 
     /// <summary>

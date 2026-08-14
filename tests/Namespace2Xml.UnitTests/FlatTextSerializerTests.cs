@@ -55,14 +55,21 @@ public class FlatTextSerializerTests
         return Encoding.UTF8.GetString(writer.Build().ToArray());
     }
 
-    private bool Write(FlatFormat format, OutputBufferWriter writer, params FlatEntry[] entries)
+    private bool Write(FlatFormat format, OutputBufferWriter writer, params FlatEntry[] entries) =>
+        Write(format, NamespaceOutput.Default, writer, entries);
+
+    private bool Write(
+        FlatFormat format,
+        NamespaceOutputOptions options,
+        OutputBufferWriter writer,
+        params FlatEntry[] entries)
     {
         var delimiter = FlatKeyProjector.DefaultDelimiter(format);
         var keyed = new FlatKeyProjector(format, delimiter, diagnostics, new DestinationRef("out.txt", 0)).Project(entries);
 
         keyed.Length.ShouldBe(entries.Length);
 
-        return new FlatTextSerializer(format, delimiter, diagnostics, new DestinationRef("out.txt", 0))
+        return new FlatTextSerializer(format, delimiter, options, diagnostics, new DestinationRef("out.txt", 0))
             .TrySerialize(new FlatKeyedDocument([], keyed, []), writer);
     }
 
@@ -259,7 +266,7 @@ public class FlatTextSerializerTests
     {
         var writer = new OutputBufferWriter(new GlobalBudget(ResourceLimits.Defaults));
 
-        new FlatTextSerializer(FlatFormat.Namespace, ".", diagnostics)
+        new FlatTextSerializer(FlatFormat.Namespace, ".", NamespaceOutput.Default, diagnostics)
             .TrySerialize(new FlatKeyedDocument([], [], []), writer)
             .ShouldBeTrue();
 
@@ -303,5 +310,5 @@ public class FlatTextSerializerTests
     [Test]
     public void TheIniFormatIsRefused() =>
         Should.Throw<ArgumentOutOfRangeException>(() =>
-            new FlatTextSerializer(FlatFormat.Ini, ":", diagnostics));
+            new FlatTextSerializer(FlatFormat.Ini, ":", NamespaceOutput.Default, diagnostics));
 }

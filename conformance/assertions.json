@@ -1406,6 +1406,17 @@
         "ini-global-section-hoists-the-preamble",
         "ini-global-section-writes-no-empty-header"
       ]
+    },
+    {
+      "item": 89,
+      "text": "Namespace trailing-whitespace framing: the blocking `NAMESPACE001` for a value that would end its line in a space, `namespaceoutputoptions=AllowTrailingWhitespace` writing that value intact under `WARN013`, leading whitespace passing unreported in both modes, and whitespace outside the Section 24 pair reaching the output literally.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "a-namespace-value-ending-in-a-space-is-refused",
+        "namespace-allowtrailingwhitespace-writes-the-space-and-warns"
+      ]
     }
   ]
 }

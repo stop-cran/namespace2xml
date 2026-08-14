@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r90+e172e0ba4d2a`.** 36 codes.
+**Contract bundle `r92+9b2fa6ece05f`.** 38 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -42,6 +42,7 @@ by preference.
 | `XML001` | error | once per failing document | DTD, external entity/resource, or prohibited XML feature | `source`, `line`, `column` |
 | `XML002` | error | once per failing node or document | Invalid XML name, namespace, declaration, or canonical address | `source`, `line`, `column`, `path` |
 | `INI001` | error | once per path and output instance | Value or name unsupported by `PortableIni1` options | `path`, `destination` |
+| `NAMESPACE001` | error | once per path and output instance | Value unsupported by the namespace destination's options | `path`, `destination` |
 | `COLLISION001` | error | once per rejected contribution after the first | `filemerge=error` rejects a second contribution to one destination | `declaration`, `destination` |
 | `SERIALIZE001` | error | once per output instance | Output view cannot be serialized under the selected format/options | `destination` |
 | `PATH001` | error | once per destination | Invalid, escaping, or insecure output path | `declaration`, `destination` |
@@ -59,6 +60,7 @@ by preference.
 | `WARN010` | warning | once per source contribution, canonical mapping path, and output instance | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | `source`, `path`, `destination` |
 | `WARN011` | warning | once per canonical path | Later unmarked contribution aliases an existing XML component instead of overriding it | `source`, `path` |
 | `WARN012` | warning | once per output instance | INI output emits a global-key preamble, which a reader requiring a section header will refuse | `destination` |
+| `WARN013` | warning | once per path and output instance | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `path`, `destination` |
 
 ## Conditions in detail
 
@@ -178,6 +180,12 @@ Each code below lists the situations the specification maps to it (Appendix B).
 
 - Value/name/comment cannot be represented by effective `PortableIni1` options
 
+### `NAMESPACE001` — Value unsupported by the namespace destination's options
+
+*error, once per path and output instance.*
+
+- Namespace value ends in a space and no option permits writing it
+
 ### `COLLISION001` — `filemerge=error` rejects a second contribution to one destination
 
 *error, once per rejected contribution after the first.*
@@ -280,6 +288,12 @@ Each code below lists the situations the specification maps to it (Appendix B).
 *warning, once per output instance.*
 
 - INI output writes a global-key preamble without `GlobalSection`
+
+### `WARN013` — Namespace output writes a value ending in a space under `AllowTrailingWhitespace`
+
+*warning, once per path and output instance.*
+
+- Namespace output writes a value ending in a space under `AllowTrailingWhitespace`
 
 ## Disagreeing with a diagnostic
 

@@ -15,6 +15,28 @@ independently.
 
 ### Added
 
+- **`namespaceoutputoptions=AllowTrailingWhitespace`, and a refusal where there was silence.**
+  §24 requires a text output to contain no line ending in a space or a TAB, and every writer
+  honoured it except the one this tool is named for. `namespace` and `quotednamespace` write
+  `key=value` with nothing after the value, so a value ending in a space produced a line ending in
+  a space — silently, with a clean exit.
+
+  The hazard is that the file still round-trips through this tool: §8.1 takes every character
+  after the separating `=` as the value and does not trim it, so `namespace2xml` reads back
+  exactly what it wrote. The loss happens elsewhere. `git diff --check` flags such a line, `git
+  apply --whitespace=fix` deletes the trailing bytes, and most editors strip them on save —
+  measured, along with the fact that those tools flag a space and a TAB and carry U+00A0, U+3000,
+  U+202F and U+200B through untouched, which is why the rule names that pair rather than the
+  Unicode `White_Space` property.
+
+  §19.1 now refuses the entry as blocking `NAMESPACE001` and names its remedies rather than
+  writing a fragile file. Only a space can reach the check: §19.1 escapes a TAB to `\t`, and §8.3
+  gives namespace values no `\u{HEX}` form, so there is no escaped spelling of a trailing space
+  and refusing is the only way to keep the guarantee. Where the bytes are wanted, the new
+  `namespaceoutputoptions=AllowTrailingWhitespace` writes them and reports `WARN013` per value —
+  the same shape §16.9 already used for `QuoteValues` against `INI001`. Leading whitespace is
+  never reported; no line ends in it.
+
 - **The release workflow runs the conformance corpus against the packed tool.** `dotnet test` judges
   the build output, and `tools/verify-tool-install.ps1` proves the package is installable and
   runnable without judging what it writes. Nothing judged the packaged artifact's behaviour. The two
@@ -45,6 +67,14 @@ independently.
   five are the ones a 2.x profile is most likely to contain already. `a\nb` used to deliver a
   backslash and the letter `n` and now delivers a line feed, with no diagnostic and a valid output
   either way.
+
+### Changed
+
+- **§24's byte rule now names its one exception.** It previously stated the no-trailing-whitespace
+  guarantee without qualification and asserted there was exactly one place a Section 16.9 option
+  relaxes a Section 24 rule. There are now two, and the sentence says so. The guarantee itself is
+  unchanged by default: a run that does not opt in still cannot produce such a line, and now
+  cannot produce one silently either.
 
 ### Fixed
 

@@ -449,6 +449,42 @@ Comments are emitted as normalised `# comment` lines where their association can
 (§19.1, §20). Typed values use canonical locale-independent text: `null`, `true`/`false`, base-10
 integer, canonical decimal or exponent form (§19.1, §18).
 
+### A value ending in a space is refused
+
+§24 requires every text output to contain no line ending in a space or a TAB, and namespace output
+writes nothing after the value, so a value ending in a space would end its line in one. That entry
+is refused as a blocking `NAMESPACE001` (§19.1).
+
+Only a space can reach the rule. A TAB in a value is written as `\t` by the escape list above, so
+no entry ends in a literal TAB, and §8.3 gives values no `\u{HEX}` form, so there is no escaped
+spelling of a trailing space to fall back on. Refusal is the only way to keep the byte rule.
+
+Three things do not trigger it. Leading whitespace is fine — §8.1 takes every character after the
+separating `=` as the value, so it is unambiguous on re-read and ends no line. Whitespace other
+than a space and a TAB is written literally: a value ending in U+00A0, U+202F, U+3000, or U+200B
+is emitted and read back unchanged, because §24 names the pair that consumers strip rather than
+every character carrying the Unicode `White_Space` property. And `quotednamespace` never trips it,
+because §19.2 writes the value inside single quotes, so the line ends in `'`.
+
+Two remedies, in preference order:
+
+```text
+app.output=quotednamespace
+```
+
+writes `NAME='tail  '` with the value preserved exactly and no diagnostic (§19.2). Where the
+consumer needs the plain form:
+
+```text
+app.namespaceoutputoptions=AllowTrailingWhitespace
+```
+
+writes the entry with its trailing space intact and reports `WARN013` for each value it lets
+through (§16.9). It is the only option in the specification that relaxes a §24 byte rule, and it
+does so for one destination. Select it when the consumer is a program that reads the file
+verbatim; do not select it for a file that will live in a repository, where `git apply
+--whitespace=fix`, a formatter, or an editor save will delete the bytes you asked for.
+
 ## Quoted namespace
 
 `quotednamespace` is defined as **POSIX shell assignment output without `export`** (§19.2). It is
@@ -522,6 +558,14 @@ particularly nasty because the file will look valid to a human reader and fail o
 **Records are not trimmed.** Trailing spaces in a value survive, and so does a leading space
 before the value's first non-whitespace character (§8.1). If a downstream reader cares about
 trailing whitespace, so does this tool.
+
+**The reader accepts a trailing space that the writer refuses.** This is the one place the two
+halves of the format disagree, and it is deliberate. §8.1 preserves a value's trailing spaces on
+read; §24 forbids the writer from ending a line in one, and §8.3 offers no escape to write it
+another way. So a value read from a namespace file can be one that plain `namespace` output will
+not emit, and the run fails with `NAMESPACE001` rather than writing a line whose last bytes the
+next formatter deletes. Use `quotednamespace`, or opt in with
+`namespaceoutputoptions=AllowTrailingWhitespace` and take the `WARN013`.
 
 **`#` is only a comment marker at the start of a record.** After leading whitespace, and nowhere
 else (§8.5). `a.note=x #not-a-comment` is a value that ends with a number sign.
