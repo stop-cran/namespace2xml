@@ -576,6 +576,17 @@ commit it points at. In order:
    commit; discovering a failure after the tag is pushed costs a version number, permanently.
 6. **Then tag.**
 
+The release workflow adds one check the per-push run deliberately omits: it installs the packed
+tool and runs **the whole conformance corpus against that artifact** rather than against the build
+output. Packing, the NuGet layout, the generated `runtimeconfig` and `deps` files, the tool shim
+and the apphost all sit between the two, and a release build normalizes source paths, so the
+assembly inside the package has never been the assembly the corpus judged. The check costs about
+four minutes and can only fail for a release, so paying it on every push would slow every other
+change for nothing. It runs before anything is pushed to nuget.org: a failure costs a retag rather
+than a bad package under the trusted name.
+
+To run it locally, `tools/verify-packaged-corpus.ps1` packs and judges the current tree.
+
 ---
 
 ## 10. Promotion restraint

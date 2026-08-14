@@ -103,6 +103,10 @@ jobs:
           grep -q "^version: ${version}$" /tmp/version.txt
           grep -q '^contract-bundle: ' /tmp/version.txt
 
+      - name: The packed tool must satisfy the conformance corpus
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/verify-packaged-corpus.ps1 -Package artifacts
+
       - name: Every link the tool prints must resolve, and to these bytes
         shell: bash
         run: |

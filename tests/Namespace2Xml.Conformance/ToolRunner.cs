@@ -139,8 +139,37 @@ public static class ToolRunner
         return new ToolResult(process.ExitCode, outBuffer.ToArray(), errBuffer.ToArray());
     }
 
+    /// <summary>
+    /// Finds the tool assembly the corpus will judge.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The build output is the default, and <c>N2X_TOOL_ASSEMBLY</c> overrides it. Packing, the
+    /// NuGet layout and the tool shim all sit between a built binary and the artifact a user
+    /// installs, and the two are not byte-identical: a release build normalizes source paths, so
+    /// the shipped assembly is never the one the corpus ran against. The override lets the release
+    /// workflow point the whole corpus at the packed artifact before it is published, rather than
+    /// publishing on the strength of a smoke test.
+    /// </para>
+    /// <para>
+    /// A variable that is set but names nothing is a hard failure rather than a fall back to the
+    /// build output. Falling back would let a typo silently re-test the binary the corpus has
+    /// already judged and report it as evidence about the package — which is the exact false green
+    /// this override exists to remove.
+    /// </para>
+    /// </remarks>
     private static string LocateToolAssembly()
     {
+        var overridden = Environment.GetEnvironmentVariable("N2X_TOOL_ASSEMBLY");
+
+        if (!string.IsNullOrEmpty(overridden))
+        {
+            return File.Exists(overridden)
+                ? Path.GetFullPath(overridden)
+                : throw new InvalidOperationException(
+                    $"N2X_TOOL_ASSEMBLY names '{overridden}', which does not exist.");
+        }
+
         var candidate = Path.Combine(AppContext.BaseDirectory, "namespace2xml.dll");
 
         return File.Exists(candidate)

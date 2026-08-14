@@ -13,6 +13,28 @@ independently.
 
 ## [Unreleased]
 
+### Added
+
+- **The release workflow runs the conformance corpus against the packed tool.** `dotnet test` judges
+  the build output, and `tools/verify-tool-install.ps1` proves the package is installable and
+  runnable without judging what it writes. Nothing judged the packaged artifact's behaviour. The two
+  are not the same bytes — a release build normalizes source paths, so the assembly inside the
+  package has never been the assembly the corpus ran against, and packing, the NuGet layout, the
+  generated `runtimeconfig` and `deps` files, the tool shim and the apphost all sit between them.
+  Each can change behaviour while `dotnet build`, `dotnet test` and the install smoke test stay
+  green.
+
+  `tools/verify-packaged-corpus.ps1` installs the packed tool and points the corpus at it through a
+  new `N2X_TOOL_ASSEMBLY` override in the harness. A variable that is set but names nothing is a
+  hard failure rather than a fall back to the build output, because falling back would let a typo
+  silently re-test the already-judged binary and report it as evidence about the package.
+
+  It runs in the release workflow alone, before anything is pushed to nuget.org, rather than on
+  every push: the seam only matters at publication, a fast per-push run is worth more on every other
+  change, and running it there means a failure costs a retag rather than a bad package under the
+  trusted name. Verified against `3.0.0-preview.4`, which passes, and proven able to fail by judging
+  the published `3.0.0-preview.3` package with the current corpus.
+
 ## [3.0.0-preview.4] - 2026-08-14
 
 ### Contract
