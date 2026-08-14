@@ -3014,6 +3014,10 @@ The tie-breaker, where a condition could be attributed to more than one place, i
 
 A member this rule does not reach is omitted rather than defaulted, and `column` additionally requires `line`.
 
+A cardinality that admits fewer records than the run detects must also say which occurrence is reported. The surviving occurrence is the one Section 24 orders earliest, and the rest are suppressed rather than merged: an occurrence names one place, and a record combining two of them would name neither. Where Section 24 does not separate them — the same phase, the same ordering key or destination, the same code, and the same path, which is what an invocation-wide or source-wide cardinality typically produces — the survivor is the one detected first in the traversal that phase specifies. Command-line parsing traverses arguments left to right under Section 6, so an invocation carrying two invalid option values reports the leftmost, and reports the other only once the first is corrected.
+
+Selecting by Section 24 rather than by arrival makes the survivor a property of the input. A phase that works concurrently must therefore reach the same record as one that does not, which it cannot do by holding a single shared slot and letting the first worker fill it, and this is a difference no fixture would reveal on a machine fast enough to be consistent about which worker that is.
+
 Blocking errors include:
 
 - malformed namespace syntax;

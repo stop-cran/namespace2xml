@@ -718,6 +718,8 @@
         "an-encoding-disagreement-precedes-xml-parsing",
         "cross-destination-diagnostic-order",
         "cross-format-replacement-renumbers-the-destination-order",
+        "swapping-two-invalid-options-swaps-the-reported-one",
+        "two-invalid-options-report-the-leftmost",
         "xml-declaration-encoding-disagreement"
       ]
     },

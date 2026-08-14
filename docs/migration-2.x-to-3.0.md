@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r86+1e96658137f2`.**
+**Contract bundle `r87+f5a29e528099`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -3713,7 +3713,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs that crashed 2.4.0 (19)
+## Inputs that crashed 2.4.0 (21)
 
 The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
 reports a diagnostic and exits deliberately.
@@ -3874,6 +3874,45 @@ reports a diagnostic and exits deliberately.
   an attribute and an element of one name had nowhere to put the second and lost it. 3.0 keeps the
   affordance and adds a way to say which one is meant, so the convenient spelling stays convenient
   exactly where it is unambiguous.
+
+### `swapping-two-invalid-options-swaps-the-reported-one`
+
+- namespace2xml 2.4.0: **crashes**.
+- Contract: Section 22's rule that where a cardinality admits fewer records than the run detects,
+  "the survivor is the one detected first in the traversal that phase specifies", and that
+  "command-line parsing traverses arguments left to right under Section 6, so an invocation
+  carrying two invalid option values reports the leftmost"; Section 22's `CLI001` cardinality of
+  "once per invocation"; Sections 6.2 and 6.4.1 for the two option values.
+- Legacy observation: the baseline throws an unhandled `InvalidOperationException` out of its
+  argument parser before examining either value, prints a stack trace naming its own
+  `Program.Main`, and writes no output tree.
+- Clean behavior: one `CLI001` anchored at Section 6.2, the leftmost of the two invalid values,
+  and exit 1.
+- Why the difference is intentional: this is `two-invalid-options-report-the-leftmost` with the two
+  options exchanged, and the reported anchor moves with them. That is the observation the pair
+  exists to make: the surviving occurrence is chosen by position in the argument vector and not by
+  any ranking among the options themselves, so correcting the first invalid value reveals the
+  second rather than changing which one the tool considers important.
+
+### `two-invalid-options-report-the-leftmost`
+
+- namespace2xml 2.4.0: **crashes**.
+- Contract: Section 22's rule that where a cardinality admits fewer records than the run detects,
+  "the survivor is the one detected first in the traversal that phase specifies", and that
+  "command-line parsing traverses arguments left to right under Section 6, so an invocation
+  carrying two invalid option values reports the leftmost"; Section 22's `CLI001` cardinality of
+  "once per invocation"; Sections 6.2 and 6.4.1 for the two option values.
+- Legacy observation: the baseline throws an unhandled `InvalidOperationException` out of its
+  argument parser before examining either value, prints a stack trace naming its own
+  `Program.Main`, and writes no output tree.
+- Clean behavior: one `CLI001` anchored at Section 6.4.1, the leftmost of the two invalid values,
+  and exit 1.
+- Why the difference is intentional: this case exists as one half of a pair with
+  `swapping-two-invalid-options-swaps-the-reported-one`, which supplies the same two options in the
+  other order and expects the anchor to swap. Either case alone would also be satisfied by an
+  implementation that checked `--diagnostics-format` before `--verbosity` for reasons of its own,
+  so neither is evidence about position without the other. The baseline cannot distinguish them
+  because it reaches neither value.
 
 ### `type-mapping-keeps-numeric-keys-and-array-discards-names`
 

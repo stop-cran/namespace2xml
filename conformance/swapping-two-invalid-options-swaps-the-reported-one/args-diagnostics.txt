@@ -1,0 +1,6 @@
+--verbosity
+nonsense
+--diagnostics-format
+bogus
+--diagnostics-format
+json
