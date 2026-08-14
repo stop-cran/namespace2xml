@@ -79,6 +79,8 @@ public sealed class XmlProjection
     {
         ArgumentNullException.ThrowIfNull(view);
 
+        ReportShapeConflicts(view, []);
+
         if (view.Marks.RendersAsSequence)
         {
             return Document(ProjectRootSequence(view, root));
@@ -239,8 +241,67 @@ public sealed class XmlProjection
         return wrapper;
     }
 
-    /// <summary>Fills one element from the node the caller has already named.</summary>
+    /// <summary>
+    /// Section 17.1: reports the container projection this destination cannot render.
+    /// </summary>
     /// <remarks>
+    /// XML holds a scalar and children together as mixed content, so unlike the Section 4.4 JSON
+    /// and YAML case no payload is omitted here and none is reported. What XML cannot do is render
+    /// one node as both a mapping and a sequence: a mapping is one element holding children, and a
+    /// sequence is that element repeated beside itself. Section 17.1 keeps the later contribution
+    /// and drops the other — silently, until this ran, while namespace, quoted-namespace, INI,
+    /// JSON and YAML all reported the same loss.
+    /// </remarks>
+    /// <param name="node">The node to inspect.</param>
+    /// <param name="path">Its path within the view, which is what the diagnostic names.</param>
+    private void ReportShapeConflicts(OverlayNode node, ImmutableArray<NamePart> path)
+    {
+        if (node.Marks.HasBothContainers)
+        {
+            ReportShapeConflict(path, node.Marks.RendersAsSequence);
+        }
+
+        // Only what this destination renders is walked: a node under the container that lost is not
+        // emitted, so a conflict inside it is not a loss anyone can observe here.
+        if (node.Marks.RendersAsSequence)
+        {
+            foreach (var (value, item) in node.OrderedSequence)
+            {
+                ReportShapeConflicts(item.Node, path.Add(OrderingValues.ToNamePart(value)));
+            }
+
+            return;
+        }
+
+        if (node.Marks.RendersAsMapping)
+        {
+            foreach (var (name, child) in node.OrderedChildren)
+            {
+                ReportShapeConflicts(child, path.Add(name));
+            }
+        }
+    }
+
+    private void ReportShapeConflict(ImmutableArray<NamePart> path, bool sequenceWins)
+    {
+        var text = FlatIdentity.PathText(path);
+
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Type002(
+                DiagnosticPhase.Planning,
+                "\u00A719.5",
+                "this path supplies both a mapping and a sequence projection, and XML renders a "
+                + "mapping as one element and a sequence as that element repeated: Section 17.1 "
+                + "keeps the later contribution, so the "
+                + (sequenceWins ? "mapping children are" : "sequence items are")
+                + " not emitted here.",
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, text),
+                path: text,
+                destination: destination?.Canonical),
+            DestinationOrder: destination?.Order));
+    }
+
+    /// <summary>Fills one element from the node the caller has already named.</summary>    /// <remarks>
     /// Section 4.5 binds a trailing comment to "the immediately preceding entry or item", and
     /// Section 20 places a document-trailing comment after "its final surviving contribution", so a
     /// trailing comment is emitted after the element's content rather than ahead of it. Section 11.5

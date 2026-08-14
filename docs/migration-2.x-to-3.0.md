@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r77+c1e9318c497e`.**
+**Contract bundle `r78+94b7335a025a`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -3617,7 +3617,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs that crashed 2.4.0 (17)
+## Inputs that crashed 2.4.0 (18)
 
 The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
 reports a diagnostic and exits deliberately.
@@ -3935,6 +3935,31 @@ reports a diagnostic and exits deliberately.
   reports a nonempty scalar value that names an illegal option/type combination cleanly and
   exits `1`; letting the enum parser propagate its `ArgumentException` all the way to the
   process boundary is the unhandled-exception class Section 3.2 removes.
+
+### `xml-reports-a-node-that-supplies-both-container-shapes`
+
+- namespace2xml 2.4.0: **crashes**. It aborts with an unhandled `System.Xml.XmlException`, "Name
+  cannot begin with the '0' character", leaves a zero-byte `cfg.xml` behind, and exits
+  `-532462766`. **verified** — measured three times against the Appendix C.6 pinned 2.4.0 package,
+  identical each time.
+- Contract: Section 17.1's "a destination requiring one container shape uses the later container
+  contribution and warns", and Section 19.5's statement that XML is such a destination.
+- Legacy observation: 2.4.0 has no sequence model. A JSON array became a mapping whose keys are the
+  decimal indices, so the shape conflict this case is about could not arise — and the index `0`
+  then reached `XName` as an element name, which XML does not admit. The failure is a crash rather
+  than a diagnostic, and the empty file it leaves is indistinguishable from a successful run that
+  wrote nothing.
+- Clean behavior: the node keeps both container projections in the overlay, XML renders the later
+  one, and the loss is reported as `TYPE002` naming the path and the destination. Exit is 0,
+  because Section 17.1 makes this a defined resolution rather than an error.
+- Both directions are pinned here on purpose. `cfg.a` receives the mapping first and the sequence
+  second, so the sequence wins and the mapping children are dropped; `cfg.b` receives them the
+  other way round, so the mapping wins and the sequence items are dropped. A fixture carrying only
+  one of the two exercises one branch of the resolution and reports nothing about the other, and
+  the two diagnostics differ in exactly the clause naming what was lost.
+- Why XML needed saying at all: Section 16.4 named namespace, quoted-namespace and INI, and Section
+  4.4 covered the JSON and YAML payload contest. XML was named nowhere, and it was the one
+  destination that dropped a container silently.
 
 ### `xml-sequence-attribute-projection-is-type001`
 
