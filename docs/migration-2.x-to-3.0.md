@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r79+b43c89a9a252`.**
+**Contract bundle `r80+5d5ab443edf0`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -1191,10 +1191,12 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The three cases are in one fixture on purpose. They differ only in the kind of XML component
   already present, and the rule is that exactly one of the three merges; a fixture carrying any
   one of them alone cannot distinguish "the alias rule fired" from "the identity rule fired".
-- The two warnings also pin their own prose, which differs between them: the attribute case names
-  an attribute and an element, and the namespaced case names an element in a namespace and an
-  unmarked component. A single message covering both told the user about a component their run did
-  not contain.
+- The two warnings differ in their prose as well, which this fixture does *not* pin: Appendix C.4
+  never compares `message`, deliberately, so that specification renumbering and wording changes do
+  not invalidate the corpus. The attribute case names an attribute and an element, the namespaced
+  case names an element in a namespace and an unmarked component, and a single message covering
+  both told the reader about a component their run did not contain. That distinction is asserted in
+  `AliasedComponentWarningTests`, which is where prose belongs.
 
 ### `an-xml-comment-is-written-after-the-value-it-sits-beside`
 
@@ -3644,7 +3646,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs that crashed 2.4.0 (18)
+## Inputs that crashed 2.4.0 (19)
 
 The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
 reports a diagnostic and exits deliberately.
@@ -3725,6 +3727,27 @@ reports a diagnostic and exits deliberately.
   is not merely to change the exit code but to detect the condition and report it as a stable
   diagnostic. The crash exit code carries no code, no phase, and no spec anchor; an automated
   caller cannot tell it apart from a runtime crash.
+
+### `an-xml-name-outside-ncname-is-refused`
+
+- namespace2xml 2.4.0: **crashes**.
+- Contract: Section 11.2's requirement that an element or attribute name emitted as XML "must
+  match the `NCName` production of Namespaces in XML 1.0, Third Edition", that a component which
+  does not match "is `XML002` at the point the name would be written, and only there", and the
+  reason the specification selects `NCName` over `Name`: a component written `a:b` "would be
+  emitted as `<a:b>` and read back as the local name `b` in whatever namespace the prefix `a` was
+  bound to".
+- Legacy observation: the baseline exits `-532462766` with an unhandled
+  `KeyNotFoundException` from `XmlFormatter.ToXmlValueSingle` — "The given key 'a' was not present
+  in the dictionary" — and leaves a zero-byte `cfg.xml` behind.
+- Clean behavior: the run reports `XML002` at `a:b`, exits 1, and writes nothing.
+- Why the difference is intentional: the exception is the ambiguity Section 11.2 legislates,
+  reached from the other side. 2.4.0 splits the component on the colon and looks the prefix `a`
+  up among the declared namespaces; this model declares none, so the lookup throws. A component
+  whose text merely happens to contain a colon is therefore reinterpreted as a prefixed name
+  without being asked, and the run ends on a dictionary miss naming a key the user never wrote.
+  The crash is not incidental to the divergence — it is evidence that the two readings of `a:b`
+  are both live in the baseline, which is precisely why 3.0 refuses to write the name at all.
 
 ### `scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias`
 
@@ -4251,7 +4274,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (40)
+## Same observable result as 2.4.0 (41)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -4324,6 +4347,22 @@ those that name a shared reason are behaviour 3.0 preserved.
   sides, and either one alone would leave the rule looking arbitrary.
 - `b` is present so the run has an output at all. Without it the case would also be asserting the
   Section 14.1 empty-instance warning, and a case that can fail for two reasons pins neither.
+
+### `a-name-xml-would-refuse-is-ordinary-elsewhere`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 11.2's confinement of the `NCName` requirement to XML output — a
+  non-conforming component "is `XML002` at the point the name would be written, and only there",
+  and "the same component reaches a JSON, YAML, namespace, quoted-namespace or INI destination
+  unchanged, because nothing in those formats constrains it".
+- Legacy observation: the baseline writes the same three lines at `out.txt` and exits 0.
+- Clean behavior: identical.
+- Why the agreement is worth pinning: this fixture exists to hold the boundary of the companion
+  case `an-xml-name-outside-ncname-is-refused`, where the same three components crash 2.4.0 the
+  moment XML is the destination. Agreement here and a crash there, from one set of keys, is what
+  shows the rule belongs to the writer rather than to the name — and it is the assertion that
+  would fail first if a future implementation hoisted the check into parsing, where it would be
+  cheaper to enforce and wrong.
 
 ### `a-namespace-sequence-template-overrides-the-same-destination-items`
 

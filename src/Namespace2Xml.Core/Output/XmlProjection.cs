@@ -786,13 +786,23 @@ public sealed class XmlProjection
     {
         var text = FlatIdentity.PathText([part]);
 
+        var name = StructuredKey.Of(part);
+
+        // Section 11.2 selects NCName, so the colon is the one Name character refused and is worth
+        // separating: a reader told only "not a valid XML name" about 'a:b' has been told the
+        // opposite of what XML 1.0 says, and would reasonably conclude the tool is wrong.
+        var because = name.Contains(':', StringComparison.Ordinal)
+            ? "Section 11.2 requires an 'NCName', which admits every XML name character except "
+              + "the colon, because '<" + name + ">' would read back as a prefixed name in a "
+              + "namespace this model never mentions."
+            : "Section 11.2 requires an 'NCName', and a name component carrying arbitrary text — "
+              + "a JSON or YAML key, say — need not be one.";
+
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Xml002(
                 DiagnosticPhase.Planning,
                 "\u00A711.2",
-                $"'{StructuredKey.Of(part)}' is not usable as an XML {role} name: Section 11.2 "
-                + "admits the names XML admits, and a name component carrying arbitrary text — a "
-                + "JSON or YAML key, say — need not be one.",
+                $"'{name}' is not usable as an XML {role} name: {because}",
                 cardinalityKey: FlatIdentity.Key(destination?.Canonical, text),
                 path: text),
             DestinationOrder: destination?.Order));

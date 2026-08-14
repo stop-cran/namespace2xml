@@ -1110,6 +1110,12 @@ XML input supports:
 
 The XML declaration is not retained as a data node.
 
+An element or attribute name emitted as XML must match the `NCName` production of Namespaces in XML 1.0, Third Edition. A name component holds arbitrary text — a JSON or YAML key need not be an XML name at all — so a component that does not match is `XML002` at the point the name would be written, and only there. The same component reaches a JSON, YAML, namespace, quoted-namespace or INI destination unchanged, because nothing in those formats constrains it; a run that writes no XML never consults this rule.
+
+`NCName` rather than `Name`, which admits a colon. A component written `a:b` would be emitted as `<a:b>` and read back as the local name `b` in whatever namespace the prefix `a` was bound to — a different component from the one written, in a namespace the model never mentioned. Refusing the colon is what keeps writing and reading inverse to each other; every other `Name` character is admitted.
+
+A namespace URI is not validated. `Q{...}` carries its text to the emitted declaration unchanged, and an empty URI means "no namespace" and is spelled `Q{}`. Namespaces in XML 1.0 recommends but does not require that a namespace name be an IRI, and a conforming XML parser therefore accepts one that is not; validating on the way out would refuse to write a document this tool can read, and a round trip that fails on a document neither standard rejects is a worse outcome than an unchecked URI.
+
 Input decoding is controlled exclusively by Section 7.4. If an XML declaration contains an encoding name, it must agree with the encoding selected by the BOM or strict UTF-8 default; disagreement is a blocking `PARSE002` error, not an `XML0xx` error. The condition is a decoding failure that an XML declaration happens to reveal, so it is reported once per failing source at line 1, column 1 with the rest of Section 7.4's encoding errors, and it is diagnosed before the document is parsed. An XML declaration that is malformed in any other way is `XML002`.
 
 Processing instructions are discarded with a summarized warning.
