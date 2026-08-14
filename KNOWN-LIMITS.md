@@ -795,6 +795,23 @@ it is not in 3.0. Pinned by `an-xml-comment-is-written-after-the-value-it-sits-b
 `xml-an-exposed-scalar-consumes-its-content-token-index`, so the behaviour cannot drift while the
 limit stands.
 
+### 1.22 *(resolved)* `WARN010` was raised for a mapping nothing inferred
+
+Resolved by [#90 (closed)](https://github.com/stop-cran/namespace2xml/issues/90), and present in
+`3.0.0-preview.3`. Where a JSON or YAML document wrote a mapping at a path and a **later** document
+wrote a sequence there, §17.1 kept the later container and the run then also raised `WARN010`
+against the first document — naming it as having written a mapping "whose keys are all canonically
+numeric" whatever its keys actually were, and offering `type=mapping` to undo a §8.7 inference that
+never ran. Every factual clause of the message was false for that input.
+
+The warning is advisory, so nothing was mis-rendered; what it cost was the diagnostic's credibility
+on the one case where a reader most needs it, two documents disagreeing about a node's shape. The
+implementation had derived "was inferred" from "renders as a sequence", which §17.1's shape contest
+also produces. Step 11 now discards the provenance at a node it declined to infer, so the test means
+what §3.2 says. Pinned by `warn010-is-not-owed-when-a-sequence-wins-the-shape-contest`, which
+asserts the whole diagnostic stream rather than one record — the defect was an extra warning, and
+only a stream assertion can fail on an extra.
+
 ## 2. Acceptance coverage
 
 `conformance/assertions.json` records **every** acceptance requirement from specification §26, each
@@ -957,6 +974,15 @@ unmeasured.
 
 ## 5. Documentation gaps
 
+- The specification does not fix everything the tool decides. The `r69` review found 39 places where
+  `docs/specification.md` is silent, ambiguous or under-determined — the argv character model, the
+  format of the derived artifacts it names, host termination exit codes, warning ordering, several
+  output-format literal spellings — and those are deferred to 3.1 and listed in
+  [#92](https://github.com/stop-cran/namespace2xml/issues/92). **None is a divergence between the
+  document and this build**: the behaviour is defined, deterministic and fixture-pinned in every
+  case. What it means for you is narrower and worth stating plainly: on those points the
+  specification will not let you predict the tool, so read the fixture or ask. A second
+  implementation written from the document alone could legitimately differ.
 - `docs/usage-methodology.md` now carries the layering guidance, a worked cross-format
   specialization pipeline, and the fixture discipline. What is still thin is breadth: one worked
   pipeline is not a cookbook, and the multi-output cases are unwritten.
