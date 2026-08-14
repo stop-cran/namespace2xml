@@ -1,0 +1,8 @@
+{
+  "backslash": "a\\b",
+  "dollar": "a${b}c",
+  "newline": "a\nb",
+  "carriage": "a\rb",
+  "tab": "a\tb",
+  "unknown": "a\\qb"
+}

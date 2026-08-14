@@ -1,0 +1,6 @@
+cfg.backslash=a\\b
+cfg.dollar=a\${b}c
+cfg.newline=a\nb
+cfg.carriage=a\rb
+cfg.tab=a\tb
+cfg.unknown=a\qb

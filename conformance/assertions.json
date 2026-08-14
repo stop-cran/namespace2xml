@@ -1084,6 +1084,7 @@
       "fixtures": [
         "a-literal-asterisk-in-an-ordinary-value-reaches-the-output",
         "a-malformed-variable-omits-source-line-and-column",
+        "a-namespace-value-decodes-every-section-8-3-escape",
         "namespace-parse001-classification-and-literal-star"
       ]
     },
