@@ -672,13 +672,17 @@ local equivalent.
 
 `DifferentialTests` runs 2.4.0 against every fixture and checks the `legacy.md` verdict. It is
 `Assert.Ignore`d unless `N2X_LEGACY_PACKAGE` points at the pinned nupkg, so a local
-`dotnet test` reports **~210 skipped** and a wrong verdict ships. CI runs it for 13 minutes and
+`dotnet test` reports **232 skipped** and a wrong verdict ships. CI runs it for 13 minutes and
 fails the `differential` job, which is the slowest possible way to learn that a `legacy.md`
 sentence was wrong.
 
 Running it locally needs a **.NET 9 runtime**, which the baseline targets and which the harness
-refuses to roll forward. Without one every case fails with exit `-2147450730` and "missing output",
-which looks like a corpus problem and is not:
+refuses to roll forward. Without one the lane now stops in `OneTimeSetUp` with a
+`BaselineIntegrityException` naming the remedy. It used to run anyway, and the direction of that
+report mattered: a baseline that never starts diverges from *every* case, so it failed each
+`agrees` case and **confirmed** every `differs` and `crashes` one. The repair it appeared to ask
+for — flipping the verdicts it named — would have turned the entire lane green while measuring
+nothing.
 
 ```powershell
 & "$env:TEMP\dotnet-install.ps1" -Runtime dotnet -Channel 9.0 -InstallDir "$env:USERPROFILE\.dotnet9" -Architecture arm64
