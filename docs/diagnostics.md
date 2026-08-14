@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r78+94b7335a025a`.** 36 codes.
+**Contract bundle `r79+b43c89a9a252`.** 36 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages

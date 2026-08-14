@@ -1,0 +1,2 @@
+r.output=namespace
+r.filename=out.txt

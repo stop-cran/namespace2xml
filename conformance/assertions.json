@@ -1165,6 +1165,7 @@
         "Section 15.2's alias is looked up by a written name, so a wildcard component does not consult it: a wildcard reaching an attribute and an element of one name is a pattern matching two components rather than an ambiguous alias, and SCHEME002's remedy of marking the component to name one outright is not available to it."
       ],
       "fixtures": [
+        "an-unmarked-component-meets-an-xml-component-of-the-same-alias",
         "scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias",
         "scheme-an-ambiguous-simple-alias-is-blocking",
         "scheme-an-unmarked-directive-reaches-an-attribute-through-the-simple-alias",

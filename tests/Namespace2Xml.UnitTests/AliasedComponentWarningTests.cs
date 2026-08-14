@@ -90,6 +90,29 @@ public sealed class AliasedComponentWarningTests
         Single("a.Q{urn:p}x=1", "a.x=2").Message.ShouldContain("Q{urn:p}x", Case.Sensitive);
 
     /// <summary>
+    /// Section 11.4 admits exactly two XML components that share an alias without being the same
+    /// component, and the attribute is the one whose report may say so.
+    /// </summary>
+    [Test]
+    public void TheAttributeReportNamesAnAttribute() =>
+        Single("a.@x=1", "a.x=2")
+            .Message.ShouldContain("an attribute and an element", Case.Sensitive);
+
+    /// <summary>
+    /// The other one is a namespaced element, and a report that called it an attribute would name
+    /// a component the run does not contain — sending a reader to look for an <c>@x</c> that was
+    /// never written.
+    /// </summary>
+    [Test]
+    public void TheQualifiedElementReportDoesNotCallItAnAttribute()
+    {
+        var message = Single("a.Q{urn:p}x=1", "a.x=2").Message;
+
+        message.ShouldNotContain("attribute", Case.Sensitive);
+        message.ShouldContain("an element in a namespace", Case.Sensitive);
+    }
+
+    /// <summary>
     /// Section 11.4: "components arriving together in one contribution never warn, since a single
     /// XML document may legitimately carry an attribute and a child element of the same name".
     /// </summary>

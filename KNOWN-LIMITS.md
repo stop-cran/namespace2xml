@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r78+94b7335a025a`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r79+b43c89a9a252`. Dated 2026-08.**
 
 This file tracks the branch, and the branch runs ahead of the last published preview:
 `3.0.0-preview.3` carries `r44+a91f25bf49ec`, `3.0.0-preview.2` carries `r37+2d644be6926e`, and

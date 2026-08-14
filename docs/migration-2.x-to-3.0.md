@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r78+94b7335a025a`.**
+**Contract bundle `r79+b43c89a9a252`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (163)
+## Observable differences (164)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1168,6 +1168,33 @@ implemented, its case says so plainly rather than letting the heading imply othe
   Between them the two cases fix the division that Section 12.2 and Section 13.3 would otherwise
   each appear to claim. The baseline drops both silently, so it distinguishes nothing here and
   cannot be consulted about which clause was meant.
+
+### `an-unmarked-component-meets-an-xml-component-of-the-same-alias`
+
+- namespace2xml 2.4.0: **differs**. It writes `ns.p:x=`, `xmlns:p=urn:p`, `nons.x=2`, `att.x=2`
+  and `ns.x=2` — the attribute's value `1` and the namespaced element's value `1` are both gone,
+  the element is named by the source document's prefix rather than by its namespace, and the
+  namespace declaration is emitted as an ordinary data key. Exit 0, nothing reported.
+  **verified** — measured three times against the Appendix C.6 pinned 2.4.0 package, identical
+  each time.
+- Contract: Section 11.4's component identity — `Q{}x` and `x` are the same component, while an
+  attribute `@x` and a namespaced element `Q{urn:p}x` are components distinct from `x` that merely
+  share its simple alias — together with the `WARN011` those two owe.
+- Legacy observation: 2.4.0 had one kind of name component, so an attribute, a prefixed element
+  and a mapping key of the same spelling were the same slot. The later namespace contribution
+  therefore overwrote both XML values silently, and the prefix binding survived only as a key
+  named `xmlns:p`, which is data the document never contained.
+- Clean behavior: `nons.x=2` overrides, because a no-namespace element and an unmarked component
+  are one node and that is what makes cross-format overlay work at all. `att.x=2` and `ns.x=2` do
+  not override; each adds an ordinary component beside the XML one and warns, naming the canonical
+  spelling that would have overridden it.
+- The three cases are in one fixture on purpose. They differ only in the kind of XML component
+  already present, and the rule is that exactly one of the three merges; a fixture carrying any
+  one of them alone cannot distinguish "the alias rule fired" from "the identity rule fired".
+- The two warnings also pin their own prose, which differs between them: the attribute case names
+  an attribute and an element, and the namespaced case names an element in a namespace and an
+  unmarked component. A single message covering both told the user about a component their run did
+  not contain.
 
 ### `an-xml-comment-is-written-after-the-value-it-sits-beside`
 

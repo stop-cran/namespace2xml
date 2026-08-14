@@ -1,0 +1,5 @@
+nons.x=2
+att.@x=1
+att.x=2
+ns.Q{urn:p}x=1
+ns.x=2

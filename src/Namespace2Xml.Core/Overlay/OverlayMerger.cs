@@ -854,12 +854,19 @@ public sealed class OverlayMerger
         var added = PathText(path.Add(name));
         var overridden = PathText(path.Add(canonical));
 
+        // The rival decides the clause: Section 11.4 admits an attribute and an element in a
+        // namespace as separate simple-alias competitors, and saying "an attribute" for a
+        // namespaced element names a component the run does not contain.
+        var rival = canonical is AttributePart
+            ? "an attribute and an element of the same name"
+            : "an element in a namespace and an unmarked component of the same local name";
+
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Warn011(
                 DiagnosticPhase.Input,
                 "\u00A711.4",
                 $"'{added}' adds an ordinary component beside '{overridden}', which already "
-                + "exists here. Section 11.4 makes an attribute and an element of the same name "
+                + $"exists here. Section 11.4 makes {rival} "
                 + "different components, so this contribution does not override that one: write "
                 + $"'{overridden}' to override it.",
                 cardinalityKey: CardinalityKey(added),
