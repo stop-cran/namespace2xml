@@ -39,7 +39,7 @@ public class FlatProjectionTests
 
     private ImmutableArray<FlatEntry> Project(
         OverlayNode view, params string[] root) =>
-        new FlatProjection(diagnostics, new DestinationRef("out.txt", 0))
+        new FlatProjection(FlatFormat.Namespace, diagnostics, new DestinationRef("out.txt", 0))
             .Project(view, [.. root.Select(Ordinary)]).Entries;
 
     /// <summary>The emitted key paths, spelled with the default delimiter.</summary>
@@ -47,7 +47,7 @@ public class FlatProjectionTests
         [.. entries.Select(entry => Spell(entry.Path))];
 
     private static ImmutableArray<string> Values(ImmutableArray<FlatEntry> entries) =>
-        [.. entries.Select(entry => entry.Payload.ToCanonicalText())];
+        [.. entries.Select(entry => entry.Payload!.ToCanonicalText())];
 
     private static string Spell(ImmutableArray<NamePart> path) =>
         string.Join(
@@ -320,7 +320,7 @@ public class FlatProjectionTests
 
         var entry = Project(view).ShouldHaveSingleItem();
 
-        entry.Payload.IsNull.ShouldBeTrue();
+        entry.Payload!.IsNull.ShouldBeTrue();
         Spell(entry.Path).ShouldBe("a");
     }
 
@@ -357,5 +357,53 @@ public class FlatProjectionTests
 
         Keys(entries).ShouldBe(["0", "0.k", "1"]);
         Values(entries).ShouldBe(["own", "under", "next"]);
+    }
+
+    /// <summary>
+    /// Section 19.1 spells an explicitly contributed empty container as the bare sentinel, and
+    /// Section 19.2 spells no sentinel at all.
+    /// </summary>
+    [Test]
+    public void AnExplicitEmptyContainerEmitsItsSentinel()
+    {
+        var view = Container(1)
+            .WithChild(
+                Ordinary("m"),
+                Container(1).WithExplicitMapping(StableOrderingKey.FromSource(1, 0)))
+            .WithChild(
+                Ordinary("s"),
+                Container(2).WithExplicitSequence(StableOrderingKey.FromSource(2, 0)));
+
+        var entries = Project(view);
+
+        Keys(entries).ShouldBe(["m", "s"]);
+        entries.Select(entry => entry.Container)
+            .ShouldBe([ContainerSentinel.EmptyMapping, ContainerSentinel.EmptySequence]);
+        entries.ShouldAllBe(entry => entry.Payload == null);
+
+        new FlatProjection(FlatFormat.QuotedNamespace, diagnostics)
+            .Project(view, []).Entries.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Section 4.2 gives a carrier ancestor a mapping shape-mark on behalf of a descendant, so a
+    /// node left empty by selection is not an explicitly declared empty container and emits no
+    /// sentinel.
+    /// </summary>
+    /// <remarks>
+    /// This is the case a <c>filemerge=replace</c> carrier reaches: the removed path must not
+    /// reappear in the output as an empty container.
+    /// </remarks>
+    [Test]
+    public void ACarrierLeftEmptyBySelectionEmitsNoSentinel()
+    {
+        var carrier = Container(1)
+            .WithChild(Ordinary("gone"), Leaf("x", 1))
+            .WithoutChild(Ordinary("gone"));
+
+        carrier.Marks.MappingShape.ShouldNotBeNull();
+        carrier.Marks.OwnMappingShape.ShouldBeNull();
+
+        Project(Container(1).WithChild(Ordinary("a"), carrier)).ShouldBeEmpty();
     }
 }

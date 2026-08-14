@@ -1417,6 +1417,17 @@
         "a-namespace-value-ending-in-a-space-is-refused",
         "namespace-allowtrailingwhitespace-writes-the-space-and-warns"
       ]
+    },
+    {
+      "item": 90,
+      "text": "Namespace empty-container sentinels: `{}` and `[]` as whole-value shape contributions, `\\{}` and `\\[]` as the strings they displace, the near-miss values that stay strings, bidirectional emission including the escape, an empty container coexisting with a later child, and the JSON round trip through namespace that the sentinels make lossless.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "a-namespace-value-spells-an-empty-container",
+        "namespace-output-spells-an-empty-container"
+      ]
     }
   ]
 }

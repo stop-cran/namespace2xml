@@ -222,7 +222,7 @@ public class FlatKeyProjectorTests
                 ScalarPayload.Untyped("second"),
                 []));
 
-        keyed.ShouldHaveSingleItem().Entry.Payload.ToCanonicalText().ShouldBe("first");
+        keyed.ShouldHaveSingleItem().Entry.Payload!.ToCanonicalText().ShouldBe("first");
     }
 
     /// <summary>

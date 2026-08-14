@@ -107,6 +107,50 @@ been decoded by their native parser, and Appendix A.5 defines a minimal one-pass
 them: only `\*` and `\${` are recognised; every other backslash emits itself and consumes only
 itself. Do not read across formats and assume the same escapes apply.
 
+## Empty containers
+
+A value that is *exactly* `{}` or `[]` is not a string. It contributes an empty mapping or an empty
+sequence at that path (§8.3), which is the same contribution a JSON `{}` or a YAML `[]` makes:
+
+```properties
+cfg.features={}
+cfg.hosts=[]
+```
+
+```json
+{ "cfg": { "features": {}, "hosts": [] } }
+```
+
+To write the two-character *string* instead, escape it — `\{}` and `\[]`:
+
+```properties
+cfg.placeholder=\{}
+```
+
+```json
+{ "cfg": { "placeholder": "{}" } }
+```
+
+The rule is whole-value and nothing else triggers it. `x{}`, `{}x`, ` {}`, `{} `, `{a}`, `{{}}` and
+`[ ]` are all ordinary strings, because a container is a *shape* rather than a character and cannot
+occur inside a longer value. `\\{}` is the three-character string `\{}`, since `\\` decodes to one
+backslash before the rest is read as text.
+
+The sentinels are value syntax, so `substitute=None` or `substitute=Key` (§16.7) turns all four
+spellings back into the literal text they contain — a second way to write `{}` as a string.
+
+Namespace output is the inverse (§19.1): an empty container emits the bare pair, and a scalar whose
+text is exactly `{}` or `[]` emits `\{}` or `\[]`. This is the only case in which namespace output
+emits a key for a path holding no scalar, and it is what makes `json → namespace → json` lossless
+for empty containers.
+
+`quotednamespace` and `ini` emit **no** sentinel and no key: a shell assignment and an INI entry are
+read as text by consumers with no container concept, so a bracket pair there would be data rather
+than shape. Those two formats discard the container under the §3.3 cross-format rule.
+
+A wildcard template cannot be an empty container — `a.*.b={}` is `PARSE001`, because §10.4 extracts
+a template entry by entry and an empty container has none.
+
 ## References
 
 An unescaped reference is `${qualified.name}` (§8.4). The reference name uses the same grammar as a
@@ -549,6 +593,9 @@ Two limits are worth stating exactly:
 Comments are preserved as normalised leading `#` comments only (§20). Inline and trailing comments
 from YAML become leading comments on the following entry (§4.5).
 
+Empty containers survive the trip in both directions, because §8.3's `{}` / `[]` sentinels and
+§19.1's emission of them are inverses. `quotednamespace` and `ini` still drop them (§19.2, §19.6).
+
 ## Traps
 
 **`.ini` and `.sh` are parsed as namespace.** Named already, worth naming again. `.ini` is
@@ -572,7 +619,12 @@ else (§8.5). `a.note=x #not-a-comment` is a value that ends with a number sign.
 
 **Unknown backslash sequences in values are preserved.** `\a`, `\U`, `\z` all keep their backslash
 (§8.3). This differs from Java properties files, where an unknown backslash is dropped, and from
-the Section A.5 transducer used for JSON/YAML/XML string values.
+the Section A.5 transducer used for JSON/YAML/XML string values. The one exception is `\{}` and
+`\[]`, which are the container-sentinel escapes and lose the backslash.
+
+**A value of exactly `{}` or `[]` is a container, not a string.** It contributes an empty mapping
+or sequence at that path (§8.3). Write `\{}` or `\[]` for the string. Nothing shorter or longer
+triggers this: `{a}` and `{{}}` are ordinary text.
 
 **A `${` in a value must be a valid reference.** Reference-shaped text that isn't a reference is
 `REFERENCE001`. Write `\${` for a literal `${`, or match the path with a scheme rule of

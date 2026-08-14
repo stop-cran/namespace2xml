@@ -235,7 +235,10 @@ public sealed class IniSerializer
     {
         value = null;
 
-        var text = keyed.Entry.Payload.IsNull ? "null" : keyed.Entry.Payload.ToCanonicalText();
+        // Section 19.6 emits no container sentinel, so the projection produces no payload-less
+        // entry for this format and every entry reaching here is a scalar.
+        var payload = keyed.Entry.Payload!;
+        var text = payload.IsNull ? "null" : payload.ToCanonicalText();
 
         if (text.Contains('\0', StringComparison.Ordinal))
         {

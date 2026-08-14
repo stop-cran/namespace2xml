@@ -8,6 +8,7 @@ doc.note.#1.Q{urn:p}b.@x=1
 doc.note.#2.b=two
 doc.gapped.#0=a
 doc.gapped.#2=b
+doc.empty={}
 doc.cdata=ab
 doc.spaced= pad
 doc.spaced.@Q{http://www.w3.org/XML/1998/namespace}space=preserve

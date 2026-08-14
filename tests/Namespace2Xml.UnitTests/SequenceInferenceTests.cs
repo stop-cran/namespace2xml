@@ -75,15 +75,14 @@ public sealed class SequenceInferenceTests
     public void AnEmptyMappingRemainsAMapping()
     {
         // Vacuously, an empty mapping's children are "all canonical ordering values". The clause
-        // exists to say that this reading is wrong. A JSON object spells the presence explicitly,
-        // which a namespace profile cannot do; Section 19.4 then emits the empty namespace file
-        // because no scalar survives under it.
+        // exists to say that this reading is wrong. Section 19.1 then spells the surviving mapping
+        // as the bare sentinel, which is the same presence the JSON object spelled.
         var (result, sink) = Transformation(
             ("app.json", "{\"app\": {\"sub\": {}, \"k\": \"v\"}}"),
             ("scheme.txt", "app.output=namespace\n"));
 
         result.ExitCode.ShouldBe(0);
-        sink.Written["app.properties"].ShouldBe("k=v\n");
+        sink.Written["app.properties"].ShouldBe("sub={}\nk=v\n");
     }
 
     /// <summary>

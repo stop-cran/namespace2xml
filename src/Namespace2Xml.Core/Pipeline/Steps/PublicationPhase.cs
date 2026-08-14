@@ -152,7 +152,8 @@ public static class PublicationPhase
         if (view.Format.TryAsFlat(out var flat))
         {
             var delimiter = view.Instance.Delimiter ?? FlatKeyProjector.DefaultDelimiter(flat);
-            var projected = new FlatProjection(diagnostics, destination).Project(view.View, view.Root);
+            var projected = new FlatProjection(flat, diagnostics, destination)
+                .Project(view.View, view.Root);
             var keyed = new FlatKeyProjector(flat, delimiter, diagnostics, destination).Project(projected);
 
             // INI takes the whole document: Section 20 places its document-leading comments before

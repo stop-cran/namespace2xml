@@ -24,7 +24,10 @@
   one `WARN003` for the file. Section 11.6 coalesces adjacent CDATA into one run, so two
   segments read as `ab`. Section 11.7 makes `PreserveWhitespace` the default, which retains every
   text node: an indented document is therefore mixed content, and `pretty` addresses its two
-  formatting runs as `#0` and `#2` with the element between them at `#1`.
+  formatting runs as `#0` and `#2` with the element between them at `#1`. An element with no
+  content is an empty mapping, which Section 19.1 spells as the bare `{}` sentinel — measured on
+  the baseline, `<cfg><empty/><k>1</k></cfg>` reads as `cfg.empty=` and `cfg.k=`, so an element
+  that held nothing and an element whose text was thrown away produced the same line.
 - The difference is intentional: Section 11.4 exists so that one XML component has exactly one
   address regardless of how the document spells its prefixes, and every legacy behavior above either
   loses a component the document contained or lets the document's spelling decide its identity.

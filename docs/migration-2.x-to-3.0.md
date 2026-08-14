@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r93+933d531c4e60`.**
+**Contract bundle `r94+0e3b21f43d3a`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (170)
+## Observable differences (172)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -512,6 +512,27 @@ implemented, its case says so plainly rather than letting the heading imply othe
   survives the checks that remove a trailing space.
 - This is a deliberate 3.0 refusal of input 2.4.0 accepted, and it is the loud kind: the run fails
   and names its remedy, rather than writing a file whose last two bytes a later tool may delete.
+
+### `a-namespace-value-spells-an-empty-container`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 8.3, 16.7, and 18.
+- Legacy observation: the baseline read a bare `{}` and a bare `[]` as an empty mapping and an
+  empty sequence, and left every value that merely contains a bracket pair alone -- measured, it
+  agrees with this case on `bare_map`, `bare_seq`, and all five near misses. It had no escape.
+  `\{}` read as the three-character string `\{}` and `\\{}` as the four-character `\\{}`, because
+  value backslashes were never decoded, so the two-character string `{}` could not be written at
+  all: every spelling of it was either the container or a string still carrying its backslashes.
+  `substitute` did not exempt it either -- under `cfg.literal.substitute=None` the baseline still
+  produced a container.
+- Clean behavior: Section 8.3 keeps the whole-value sentinel and adds the escape the baseline
+  lacked. `\{}` is the two-character string `{}`, and the three-character string the baseline gave
+  that spelling is now written `\\{}`, because Section 8.3's `\\` decodes to one backslash before
+  the remaining `{}` is ordinary text. Section 16.7 gives a second route: the sentinels are value
+  syntax, so `substitute=None` reads all four spellings as the literal text they contain.
+- The difference is intentional: a convention with no escape is not expressible, and the value it
+  displaced was unreachable. Section 19.1 emits `\{}` for a scalar that is exactly `{}`, so the two
+  readings are inverse rather than merely disjoint.
 
 ### `a-native-key-marker-commits-once-recognized`
 
@@ -2400,6 +2421,23 @@ implemented, its case says so plainly rather than letting the heading imply othe
   and the paragraph below the table then states that "Document-leading comments precede the first
   global key or section". The wording fixes the form a comment takes, not which comments survive.
 
+### `namespace-output-spells-an-empty-container`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 19.1 and 5.2.
+- Legacy observation: the baseline emitted a bare `{}` for an empty mapping and a bare `[]` for an
+  empty sequence, matching this case on `map`, `seq`, and `nested.inner`. It emitted the same two
+  bare pairs for the JSON *strings* `"{}"` and `"[]"` -- measured, `text_map={}` and `text_seq=[]`
+  -- so reading that output back produced two containers where the document held two strings, and
+  the two source shapes were indistinguishable in the result. It also reordered the entries,
+  emitting `nested.inner` ahead of the two text values rather than in source order.
+- Clean behavior: Section 19.1 spells an empty container as the bare sentinel and a scalar whose
+  text is exactly `{}` or `[]` as `\{}` or `\[]`, which is what makes the Section 8.3 reading its
+  inverse. Section 5.2 keeps mapping children in source order, so `text_map` and `text_seq` stay
+  where the document put them.
+- The difference is intentional: an output that spells two distinct source shapes identically
+  cannot be read back, and Section 3.3's normalized same-format round trip requires that it can.
+
 ### `namespace-permanent-ignore-masks`
 
 - namespace2xml 2.4.0: **differs**.
@@ -3239,7 +3277,10 @@ implemented, its case says so plainly rather than letting the heading imply othe
   one `WARN003` for the file. Section 11.6 coalesces adjacent CDATA into one run, so two
   segments read as `ab`. Section 11.7 makes `PreserveWhitespace` the default, which retains every
   text node: an indented document is therefore mixed content, and `pretty` addresses its two
-  formatting runs as `#0` and `#2` with the element between them at `#1`.
+  formatting runs as `#0` and `#2` with the element between them at `#1`. An element with no
+  content is an empty mapping, which Section 19.1 spells as the bare `{}` sentinel — measured on
+  the baseline, `<cfg><empty/><k>1</k></cfg>` reads as `cfg.empty=` and `cfg.k=`, so an element
+  that held nothing and an element whose text was thrown away produced the same line.
 - The difference is intentional: Section 11.4 exists so that one XML component has exactly one
   address regardless of how the document spells its prefixes, and every legacy behavior above either
   loses a component the document contained or lets the document's spelling decide its identity.

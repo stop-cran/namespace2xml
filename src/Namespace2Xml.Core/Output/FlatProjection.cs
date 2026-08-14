@@ -15,13 +15,21 @@ namespace Namespace2Xml.Output;
 /// The same path with the stable Section 5.4 ordering values that continue to govern matching and
 /// precedence. Diagnostics name this one, because it is the path a user wrote.
 /// </param>
-/// <param name="Payload">The scalar being emitted.</param>
+/// <param name="Payload">
+/// The scalar being emitted, or <see langword="null"/> for the one Section 19.1 entry that spells a
+/// container rather than a scalar.
+/// </param>
 /// <param name="Comments">The node's comments, in Section 4.5 source order.</param>
+/// <param name="Container">
+/// Section 19.1: which empty container this entry spells, or <see cref="ContainerSentinel.None"/>
+/// for an ordinary scalar entry.
+/// </param>
 public sealed record FlatEntry(
     ImmutableArray<NamePart> Path,
     ImmutableArray<NamePart> LogicalPath,
-    ScalarPayload Payload,
-    ImmutableArray<BoundComment> Comments);
+    ScalarPayload? Payload,
+    ImmutableArray<BoundComment> Comments,
+    ContainerSentinel Container = ContainerSentinel.None);
 
 /// <summary>A flat output: its entries, and the comments that own no entry.</summary>
 /// <param name="Leading">The Section 4.5 document-leading comments, in source order.</param>
@@ -64,21 +72,25 @@ public sealed record FlatDocument(
 /// </remarks>
 public sealed class FlatProjection
 {
+    private readonly FlatFormat format;
     private readonly DiagnosticBuffer diagnostics;
     private readonly DestinationRef? destination;
     private readonly List<BoundComment> pending = [];
     private int discardedComments;
 
     /// <summary>Creates a projection.</summary>
+    /// <param name="format">The flat format being written.</param>
     /// <param name="diagnostics">The buffer shape-conflict warnings accumulate in.</param>
     /// <param name="destination">
     /// The Section 6.4.3 <c>destination</c> this output instance writes to, which is half of the
     /// "once per path and output instance" cardinality of <c>TYPE002</c>.
     /// </param>
-    public FlatProjection(DiagnosticBuffer diagnostics, DestinationRef? destination = null)
+    public FlatProjection(
+        FlatFormat format, DiagnosticBuffer diagnostics, DestinationRef? destination = null)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
 
+        this.format = format;
         this.diagnostics = diagnostics;
         this.destination = destination;
     }
@@ -135,6 +147,14 @@ public sealed class FlatProjection
             entries.Add(new FlatEntry(
                 path, logical, payload, Claim(isRoot ? Array.Empty<BoundComment>() : node.OrderedComments)));
         }
+        else if (TryContainerSentinel(node, isRoot) is { } sentinel)
+        {
+            // Section 19.1: an empty container is "the only case in which this format emits a key
+            // for a path that holds no scalar". The comments bound here therefore ride on that key
+            // like any other entry's rather than descending to a key that will never come.
+            entries.Add(new FlatEntry(
+                path, logical, Payload: null, Claim(node.OrderedComments), sentinel));
+        }
         else if (!isRoot)
         {
             // Section 19.1: this path is container-only, so no key spells it and the comments bound
@@ -185,6 +205,47 @@ public sealed class FlatProjection
                 Visit(child, path.Add(name), logical.Add(name), entries);
             }
         }
+    }
+
+    /// <summary>
+    /// Section 19.1: decides whether this node is an empty container the namespace format spells as
+    /// a bracket pair.
+    /// </summary>
+    /// <param name="node">The node being visited.</param>
+    /// <param name="isRoot">Whether this is the view root, which no key names.</param>
+    /// <returns>The sentinel to emit, or <see langword="null"/> for every other node.</returns>
+    /// <remarks>
+    /// <para>
+    /// The test is the shape-mark contributed <em>at this node itself</em>, not the shape-mark it
+    /// carries. Section 4.2 gives an ancestor a mapping mark because a descendant needs it to be a
+    /// mapping, so a carrier whose descendants were all removed by a Section 8.6 mask or a
+    /// Section 17.1 replacement carries a mapping mark it never earned. Emitting a bracket pair for
+    /// one would put the removed path back into the output as an empty container, which is exactly
+    /// the confusion the removal was asked for.
+    /// </para>
+    /// <para>
+    /// Section 19.2 and Section 19.6 emit no sentinel, so only the namespace format asks. The view
+    /// root is excluded because Section 19.1 spells a key from a path and the root's path is empty.
+    /// </para>
+    /// </remarks>
+    private ContainerSentinel? TryContainerSentinel(OverlayNode node, bool isRoot)
+    {
+        if (isRoot
+            || format != FlatFormat.Namespace
+            || !node.Children.IsEmpty
+            || node.OrderedSequence.Any())
+        {
+            return null;
+        }
+
+        if (node.Marks.OwnSequenceShape is not null && node.Marks.ContainerIsSequence)
+        {
+            return ContainerSentinel.EmptySequence;
+        }
+
+        return node.Marks.OwnMappingShape is not null && node.Marks.ContainerIsMapping
+            ? ContainerSentinel.EmptyMapping
+            : null;
     }
 
     /// <summary>

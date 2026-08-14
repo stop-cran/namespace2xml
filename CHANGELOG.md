@@ -15,6 +15,50 @@ independently.
 
 ### Added
 
+- **`{}` and `[]` are namespace values again, and now they have an escape.** 2.4.0 read a bare
+  `{}` as an empty mapping and a bare `[]` as an empty sequence; the 3.0 specification never
+  mentioned braces, so §8.3 read them as ordinary two-character strings. That was correct against
+  the contract and wrong against every user of the tool. Measured, the regression was silent and
+  bidirectional: `{"cfg":{"a":{},"b":[]}}` rendered to namespace lost both keys entirely — exit
+  `0`, empty diagnostic stream — and reading `cfg.a={}` back produced the string `"{}"` where
+  2.4.0 produced a container. Nothing in the corpus, the migration guide or `KNOWN-LIMITS.md`
+  recorded it, because nothing had asked.
+
+  §8.3 now classifies a value that is *exactly* `{}` or `[]` as an explicit empty-mapping or
+  empty-sequence presence contribution, on the raw text and before any escape is decoded, and
+  §19.1 emits the bare pair for an empty container — the only case in which namespace output
+  spells a key for a path holding no scalar. `json → namespace → json` is lossless for empty
+  containers again.
+
+  What 2.4.0 could not do was write the *string* `{}`: it had no escape, so every spelling was
+  either the container or a string still carrying its backslashes. `\{}` and `\[]` are now that
+  escape, and §19.1 emits them for a scalar whose text is exactly the bracket pair, which makes
+  the two directions inverse rather than merely disjoint. The only values whose meaning changed
+  are those two spellings; each remains writable as `\\{}` and `\\[]`. §16.7 is a second route —
+  the sentinels are value syntax, so `substitute=None` reads all four as literal text.
+
+  The rule is whole-value on purpose. A container is a node shape rather than a character, so
+  ` {}`, `{} `, `x{}`, `{}x`, `{a}`, `{{}}` and `[ ]` stay strings; reading a bracket pair as
+  shape anywhere else would make a string's meaning depend on its contents, and would cost the
+  writer its injectivity. A bare `{}` contributes shape and not payload, so `a={}` followed by
+  `a.b=1` yields a mapping holding `b` rather than a §4.4 contest. §10.4 already refused a
+  wildcard template valued as an empty container; that refusal now has a namespace spelling to
+  refuse, and `a.*.b={}` is `PARSE001`.
+
+  `quotednamespace` and `ini` emit no sentinel: a shell assignment and an INI entry are read as
+  text by consumers with no container concept, so a bracket pair there would be data rather than
+  shape. They discard it under the §3.3 cross-format rule, which is the part of issue #94 that
+  remains open. The projection tests the shape-mark contributed *at* a node rather than the one it
+  carries, so a carrier ancestor emptied by a mask or by `filemerge=replace` does not reappear as
+  an empty container — the hazard `KNOWN-LIMITS.md` §1.13 names.
+
+  Two fixtures cover both directions and every near miss, both proven red by mutation. The
+  existing `xml-canonical-addresses` fixture gained the line its `<empty/>` element always owed:
+  measured, 2.4.0 rendered that element and an element whose text it had discarded as the same
+  `cfg.empty=`.
+
+  Reported as **#94**. Acceptance item 90.
+
 - **`namespaceoutputoptions=AllowTrailingWhitespace`, and a refusal where there was silence.**
   §24 requires a text output to contain no line ending in a space or a TAB, and every writer
   honoured it except the one this tool is named for. `namespace` and `quotednamespace` write

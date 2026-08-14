@@ -99,7 +99,7 @@ public sealed class FlatTextSerializer
                 }
             }
 
-            if (!TrySpellValue(keyed.Entry.Payload, keyed.Key, out var value))
+            if (!TrySpellValue(keyed.Entry, keyed.Key, out var value))
             {
                 return false;
             }
@@ -151,8 +151,20 @@ public sealed class FlatTextSerializer
         return true;
     }
 
-    private bool TrySpellValue(ScalarPayload payload, string key, out string? value)
+    private bool TrySpellValue(FlatEntry entry, string key, out string? value)
     {
+        // Section 19.1: an empty container is spelled as the bare sentinel. It reaches no escape
+        // table, because the two characters are the shape rather than text that could need one.
+        if (entry.Container is not ContainerSentinel.None)
+        {
+            value = entry.Container is ContainerSentinel.EmptyMapping
+                ? ContainerSentinels.Mapping
+                : ContainerSentinels.Sequence;
+            return true;
+        }
+
+        var payload = entry.Payload!;
+
         // Section 19.1 spells null as the text "null", and Section 19.2 adopts that spelling so a
         // shell consumer is not left unable to tell null from the empty string.
         var text = payload.IsNull ? "null" : payload.ToCanonicalText();
@@ -177,7 +189,10 @@ public sealed class FlatTextSerializer
                 return false;
             }
 
-            value = encoded!;
+            // Section 19.1: "a scalar whose text is exactly '{}' or '[]' emits '\{}' or '\[]'", so
+            // the two readings never collide. The emitted text is tested rather than the payload
+            // for the same reason the rule above tests it: that is what a reader will see.
+            value = ContainerSentinels.Spell(encoded!);
             return true;
         }
 

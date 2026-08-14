@@ -251,12 +251,27 @@ public static class NamespaceProfileReader
             ? lexedName.Name
             : QualifiedNameLexer.Literalize(lexedName.Name);
 
+        // Section 8.3 classifies a container sentinel "on the raw value text, before any escape
+        // below is decoded", and only under a mode that interprets values, because the sentinels
+        // are value syntax. A sentinel bypasses the lexer entirely: '{}' has nothing to decode and
+        // '\{}' would otherwise reach the unrecognized-escape rule and keep its backslash.
+        var sentinel = mode.InterpretsValues()
+            ? ContainerSentinels.Classify(record.Value!)
+            : ContainerSentinel.None;
+
         // Section 12.1 decides wildcard recognition "before the value is lexed, from the owning
         // name's captures": in an entry whose name defines none, 'pattern=*.txt' is literal text.
         // Under a mode that does not interpret names there are no captures to define, so the two
         // halves of Section 16.7's table meet here rather than needing to be kept in step.
+        //
+        // A sentinel is lexed as the text it denotes rather than as written, which for the escaped
+        // form is the bracket pair the backslash protects. Both forms are free of every construct
+        // the lexer recognizes, so this cannot fault and cannot reintroduce the backslash the
+        // unrecognized-escape rule would otherwise keep.
         var lexedValue = ValueLexer.Lex(
-            record.Value!,
+            sentinel is ContainerSentinel.EscapedText
+                ? ContainerSentinels.Unescape(record.Value!)
+                : record.Value!,
             mode.InterpretsValues()
                 ? ValueSyntax.Profile(QualifiedNameLexer.CaptureForm(name))
                 : ValueSyntax.ProfileUninterpreted);
@@ -301,8 +316,35 @@ public static class NamespaceProfileReader
         // such an entry is concrete here without a second mode test.
         if (QualifiedNameLexer.ContainsWildcard(name))
         {
+            // Section 10.4 refuses a wildcard key valued as an empty container: extraction is
+            // entry by entry and such a template "would contribute nothing at every path it
+            // matched". Section 8.3 gives a namespace profile a way to write one, so the rule the
+            // native readers already enforce has to be enforced here too.
+            if (sentinel is ContainerSentinel.EmptyMapping or ContainerSentinel.EmptySequence)
+            {
+                RejectEmptyTemplate(name, sentinel, record, source, diagnostics, key);
+                return overlay;
+            }
+
             templates.Add(entry);
             return overlay;
+        }
+
+        // Section 8.3: a bare sentinel is "a shape contribution and not a payload", so it advances
+        // the node's mapping or sequence shape-mark and leaves its payload mark alone. Section 4.2
+        // makes that the same contribution a native '{}' makes, which is what lets the two
+        // spellings of one document merge without either winning a contest the other is not in.
+        if (sentinel is ContainerSentinel.EmptyMapping or ContainerSentinel.EmptySequence)
+        {
+            return Graft(
+                overlay,
+                name.Parts,
+                0,
+                leaf => sentinel is ContainerSentinel.EmptyMapping
+                    ? leaf.WithExplicitMapping(key)
+                    : leaf.WithExplicitSequence(key),
+                key,
+                comments);
         }
 
         if (lexedValue.Value.ContainsReference || lexedValue.Value.ContainsWildcard)
@@ -324,7 +366,7 @@ public static class NamespaceProfileReader
                 overlay,
                 name.Parts,
                 0,
-                ScalarPayload.Unresolved(lexedValue.Value, origin),
+                leaf => leaf.WithPayload(ScalarPayload.Unresolved(lexedValue.Value, origin), key),
                 key,
                 comments);
         }
@@ -333,7 +375,7 @@ public static class NamespaceProfileReader
             overlay,
             name.Parts,
             0,
-            ScalarPayload.Untyped(lexedValue.Value.LiteralText!),
+            leaf => leaf.WithPayload(ScalarPayload.Untyped(lexedValue.Value.LiteralText!), key),
             key,
             comments);
     }
@@ -350,13 +392,13 @@ public static class NamespaceProfileReader
         OverlayNode node,
         ImmutableArray<NamePart> parts,
         int depth,
-        ScalarPayload payload,
+        Func<OverlayNode, OverlayNode> contribute,
         StableOrderingKey key,
         ImmutableArray<BoundComment> comments)
     {
         if (depth == parts.Length)
         {
-            var leaf = node.WithPayload(payload, key);
+            var leaf = contribute(node);
 
             return comments.Aggregate(leaf, (current, comment) => current.WithComment(comment));
         }
@@ -366,7 +408,45 @@ public static class NamespaceProfileReader
             ? existing
             : OverlayNode.Intermediate(key);
 
-        return node.WithChild(name, Graft(child, parts, depth + 1, payload, key, comments));
+        return node.WithChild(name, Graft(child, parts, depth + 1, contribute, key, comments));
+    }
+
+    /// <summary>
+    /// Section 10.4 step 7: refuses a namespace template whose value is a Section 8.3 empty
+    /// container.
+    /// </summary>
+    /// <param name="name">The declared wildcard path.</param>
+    /// <param name="sentinel">Which empty container the value spells.</param>
+    /// <param name="record">The record the entry was read from.</param>
+    /// <param name="source">The profile the record belongs to.</param>
+    /// <param name="diagnostics">The buffer the diagnostic is added to.</param>
+    /// <param name="key">The record's ordering key.</param>
+    private static void RejectEmptyTemplate(
+        QualifiedName name,
+        ContainerSentinel sentinel,
+        NamespaceRecord record,
+        ProfileSource source,
+        DiagnosticBuffer diagnostics,
+        StableOrderingKey key)
+    {
+        var what = sentinel is ContainerSentinel.EmptyMapping
+            ? "an empty mapping"
+            : "an empty sequence";
+
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Parse001(
+                DiagnosticPhase.Input,
+                "\u00A710.4",
+                $"the wildcard template at '{CanonicalPath.Of(name)}' reaches {what}. Section "
+                + $"10.4 extracts a template entry by entry, and {what} has no entries, so this "
+                + "template would contribute nothing at every path it matched. Give the template "
+                + "a scalar, write '\\{}' or '\\[]' for the literal bracket pair, or write '\\*' "
+                + "for a literal asterisk if the key was not meant to be a wildcard.",
+                cardinalityKey: source.SourceKey,
+                source: source.File,
+                line: source.LineOf(record.Line),
+                column: source.ColumnOf(record.Column)),
+            key));
     }
 
     private static void EmitNameFault(

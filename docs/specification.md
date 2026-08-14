@@ -703,6 +703,16 @@ An empty name part is a blocking parse error. A qualified name must not begin or
 
 ### 8.3 Value escapes
 
+An entry value consisting of exactly the two characters `{}` is not a scalar. It is an explicit empty-mapping presence contribution at that path under Section 4.2, and a value consisting of exactly `[]` is an empty-sequence contribution. A value consisting of exactly `\{}` or `\[]` is the two-character string `{}` or `[]`.
+
+The classification is made on the raw value text, before any escape below is decoded, and only when the sentinel is the entire value. ` {}`, `{} `, `x{}`, `{}x`, `{a}`, `{{}}`, and `[ ]` are ordinary strings. A container is a node shape rather than a character, so it cannot occur inside a longer value, and reading a bracket pair as shape anywhere else would make the meaning of a string depend on its contents.
+
+The sentinels are value syntax, so a Section 16.7 mode whose values are not interpreted does not recognize them: under `substitute=Key` or `substitute=None` all four spellings are the literal text they contain. That mode is the way to write the two-character string `{}` without an escape, and it keeps `\{}` from meaning two different things depending on how the value is read.
+
+A contributed empty container is a shape contribution and not a payload. Section 18 scalar inference therefore never sees it, and it advances the node's mapping or sequence shape mark under Section 4.2 without advancing its payload mark, so `a={}` followed by `a.b=1` yields a mapping holding `b` rather than a contest between them.
+
+These two spellings are the only ones this rule fixes, and the string each displaces stays writable: `\\{}` decodes under the list below to the three-character string `\{}`.
+
 Within an interpreted namespace-profile value:
 
 - `\\` emits `\`;
@@ -714,6 +724,8 @@ Within an interpreted namespace-profile value:
 - other backslash sequences preserve the backslash and following character.
 
 Namespace values intentionally do not support `\u{HEX}`. Non-ASCII characters are written directly as UTF-8, while unknown value escapes remain literal. This differs from strict qualified-name escaping by design.
+
+The container sentinels above are the one place this format reads a value as shape rather than as text, and they are confined to a whole value for that reason. A native JSON, YAML, or XML source expresses an empty container in its own syntax and is unaffected: the rule is a property of the namespace-profile value lexer, not of the model.
 
 Within an interpreted JSON, YAML, or XML string that has already been decoded by its native parser:
 
@@ -2487,6 +2499,10 @@ Values use the inverse of the namespace value lexer:
 
 Physical output entries are always one line. Multiline scalar data is represented through escapes, never literal record-breaking line terminators.
 
+A node whose projection is an empty mapping emits `qualified.name={}`, and one whose projection is an empty sequence emits `qualified.name=[]`. A scalar whose text is exactly `{}` or `[]` emits `\{}` or `\[]`. This is what makes the Section 8.3 sentinel bidirectional, and it is the only case in which this format emits a key for a path that holds no scalar: a container with children needs no key of its own, because its children carry it.
+
+Section 19.2 and Section 19.6 emit no sentinel and no key for an empty container. A shell assignment and an INI entry are read as text by consumers that have no container concept, so a bracket pair written there would be data rather than shape, and re-reading it would invent a string the source never held. Those formats discard the concept instead, under the cross-format rule in Section 3.3.
+
 An entry whose emitted value ends in a space is refused. The condition is blocking `NAMESPACE001`, naming the path and the destination, and is anchored here. Under `namespaceoutputoptions=AllowTrailingWhitespace` the entry is written with its trailing space intact and the condition is `WARN013` instead, at the same cardinality.
 
 Only a space reaches this rule. A TAB is emitted as `\t` by the escape list above, so no entry ends in a literal TAB, and Section 8.3 gives values no `\u{HEX}` form, so a trailing space has no escaped spelling to fall back on. Refusing the entry is therefore the only way to keep the Section 24 byte rule while writing this format at all, and the remedy is a format that quotes: Section 19.2 writes `NAME='value  '` and preserves the value exactly, which is what `QuoteValues` does for INI under Section 19.6. Section 24 states why the rule names a space and a TAB rather than every character carrying the Unicode `White_Space` property; a value ending in U+00A0 or U+3000 is written literally here and read back unchanged.
@@ -3661,6 +3677,7 @@ An implementation is conforming only when automated black-box tests cover:
 87. Marker-carrying JSON and YAML mapping keys: reading an attribute, content, and qualified-element key, the leading-backslash escape and its suppression of marker recognition, `PARSE001` for a key that begins like a marker without completing it, escaping on output, and an XML → JSON → XML round trip that preserves attributes.
 88. INI global-key framing: `WARN012` on a written preamble and its absence when no global key survives, `GlobalSection` hoisting the global keys into a leading section named `global` that a reader requiring a section header accepts, no empty header when the hoisted section would be empty, and the blocking `FLAT001` when a path of two or more parts already projects to that section.
 89. Namespace trailing-whitespace framing: the blocking `NAMESPACE001` for a value that would end its line in a space, `namespaceoutputoptions=AllowTrailingWhitespace` writing that value intact under `WARN013`, leading whitespace passing unreported in both modes, and whitespace outside the Section 24 pair reaching the output literally.
+90. Namespace empty-container sentinels: `{}` and `[]` as whole-value shape contributions, `\{}` and `\[]` as the strings they displace, the near-miss values that stay strings, bidirectional emission including the escape, an empty container coexisting with a later child, and the JSON round trip through namespace that the sentinels make lossless.
 
 ## 27. Deferred features
 
@@ -3768,6 +3785,8 @@ This ABNF covers escape tokenization only. Reference recognition from Section 8.
 Emitted text is never rescanned. The `${` emitted by `\${` therefore never begins a reference and the `*` emitted by `\*` is never a wildcard token, which is what makes those two escapes effective. `\\${a}` emits a literal backslash followed by a reference to `a`, because the escape consumed both backslashes and the pass resumes at the `$`; the same text in a decoded native string is governed by A.5 instead and emits the literal text `\${a}` with no reference.
 
 A trailing backslash with no following scalar matches `value-scalar` and emits itself.
+
+The Section 8.3 container sentinels are recognized before this tokenization begins and are not part of it. A value is compared as raw text against `{}`, `[]`, `\{}`, and `\[]` first; only a value matching none of the four reaches the productions above.
 
 ### A.4 References
 

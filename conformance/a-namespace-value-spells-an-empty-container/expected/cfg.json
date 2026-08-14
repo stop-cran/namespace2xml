@@ -1,0 +1,16 @@
+{
+  "bare_map": {},
+  "bare_seq": [],
+  "esc_map": "{}",
+  "esc_seq": "[]",
+  "near_suffix": "x{}",
+  "near_prefix": "{}x",
+  "near_inner": "{a}",
+  "near_nested": "{{}}",
+  "near_spaced": "[ ]",
+  "double": "\\{}",
+  "grown": {
+    "child": 1
+  },
+  "literal": "{}"
+}
