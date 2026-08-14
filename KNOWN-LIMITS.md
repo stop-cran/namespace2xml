@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r80+5d5ab443edf0`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r81+b1e9c188881b`. Dated 2026-08.**
 
 This file tracks the branch, and the branch runs ahead of the last published preview:
 `3.0.0-preview.3` carries `r44+a91f25bf49ec`, `3.0.0-preview.2` carries `r37+2d644be6926e`, and
@@ -202,20 +202,26 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   §11.4 specifies — and was closed by
   [docs/usage-methodology.md](docs/usage-methodology.md) §3, which works the case through. The
   fixture `xml-canonical-addresses` pins both spellings.
-- **A promoted sequence item's place in the serialized XML stream is not pinned.** §11.4 evaluates
-  mixedness and repeated-child classification "across all input contributions to that element", and
-  this tool does: a mixed contribution re-addresses an element-only contribution's children as
-  content nodes, and a contribution that repeats a name makes another contribution's singleton an
-  item of that one sequence. The *addresses* are settled. What is not settled is where a
-  concatenated item is *drawn*: §11.4 gives that job to the content token — "content-token values
-  determine placement in the parent's serialized stream only" — but never says how a second
-  document's tokens relate to the first's, and an item promoted out of another document carries a
-  token from that document's counter. Converted mixed content is allocated above the merged
-  element's high-water mark, so it is ordered; a promoted sequence item keeps its own token and can
-  therefore be drawn among the items it follows in the address space. The fixtures pin the addresses
-  in both cases and the serialized stream only for the mixed case. §11.4 carries a non-normative
-  open question recording this, so the two cannot drift apart; filing it as a specification
-  ambiguity is the fast-follow.
+- **A promoted sequence item's place in the serialized XML stream is now pinned.** This entry
+  recorded a gap that §11.4 itself carried as a non-normative open question, and both are resolved.
+  §11.4 evaluates mixedness and repeated-child classification "across all input contributions to
+  that element", and this tool does: a mixed contribution re-addresses an element-only
+  contribution's children as content nodes, and a contribution that repeats a name makes another
+  contribution's singleton an item of that one sequence. The addresses were always settled; where a
+  concatenated item was *drawn* was not, because §11.4 gave that job to the content token — "content-token
+  values determine placement in the parent's serialized stream only" — and never related a second
+  document's tokens to the first's. An item promoted out of another document carried a token from
+  that document's counter and could be drawn among the items it follows in the address space.
+
+  What settled it was noticing that the two destinations disagreed. Against two documents
+  contributing `one`, `mid`, `two` and `three`, the namespace view reported `b.0=one`, `b.1=two`,
+  `b.2=three` while the XML view emitted `one`, `three`, `mid`, `two` — so `b.2` named the last
+  item for a reference and the second element for a reader. §11.4 now makes canonical index order
+  govern the serialized stream where the two disagree, which is a rule about consistency between
+  views rather than a new ordering policy, and a single document is unaffected because its own
+  counter is already monotone. `a-promoted-item-follows-its-canonical-index` pins both views in one
+  run. **verified**
+
 - **Comments are retained**, and this entry records what that costs elsewhere rather than a gap.
   §11.5 keeps them "as ordered comment nodes", explicitly not "forced into a 'leading comment for
   the next value' representation because a comment may occur between mixed-content nodes or after
@@ -510,8 +516,7 @@ component would have to match a variable number of concrete components, and §11
 and its sole content token to be "two canonical addresses for one scalar identity, **not** two
 candidates in the simple-alias ambiguity index" — folding the terminal token would instead make
 every directive on a mixed-content element ambiguous with its own text and raise `SCHEME002` where
-the specification wants none. §11.4 also carries a non-normative open question about repeated
-children in mixed content, which is the same shape. A directive on a content token must therefore be
+the specification wants none. A directive on a content token must therefore be
 written `a.#1`, which is unambiguous. **verified**
 
 The alias applies to `type`, `key`, `ignore`, `multiline` and the other path-scoped directives bound

@@ -282,6 +282,7 @@
         "xml-cdata-survives-a-round-trip",
         "xml-reports-a-node-that-supplies-both-container-shapes",
         "an-xml-name-outside-ncname-is-refused",
+        "a-promoted-item-follows-its-canonical-index",
         "a-name-xml-would-refuse-is-ordinary-elsewhere",
         "an-element-takes-no-prefix-when-an-attribute-has-one",
         "an-xml-comment-is-written-after-the-value-it-sits-beside",

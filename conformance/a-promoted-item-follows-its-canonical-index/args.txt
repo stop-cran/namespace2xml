@@ -1,0 +1,7 @@
+-i
+inputs/p1.xml
+inputs/p2.xml
+inputs/q1.xml
+inputs/q2.xml
+-s
+schemes/main.txt

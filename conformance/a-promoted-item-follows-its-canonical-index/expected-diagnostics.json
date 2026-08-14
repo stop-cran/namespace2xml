@@ -1,0 +1,4 @@
+[
+{"code":"WARN004","severity":"warning","phase":"input","path":"p.b","spec":"§8.7"},
+{"code":"WARN004","severity":"warning","phase":"input","path":"q.b","spec":"§8.7"}
+]

@@ -444,10 +444,21 @@ public sealed class XmlProjection
                 && Kind(childPath) is null
                 && child.OrderedSequence.Any(item => item.Value.Node.Marks.ContentToken is not null))
             {
+                // Section 11.4: the items emit in canonical index order. One document's counter is
+                // monotone, so its own tokens already say that; two contributions number from
+                // their own zero, and a later item can carry a token that would place it among or
+                // before an earlier one. Raising each item to the highest token seen so far in the
+                // sequence resolves exactly those inversions and leaves a single-document stream
+                // untouched. Ties hold canonical order because OrderBy is stable and the items
+                // enter the list in that order.
+                var highWater = long.MinValue;
+
                 foreach (var (value, item) in child.OrderedSequence)
                 {
+                    highWater = Math.Max(highWater, item.Node.Marks.ContentToken ?? long.MaxValue);
+
                     units.Add((
-                        item.Node.Marks.ContentToken ?? long.MaxValue,
+                        highWater,
                         new Unit(
                             name,
                             item.Node,
