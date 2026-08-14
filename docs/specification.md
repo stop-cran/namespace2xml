@@ -556,7 +556,11 @@ The array is described by the following closed schema, which is normative. `addi
 }
 ```
 
-`source` and `destination` are relative paths using `/` separators when the location is inside the invocation's input set or output root, and are otherwise the resolved path as supplied. `path` is a canonical qualified path under Appendix A.
+`source` is the path token exactly as it was supplied, with every `\` rewritten to `/` and nothing else changed: it is never absolutized, canonicalized, case-folded, or link-resolved, so `../a.txt` is reported as `../a.txt` and an absolute token is reported absolute. A diagnostic member is compared byte for byte by a conformance fixture, and every other choice would make the compared bytes depend on the working directory the run started in, the shape of the filesystem beneath it, or the host's rules for resolving a path — none of which the run's own arguments determine. Prose in `message` may name a resolved path, because `message` is never compared.
+
+`destination` is the canonical destination path of Section 17.5, which is a property of the output plan rather than of the invocation, and so does not vary with `--output`.
+
+`path` is a canonical qualified path under Appendix A: the name parts joined with `.`, each part spelled as Section 19.1 spells a namespace name, with no `root` applied and no output-format projection. A part containing the delimiter carries it escaped by the Section 16.4 `\u{HEX}` rule, so the joined string parses back to the same parts. The path names the node the rule was enforced against, not the component that failed — a report that named only the component would identify what is wrong without identifying where, which in a run over a large model is not actionable.
 
 ## 7. Input discovery and reading
 

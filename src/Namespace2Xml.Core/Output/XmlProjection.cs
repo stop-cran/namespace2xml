@@ -97,7 +97,7 @@ public sealed class XmlProjection
 
         // Section 16.3: "root=x.y ... XML emits <x><y>...</y></x>". The innermost root part owns
         // the selected content and every outer part wraps it.
-        var element = NewElement(root[^1]);
+        var element = NewElement(root[^1], root);
 
         if (element is null)
         {
@@ -111,7 +111,7 @@ public sealed class XmlProjection
 
         for (var index = root.Length - 2; index >= 0; index--)
         {
-            var outer = NewElement(root[index]);
+            var outer = NewElement(root[index], root[..(index + 1)]);
 
             if (outer is null)
             {
@@ -179,7 +179,7 @@ public sealed class XmlProjection
         }
 
         var (name, child) = children[0];
-        var element = NewElement(name);
+        var element = NewElement(name, [name]);
 
         if (element is null)
         {
@@ -201,7 +201,7 @@ public sealed class XmlProjection
                 + "wrap it and another to name each repeated item");
         }
 
-        var wrapper = NewElement(root[^2]);
+        var wrapper = NewElement(root[^2], root[..^1]);
 
         if (wrapper is null)
         {
@@ -227,7 +227,7 @@ public sealed class XmlProjection
 
         for (var index = root.Length - 3; index >= 0; index--)
         {
-            var outer = NewElement(root[index]);
+            var outer = NewElement(root[index], root[..(index + 1)]);
 
             if (outer is null)
             {
@@ -517,7 +517,7 @@ public sealed class XmlProjection
                     return TryAddSequence(parent, name, child, path);
                 }
 
-                var element = NewElement(name);
+                var element = NewElement(name, path);
 
                 if (element is null)
                 {
@@ -599,7 +599,7 @@ public sealed class XmlProjection
                 return TryAddSequence(parent, promoted, child, path);
             }
 
-            var element = NewElement(promoted);
+            var element = NewElement(promoted, path);
 
             if (element is null)
             {
@@ -640,7 +640,7 @@ public sealed class XmlProjection
 
                 if (!TryName(attributeName, out var qualified))
                 {
-                    RefuseName(attributeName, "attribute");
+                    RefuseName(attributeName, "attribute", path);
                     return false;
                 }
 
@@ -679,7 +679,7 @@ public sealed class XmlProjection
 
         if (!TryName(name.Name, out var qualified))
         {
-            RefuseName(name.Name, "attribute");
+            RefuseName(name.Name, "attribute", path);
             return false;
         }
 
@@ -716,7 +716,7 @@ public sealed class XmlProjection
     private bool TryAddItem(
         XElement parent, NamePart name, OverlayNode item, ImmutableArray<NamePart> path)
     {
-        var element = NewElement(name);
+        var element = NewElement(name, path);
 
         if (element is null)
         {
@@ -728,14 +728,14 @@ public sealed class XmlProjection
         return TryFill(element, item, path);
     }
 
-    private XElement? NewElement(NamePart part)
+    private XElement? NewElement(NamePart part, ImmutableArray<NamePart> path)
     {
         if (TryName(part, out var name))
         {
             return new XElement(name!);
         }
 
-        RefuseName(part, "element");
+        RefuseName(part, "element", path);
 
         return null;
     }
@@ -793,9 +793,11 @@ public sealed class XmlProjection
     private static string Text(ScalarPayload payload) =>
         payload.IsNull ? "null" : payload.ToCanonicalText();
 
-    private void RefuseName(NamePart part, string role)
+    private void RefuseName(NamePart part, string role, ImmutableArray<NamePart> path)
     {
-        var text = FlatIdentity.PathText([part]);
+        // Section 22 requires `path` to be a canonical qualified path, so the report names where
+        // the component sits and not only what it is called.
+        var text = FlatIdentity.PathText(path);
 
         var name = StructuredKey.Of(part);
 
