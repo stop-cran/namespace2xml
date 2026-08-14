@@ -1095,12 +1095,21 @@ public static class PlanningPhase
     /// makes the two agree.
     /// </para>
     /// <para>
-    /// The test is <see cref="NodeMarks.RendersAsSequence"/> and not a recorded "was inferred" flag.
-    /// A node carrying native-mapping provenance was written as an object by some document; if it
-    /// renders as a sequence now, Section 8.7 inference is the only thing that can have done that,
-    /// and if it renders as a mapping there is nothing to warn about however it got there. One
+    /// The test is <see cref="NodeMarks.RendersAsSequence"/> and not a recorded "was inferred at
+    /// this instance" flag, because step 11 has already pruned the provenance to the mappings it
+    /// actually inferred. A node still carrying native-mapping provenance here was inferred; if it
+    /// renders as a sequence now that inference survived to this instance, and if it renders as a
+    /// mapping some Section 16.6 directive undid it and there is nothing to warn about. One
     /// derived test therefore covers the plain case and every suppression, including ones no
     /// directive spells today.
+    /// </para>
+    /// <para>
+    /// The pruning is what makes that reasoning sound. Section 8.7 inference is <em>not</em> the
+    /// only thing that can make a node some document wrote as an object render as a sequence:
+    /// Section 17.1's shape contest does it too, on the strength of a different contribution. A
+    /// test that read only the rendered shape could not tell the two apart, and composed a message
+    /// naming the source that wrote the mapping and attributing to it a numeric-key property it
+    /// never had.
     /// </para>
     /// </remarks>
     private static void WarnInferredNumericMappings(

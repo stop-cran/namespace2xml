@@ -1131,11 +1131,13 @@
         "The warning is scoped to the output instance: the same node projected as a mapping by type=mapping in one output raises nothing there, while another output that leaves it inferred still raises it.",
         "One warning is raised per source contribution, so every document that wrote keys into the inferred mapping is named individually.",
         "A native sequence raises nothing, because no inference occurred at a node written as a sequence.",
-        "A namespace-format contribution to the same inferred sequence raises nothing, because a numeric path segment makes no shape claim to contradict."
+        "A namespace-format contribution to the same inferred sequence raises nothing, because a numeric path segment makes no shape claim to contradict.",
+        "A native mapping that loses a Section 17.1 shape contest to a sequence contribution raises nothing, because Section 8.7 inferred no mapping there: the warning is owed for an inference, not for a rendered shape."
       ],
       "fixtures": [
         "type-mapping-suppresses-warn010-per-output-instance",
-        "warn010-fires-once-per-native-source-contribution"
+        "warn010-fires-once-per-native-source-contribution",
+        "warn010-is-not-owed-when-a-sequence-wins-the-shape-contest"
       ]
     },
     {

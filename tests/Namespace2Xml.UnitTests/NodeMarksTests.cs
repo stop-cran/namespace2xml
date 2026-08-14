@@ -413,4 +413,37 @@ public sealed class NodeMarksTests
 
         marks.NativeMappings.ShouldBeEmpty();
     }
+
+    /// <summary>
+    /// Section 3.2 owes the warning for "a mapping inferred at step 11", so a node step 11 declined
+    /// to infer keeps no record that could later earn one.
+    /// </summary>
+    [Test]
+    public void DecliningToInferAMappingDiscardsTheNativeMappingOrigins()
+    {
+        var marks = NodeMarks.ForMapping(Early)
+            .WithNativeMapping(Early, "one.json")
+            .WithoutNativeMappings();
+
+        marks.NativeMappings.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Discarding the origins settles who is warned about, not what the node renders as, so the
+    /// mapping a Section 17.1 shape contest is about survives the pruning intact.
+    /// </summary>
+    [Test]
+    public void DiscardingTheNativeMappingOriginsLeavesEveryShapeMarkAlone()
+    {
+        var marks = NodeMarks.ForMapping(Early)
+            .WithNativeMapping(Early, "one.json")
+            .WithSequenceItem(Late);
+
+        var pruned = marks.WithoutNativeMappings();
+
+        pruned.NativeMappings.ShouldBeEmpty();
+        pruned.MappingShape.ShouldBe(marks.MappingShape);
+        pruned.SequenceShape.ShouldBe(marks.SequenceShape);
+        pruned.RendersAsSequence.ShouldBe(marks.RendersAsSequence);
+    }
 }

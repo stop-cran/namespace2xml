@@ -75,9 +75,11 @@ public readonly record struct NodeMarks
     /// </summary>
     /// <remarks>
     /// Empty for every node an XML or namespace source built, and empty for a native sequence.
-    /// A node holding one of these is a mapping some JSON or YAML document wrote as an object;
-    /// whether that still matters is decided per output instance by <see cref="RendersAsSequence"/>,
-    /// which is the only thing Section 3.2 asks about it.
+    /// Also empty for a mapping Section 8.7 declined to infer: step 11 discards the record through
+    /// <see cref="WithoutNativeMappings"/>, so a node holding one of these is a mapping some JSON or
+    /// YAML document wrote as an object <em>and</em> inference converted. Whether that still matters
+    /// is decided per output instance by <see cref="RendersAsSequence"/>, which is the only thing
+    /// Section 3.2 asks about it once the set means what step 11 made it mean.
     /// </remarks>
     public ImmutableArray<NativeMappingOrigin> NativeMappings =>
         natives.IsDefault ? [] : natives;
@@ -527,6 +529,32 @@ public readonly record struct NodeMarks
             OwnSequenceShape,
             ContentToken,
             UnionNatives(natives, [new NativeMappingOrigin(key, source)]));
+
+    /// <summary>
+    /// These marks with every Section 3.2 native JSON/YAML mapping contribution discarded, for a
+    /// node Section 8.7 inference did not convert.
+    /// </summary>
+    /// <remarks>
+    /// Section 3.2 owes the warning only where "a JSON or YAML mapping inferred at step 11 remains
+    /// projected as a sequence", so a mapping step 11 declined to infer can never earn it however
+    /// the node is projected afterwards. Discarding the record there is what makes the surviving
+    /// set mean <em>inferred</em> rather than merely <em>written as an object</em>: a node may
+    /// still render as a sequence because Section 17.1 gave a shape contest to a sequence
+    /// contribution, and that is a different fact about a different contribution.
+    /// </remarks>
+    public NodeMarks WithoutNativeMappings() =>
+        natives.IsDefaultOrEmpty
+            ? this
+            : new(
+                Position,
+                AddressedDirectly,
+                PayloadMark,
+                MappingShape,
+                SequenceShape,
+                OwnMappingShape,
+                OwnSequenceShape,
+                ContentToken,
+                []);
 
     /// <summary>
     /// The union of two native-mapping origin sets, ascending by key and free of duplicates.

@@ -439,7 +439,12 @@ public static class InputPhase
         }
 
         return OverlayNode.Compose(
-            inferred ? node.Marks.AsInferredSequence() : node.Marks,
+            // Section 3.2 owes WARN010 only where a mapping "inferred at step 11" survives as a
+            // sequence, so a node this step declined to infer drops the provenance it recorded on
+            // the way in. Keeping it would let Section 17.1's shape contest earn the warning for a
+            // mapping nothing inferred, naming the document that wrote the mapping for a decision
+            // some other contribution caused.
+            inferred ? node.Marks.AsInferredSequence() : node.Marks.WithoutNativeMappings(),
             node.Payload,
             // Section 15.1: "inference replaces that contribution's mapping projection". The node
             // is a sequence afterwards, so the mapping facet it replaced must not still claim one.
