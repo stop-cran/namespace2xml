@@ -2162,7 +2162,7 @@ Default: no flag, under which Section 19.1 refuses an entry whose value ends in 
 
 The flag relaxes the Section 24 byte rule for one destination and is the only thing in this specification that does. It exists because Section 8.1 preserves a value's trailing spaces on read and Section 8.3 gives values no escape for them, so this format can carry a value it cannot write: an author whose consumer is a program rather than a repository can select the flag and get the bytes, and every value it lets through is reported as `WARN013`.
 
-This directive governs the `namespace` destination only. Section 19.2 writes every quoted-namespace value inside single quotes, so no `quotednamespace` line ends in a value's own whitespace and the decision does not arise there. Declaring it against an output instance that produces no namespace file is `WARN009` under the ordinary rule for a directive that binds to nothing.
+This directive governs the `namespace` destination only. Section 19.2 writes every quoted-namespace value inside single quotes, so no `quotednamespace` line ends in a value's own whitespace and the decision does not arise there. Declaring it on an output instance of another format binds, because Section 15.2 tests whether the instance exists rather than whether the flag reaches a serializer, and is inert and silent, as for every other directive in this section.
 
 #### XML
 
