@@ -55,18 +55,38 @@ public static class ToolRunner
     {
         ArgumentNullException.ThrowIfNull(arguments);
 
+        // Launching through the host keeps the run identical on every platform without needing
+        // a platform-specific apphost to be present in the test output.
+        return Start(host ?? DotnetHost, [assembly, .. arguments], workingDirectory);
+    }
+
+    /// <summary>
+    /// Invokes the .NET host itself, with no assembly. The Appendix C.6 differential lane asks the
+    /// host which runtimes it can see before it observes the baseline, under the same pinned
+    /// environment the baseline will be launched with.
+    /// </summary>
+    /// <param name="host">The muxer to ask, or <see langword="null"/> for the harness's own.</param>
+    /// <param name="arguments">Argument tokens for the host.</param>
+    internal static ToolResult RunHost(string? host, IReadOnlyList<string> arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+
+        return Start(host ?? DotnetHost, arguments, Path.GetTempPath());
+    }
+
+    private static ToolResult Start(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string workingDirectory)
+    {
         var startInfo = new ProcessStartInfo
         {
-            FileName = host ?? DotnetHost,
+            FileName = fileName,
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-
-        // Launching through the host keeps the run identical on every platform without needing
-        // a platform-specific apphost to be present in the test output.
-        startInfo.ArgumentList.Add(assembly);
 
         foreach (var argument in arguments)
         {

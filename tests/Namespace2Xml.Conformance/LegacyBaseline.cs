@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Namespace2Xml.Conformance;
 
@@ -188,4 +189,52 @@ internal static class LegacyBaseline
     internal static string RequiredRuntimeMajor =>
         BaselineFramework.AsSpan("net".Length).ToString().Split('.')[0]
             .ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Whether a host's runtime listing declares the framework the baseline targets. Parsing is
+    /// separated from launching so the detection can be proved without uninstalling a runtime.
+    /// </summary>
+    /// <param name="listedRuntimes">Standard output of the host's <c>--list-runtimes</c>.</param>
+    internal static bool DeclaresRequiredRuntime(string listedRuntimes)
+    {
+        ArgumentNullException.ThrowIfNull(listedRuntimes);
+
+        var wanted = "Microsoft.NETCore.App " + RequiredRuntimeMajor + ".";
+
+        return listedRuntimes
+            .Split('\n')
+            .Any(line => line.TrimStart().StartsWith(wanted, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Establishes that the host can actually run the baseline, before anything is observed.
+    /// <para>
+    /// Appendix C.6 requires this because a host that cannot find the runtime is indistinguishable
+    /// after the fact from a tool that wrote nothing and exited nonzero. The confusion is not
+    /// symmetric: a baseline that never starts diverges from every case's expected result, so it
+    /// fails each <c>agrees</c> case and <em>confirms</em> every <c>differs</c> and <c>crashes</c>
+    /// one. The lane would then report a plausible list of wrong verdicts whose only obvious repair
+    /// turns the entire differential corpus green while measuring nothing at all.
+    /// </para>
+    /// </summary>
+    /// <exception cref="BaselineIntegrityException">The required runtime is not available.</exception>
+    internal static void RequireRuntime()
+    {
+        var listing = ToolRunner.RunHost(Host, ["--list-runtimes"]);
+        var listed = Encoding.UTF8.GetString(listing.StandardOutput);
+
+        if (listing.ExitCode == 0 && DeclaresRequiredRuntime(listed))
+        {
+            return;
+        }
+
+        throw new BaselineIntegrityException(
+            $"the host has no Microsoft.NETCore.App {RequiredRuntimeMajor}.x runtime, so the " +
+            $"Appendix C.6 baseline cannot be observed on the {BaselineFramework} runtime it was " +
+            "published against. Install the .NET " + RequiredRuntimeMajor + " runtime, or set " +
+            $"{HostVariable} to a host that has one. The differential lane fails rather than " +
+            "reporting, because a baseline that never starts diverges from every case and would " +
+            "silently confirm every 'differs' and 'crashes' verdict in the corpus." +
+            Environment.NewLine + "The host listed:" + Environment.NewLine + listed);
+    }
 }

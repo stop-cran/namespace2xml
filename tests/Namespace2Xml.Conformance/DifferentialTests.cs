@@ -21,6 +21,23 @@ public class DifferentialTests
     public static IEnumerable<ConformanceCase> Cases => ConformanceCase.Discover(CorpusLayout.Corpus);
 
     /// <summary>
+    /// Establishes once, before any case is observed, that the configured baseline can actually be
+    /// launched here. Appendix C.6 makes the absence of the runtime a failure of the lane rather
+    /// than evidence about 2.4.0, so it is raised here as a setup fault carrying the remedy, and
+    /// never reaches a case as a divergence that a verdict could appear to explain.
+    /// </summary>
+    [OneTimeSetUp]
+    public void TheConfiguredBaselineCanBeObservedHere()
+    {
+        if (string.IsNullOrEmpty(LegacyBaseline.PackagePath))
+        {
+            return;
+        }
+
+        LegacyBaseline.RequireRuntime();
+    }
+
+    /// <summary>
     /// How many times each case's baseline behaviour is sampled. Appendix C.6 requires more than
     /// one because a single run cannot distinguish a stable result from a lucky one.
     /// </summary>

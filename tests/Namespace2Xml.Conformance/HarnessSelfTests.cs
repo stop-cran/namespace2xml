@@ -720,6 +720,37 @@ public class HarnessSelfTests
         // reader must not turn that specified silence into a format error.
         ReadClaim(null).ShouldBeNull();
 
+    /// <summary>
+    /// A host that lists every runtime except the baseline's is not a host the baseline can be
+    /// observed on. Appendix C.6 makes that a failure of the lane, because a baseline that never
+    /// starts diverges from every case and would confirm every correction claim in the corpus.
+    /// </summary>
+    [Test]
+    public void AHostWithoutTheBaselineRuntimeIsNotAccepted() =>
+        LegacyBaseline.DeclaresRequiredRuntime(
+            "Microsoft.NETCore.App 8.0.29 [/usr/share/dotnet/shared/Microsoft.NETCore.App]\n" +
+            "Microsoft.NETCore.App 10.0.10 [/usr/share/dotnet/shared/Microsoft.NETCore.App]\n")
+            .ShouldBeFalse();
+
+    /// <summary>A host that lists the baseline's own major version is accepted.</summary>
+    [Test]
+    public void AHostWithTheBaselineRuntimeIsAccepted() =>
+        LegacyBaseline.DeclaresRequiredRuntime(
+            "Microsoft.NETCore.App 8.0.29 [/usr/share/dotnet/shared/Microsoft.NETCore.App]\n" +
+            "Microsoft.NETCore.App 9.0.14 [/usr/share/dotnet/shared/Microsoft.NETCore.App]\n" +
+            "Microsoft.NETCore.App 10.0.10 [/usr/share/dotnet/shared/Microsoft.NETCore.App]\n")
+            .ShouldBeTrue();
+
+    /// <summary>
+    /// The match is on the framework and the major version together. A different framework that
+    /// happens to carry the wanted number, or a major version the wanted one is a prefix of, is
+    /// not the runtime the baseline targets.
+    /// </summary>
+    [TestCase("Microsoft.AspNetCore.App 9.0.14 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]\n")]
+    [TestCase("Microsoft.NETCore.App 90.0.1 [/usr/share/dotnet/shared/Microsoft.NETCore.App]\n")]
+    public void ARuntimeListingIsMatchedOnFrameworkAndMajorVersion(string listing) =>
+        LegacyBaseline.DeclaresRequiredRuntime(listing).ShouldBeFalse();
+
     private static LegacyClaim? ReadClaim(string? legacy)
     {
         using var corpus = new TemporaryDirectory();

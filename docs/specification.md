@@ -3942,6 +3942,8 @@ The sample count is an implementation choice, bounded below by two and by whatev
 
 The differential baseline is the published namespace2xml 2.4.0 .NET tool and the analyzed source commit `b1c230e`. The NuGet package at `https://api.nuget.org/v3-flatcontainer/namespace2xml/2.4.0/namespace2xml.2.4.0.nupkg` has SHA-256 `92472F4F191A8FC32B81CE30A8F3E2FC97CF99C968F635155172F111EE65C3ED` and size 1,095,996 bytes. The harness must reject a baseline package whose hash or size differs, and must run it on the .NET 9 runtime the package targets rather than rolling it forward, because a baseline observed on a runtime it was never published against is evidence about a configuration nobody shipped.
 
+The harness must establish that the required runtime is available before it observes anything, and must never treat a failure to launch as a baseline result. A host that cannot find the runtime reports what is indistinguishable, after the fact, from a tool that wrote nothing and exited nonzero. The confusion is not symmetric: a baseline that never started diverges from every case's expected result, so it fails each `agrees` case and *confirms* every `differs` and `crashes` one. The lane then reports a plausible list of apparently wrong verdicts whose obvious repair — flipping them — turns the entire differential corpus green while measuring nothing, and Section 3 would afterwards rest on a binary that was never executed. The absence of the runtime is therefore a failure of the lane itself, reported as such and distinguishable from any case's verdict, and never evidence about 2.4.0.
+
 ### C.7 Determinism runs
 
 Every successful fixture is repeated under:
