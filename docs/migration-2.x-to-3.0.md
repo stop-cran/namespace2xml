@@ -411,9 +411,12 @@ implemented, its case says so plainly rather than letting the heading imply othe
   substantive rule of §8.3 that 2.4.0 did not implement.
 - Legacy observation: 2.4.0's namespace value lexer did not recognize `\*` as an escape at all.
   Section 8.3 lists `\*` alongside `\\`, `\${`, `\n`, `\r`, and `\t` as one of the six value
-  escapes, but the baseline treated only `\\` and the C-style whitespace triple as escapes and
-  passed every other backslash through as literal text with the following scalar. `\*` therefore
-  reached the JSON writer as two characters, and JSON re-encoded the backslash as `\\`.
+  escapes, and the baseline decoded none of the six. Measured against 2.4.0, a profile carrying
+  `a\\b`, `a\nb` and `a\tb` reaches a JSON destination as `"a\\\\b"`, `"a\\nb"` and `"a\\tb"`, so
+  in each case the backslash survived into the model as ordinary text and the JSON writer
+  re-encoded it. `\${` was not passed through either: the sequence still opened a reference, and
+  an undefined one failed the run. `\*` therefore reached the JSON writer as two characters, and
+  JSON re-encoded the backslash as `\\`.
 - Clean behavior: §8.3 states that within an interpreted namespace-profile value "`\*` emits
   literal `*`", and Appendix A.3 lists `\*` among the `value-escape` alternatives with the note
   that "the `*` emitted by `\*` is never a wildcard token". Both values must therefore reach the
