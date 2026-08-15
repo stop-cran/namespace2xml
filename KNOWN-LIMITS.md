@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r94+0e3b21f43d3a`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r96+ad1c595e1300`. Dated 2026-08.**
 
 This file tracks the branch, and the branch normally runs ahead of the last published preview:
 `3.0.0-preview.4` carries `r90+e172e0ba4d2a`, `3.0.0-preview.3` carries `r44+a91f25bf49ec`,
@@ -957,7 +957,7 @@ is there.
   ways at an even rate is caught reliably. A rare branch is not: `json-strict-parsing-refusals` was
   measured reproducing its expected result on one run in forty, and `mask-after-sequence-rebasing`
   was recorded as `agrees` for weeks on the strength of a single lucky run. Other unstable cases may
-  be sitting in the corpus under an `agrees`, `differs` or `crashes` verdict that ten runs happen not
+  be sitting in the corpus under an `agrees`, `differs` or `fails` verdict that ten runs happen not
   to contradict. When one surfaces it is a fixture correction, not a contract change.
 - **`nondeterministic` is asserted, not checked.** Because no bounded sample can refute it, C.6 makes
   it the one verdict the harness accepts on the contributor's word. It is a real escape hatch. What

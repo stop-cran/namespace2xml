@@ -1,12 +1,16 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 8.2 name parts and the `\.` escape; Appendix A.2 name escapes and the
   `\u{HEX}` scalar escape; Section 11.4 canonical XML addressing; Section 17.1 overlay
   creation of an absent path.
-- Legacy observation: given the `@debug` address, 2.4.0 terminates with an unhandled
+- Legacy observation: under this case's own arguments 2.4.0 never reaches its XML writer. It
+  cannot lex `\u{2E}` — Appendix A.2's scalar escape does not exist in 2.4.0's namespace grammar —
+  so it reports `Error parsing input: unexpected 'r', file: inputs/over.txt, line: 2, column: 1`,
+  exits `1`, and writes nothing. A reduced probe that removes the `\u{2E}` line gets one step
+  further and then dies on the `@debug` address, with an unhandled
   `System.Xml.XmlException` — "Name cannot begin with the '@' character, hexadecimal value
-  0x40" — from `XmlFormatter.ToXmlValueSingle`, after truncating the output file to zero bytes.
+  0x40" — from `XmlFormatter.ToXmlValueSingle`, after truncating the output file to zero bytes:
   2.4.0 has no address for an attribute, so `@debug` is an ordinary name part it then hands to
   `XName`. That is the same absence of attribute addressing that
   `xml-a-2-x-style-attribute-override-adds-a-sibling-element` records from the other direction,

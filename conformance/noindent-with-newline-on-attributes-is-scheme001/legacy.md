@@ -1,8 +1,13 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**. The entire output-options concept did not exist in 2.4.0, so
-  `cfg.xmloutputoptions` was an unrecognized directive, was ignored without a diagnostic, and its
-  contradictory content was never inspected. The baseline exits 0 and writes a file.
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
+  `System.Xml.XmlException: Name cannot begin with the '@' character, hexadecimal value 0x40.`,
+  exit `-532462766` (`0xE0434352`, an unhandled managed exception), and writes nothing. The
+  output-options concept did not exist in 2.4.0, so `cfg.xmloutputoptions` is an unrecognized
+  directive that is ignored without a diagnostic and whose contradictory content is never
+  inspected — but the run does not survive to render, because 2.4.0's XML writer has no Section
+  11.4 marker syntax and hands the literal `@` name to `XmlWriter`. The contradiction this case is
+  about is therefore not something the baseline can be observed to have an opinion on.
 - Contract: Section 16.9's contradictory pairs and the `SCHEME001` cardinality of Section 22.
 - Clean behavior: Section 16.9 lists `NoIndent` and `NewLineOnAttributes` among the four XML
   contradictory pairs, so naming both in one declaration is `SCHEME001`. Section 22 counts

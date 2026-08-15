@@ -366,10 +366,10 @@ the moment it is introduced, by the person who knows why. Reconstructing that li
 produces a worse migration guide and takes longer.
 
 **The verdict word is an assertion, so measure it — do not reason it out.** `legacy.md` opens with
-`- namespace2xml 2.4.0: **<verdict>**`, where the verdict is one of `agrees`, `differs`, `crashes`
+`- namespace2xml 2.4.0: **<verdict>**`, where the verdict is one of `agrees`, `differs`, `fails`
 or `nondeterministic`, and the `differential` CI job runs the pinned 2.4.0 package against the case
 to check it. Guessing produces a plausible verdict that is simply false: two cases whose input is
-obviously malformed were authored as `crashes`, and 2.4.0 in fact exits 0 and silently discards the
+obviously malformed were authored as `fails`, and 2.4.0 in fact exits 0 and silently discards the
 offending entry — which is a far more interesting thing to have told a migrating user. Run the lane
 before you push:
 
@@ -379,6 +379,14 @@ $env:N2X_LEGACY_DOTNET  = '<private .NET 9 root>\dotnet.exe'   # only if 9.0 is 
 dotnet test tests\Namespace2Xml.Conformance\Namespace2Xml.Conformance.csproj `
   --no-build -c Release --filter "FullyQualifiedName~DifferentialTests"
 ```
+
+**`differs` and `fails` are disjoint, and the exit code is what separates them.** A `differs` case
+requires the baseline to complete on at least one sample — to have produced a result that could
+differ. A baseline that exits nonzero on every sample produced nothing, and belongs under `fails`
+however interesting the divergence in its output tree looks. Get this wrong and the lane says so, in
+both directions. `fails` covers an orderly refusal with a diagnostic as well as an unhandled
+exception, because the only mechanical signal is an exit code whose abnormal-termination encoding is
+platform-specific; say in the prose which one you saw.
 
 Without `N2X_LEGACY_PACKAGE` the lane ignores itself, so a local run that never downloads the
 baseline says nothing about the verdicts. 2.4.0 targets `net9.0` and the harness pins

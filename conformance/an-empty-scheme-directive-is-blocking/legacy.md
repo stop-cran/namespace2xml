@@ -60,7 +60,7 @@ clause read the other way: `scheme-reference-filename-separators-are-encoded-dat
 
 ## Legacy differential
 
-- namespace2xml 2.4.0: **differs**. The baseline crashes with an unhandled
+- namespace2xml 2.4.0: **fails**. The baseline crashes with an unhandled
   `System.UnauthorizedAccessException` — "Access to the path
   '…\\<output root>' is denied" — after logging that it is writing an output whose name is the
   output root itself. The process exit code is `-532462766` (`0xE0434352`, an unhandled managed

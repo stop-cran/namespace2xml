@@ -1,9 +1,13 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**. It reads `.json` inputs, so the case can be posed to it, but it
-  has no `Q{uri}local` component syntax at all. Its only way to name a namespace is an `xmlns:p`
-  key plus a `p:local` name, so the URI has to be written into the document by hand and the prefix
-  is whatever the author chose — there is no prefix for the writer to generate.
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
+  `System.Collections.Generic.KeyNotFoundException: The given key '@Q{http' was not present in the
+  dictionary.`, exit `-532462766` (`0xE0434352`, an unhandled managed exception), and writes
+  nothing. It reads `.json` inputs, so the case can be posed to it, but it has no `Q{uri}local`
+  component syntax at all: it splits the key on the first `}` and looks the fragment up as a
+  namespace prefix. Its only way to name a namespace is an `xmlns:p` key plus a `p:local` name, so
+  the URI has to be written into the document by hand and the prefix is whatever the author chose —
+  there is no prefix for the writer to generate.
 - Contract: Section 19.5's "XML output bytes", and Section 11.4's `@` and `Q{...}` addresses.
 - Clean behavior: an element carrying a namespace URI is emitted unprefixed with that URI declared
   as the default namespace. An attribute cannot do that, because an unprefixed attribute is in no

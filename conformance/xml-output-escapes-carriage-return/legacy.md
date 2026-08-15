@@ -1,9 +1,13 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**. It reads `.json` inputs, so the case can be posed to it, but it
-  has no Section 11.4 marker syntax: the `@v` key is not an attribute address to it, and its XML
-  writer makes every leaf an attribute *unless* the scheme names it an element, which is the
-  opposite default. The document this case describes is not expressible.
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
+  `System.Xml.XmlException: Name cannot begin with the '@' character, hexadecimal value 0x40.`,
+  exit `-532462766` (`0xE0434352`, an unhandled managed exception), and writes nothing. It reads
+  `.json` inputs, so the case can be posed to it, but it has no Section 11.4 marker syntax: the
+  `@v` key is not an attribute address to it, so the literal name reaches `XmlWriter` and is
+  rejected there. Its XML writer makes every leaf an attribute *unless* the scheme names it an
+  element, which is the opposite default. The document this case describes is not expressible, and
+  the escaping question it asks is never reached.
 - Contract: Section 19.5's "XML output bytes", and Section 3.3's requirement that a round trip
   preserve content.
 - Clean behavior: a CR U+000D is emitted as `&#xD;` in element text content and in an attribute

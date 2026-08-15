@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 3.2 correction against unhandled user-input exceptions, together with
   Section 22's rule that "a line is terminated by LF, CRLF, or a lone CR, and by nothing else;
   consistently with Section 8.1, U+0085, U+2028, and U+2029 do not terminate a line", and

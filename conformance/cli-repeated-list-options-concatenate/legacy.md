@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 6.2, and Section 3.1's preservation of the existing option names. The names are
   preserved; the arity spelling is not something 2.4.0 accepted in the first place.
 - Legacy observation: the baseline rejects the command line outright. It prints

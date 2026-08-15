@@ -40,9 +40,12 @@ independently.
   signal while leaving the phantom. A clean exit is not evidence that an address bound.
 
   Pinned by `xml-an-element-name-with-a-dot-needs-an-escape`, which asserts that `\.` and `\u{2E}`
-  reach one node and the unescaped spelling reaches another. Measured against 2.4.0: the baseline
-  crashes on `@debug` with an unhandled `XmlException`, but on the dot alone it behaves exactly as
-  3.0 does — the hazard is inherent to a dotted namespace, not a 3.0 regression.
+  reach one node and the unescaped spelling reaches another. Measured against 2.4.0: under this
+  case's own arguments the baseline cannot lex `\u{2E}` at all and exits `1` on a parse error, and
+  a reduced probe that removes that line then dies on `@debug` with an unhandled `XmlException` —
+  but on the dot alone it behaves exactly as 3.0 does, so the hazard is inherent to a dotted
+  namespace, not a 3.0 regression.
+
 
 - **`{}` and `[]` are namespace values again, and now they have an escape.** 2.4.0 read a bare
   `{}` as an empty mapping and a bare `[]` as an empty sequence; the 3.0 specification never
@@ -142,6 +145,40 @@ independently.
   either way.
 
 ### Changed
+
+- **The four Appendix C.6 legacy verdicts are now a partition, and `crashes` is renamed `fails`.**
+  Reported as [#96](https://github.com/stop-cran/namespace2xml/issues/96). C.6 said the verdicts
+  "partition" a case's samples while defining `crashes` as a strict refinement of `differs`: every
+  crashing baseline also satisfied `differs`, so an author could truthfully declare either, and
+  `docs/migration-2.x-to-3.0.md` published four sections whose counts summed to the corpus and
+  invited a reader to count them. Nothing made those buckets complete.
+
+  `differs` now additionally requires **at least one sample to exit zero** — to have produced a
+  result that could differ — which is what makes the classes disjoint rather than nested. The
+  differential lane enforces it, in both directions, and both assertions were proven to fire before
+  being trusted.
+
+  `crashes` became `fails` because the word was measurably wrong: of the 23 cases carrying it, only
+  17 terminated abnormally and 6 refused their input in an orderly way and exited `1`. C.6 now
+  states that the verdict names an outcome rather than a mechanism, and says why the distinction
+  cannot live in the verdict — the only mechanical signal is an exit code whose abnormal-termination
+  encoding is platform-specific, so a verdict that split on it would describe the runner. Where the
+  distinction matters it belongs in each case's prose, which C.6 already requires.
+
+  C.6 also gained the qualification that the new clause is **existential**, so one sample satisfies
+  it while only the exhausted sample set refutes it — the rest of the section is refutation-shaped
+  and this one obligation is not.
+
+  Applying the corrected rule moved **17 cases** from `differs` to `fails`, all of them measured
+  stable over five samples. Reviewing their prose to match found two notes recording observations
+  the lane never makes: `a-contributionless-source-comments-every-instance` described comment
+  placement under an invocation 2.4.0 refuses outright for a repeated `-i`, and
+  `noindent-with-newline-on-attributes-is-scheme001` claimed the baseline "exits 0 and writes a
+  file" when it in fact dies with an unhandled `XmlException`. Six more carried no measurement at
+  all and now carry one. The generated migration heading is "Inputs 2.4.0 could not process".
+
+  Removed: the verdict word `crashes`, which `LegacyClaim` will now reject as outside the closed
+  vocabulary.
 
 - **§24's byte rule now names its one exception.** It previously stated the no-trailing-whitespace
   guarantee without qualification and asserted there was exactly one place a Section 16.9 option

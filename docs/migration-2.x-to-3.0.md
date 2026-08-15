@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r94+0e3b21f43d3a`.**
+**Contract bundle `r96+ad1c595e1300`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (172)
+## Observable differences (155)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -176,26 +176,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   output and no reason, and has nothing to search for. Exit 0 with an empty output tree is the worst
   available answer, because every downstream check that looks at the status passes.
 
-### `a-contributionless-source-comments-every-instance`
-
-- namespace2xml 2.4.0: **differs**. It writes both comment lines into `p.properties` and none into
-  `q.properties`, so the note survives in one of the two documents it describes.
-- Contract: Section 8.5, "a document-leading comment is bound to no path ... and it is emitted in
-  every output instance the run produces"; Section 26 item 13.
-- Legacy observation: the comment-only source contributes nothing, so its run is document-leading
-  and belongs to no path. 2.4.0 attaches it to whichever instance is rendered first and drops it
-  from the rest, silently — nothing in the run says a second document was expected to carry it.
-- Clean behavior: both documents carry both lines. An output instance is a standalone file that has
-  to be readable on its own, and the specification cannot name a winner among instances whose order
-  is a rendering detail; announcing the omission from the others would still leave those documents
-  missing a note whose whole purpose is to sit next to the settings it explains.
-- The case exists because it is the only one in the corpus with **two** output instances and an
-  ownerless comment. Every other comment fixture renders a single document, where "the first
-  instance" and "every instance" are the same file and the rule is unobservable.
-- The invocation also records a second divergence in passing: 2.4.0 rejects a repeated `-i` with
-  "Option 'i, input' is defined multiple times" and requires `-i a b`, while Section 6.2 accepts
-  both forms on a list option.
-
 ### `a-descendant-directive-applies-before-its-ancestor`
 
 - namespace2xml 2.4.0: **differs**. It produces the same `{"a": [[1, 2], {"m": 3}]}` shape and the
@@ -309,35 +289,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   mapping, and each is internally consistent -- so an implementation that warns per output instance
   has no instance to blame and stays silent, exactly as the baseline does. Keying the warning to
   the destination is what makes the loss reportable at all.
-
-### `a-generated-contribution-sorts-between-the-sources-that-straddle-it`
-
-- namespace2xml 2.4.0: **differs**. It exits `1` where the contract requires `0`, reporting
-  `Reference OutputRoot.a.p.1 was not found at OutputRoot.b.pick`, and writes `a.json` containing
-  `{ "p": [ "second" ] }` and no `b.properties` at all. The baseline's own diagnostic names the
-  address the contract requires to exist: `a.p.1` is missing there because only one of the three
-  contributions survived, so there is no position to be right or wrong about. That it published
-  `a.json` while failing is a partial write on an unsuccessful run, and is incidental to this case.
-- Contract: Section 12.4 for the generated contribution merging at its rule/match position,
-  Section 16.10 for what `append` rebases, Section 15.1 step 8 for the earliest contribution
-  retaining its supplied values, Section 5.4 for the values being addressable, Section 4.7 for the
-  source ordinals.
-- Legacy observation, with controls. Four baseline runs behave identically:
-
-  | Run | Sources | Scheme | Exit | Output |
-  |---|---|---|---|---|
-  | as specified | first, template, second, probe | `merge=append` | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
-  | template removed | first, second, probe | `merge=append` | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
-  | merge removed | first, template, second, probe | none | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
-  | both removed | first, second, probe | none | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
-
-  Removing the template changes nothing, and removing the merge directive changes nothing. The
-  baseline therefore neither expanded the template nor applied `append`: it overrode at `a.p.0` and
-  kept the last value written. The controls are what distinguish that from an implementation that
-  did something different with the directives it was given.
-- Why the difference is intentional: 2.4.0 has no `append` strategy for an input path, so the
-  divergence is a capability this version adds rather than a behaviour it changes. Section 3 covers
-  it under the input merge strategies.
 
 ### `a-json-scheme-nests-directive-paths`
 
@@ -948,40 +899,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - Clean behavior: `all.conf` containing `r\u{2A}*x=1`, LF-terminated.
 - Why the divergence is the specified one: the two directives are unremarkable except for the asterisk in each value, and Section 12.1 makes that asterisk ordinary text here. Discarding both directives on account of it means the baseline treats a character the specification calls literal as a reason to ignore configuration, which is the silent-discard outcome Section 6.3 rules out. The escaped rendering is then forced: Section 16.4 escapes a delimiter occurrence inside a part unconditionally, and the delimiter is the same character.
 
-### `an-asterisk-in-a-type-value-is-scheme001`
-
-- namespace2xml 2.4.0: **differs**. It exits `-532462766` (0xE0434352, an unhandled CLR
-  exception) and writes nothing. The terminating exception is
-  `System.ArgumentException: Requested value 'arrby' was not found.` from `Enum.Parse` in
-  `Formatters/Extensions.cs:72`, reached through `SchemeNodeExtensions.WithImplicitArrays`.
-- Contract: Section 12.1's exclusion of `type` from capture substitution, Section 16.6's closed
-  type-name set, and Section 22's `SCHEME001` cardinality of once per declaration. Section 6.3
-  admits only exits 0 and 1, and Section 3.2 lists behaviour "caused by unhandled user-input
-  exceptions" among the corrections.
-- Legacy observation: 2.4.0 substituted the capture into the `type` value. `arr*y` matched
-  `cfg.b`, the capture text `b` was spliced in, and the resulting `arrby` was handed to
-  `Enum.Parse` unguarded. The failure is therefore data-dependent, which the following control
-  measures: with `cfg.b.x=2` removed so that only `cfg.a.x=1` remains, the same scheme line
-  produces the capture text `a`, `arr*y` becomes `array`, and 2.4.0 exits 0 and writes
-  `cfg.properties` containing `a.x=1` — silently applying `type=array`.
-
-  | Input profile | 2.4.0 result |
-  |---|---|
-  | `cfg.a.x=1` and `cfg.b.x=2` | unhandled `ArgumentException`, exit `-532462766`, nothing written |
-  | `cfg.a.x=1` alone | exit 0, `cfg.properties` = `a.x=1`, `type=array` silently applied |
-
-  One scheme line is thus either a working directive or a process crash depending on which data
-  it matches. This is the accident Section 12.1 names: "a capture could complete either only by
-  accident of the matched data."
-- Clean behavior: capture recognition is disabled in a `type` value whatever the selector
-  defines, so `arr*y` is literal text. It falls to the ordinary Section 16.6 value check, which
-  rejects it as `SCHEME001` in the scheme phase at the line the declaration was written on. The
-  run exits 1 and publishes nothing, so the `cfg.output=namespace` instance that is perfectly
-  well-formed is not written either.
-- The difference is intentional: a diagnosis that depends on the data the rule happens to match
-  is not a diagnosis. Rejecting the declaration itself makes the same authoring mistake produce
-  the same message on every input, which is the property an author can act on.
-
 ### `an-asterisk-in-an-output-value-is-scheme001`
 
 - namespace2xml 2.4.0: **differs**. It exits 0 and writes `json.json` containing
@@ -1060,43 +977,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   the tool ever wrote, and trailing whitespace is invisible in an editor and stripped silently by a
   great deal of tooling — so it is the one class of specified byte a consumer could destroy without
   ever seeing it.
-
-### `an-empty-qualifier-escapes-the-alias-ambiguity`
-
-- namespace2xml 2.4.0: **differs**.
-- Contract: Section 11.4 `Q{}` empty-qualifier addressing; Section 13.1 XML simple alias and
-  reference resolution; Section 26 item 9. Section 3.1 preserves "value references" as a category,
-  but the `Q{}` marker is a new addressing form and Section 3 does not enumerate it.
-- Legacy observation: the baseline exits `1` and does not produce `a.properties`. The measurement
-  records `exit 1 (expected 0); missing a.properties`. Standard error beyond the banner is empty.
-- Clean behavior: the case expects exit `0` and one `a.properties` whose six lines resolve every
-  `${a.t.Q{}x}`, `${a.t.@x}`, and `${a.Q{}t.x}` against the canonical address the marker names,
-  bypassing the simple-alias ambiguity between the XML attribute `@x` and the child element `x`.
-- Why the difference is intentional: 2.4.0 had no `Q{}` component and no canonical addressing at
-  all. The reference lexer either refuses the token as malformed or resolves it as if the marker
-  were literal text — either way, no correct file can result, and the run fails. This is the whole
-  point of the addressing amendment: without a way to name one canonical component in prose, the
-  ambiguity Section 13.1 describes has no in-band answer at all.
-
-### `an-empty-scheme-directive-is-blocking`
-
-- namespace2xml 2.4.0: **differs**. The baseline crashes with an unhandled
-  `System.UnauthorizedAccessException` — "Access to the path
-  '…\\<output root>' is denied" — after logging that it is writing an output whose name is the
-  output root itself. The process exit code is `-532462766` (`0xE0434352`, an unhandled managed
-  exception).
-- Contract: Section 15 requires every recognized directive to carry a nonempty scalar value.
-  Section 3.2 does not preserve legacy behavior "caused by unhandled user-input exceptions", which
-  is what an empty value produces here.
-- Legacy observation: 2.4.0 accepts the empty value, composes a destination from it, and arrives
-  at a path equal to the output directory. Opening a directory as a file is what fails, so the
-  message the author sees names a permissions problem at a path they did not write, and the stack
-  trace is the tool's own. On a platform or configuration where that open *succeeded* the outcome
-  would be worse than a crash.
-- Clean behavior: the empty value is reported where it was written, with the directive named and
-  the clause cited, before any destination is composed.
-- The difference is intentional: an author who wrote an empty directive made a mistake that is
-  cheap to name and expensive to diagnose from its consequences.
 
 ### `an-implicit-xml-root-carries-document-comments`
 
@@ -1423,37 +1303,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   run. Section 14.1 denies XML the selector-name fallback for a document element, and the input
   has two top-level members, so the scheme supplies `root` explicitly.
 
-### `cli-help-outranks-version`
-
-- namespace2xml 2.4.0: **differs**.
-- Contract: Section 6.1 informational-mode precedence.
-- Legacy observation: CommandLineParser treats the combination as a verb conflict and does not
-  guarantee which informational mode wins.
-- Clean behavior: `--help` is checked first and wins regardless of token order, and no other
-  argument is validated.
-- The difference is intentional: precedence must be total so that an automated caller can rely
-  on it.
-
-### `cli-informational-in-value-position`
-
-- namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, which
-  had no stated rule for an option token standing where a value was required.
-- Contract: Section 6.1 informational precedence; Section 6.2 option-token grammar; Section 26
-  items 61 and 86.
-- Legacy observation: whatever the library did, undocumented.
-- Clean behavior: Section 6.1 decides the informational mode "by scanning the raw token vector for
-  the option token... up to the first --", and that scan "applies no other part of the grammar;
-  in particular it does not work out which tokens are option values". So this invocation prints
-  version information and exits 0 rather than reporting that `--diagnostics-format` has no value.
-- Why this case exists: the alternative gives one token two readings at once — a value to the
-  informational scan, and an option token to the Section 6.2 rule that a detached value may not be
-  an option token. A tool that resolved the two differently in two places would be checkable
-  against neither. This case pins which reading wins, at the only place both rules meet.
-- How the case proves it: the case supplies args-diagnostics.txt explicitly, because Appendix C.4
-  forbids appending `--diagnostics-format` to a vector that already contains it. Section 6.4.1
-  gives an informational mode no diagnostic stream in either encoding, so no expected-diagnostics
-  file is declared and standard error must stay empty.
-
 ### `cli-option-missing-value-rejected`
 
 - namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
@@ -1464,23 +1313,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   nonzero status, with no stable code and no machine-readable stream.
 - Clean behavior: an option token that reaches the end of the argument vector still requiring a
   value is `CLI001` with exit 1, reported in the requested encoding.
-
-### `cli-repeated-list-options-concatenate`
-
-- namespace2xml 2.4.0: **differs**.
-- Contract: Section 6.2, and Section 3.1's preservation of the existing option names. The names are
-  preserved; the arity spelling is not something 2.4.0 accepted in the first place.
-- Legacy observation: the baseline rejects the command line outright. It prints
-  `Option 'i, input' is defined multiple times.`, exits `1`, and writes no file, so `seq.properties`
-  is missing from its output tree. 2.4.0's CommandLineParser configuration accepts a list option
-  once, with its values space-separated, and treats a second occurrence of the same option as a
-  usage error.
-- Clean behavior: Section 6.2 makes repeated occurrences concatenate in exact token order, so the
-  run succeeds and produces the three-item sequence in `-i` order.
-- The difference is intentional: `-i a -i b` is the spelling every other command-line tool accepts
-  for an ordered list, and rejecting it forced callers to build one space-separated token list. The
-  space-separated form still works — it is half of this case's own command line — so the change adds
-  a spelling rather than replacing one, and no 2.4.0 invocation stops working because of it.
 
 ### `cli-short-option-inline-rejected`
 
@@ -1508,16 +1340,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   This tool has no positional parameters.
 - Why this case exists: silently ignoring an argument the author wrote is the failure mode that
   produces a correct-looking run against the wrong inputs.
-
-### `cli-version`
-
-- namespace2xml 2.4.0: **differs**.
-- Contract: Section 3.2 deliberately corrected behavior; Section 22 contract bundle.
-- Legacy observation: prints only an assembly version banner.
-- Clean behavior: prints one `<field>: <value>` line per field, including the
-  `contract-bundle` revision and the specification and registry digests it covers.
-- The difference is intentional: a defect report must be able to name the exact contract the
-  observed behavior was measured against, which the legacy banner cannot express.
 
 ### `contradictory-output-option-flags-are-scheme001`
 
@@ -1825,27 +1647,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: hoisting is a format projection that does not change precedence,
   and ordering sections by the emission stream keeps every INI rule a function of that stream
   alone.
-
-### `input-extensions-match-case-insensitively`
-
-- namespace2xml 2.4.0: **differs**. It reads all four inputs as namespace profiles, reports
-  `Error parsing input: unexpected ...` once per file — `j.JSON` at line 1 column 2, `y.YAML` and
-  `s.YML` at column 5, `x.XML` at column 38 — exits 1, and writes nothing. The case expects
-  `cfg.properties` with one entry contributed by each of the four formats.
-- Contract: Section 7.1, and Section 3.2 as a correction.
-- Legacy observation: 2.4.0 selected the input reader by comparing the file extension with
-  ordinal case-sensitive equality against the lowercase spellings. `data.JSON` matched none of
-  them and fell through to the "every other extension" branch, so a JSON document was handed to
-  the namespace-profile parser. The column numbers in the four errors are where each format's
-  syntax first stops looking like a `name=value` record.
-- Clean behavior: Section 7.1 states that input file extensions "are matched case-insensitively",
-  and lists `.json`, `.yaml`, `.yml`, and `.xml`. Only after none of those matches does the file
-  use namespace-profile parsing. Each of the four inputs here contributes exactly one entry under
-  `cfg`, and their order in the output follows CLI source order.
-- The failure this catches is loud rather than silent, which is the only reason it was ever
-  survivable: a document that fails to parse at least says so. The same defect is silent whenever
-  the mis-read file happens to be valid namespace-profile text — a `.YML` file of `a: 1` lines
-  parses as namespace records with no error and produces a tree nobody asked for.
 
 ### `json-and-yaml-render-one-exclusive-shape`
 
@@ -2325,19 +2126,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   of the document. It therefore survives the loss of any one entry, and it is emitted after `b: 2`
   rather than being bound to `b`.
 
-### `namespace-escaping-round-trip`
-
-- namespace2xml 2.4.0: **differs**.
-- Contract: Sections 8.2 and 19.1; resolved legacy issue 41.
-- Legacy observation: namespace output had no general escape vocabulary, so a name part
-  containing the delimiter, a leading `#`, or a leading `!` could not be written back in a form
-  that reads as the same name.
-- Clean behavior: name encoding is total and injective. A scalar beginning a delimiter occurrence
-  is always `\u{HEX}`, so a literal dot is `\u{2E}` and never `\.`; a leading `#` on an ordinary
-  component and a record-leading `!` take their Section 8.2 forms `\#` and `\!`.
-- The difference is intentional: without it a profile could not round-trip through its own output
-  format, which is the property every other guarantee in Section 19 rests on.
-
 ### `namespace-input-merge-strategies`
 
 - namespace2xml 2.4.0: **differs**.
@@ -2515,28 +2303,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   sign — a Windows path or a shell template, say — and does so silently, since the corrupted text
   is still valid output.
 
-### `noindent-with-newline-on-attributes-is-scheme001`
-
-- namespace2xml 2.4.0: **differs**. The entire output-options concept did not exist in 2.4.0, so
-  `cfg.xmloutputoptions` was an unrecognized directive, was ignored without a diagnostic, and its
-  contradictory content was never inspected. The baseline exits 0 and writes a file.
-- Contract: Section 16.9's contradictory pairs and the `SCHEME001` cardinality of Section 22.
-- Clean behavior: Section 16.9 lists `NoIndent` and `NewLineOnAttributes` among the four XML
-  contradictory pairs, so naming both in one declaration is `SCHEME001`. Section 22 counts
-  `SCHEME001` "once per declaration", so exactly one error is emitted, the run exits 1, and
-  Section 21.2's validation gate means no output is written.
-- Why the pair is contradictory rather than a combination: `NoIndent` "inserts no formatting
-  whitespace" and `NewLineOnAttributes` requires a line break and two spaces before every
-  attribute. On any element carrying an attribute the two flags demand different bytes, so no
-  serialization satisfies both.
-- Why refusal rather than precedence: the two available precedence readings each silently discard
-  a flag the author wrote down. A discarded flag produces no diagnostic and no visible change, so
-  an author who chose the wrong one of the two readings has nothing to observe. Refusing names
-  both flags in the message and fails before any input is opened.
-- The input carries both an attribute (`cfg.@a`) and an element child (`cfg.b`) so that the case
-  would still be able to distinguish the two precedence readings if the pair were ever made legal;
-  as specified it is rejected before serialization and neither reading is reachable.
-
 ### `one-destination-folds-by-format-before-match-order`
 
 - namespace2xml 2.4.0: **differs**. The baseline writes `out.conf` with different content than
@@ -2625,64 +2391,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   `FLAT001` naming the view-relative path, and no file is written.
 - The difference is intentional: an output that loses a value is worse than an output that is
   refused, and the collision is a property of the projection rather than of the data.
-
-### `quoted-namespace-shell-quoting-preserves-hostile-values`
-
-- namespace2xml 2.4.0: **differs**. It exits 1 rather than the expected 0, writes no output,
-  and reports on standard output `Error reading input: Reference OutputRoot.b was not found
-  at OutputRoot.cfg.dollar [file: inputs/values.txt, line: 3]`. The whole run fails on one
-  value, `cfg.dollar=a\${b}c`, whose intent under §8.3 is a literal `${b}` that never
-  reaches reference resolution.
-- Contract: Section 8.3's value escape `\${` and Appendix A.3's ABNF, together with §19.2's
-  single-quote shell escape rule. Section 3.2 as a correction of behaviour "caused by
-  unhandled user-input exceptions".
-- Legacy observation: 2.4.0's namespace value lexer did not recognize `\${` as an escape.
-  The `\` was passed through as literal text and the `${b}` that followed it went to the
-  reference-recognition pass as a live reference. `b` was never defined at any input path,
-  so the reference machinery reported it as missing and blocked the run. Every other value
-  in this fixture would have exercised §19.2's shell quoting — the apostrophe, the
-  backtick, the double quote, the multiline `\n`, `hi!`, `a"b`, and so on — but the run
-  never reached the writer, because one earlier value in source order was rejected.
-- Clean behavior: §8.3 states that within an interpreted namespace-profile value "`\${`
-  emits literal `${`", and Appendix A.3's ABNF lists `\${` among the six recognized
-  `value-escape` alternatives. The value `a\${b}c` therefore reaches the common model as
-  the six-character string `a${b}c`, no reference is present at that path, and §19.2
-  emits it as `dollar='a${b}c'` — single-quoted, because "single-quote shell escaping ...
-  preserves spaces, `$`, backticks, double quotes, backslashes, exclamation marks, and
-  line breaks without expansion". The other seven values in the fixture cover every
-  hostile scalar §19.2 lists.
-- The difference is intentional: a shell template author writes `\${b}` to say "produce
-  the exact bytes `${b}` and do not consult the tool's reference machinery", and an
-  implementation that treats the sequence as a live reference has taken the escape
-  away from the very use case shell quoting exists for. The 3.0 rule fails no run at all
-  on this input; it emits a file the caller can `source` and get the seven hostile values
-  back byte-identical.
-
-### `reference-typed-values-and-alias-addressing`
-
-- namespace2xml 2.4.0: **differs**.
-- Contract: Section 13.1 format-agnostic simple-alias resolution; Section 13.2 kind forwarding and
-  mixed literal/reference concatenation; Section 26 item 9. Section 3.1 preserves value references
-  themselves, but does not enumerate the format-agnostic simple-alias index that reduces `@host` to
-  the alias `host`; that addressing rule is a new specification requirement introduced in Section
-  13.1 rather than a Section 3.2 correction.
-- Legacy observation: the baseline exits `1` and writes no `app.properties`. The measurement
-  records `exit 1 (expected 0); missing app.properties`. Standard error is empty beyond the
-  banner.
-- Clean behavior: `${app.database.port}` forwards the referent's settled kind; `${app.database.@host}`
-  addresses the XML attribute canonically; `${app.database.host}` addresses the same attribute
-  through its format-agnostic alias, which is admissible only because `host` is unique at that
-  node; a mixed literal/reference `endpoint` value is a string under Section 13.2 regardless. The
-  run exits `0` writing `app.properties`.
-- Why the difference is intentional: 2.4.0 had one-level scalar references (legacy item 100) and
-  canonical XML components (item 109), but the format-agnostic simple-alias index that reduces
-  `@host` to the alias `host` was added only for the rewrite. In the 2.4.0 model, the reference
-  `${app.database.host}` on line 4 has no matching canonical path -- the payload lives at
-  `app.database.@host` and there is no rule for reducing one to the other -- so the reference fails
-  to resolve and the run exits nonzero without emitting a file. This is the divergence the case
-  exists to document: the specification's alias index is what makes the same reference portable
-  across formats, and a caller relying on it sees a run that produces nothing under the baseline
-  rather than one that produces `app.properties`.
 
 ### `root-wraps-a-bare-scalars-retained-key`
 
@@ -2978,14 +2686,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   offered `cfg.a.type=mapping` as a way to undo an inference that never ran. The fixture asserts
   the whole stream rather than one record, because the defect was an extra warning rather than a
   wrong one, and only a stream assertion can fail on an extra.
-
-### `wildcard-cascade-completes-within-the-iteration-bound`
-
-- namespace2xml 2.4.0: **differs**.
-- Contract: Section 12.4 wildcard fixed-point evaluation and iteration accounting; Section 23 wildcard iteration budget; Section 26 items 7 and 36. Section 3 does not enumerate `--max-wildcard-iterations`; the fixture pins the bound side of Section 12.4 rather than a Section 3.1 preservation or a Section 3.2 correction.
-- Legacy observation: the baseline exits `1` with no output tree and prints `ERROR(S):` on standard error. The measurement records `exit 1 (expected 0); missing a.properties`.
-- Clean behavior: `--max-wildcard-iterations 3` admits the three generating waves, the fixed point settles, and the run writes `a.properties` with the four expected lines at exit `0`.
-- Why the difference is intentional: 2.4.0 has no `--max-wildcard-iterations` option, so its CommandLineParser rejects the unknown flag before any input is read and prints `ERROR(S):` -- the standard CommandLineParser preamble for an argument diagnostic. The correction is not merely that the option must be accepted but that the bound be a *bound*, so the companion case `wildcard-cascade-crosses-the-iteration-bound` reproduces the failure side of Section 12.4 and this case pins that a run below the bound still completes. Neither half of that guarantee is expressible in 2.4.0, whose iteration limit was hard-coded rather than configurable.
 
 ### `wildcard-generation-appends-beside-every-contribution`
 
@@ -3445,32 +3145,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   the author an explicit vocabulary — `deep`, `replace`, `append`, or `error` — and the
   `WARN005` diagnostic tells them that a collision occurred and which way it was resolved.
 
-### `xml-generated-attribute-namespace-prefixes`
-
-- namespace2xml 2.4.0: **differs**. It reads `.json` inputs, so the case can be posed to it, but it
-  has no `Q{uri}local` component syntax at all. Its only way to name a namespace is an `xmlns:p`
-  key plus a `p:local` name, so the URI has to be written into the document by hand and the prefix
-  is whatever the author chose — there is no prefix for the writer to generate.
-- Contract: Section 19.5's "XML output bytes", and Section 11.4's `@` and `Q{...}` addresses.
-- Clean behavior: an element carrying a namespace URI is emitted unprefixed with that URI declared
-  as the default namespace. An attribute cannot do that, because an unprefixed attribute is in no
-  namespace rather than in the default one, so a namespaced attribute takes a generated prefix.
-  The prefixes are `n1`, `n2`, … numbered in the order their namespaces are first needed in
-  document order, and all of them are declared on the document element.
-- Why the numbering is specified at all: left alone, `XmlWriter` invents a prefix from its own
-  scope counter and produced `p2` here — deterministic for that library, and unguessable for any
-  other implementation of the same specification. Section 24 asks two conforming implementations
-  to produce identical bytes, which an internal counter of one XML library cannot deliver.
-- Why two namespaces and two elements: one namespace would not show the numbering order, and one
-  element would not show that a prefix assigned for the first element is reused rather than
-  reassigned. `e2` needs `http://ex/b` first and `http://ex/a` second, so an implementation that
-  numbered by order of use *within an element* rather than across the document would emit `n1` and
-  `n2` swapped on that element and fail here.
-- Why `plain` is present: an attribute with no namespace must stay unprefixed, and must not acquire
-  the element's default declaration.
-- `e2` also pins the empty-element spelling `<e2 ... />` against `<e2 ...></e2>`: it has attributes
-  and no content.
-
 ### `xml-input-merge-replace-takes-whole-element`
 
 - namespace2xml 2.4.0: **differs**. It writes `r.xml` as
@@ -3578,31 +3252,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   node in element-only content, and the serializer's own indentation is added on top. That
   produces different bytes at `r.xml` and would also weaken the same-format round-trip
   guarantee the fixture uses to distinguish the mode's opt-in effect from the default.
-
-### `xml-output-escapes-carriage-return`
-
-- namespace2xml 2.4.0: **differs**. It reads `.json` inputs, so the case can be posed to it, but it
-  has no Section 11.4 marker syntax: the `@v` key is not an attribute address to it, and its XML
-  writer makes every leaf an attribute *unless* the scheme names it an element, which is the
-  opposite default. The document this case describes is not expressible.
-- Contract: Section 19.5's "XML output bytes", and Section 3.3's requirement that a round trip
-  preserve content.
-- Clean behavior: a CR U+000D is emitted as `&#xD;` in element text content and in an attribute
-  value alike. A LF U+000A is emitted literally in text content and as `&#xA;` in an attribute
-  value.
-- Why CR cannot be written literally: XML 1.0 line-end normalization requires *every* parser to
-  turn a literal CR — and a literal CRLF — into a single LF before the application sees it. A
-  conforming writer that emits the byte therefore loses the character no matter how careful the
-  reader is. `&#xD;` is not an optimization or a style; it is the only spelling of a CR that
-  survives being read back.
-- Why the case carries a LF as well: the two characters must be distinguishable in the output, and
-  a rule that escaped both, or neither, would be simpler and wrong. The `nl` element shows the LF
-  emitted as itself, so the fixture fails if an implementation over-escapes as readily as if it
-  under-escapes.
-- Why the attribute is present: this build already escaped CR correctly inside attribute values
-  while normalizing it to LF in element text, so the two positions did not agree. A case covering
-  only one position would have passed against that defect. The defect reached the corpus because
-  no fixture carried a CR into an XML output at all.
 
 ### `xml-output-places-a-document-trailing-comment-last`
 
@@ -3840,14 +3489,72 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs that crashed 2.4.0 (23)
+## Inputs 2.4.0 could not process (40)
 
-The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or
-reports a diagnostic and exits deliberately.
+The baseline exited nonzero on every sample of these, so no run of it completed: it refused the
+input, terminated abnormally, or gave up part way through, and each entry below says which. 3.0
+either accepts the input or reports a diagnostic and exits deliberately.
+
+### `a-contributionless-source-comments-every-instance`
+
+- namespace2xml 2.4.0: **fails**. Under this case's own arguments it never reads an input at all:
+  its parser refuses the repeated `-i` with `Option 'i, input' is defined multiple times`, prints
+  its usage banner, exits `1` and writes no file. Section 6.2 accepts both `-i a b` and
+  `-i a -i b` on a list option; 2.4.0 accepts only the first, so the invocation this case is
+  written in is itself outside what the baseline can express.
+- Contract: Section 8.5, "a document-leading comment is bound to no path ... and it is emitted in
+  every output instance the run produces"; Section 6.2 for repeated list options; Section 26 item 13.
+- Legacy observation, from a reduced probe rather than from the differential lane: rewriting the
+  invocation into the single-flag form 2.4.0 does accept reaches the comment behaviour underneath.
+  The comment-only source contributes nothing, so its run is document-leading and belongs to no
+  path. 2.4.0 attaches it to whichever instance is rendered first and drops it from the rest,
+  silently — nothing in the run says a second document was expected to carry it. That measurement
+  is what the clean behaviour below is contrasted against; it is not what the lane observes here,
+  and the verdict above is.
+- Clean behavior: both documents carry both lines. An output instance is a standalone file that has
+  to be readable on its own, and the specification cannot name a winner among instances whose order
+  is a rendering detail; announcing the omission from the others would still leave those documents
+  missing a note whose whole purpose is to sit next to the settings it explains.
+- The case exists because it is the only one in the corpus with **two** output instances and an
+  ownerless comment. Every other comment fixture renders a single document, where "the first
+  instance" and "every instance" are the same file and the rule is unobservable.
+- The invocation also records a second divergence in passing: 2.4.0 rejects a repeated `-i` with
+  "Option 'i, input' is defined multiple times" and requires `-i a b`, while Section 6.2 accepts
+  both forms on a list option. That refusal is what the verdict above measures; it fires before any
+  input is read, so under this case's arguments the comment behaviour is never reached.
+
+### `a-generated-contribution-sorts-between-the-sources-that-straddle-it`
+
+- namespace2xml 2.4.0: **fails**. It exits `1` where the contract requires `0`, reporting
+  `Reference OutputRoot.a.p.1 was not found at OutputRoot.b.pick`, and writes `a.json` containing
+  `{ "p": [ "second" ] }` and no `b.properties` at all. The baseline's own diagnostic names the
+  address the contract requires to exist: `a.p.1` is missing there because only one of the three
+  contributions survived, so there is no position to be right or wrong about. That it published
+  `a.json` while failing is a partial write on an unsuccessful run, and is incidental to this case.
+- Contract: Section 12.4 for the generated contribution merging at its rule/match position,
+  Section 16.10 for what `append` rebases, Section 15.1 step 8 for the earliest contribution
+  retaining its supplied values, Section 5.4 for the values being addressable, Section 4.7 for the
+  source ordinals.
+- Legacy observation, with controls. Four baseline runs behave identically:
+
+  | Run | Sources | Scheme | Exit | Output |
+  |---|---|---|---|---|
+  | as specified | first, template, second, probe | `merge=append` | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
+  | template removed | first, second, probe | `merge=append` | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
+  | merge removed | first, template, second, probe | none | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
+  | both removed | first, second, probe | none | `1` | `{ "p": [ "second" ] }`, no `b.properties` |
+
+  Removing the template changes nothing, and removing the merge directive changes nothing. The
+  baseline therefore neither expanded the template nor applied `append`: it overrode at `a.p.0` and
+  kept the last value written. The controls are what distinguish that from an implementation that
+  did something different with the directives it was given.
+- Why the difference is intentional: 2.4.0 has no `append` strategy for an input path, so the
+  divergence is a capability this version adds rather than a behaviour it changes. Section 3 covers
+  it under the input merge strategies.
 
 ### `a-json-key-carries-xml-markers-through-a-round-trip`
 
-- namespace2xml 2.4.0: **crashes**. `System.Xml.XmlException: Name cannot begin with the '@'
+- namespace2xml 2.4.0: **fails**. `System.Xml.XmlException: Name cannot begin with the '@'
   character, hexadecimal value 0x40.` from
   `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle`, exit `-532462766` on Windows and
   134 on Linux. A zero-length `a.xml` is left behind and `c.json` is never written. The case
@@ -3877,7 +3584,7 @@ reports a diagnostic and exits deliberately.
 
 ### `a-json-override-reaches-an-xml-attribute`
 
-- namespace2xml 2.4.0: **crashes**. `System.Xml.XmlException: Name cannot begin with the '@'
+- namespace2xml 2.4.0: **fails**. `System.Xml.XmlException: Name cannot begin with the '@'
   character, hexadecimal value 0x40.` from
   `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle`, exit `-532462766` on Windows and
   134 on Linux, leaving a zero-length `a.xml`. The case expects exit 0 and `a.xml` containing
@@ -3905,7 +3612,7 @@ reports a diagnostic and exits deliberately.
 
 ### `a-namespace-value-decodes-every-section-8-3-escape`
 
-- namespace2xml 2.4.0: **crashes**. It does not write `cfg.json` at all. The run fails with
+- namespace2xml 2.4.0: **fails**. It does not write `cfg.json` at all. The run fails with
   `Reference OutputRoot.b was not found at OutputRoot.cfg.dollar [file: values.txt, line: 2]` and
   exits 1, because `\${` did not suppress the reference the way Section 8.3 requires — the `${`
   still opened one, and `b` is not a defined path.
@@ -3932,9 +3639,80 @@ reports a diagnostic and exits deliberately.
   `\*` fixture: `\*` is the escape an author reaches for deliberately, and these five are the ones
   they may already have written without knowing they were escapes.
 
+### `an-asterisk-in-a-type-value-is-scheme001`
+
+- namespace2xml 2.4.0: **fails**. It exits `-532462766` (0xE0434352, an unhandled CLR
+  exception) and writes nothing. The terminating exception is
+  `System.ArgumentException: Requested value 'arrby' was not found.` from `Enum.Parse` in
+  `Formatters/Extensions.cs:72`, reached through `SchemeNodeExtensions.WithImplicitArrays`.
+- Contract: Section 12.1's exclusion of `type` from capture substitution, Section 16.6's closed
+  type-name set, and Section 22's `SCHEME001` cardinality of once per declaration. Section 6.3
+  admits only exits 0 and 1, and Section 3.2 lists behaviour "caused by unhandled user-input
+  exceptions" among the corrections.
+- Legacy observation: 2.4.0 substituted the capture into the `type` value. `arr*y` matched
+  `cfg.b`, the capture text `b` was spliced in, and the resulting `arrby` was handed to
+  `Enum.Parse` unguarded. The failure is therefore data-dependent, which the following control
+  measures: with `cfg.b.x=2` removed so that only `cfg.a.x=1` remains, the same scheme line
+  produces the capture text `a`, `arr*y` becomes `array`, and 2.4.0 exits 0 and writes
+  `cfg.properties` containing `a.x=1` — silently applying `type=array`.
+
+  | Input profile | 2.4.0 result |
+  |---|---|
+  | `cfg.a.x=1` and `cfg.b.x=2` | unhandled `ArgumentException`, exit `-532462766`, nothing written |
+  | `cfg.a.x=1` alone | exit 0, `cfg.properties` = `a.x=1`, `type=array` silently applied |
+
+  One scheme line is thus either a working directive or a process crash depending on which data
+  it matches. This is the accident Section 12.1 names: "a capture could complete either only by
+  accident of the matched data."
+- Clean behavior: capture recognition is disabled in a `type` value whatever the selector
+  defines, so `arr*y` is literal text. It falls to the ordinary Section 16.6 value check, which
+  rejects it as `SCHEME001` in the scheme phase at the line the declaration was written on. The
+  run exits 1 and publishes nothing, so the `cfg.output=namespace` instance that is perfectly
+  well-formed is not written either.
+- The difference is intentional: a diagnosis that depends on the data the rule happens to match
+  is not a diagnosis. Rejecting the declaration itself makes the same authoring mistake produce
+  the same message on every input, which is the property an author can act on.
+
+### `an-empty-qualifier-escapes-the-alias-ambiguity`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 11.4 `Q{}` empty-qualifier addressing; Section 13.1 XML simple alias and
+  reference resolution; Section 26 item 9. Section 3.1 preserves "value references" as a category,
+  but the `Q{}` marker is a new addressing form and Section 3 does not enumerate it.
+- Legacy observation: the baseline exits `1` and does not produce `a.properties`. The measurement
+  records `exit 1 (expected 0); missing a.properties`. Standard error beyond the banner is empty.
+- Clean behavior: the case expects exit `0` and one `a.properties` whose six lines resolve every
+  `${a.t.Q{}x}`, `${a.t.@x}`, and `${a.Q{}t.x}` against the canonical address the marker names,
+  bypassing the simple-alias ambiguity between the XML attribute `@x` and the child element `x`.
+- Why the difference is intentional: 2.4.0 had no `Q{}` component and no canonical addressing at
+  all. The reference lexer either refuses the token as malformed or resolves it as if the marker
+  were literal text — either way, no correct file can result, and the run fails. This is the whole
+  point of the addressing amendment: without a way to name one canonical component in prose, the
+  ambiguity Section 13.1 describes has no in-band answer at all.
+
+### `an-empty-scheme-directive-is-blocking`
+
+- namespace2xml 2.4.0: **fails**. The baseline crashes with an unhandled
+  `System.UnauthorizedAccessException` — "Access to the path
+  '…\\<output root>' is denied" — after logging that it is writing an output whose name is the
+  output root itself. The process exit code is `-532462766` (`0xE0434352`, an unhandled managed
+  exception).
+- Contract: Section 15 requires every recognized directive to carry a nonempty scalar value.
+  Section 3.2 does not preserve legacy behavior "caused by unhandled user-input exceptions", which
+  is what an empty value produces here.
+- Legacy observation: 2.4.0 accepts the empty value, composes a destination from it, and arrives
+  at a path equal to the output directory. Opening a directory as a file is what fails, so the
+  message the author sees names a permissions problem at a path they did not write, and the stack
+  trace is the tool's own. On a platform or configuration where that open *succeeded* the outcome
+  would be worse than a crash.
+- Clean behavior: the empty value is reported where it was written, with the directive named and
+  the clause cited, before any destination is composed.
+- The difference is intentional: an author who wrote an empty directive made a mistake that is
+  cheap to name and expensive to diagnose from its consequences.
+
 ### `an-existing-non-directory-output-root-is-rejected`
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 3.2 correction against unhandled user-input exceptions; Section 21.1 output-root
   rejection; Section 26 item 29.
 - Legacy observation: the baseline terminates with an unhandled `System.IO.IOException` reading
@@ -3953,7 +3731,7 @@ reports a diagnostic and exits deliberately.
 
 ### `an-xml-name-outside-ncname-is-refused`
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 11.2's requirement that an element or attribute name emitted as XML "must
   match the `NCName` production of Namespaces in XML 1.0, Third Edition", that a component which
   does not match "is `XML002` at the point the name would be written, and only there", and the
@@ -3972,9 +3750,204 @@ reports a diagnostic and exits deliberately.
   The crash is not incidental to the divergence — it is evidence that the two readings of `a:b`
   are both live in the baseline, which is precisely why 3.0 refuses to write the name at all.
 
+### `cli-help-outranks-version`
+
+- namespace2xml 2.4.0: **fails**. Given `--version --help` it writes the single line
+  `namespace2xml 2.4.0+b1c230e974a04cb363b131aad027980502fe0321` to **standard error** and exits
+  `1`. No help text is printed, so `--version` wins the combination, and an informational request
+  is reported as a failed run on the stream reserved for diagnostics.
+- Contract: Section 6.1 informational-mode precedence.
+- Legacy observation: CommandLineParser decides the outcome, and 2.4.0 states no rule for the
+  combination. The observed result is the opposite of the specified precedence, on the wrong
+  stream, with the wrong exit code — three separate things an automated caller cannot rely on.
+- Clean behavior: `--help` is checked first and wins regardless of token order, and no other
+  argument is validated.
+- The difference is intentional: precedence must be total so that an automated caller can rely
+  on it.
+
+### `cli-informational-in-value-position`
+
+- namespace2xml 2.4.0: **fails**. Given `--diagnostics-format --version` it exits `1` and reports
+  four usage errors — `Option 'diagnostics-format' is unknown.`, `Option 'version' is unknown.`,
+  `Required option 'i, input' is missing.`, `Required option 's, scheme' is missing.` — then prints
+  its usage banner and writes nothing. It has neither option, so it cannot be asked the question
+  this case poses; what it does show is that a bare `--version` is recognized only when it stands
+  alone, which is the token-position sensitivity Section 6.1 removes.
+- Contract: Section 6.1 informational precedence; Section 6.2 option-token grammar; Section 26
+  items 61 and 86.
+- Legacy observation: 2.4.0 delegated argument parsing to CommandLineParser, which had no stated
+  rule for an option token standing where a value was required; the behaviour above is that
+  library's, not a documented decision of the tool's.
+- Clean behavior: Section 6.1 decides the informational mode "by scanning the raw token vector for
+  the option token... up to the first --", and that scan "applies no other part of the grammar;
+  in particular it does not work out which tokens are option values". So this invocation prints
+  version information and exits 0 rather than reporting that `--diagnostics-format` has no value.
+- Why this case exists: the alternative gives one token two readings at once — a value to the
+  informational scan, and an option token to the Section 6.2 rule that a detached value may not be
+  an option token. A tool that resolved the two differently in two places would be checkable
+  against neither. This case pins which reading wins, at the only place both rules meet.
+- How the case proves it: the case supplies args-diagnostics.txt explicitly, because Appendix C.4
+  forbids appending `--diagnostics-format` to a vector that already contains it. Section 6.4.1
+  gives an informational mode no diagnostic stream in either encoding, so no expected-diagnostics
+  file is declared and standard error must stay empty.
+
+### `cli-repeated-list-options-concatenate`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 6.2, and Section 3.1's preservation of the existing option names. The names are
+  preserved; the arity spelling is not something 2.4.0 accepted in the first place.
+- Legacy observation: the baseline rejects the command line outright. It prints
+  `Option 'i, input' is defined multiple times.`, exits `1`, and writes no file, so `seq.properties`
+  is missing from its output tree. 2.4.0's CommandLineParser configuration accepts a list option
+  once, with its values space-separated, and treats a second occurrence of the same option as a
+  usage error.
+- Clean behavior: Section 6.2 makes repeated occurrences concatenate in exact token order, so the
+  run succeeds and produces the three-item sequence in `-i` order.
+- The difference is intentional: `-i a -i b` is the spelling every other command-line tool accepts
+  for an ordered list, and rejecting it forced callers to build one space-separated token list. The
+  space-separated form still works — it is half of this case's own command line — so the change adds
+  a spelling rather than replacing one, and no 2.4.0 invocation stops working because of it.
+
+### `cli-version`
+
+- namespace2xml 2.4.0: **fails**. Given `--version` it writes the single line
+  `namespace2xml 2.4.0+b1c230e974a04cb363b131aad027980502fe0321` to **standard error** and exits
+  `1`. Standard output is empty.
+- Contract: Section 3.2 deliberately corrected behavior; Section 22 contract bundle;
+  Section 6.1 for an informational request being a successful run on standard output.
+- Legacy observation: the banner is an assembly version and nothing else, it is emitted on the
+  stream reserved for diagnostics, and the successful answer to a question is reported as exit `1`.
+  A caller that checks the exit code — which is what a caller should do — reads this as a failure.
+- Clean behavior: prints one `<field>: <value>` line per field, including the
+  `contract-bundle` revision and the specification and registry digests it covers.
+- The difference is intentional: a defect report must be able to name the exact contract the
+  observed behavior was measured against, which the legacy banner cannot express.
+
+### `input-extensions-match-case-insensitively`
+
+- namespace2xml 2.4.0: **fails**. It reads all four inputs as namespace profiles, reports
+  `Error parsing input: unexpected ...` once per file — `j.JSON` at line 1 column 2, `y.YAML` and
+  `s.YML` at column 5, `x.XML` at column 38 — exits 1, and writes nothing. The case expects
+  `cfg.properties` with one entry contributed by each of the four formats.
+- Contract: Section 7.1, and Section 3.2 as a correction.
+- Legacy observation: 2.4.0 selected the input reader by comparing the file extension with
+  ordinal case-sensitive equality against the lowercase spellings. `data.JSON` matched none of
+  them and fell through to the "every other extension" branch, so a JSON document was handed to
+  the namespace-profile parser. The column numbers in the four errors are where each format's
+  syntax first stops looking like a `name=value` record.
+- Clean behavior: Section 7.1 states that input file extensions "are matched case-insensitively",
+  and lists `.json`, `.yaml`, `.yml`, and `.xml`. Only after none of those matches does the file
+  use namespace-profile parsing. Each of the four inputs here contributes exactly one entry under
+  `cfg`, and their order in the output follows CLI source order.
+- The failure this catches is loud rather than silent, which is the only reason it was ever
+  survivable: a document that fails to parse at least says so. The same defect is silent whenever
+  the mis-read file happens to be valid namespace-profile text — a `.YML` file of `a: 1` lines
+  parses as namespace records with no error and produces a tree nobody asked for.
+
+### `namespace-escaping-round-trip`
+
+- namespace2xml 2.4.0: **fails**. It cannot lex the case's own input: it reports
+  `Error parsing input: unexpected 'r', file: inputs/profile.txt, line: 5, column: 1`, exits `1`,
+  and writes no `root.properties`. Line 5 is where the profile spells an escape 2.4.0 has no
+  vocabulary for, so the round trip fails on the read rather than on the write.
+- Contract: Sections 8.2 and 19.1; resolved legacy issue 41.
+- Legacy observation: namespace output had no general escape vocabulary, so a name part
+  containing the delimiter, a leading `#`, or a leading `!` could not be written back in a form
+  that reads as the same name — and, as the measurement shows, could not be read in one either.
+- Clean behavior: name encoding is total and injective. A scalar beginning a delimiter occurrence
+  is always `\u{HEX}`, so a literal dot is `\u{2E}` and never `\.`; a leading `#` on an ordinary
+  component and a record-leading `!` take their Section 8.2 forms `\#` and `\!`.
+- The difference is intentional: without it a profile could not round-trip through its own output
+  format, which is the property every other guarantee in Section 19 rests on.
+
+### `noindent-with-newline-on-attributes-is-scheme001`
+
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
+  `System.Xml.XmlException: Name cannot begin with the '@' character, hexadecimal value 0x40.`,
+  exit `-532462766` (`0xE0434352`, an unhandled managed exception), and writes nothing. The
+  output-options concept did not exist in 2.4.0, so `cfg.xmloutputoptions` is an unrecognized
+  directive that is ignored without a diagnostic and whose contradictory content is never
+  inspected — but the run does not survive to render, because 2.4.0's XML writer has no Section
+  11.4 marker syntax and hands the literal `@` name to `XmlWriter`. The contradiction this case is
+  about is therefore not something the baseline can be observed to have an opinion on.
+- Contract: Section 16.9's contradictory pairs and the `SCHEME001` cardinality of Section 22.
+- Clean behavior: Section 16.9 lists `NoIndent` and `NewLineOnAttributes` among the four XML
+  contradictory pairs, so naming both in one declaration is `SCHEME001`. Section 22 counts
+  `SCHEME001` "once per declaration", so exactly one error is emitted, the run exits 1, and
+  Section 21.2's validation gate means no output is written.
+- Why the pair is contradictory rather than a combination: `NoIndent` "inserts no formatting
+  whitespace" and `NewLineOnAttributes` requires a line break and two spaces before every
+  attribute. On any element carrying an attribute the two flags demand different bytes, so no
+  serialization satisfies both.
+- Why refusal rather than precedence: the two available precedence readings each silently discard
+  a flag the author wrote down. A discarded flag produces no diagnostic and no visible change, so
+  an author who chose the wrong one of the two readings has nothing to observe. Refusing names
+  both flags in the message and fails before any input is opened.
+- The input carries both an attribute (`cfg.@a`) and an element child (`cfg.b`) so that the case
+  would still be able to distinguish the two precedence readings if the pair were ever made legal;
+  as specified it is rejected before serialization and neither reading is reachable.
+
+### `quoted-namespace-shell-quoting-preserves-hostile-values`
+
+- namespace2xml 2.4.0: **fails**. It exits 1 rather than the expected 0, writes no output,
+  and reports on standard output `Error reading input: Reference OutputRoot.b was not found
+  at OutputRoot.cfg.dollar [file: inputs/values.txt, line: 3]`. The whole run fails on one
+  value, `cfg.dollar=a\${b}c`, whose intent under §8.3 is a literal `${b}` that never
+  reaches reference resolution.
+- Contract: Section 8.3's value escape `\${` and Appendix A.3's ABNF, together with §19.2's
+  single-quote shell escape rule. Section 3.2 as a correction of behaviour "caused by
+  unhandled user-input exceptions".
+- Legacy observation: 2.4.0's namespace value lexer did not recognize `\${` as an escape.
+  The `\` was passed through as literal text and the `${b}` that followed it went to the
+  reference-recognition pass as a live reference. `b` was never defined at any input path,
+  so the reference machinery reported it as missing and blocked the run. Every other value
+  in this fixture would have exercised §19.2's shell quoting — the apostrophe, the
+  backtick, the double quote, the multiline `\n`, `hi!`, `a"b`, and so on — but the run
+  never reached the writer, because one earlier value in source order was rejected.
+- Clean behavior: §8.3 states that within an interpreted namespace-profile value "`\${`
+  emits literal `${`", and Appendix A.3's ABNF lists `\${` among the six recognized
+  `value-escape` alternatives. The value `a\${b}c` therefore reaches the common model as
+  the six-character string `a${b}c`, no reference is present at that path, and §19.2
+  emits it as `dollar='a${b}c'` — single-quoted, because "single-quote shell escaping ...
+  preserves spaces, `$`, backticks, double quotes, backslashes, exclamation marks, and
+  line breaks without expansion". The other seven values in the fixture cover every
+  hostile scalar §19.2 lists.
+- The difference is intentional: a shell template author writes `\${b}` to say "produce
+  the exact bytes `${b}` and do not consult the tool's reference machinery", and an
+  implementation that treats the sequence as a live reference has taken the escape
+  away from the very use case shell quoting exists for. The 3.0 rule fails no run at all
+  on this input; it emits a file the caller can `source` and get the seven hostile values
+  back byte-identical.
+
+### `reference-typed-values-and-alias-addressing`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 13.1 format-agnostic simple-alias resolution; Section 13.2 kind forwarding and
+  mixed literal/reference concatenation; Section 26 item 9. Section 3.1 preserves value references
+  themselves, but does not enumerate the format-agnostic simple-alias index that reduces `@host` to
+  the alias `host`; that addressing rule is a new specification requirement introduced in Section
+  13.1 rather than a Section 3.2 correction.
+- Legacy observation: the baseline exits `1` and writes no `app.properties`. The measurement
+  records `exit 1 (expected 0); missing app.properties`. Standard error is empty beyond the
+  banner.
+- Clean behavior: `${app.database.port}` forwards the referent's settled kind; `${app.database.@host}`
+  addresses the XML attribute canonically; `${app.database.host}` addresses the same attribute
+  through its format-agnostic alias, which is admissible only because `host` is unique at that
+  node; a mixed literal/reference `endpoint` value is a string under Section 13.2 regardless. The
+  run exits `0` writing `app.properties`.
+- Why the difference is intentional: 2.4.0 had one-level scalar references (legacy item 100) and
+  canonical XML components (item 109), but the format-agnostic simple-alias index that reduces
+  `@host` to the alias `host` was added only for the rewrite. In the 2.4.0 model, the reference
+  `${app.database.host}` on line 4 has no matching canonical path -- the payload lives at
+  `app.database.@host` and there is no rule for reducing one to the other -- so the reference fails
+  to resolve and the run exits nonzero without emitting a file. This is the divergence the case
+  exists to document: the specification's alias index is what makes the same reference portable
+  across formats, and a caller relying on it sees a run that produces nothing under the baseline
+  rather than one that produces `app.properties`.
+
 ### `scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias`
 
-- namespace2xml 2.4.0: **crashes**. It terminates with an unhandled
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
   `System.InvalidOperationException: Sequence contains no elements` from `Enumerable.Single` in
   `Formatters/Extensions.cs:79`, exit `-532462766` (`0xE0434352`), writing nothing.
   **verified** — measured against the Appendix C.6 pinned 2.4.0 package.
@@ -4002,7 +3975,7 @@ reports a diagnostic and exits deliberately.
 
 ### `scheme-an-unmarked-directive-reaches-an-attribute-through-the-simple-alias`
 
-- namespace2xml 2.4.0: **crashes**. It exits `1` with
+- namespace2xml 2.4.0: **fails**. It exits `1` with
   `Error parsing input: unexpected 'r', file: schemes/scheme.txt, line: 5, column: 1`, writing no
   output. **verified** — measured against the Appendix C.6 pinned 2.4.0 package.
 - Contract: Section 15.2's scheme-path alias — "an explicitly marked `Q{}`, `@`, or `#n` component
@@ -4033,7 +4006,7 @@ reports a diagnostic and exits deliberately.
 
 ### `swapping-two-invalid-options-swaps-the-reported-one`
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 22's rule that where a cardinality admits fewer records than the run detects,
   "the survivor is the one detected first in the traversal that phase specifies", and that
   "command-line parsing traverses arguments left to right under Section 6, so an invocation
@@ -4052,7 +4025,7 @@ reports a diagnostic and exits deliberately.
 
 ### `two-invalid-options-report-the-leftmost`
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 22's rule that where a cardinality admits fewer records than the run detects,
   "the survivor is the one detected first in the traversal that phase specifies", and that
   "command-line parsing traverses arguments left to right under Section 6, so an invocation
@@ -4072,7 +4045,7 @@ reports a diagnostic and exits deliberately.
 
 ### `type-mapping-keeps-numeric-keys-and-array-discards-names`
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 3.2 correction against unhandled user-input exceptions; Section 16.6 `type=mapping` explicit escape hatch and `type=array` conversion; Section 8.7 numeric-map inference; Section 26 item 54.
 - Legacy observation: the baseline terminates with an unhandled `System.AggregateException: One or more errors occurred. (Requested value 'mapping' was not found.)` and exits `-532462766`. The measurement records `exit -532462766 (expected 0); missing cfg.properties`.
 - Clean behavior: `type=mapping` is a recognized directive value under Section 16.6, so pipeline step 16 evaluates it, `cfg.m` renders as a mapping projection with numeric keys preserved and `key=name` then materializes records, `cfg.s` converts under `type=array`, and the whole run exits `0` writing the expected `cfg.properties`.
@@ -4080,7 +4053,7 @@ reports a diagnostic and exits deliberately.
 
 ### `type-mapping-suppresses-warn010-per-output-instance`
 
-- namespace2xml 2.4.0: **crashes**. It terminates with an unhandled
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
   `System.AggregateException` wrapping `System.ArgumentException: Requested value 'mapping'
   was not found.` — thrown from `Enum.Parse` inside
   `Namespace2Xml.Formatters.Extensions.ParseValueType` — and exits 134 on Linux (the
@@ -4114,9 +4087,17 @@ reports a diagnostic and exits deliberately.
   behaviours the replacement must not preserve, and this crash is exactly the shape that
   bullet names.
 
+### `wildcard-cascade-completes-within-the-iteration-bound`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 12.4 wildcard fixed-point evaluation and iteration accounting; Section 23 wildcard iteration budget; Section 26 items 7 and 36. Section 3 does not enumerate `--max-wildcard-iterations`; the fixture pins the bound side of Section 12.4 rather than a Section 3.1 preservation or a Section 3.2 correction.
+- Legacy observation: the baseline exits `1` with no output tree and prints `ERROR(S):` on standard error. The measurement records `exit 1 (expected 0); missing a.properties`.
+- Clean behavior: `--max-wildcard-iterations 3` admits the three generating waves, the fixed point settles, and the run writes `a.properties` with the four expected lines at exit `0`.
+- Why the difference is intentional: 2.4.0 has no `--max-wildcard-iterations` option, so its CommandLineParser rejects the unknown flag before any input is read and prints `ERROR(S):` -- the standard CommandLineParser preamble for an argument diagnostic. The correction is not merely that the option must be accepted but that the bound be a *bound*, so the companion case `wildcard-cascade-crosses-the-iteration-bound` reproduces the failure side of Section 12.4 and this case pins that a run below the bound still completes. Neither half of that guarantee is expressible in 2.4.0, whose iteration limit was hard-coded rather than configurable.
+
 ### `xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address`
 
-- namespace2xml 2.4.0: **crashes**. It terminates with
+- namespace2xml 2.4.0: **fails**. It terminates with
   `System.Xml.XmlException: Name cannot begin with the '@' character, hexadecimal value 0x40.`
   from `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle`, and exits 134 on Linux. A
   zero-length `r.xml` is left behind. The case expects exit `0` and `r.xml` containing
@@ -4141,13 +4122,17 @@ reports a diagnostic and exits deliberately.
 
 ### `xml-an-element-name-with-a-dot-needs-an-escape`
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 8.2 name parts and the `\.` escape; Appendix A.2 name escapes and the
   `\u{HEX}` scalar escape; Section 11.4 canonical XML addressing; Section 17.1 overlay
   creation of an absent path.
-- Legacy observation: given the `@debug` address, 2.4.0 terminates with an unhandled
+- Legacy observation: under this case's own arguments 2.4.0 never reaches its XML writer. It
+  cannot lex `\u{2E}` — Appendix A.2's scalar escape does not exist in 2.4.0's namespace grammar —
+  so it reports `Error parsing input: unexpected 'r', file: inputs/over.txt, line: 2, column: 1`,
+  exits `1`, and writes nothing. A reduced probe that removes the `\u{2E}` line gets one step
+  further and then dies on the `@debug` address, with an unhandled
   `System.Xml.XmlException` — "Name cannot begin with the '@' character, hexadecimal value
-  0x40" — from `XmlFormatter.ToXmlValueSingle`, after truncating the output file to zero bytes.
+  0x40" — from `XmlFormatter.ToXmlValueSingle`, after truncating the output file to zero bytes:
   2.4.0 has no address for an attribute, so `@debug` is an ordinary name part it then hands to
   `XName`. That is the same absence of attribute addressing that
   `xml-a-2-x-style-attribute-override-adds-a-sibling-element` records from the other direction,
@@ -4176,7 +4161,7 @@ reports a diagnostic and exits deliberately.
 
 ### `xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component`
 
-- namespace2xml 2.4.0: **crashes**. It reads both inputs and then exits `1` with
+- namespace2xml 2.4.0: **fails**. It reads both inputs and then exits `1` with
   `Error parsing input: unexpected 'r', file: inputs/over.txt, line: 2, column: 1`, writing no
   output at all. **verified** — measured against the Appendix C.6 pinned 2.4.0 package.
 - Contract: Section 11.4 canonical XML addressing, its `Q{}local` explicit spelling, and its
@@ -4211,7 +4196,7 @@ reports a diagnostic and exits deliberately.
 
 ### `xml-element-only-children-keep-their-place`
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 3.2 correction against unhandled user-input exceptions, together with
   Section 11.4's rules that "for element-only repeated children ... the canonical child paths
   are `a.b.0`, `a.b.1` ... using the `a.b` sequence path's own high-water allocator" and that
@@ -4233,9 +4218,39 @@ reports a diagnostic and exits deliberately.
   never produce a partial output instance for a later phase. Both symptoms are the
   unhandled-exception class Section 3.2 removes.
 
+### `xml-generated-attribute-namespace-prefixes`
+
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
+  `System.Collections.Generic.KeyNotFoundException: The given key '@Q{http' was not present in the
+  dictionary.`, exit `-532462766` (`0xE0434352`, an unhandled managed exception), and writes
+  nothing. It reads `.json` inputs, so the case can be posed to it, but it has no `Q{uri}local`
+  component syntax at all: it splits the key on the first `}` and looks the fragment up as a
+  namespace prefix. Its only way to name a namespace is an `xmlns:p` key plus a `p:local` name, so
+  the URI has to be written into the document by hand and the prefix is whatever the author chose —
+  there is no prefix for the writer to generate.
+- Contract: Section 19.5's "XML output bytes", and Section 11.4's `@` and `Q{...}` addresses.
+- Clean behavior: an element carrying a namespace URI is emitted unprefixed with that URI declared
+  as the default namespace. An attribute cannot do that, because an unprefixed attribute is in no
+  namespace rather than in the default one, so a namespaced attribute takes a generated prefix.
+  The prefixes are `n1`, `n2`, … numbered in the order their namespaces are first needed in
+  document order, and all of them are declared on the document element.
+- Why the numbering is specified at all: left alone, `XmlWriter` invents a prefix from its own
+  scope counter and produced `p2` here — deterministic for that library, and unguessable for any
+  other implementation of the same specification. Section 24 asks two conforming implementations
+  to produce identical bytes, which an internal counter of one XML library cannot deliver.
+- Why two namespaces and two elements: one namespace would not show the numbering order, and one
+  element would not show that a prefix assigned for the first element is reused rather than
+  reassigned. `e2` needs `http://ex/b` first and `http://ex/a` second, so an implementation that
+  numbered by order of use *within an element* rather than across the document would emit `n1` and
+  `n2` swapped on that element and fail here.
+- Why `plain` is present: an attribute with no namespace must stay unprefixed, and must not acquire
+  the element's default declaration.
+- `e2` also pins the empty-element spelling `<e2 ... />` against `<e2 ...></e2>`: it has attributes
+  and no content.
+
 ### `xml-newline-on-attributes`
 
-- namespace2xml 2.4.0: **crashes**. It reports `Writing output .../cfg.xml xml...`, then exits with
+- namespace2xml 2.4.0: **fails**. It reports `Writing output .../cfg.xml xml...`, then exits with
   an unhandled `System.Xml.XmlException: Name cannot begin with the '@' character, hexadecimal value
   0x40` thrown from `XmlFormatter.ToXml`, leaving a zero-byte `cfg.xml` behind. **verified** —
   measured against the Appendix C.6 pinned 2.4.0 package.
@@ -4264,7 +4279,7 @@ reports a diagnostic and exits deliberately.
 
 ### `xml-node-types-select-the-spelling`
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 3.2 correction against unhandled user-input exceptions, together with
   Section 15's rule that "unknown directives are blocking errors" and Section 16.6's
   enumeration of the recognized XML `type` values (`element`, `attribute`, `cdata`, `text`).
@@ -4283,9 +4298,38 @@ reports a diagnostic and exits deliberately.
   exits `1`; letting the enum parser propagate its `ArgumentException` all the way to the
   process boundary is the unhandled-exception class Section 3.2 removes.
 
+### `xml-output-escapes-carriage-return`
+
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
+  `System.Xml.XmlException: Name cannot begin with the '@' character, hexadecimal value 0x40.`,
+  exit `-532462766` (`0xE0434352`, an unhandled managed exception), and writes nothing. It reads
+  `.json` inputs, so the case can be posed to it, but it has no Section 11.4 marker syntax: the
+  `@v` key is not an attribute address to it, so the literal name reaches `XmlWriter` and is
+  rejected there. Its XML writer makes every leaf an attribute *unless* the scheme names it an
+  element, which is the opposite default. The document this case describes is not expressible, and
+  the escaping question it asks is never reached.
+- Contract: Section 19.5's "XML output bytes", and Section 3.3's requirement that a round trip
+  preserve content.
+- Clean behavior: a CR U+000D is emitted as `&#xD;` in element text content and in an attribute
+  value alike. A LF U+000A is emitted literally in text content and as `&#xA;` in an attribute
+  value.
+- Why CR cannot be written literally: XML 1.0 line-end normalization requires *every* parser to
+  turn a literal CR — and a literal CRLF — into a single LF before the application sees it. A
+  conforming writer that emits the byte therefore loses the character no matter how careful the
+  reader is. `&#xD;` is not an optimization or a style; it is the only spelling of a CR that
+  survives being read back.
+- Why the case carries a LF as well: the two characters must be distinguishable in the output, and
+  a rule that escaped both, or neither, would be simpler and wrong. The `nl` element shows the LF
+  emitted as itself, so the fixture fails if an implementation over-escapes as readily as if it
+  under-escapes.
+- Why the attribute is present: this build already escaped CR correctly inside attribute values
+  while normalizing it to LF in element text, so the two positions did not agree. A case covering
+  only one position would have passed against that defect. The defect reached the corpus because
+  no fixture carried a CR into an XML output at all.
+
 ### `xml-reports-a-node-that-supplies-both-container-shapes`
 
-- namespace2xml 2.4.0: **crashes**. It aborts with an unhandled `System.Xml.XmlException`, "Name
+- namespace2xml 2.4.0: **fails**. It aborts with an unhandled `System.Xml.XmlException`, "Name
   cannot begin with the '0' character", leaves a zero-byte `cfg.xml` behind, and exits
   `-532462766`. **verified** — measured three times against the Appendix C.6 pinned 2.4.0 package,
   identical each time.
@@ -4310,7 +4354,7 @@ reports a diagnostic and exits deliberately.
 
 ### `xml-sequence-attribute-projection-is-type001`
 
-- namespace2xml 2.4.0: **crashes**. It terminates with an unhandled
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
   `System.ArgumentException: Requested value 'attribute' was not found.` from `Enum.Parse`
   inside `Namespace2Xml.Formatters.Extensions.ParseValueType`, and exits 134 on Linux (the
   runtime's SIGABRT convention). No output tree is written. The case expects exit 1 with
@@ -4344,7 +4388,7 @@ reports a diagnostic and exits deliberately.
 
 ### `xml-sequence-projection-covers-mapping-children-scalars-records-and-root`
 
-- namespace2xml 2.4.0: **crashes**. It terminates with `System.Xml.XmlException: Name
+- namespace2xml 2.4.0: **fails**. It terminates with `System.Xml.XmlException: Name
   cannot begin with the '0' character, hexadecimal value 0x30.` from
   `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle`, and exits 134 on Linux (the
   runtime's SIGABRT convention). A zero-length `main.xml` is left behind in the output
@@ -4383,7 +4427,7 @@ reports a diagnostic and exits deliberately.
 
 ### `xml-singleton-promotion-does-not-retarget-references`
 
-- namespace2xml 2.4.0: **crashes**. It terminates with the same `System.Xml.XmlException:
+- namespace2xml 2.4.0: **fails**. It terminates with the same `System.Xml.XmlException:
   Name cannot begin with the '0' character, hexadecimal value 0x30.` from
   `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle` that
   `xml-sequence-projection-covers-mapping-children-scalars-records-and-root` documents, and
@@ -4425,7 +4469,7 @@ reports a diagnostic and exits deliberately.
 
 ### `xml-typed-components-recognized-and-an-escaped-json-key-stays-literal`
 
-- namespace2xml 2.4.0: **crashes**. It terminates with the same `System.Xml.XmlException:
+- namespace2xml 2.4.0: **fails**. It terminates with the same `System.Xml.XmlException:
   Name cannot begin with the '0' character, hexadecimal value 0x30.` from
   `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle` that the two neighbouring XML
   crash fixtures document, and exits 134 on Linux. A zero-length `r.xml` is left behind.
@@ -4472,7 +4516,7 @@ reports a diagnostic and exits deliberately.
 
 ### `yaml-section-22-line-terminators`
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 3.2 correction against unhandled user-input exceptions, together with
   Section 22's rule that "a line is terminated by LF, CRLF, or a lone CR, and by nothing else;
   consistently with Section 8.1, U+0085, U+2028, and U+2029 do not terminate a line", and

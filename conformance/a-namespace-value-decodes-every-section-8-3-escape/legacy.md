@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. It does not write `cfg.json` at all. The run fails with
+- namespace2xml 2.4.0: **fails**. It does not write `cfg.json` at all. The run fails with
   `Reference OutputRoot.b was not found at OutputRoot.cfg.dollar [file: values.txt, line: 2]` and
   exits 1, because `\${` did not suppress the reference the way Section 8.3 requires — the `${`
   still opened one, and `b` is not a defined path.

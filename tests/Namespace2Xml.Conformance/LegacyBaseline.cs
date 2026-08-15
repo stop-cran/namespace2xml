@@ -212,7 +212,7 @@ internal static class LegacyBaseline
     /// Appendix C.6 requires this because a host that cannot find the runtime is indistinguishable
     /// after the fact from a tool that wrote nothing and exited nonzero. The confusion is not
     /// symmetric: a baseline that never starts diverges from every case's expected result, so it
-    /// fails each <c>agrees</c> case and <em>confirms</em> every <c>differs</c> and <c>crashes</c>
+    /// fails each <c>agrees</c> case and <em>confirms</em> every <c>differs</c> and <c>fails</c>
     /// one. The lane would then report a plausible list of wrong verdicts whose only obvious repair
     /// turns the entire differential corpus green while measuring nothing at all.
     /// </para>
@@ -234,7 +234,7 @@ internal static class LegacyBaseline
             "published against. Install the .NET " + RequiredRuntimeMajor + " runtime, or set " +
             $"{HostVariable} to a host that has one. The differential lane fails rather than " +
             "reporting, because a baseline that never starts diverges from every case and would " +
-            "silently confirm every 'differs' and 'crashes' verdict in the corpus." +
+            "silently confirm every 'differs' and 'fails' verdict in the corpus." +
             Environment.NewLine + "The host listed:" + Environment.NewLine + listed);
     }
 }

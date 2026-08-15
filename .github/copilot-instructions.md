@@ -379,8 +379,21 @@ reason it exists — but it does mean a fixture cannot be authored in ASCII-esca
 The verdict word is checked in CI by the `differential` job, which runs the pinned 2.4.0 package
 against the case. Inferring it from the input is unreliable in a specific direction: an input
 malformed enough that v3 refuses it is usually one 2.4.0 **accepts and silently discards**, exiting
-0. Two cases were authored `crashes` on that reasoning and both were false — 2.4.0 dropped the
+0. Two cases were authored as a failure on that reasoning and both were false — 2.4.0 dropped the
 offending entry and emitted a tree indistinguishable from a profile that never contained the line.
+
+The vocabulary is `agrees`, `differs`, `fails`, `nondeterministic` — `crashes` was renamed in #96
+and `LegacyClaim` now rejects it. `differs` and `fails` are **disjoint**: `differs` requires at
+least one sample to exit zero, so a baseline that exits nonzero on every sample is `fails` no
+matter how interesting its partial output looks. Both directions are asserted, so guessing fails
+loudly either way. `fails` covers an orderly refusal as well as an unhandled exception; say which
+one you saw in the prose, because the verdict deliberately does not.
+
+**A `legacy.md` note must describe the run the lane actually makes.** Under the case's own
+`args.txt`, not under a simplified invocation you tried by hand. Several notes were found asserting
+semantics 2.4.0 never reached, because the real run died earlier on something unrelated — a
+repeated `-i` it refuses outright, or an escape its lexer cannot read. A reduced probe is fine and
+often the only way to see the behaviour, but label it as one.
 
 The lane ignores itself unless `N2X_LEGACY_PACKAGE` names the `.nupkg`, so a green local run proves
 nothing about verdicts. It also needs a `net9.0` runtime, because `ToolRunner` pins
@@ -680,7 +693,7 @@ Running it locally needs a **.NET 9 runtime**, which the baseline targets and wh
 refuses to roll forward. Without one the lane now stops in `OneTimeSetUp` with a
 `BaselineIntegrityException` naming the remedy. It used to run anyway, and the direction of that
 report mattered: a baseline that never starts diverges from *every* case, so it failed each
-`agrees` case and **confirmed** every `differs` and `crashes` one. The repair it appeared to ask
+`agrees` case and **confirmed** every `differs` and `fails` one. The repair it appeared to ask
 for — flipping the verdicts it named — would have turned the entire lane green while measuring
 nothing.
 

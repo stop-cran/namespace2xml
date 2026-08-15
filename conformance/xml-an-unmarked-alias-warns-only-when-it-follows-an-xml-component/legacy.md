@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. It reads both inputs and then exits `1` with
+- namespace2xml 2.4.0: **fails**. It reads both inputs and then exits `1` with
   `Error parsing input: unexpected 'r', file: inputs/over.txt, line: 2, column: 1`, writing no
   output at all. **verified** — measured against the Appendix C.6 pinned 2.4.0 package.
 - Contract: Section 11.4 canonical XML addressing, its `Q{}local` explicit spelling, and its

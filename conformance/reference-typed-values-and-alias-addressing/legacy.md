@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 13.1 format-agnostic simple-alias resolution; Section 13.2 kind forwarding and
   mixed literal/reference concatenation; Section 26 item 9. Section 3.1 preserves value references
   themselves, but does not enumerate the format-agnostic simple-alias index that reduces `@host` to

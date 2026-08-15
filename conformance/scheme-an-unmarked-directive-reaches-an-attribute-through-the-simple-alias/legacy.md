@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. It exits `1` with
+- namespace2xml 2.4.0: **fails**. It exits `1` with
   `Error parsing input: unexpected 'r', file: schemes/scheme.txt, line: 5, column: 1`, writing no
   output. **verified** — measured against the Appendix C.6 pinned 2.4.0 package.
 - Contract: Section 15.2's scheme-path alias — "an explicitly marked `Q{}`, `@`, or `#n` component

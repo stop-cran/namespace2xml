@@ -19,7 +19,7 @@ was complaining about would satisfy the diagnostic while destroying the user's d
 
 ## Legacy differential
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 3.2 correction against unhandled user-input exceptions; Section 21.1 output-root
   rejection; Section 26 item 29.
 - Legacy observation: the baseline terminates with an unhandled `System.IO.IOException` reading

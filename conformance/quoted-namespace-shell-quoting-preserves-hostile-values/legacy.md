@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**. It exits 1 rather than the expected 0, writes no output,
+- namespace2xml 2.4.0: **fails**. It exits 1 rather than the expected 0, writes no output,
   and reports on standard output `Error reading input: Reference OutputRoot.b was not found
   at OutputRoot.cfg.dollar [file: inputs/values.txt, line: 3]`. The whole run fails on one
   value, `cfg.dollar=a\${b}c`, whose intent under §8.3 is a literal `${b}` that never

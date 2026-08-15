@@ -98,7 +98,7 @@ Write-Host "Wrote docs/diagnostics.md ($($registry.codes.Count) codes)."
 
 $cases = Get-ChildItem (Join-Path $root 'conformance') -Directory | Sort-Object Name
 
-$verdicts = [ordered]@{ differs = @(); crashes = @(); nondeterministic = @(); agrees = @() }
+$verdicts = [ordered]@{ differs = @(); fails = @(); nondeterministic = @(); agrees = @() }
 $silent = @()
 
 foreach ($case in $cases) {
@@ -183,18 +183,19 @@ foreach ($entry in $verdicts.differs) {
 }
 
 $lines += @(
-    "## Inputs that crashed 2.4.0 ($($verdicts.crashes.Count))"
+    "## Inputs 2.4.0 could not process ($($verdicts.fails.Count))"
     ''
-    'The baseline terminates with an unhandled exception on these. 3.0 either accepts the input or'
-    'reports a diagnostic and exits deliberately.'
+    'The baseline exited nonzero on every sample of these, so no run of it completed: it refused the'
+    'input, terminated abnormally, or gave up part way through, and each entry below says which. 3.0'
+    'either accepts the input or reports a diagnostic and exits deliberately.'
     ''
 )
 
-if ($verdicts.crashes.Count -eq 0) {
+if ($verdicts.fails.Count -eq 0) {
     $lines += '_None pinned by a conformance case yet._'
     $lines += ''
 }
-foreach ($entry in $verdicts.crashes) {
+foreach ($entry in $verdicts.fails) {
     $lines += "### ``$($entry.Name)``"
     $lines += ''
     $lines += $entry.Body
@@ -260,5 +261,5 @@ $lines += @(
 )
 
 Write-Text (Join-Path $root 'docs/migration-2.x-to-3.0.md') $lines
-Write-Host ("Wrote docs/migration-2.x-to-3.0.md ({0} differ, {1} crash, {2} nondeterministic, {3} agree, {4} silent)." -f
-    $verdicts.differs.Count, $verdicts.crashes.Count, $verdicts.nondeterministic.Count, $verdicts.agrees.Count, $silent.Count)
+Write-Host ("Wrote docs/migration-2.x-to-3.0.md ({0} differ, {1} fail, {2} nondeterministic, {3} agree, {4} silent)." -f
+    $verdicts.differs.Count, $verdicts.fails.Count, $verdicts.nondeterministic.Count, $verdicts.agrees.Count, $silent.Count)

@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. It terminates with `System.Xml.XmlException: Name
+- namespace2xml 2.4.0: **fails**. It terminates with `System.Xml.XmlException: Name
   cannot begin with the '0' character, hexadecimal value 0x30.` from
   `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle`, and exits 134 on Linux (the
   runtime's SIGABRT convention). A zero-length `main.xml` is left behind in the output

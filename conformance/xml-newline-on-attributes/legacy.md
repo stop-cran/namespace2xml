@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. It reports `Writing output .../cfg.xml xml...`, then exits with
+- namespace2xml 2.4.0: **fails**. It reports `Writing output .../cfg.xml xml...`, then exits with
   an unhandled `System.Xml.XmlException: Name cannot begin with the '@' character, hexadecimal value
   0x40` thrown from `XmlFormatter.ToXml`, leaving a zero-byte `cfg.xml` behind. **verified** —
   measured against the Appendix C.6 pinned 2.4.0 package.

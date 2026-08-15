@@ -8,11 +8,19 @@ internal enum LegacyVerdict
     /// <summary>2.4.0 produces the case's expected tree and exit code.</summary>
     Agrees,
 
-    /// <summary>2.4.0 produces something else, and Section 3.2 says why that is correct.</summary>
+    /// <summary>
+    /// 2.4.0 produces something else on every sample and completes successfully on at least one.
+    /// The zero-exit clause is what keeps this class disjoint from <see cref="Fails"/>.
+    /// </summary>
     Differs,
 
-    /// <summary>2.4.0 terminates abnormally.</summary>
-    Crashes,
+    /// <summary>
+    /// 2.4.0 produces something else on every sample and exits nonzero on every sample, whether by
+    /// refusing its input in an orderly way or by terminating abnormally. Appendix C.6 makes this
+    /// an outcome rather than a mechanism, because the only mechanical signal is an exit code that
+    /// encodes abnormal termination differently on each platform.
+    /// </summary>
+    Fails,
 
     /// <summary>2.4.0 does not produce the same result on repeated runs of the same case.</summary>
     Nondeterministic,
@@ -82,11 +90,11 @@ internal sealed record LegacyClaim(LegacyVerdict Verdict, string Line)
         {
             "agrees" => LegacyVerdict.Agrees,
             "differs" => LegacyVerdict.Differs,
-            "crashes" => LegacyVerdict.Crashes,
+            "fails" => LegacyVerdict.Fails,
             "nondeterministic" => LegacyVerdict.Nondeterministic,
             _ => throw new ConformanceFormatException(
                 $"{conformanceCase.Name}: legacy.md declares verdict '{word}', which is outside the " +
-                "closed Appendix C.6 vocabulary (agrees, differs, crashes, nondeterministic)."),
+                "closed Appendix C.6 vocabulary (agrees, differs, fails, nondeterministic)."),
         };
 
         return new LegacyClaim(verdict, matches[0].Value);

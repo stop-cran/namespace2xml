@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. It terminates with an unhandled
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
   `System.InvalidOperationException: Sequence contains no elements` from `Enumerable.Single` in
   `Formatters/Extensions.cs:79`, exit `-532462766` (`0xE0434352`), writing nothing.
   **verified** — measured against the Appendix C.6 pinned 2.4.0 package.

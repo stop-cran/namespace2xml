@@ -63,7 +63,7 @@ place, so there is nothing there for the marker to escape yet.
 
 ## Legacy differential
 
-- namespace2xml 2.4.0: **differs**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 11.4 `Q{}` empty-qualifier addressing; Section 13.1 XML simple alias and
   reference resolution; Section 26 item 9. Section 3.1 preserves "value references" as a category,
   but the `Q{}` marker is a new addressing form and Section 3 does not enumerate it.

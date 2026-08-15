@@ -1,10 +1,16 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, which
-  had no stated rule for an option token standing where a value was required.
+- namespace2xml 2.4.0: **fails**. Given `--diagnostics-format --version` it exits `1` and reports
+  four usage errors — `Option 'diagnostics-format' is unknown.`, `Option 'version' is unknown.`,
+  `Required option 'i, input' is missing.`, `Required option 's, scheme' is missing.` — then prints
+  its usage banner and writes nothing. It has neither option, so it cannot be asked the question
+  this case poses; what it does show is that a bare `--version` is recognized only when it stands
+  alone, which is the token-position sensitivity Section 6.1 removes.
 - Contract: Section 6.1 informational precedence; Section 6.2 option-token grammar; Section 26
   items 61 and 86.
-- Legacy observation: whatever the library did, undocumented.
+- Legacy observation: 2.4.0 delegated argument parsing to CommandLineParser, which had no stated
+  rule for an option token standing where a value was required; the behaviour above is that
+  library's, not a documented decision of the tool's.
 - Clean behavior: Section 6.1 decides the informational mode "by scanning the raw token vector for
   the option token... up to the first --", and that scan "applies no other part of the grammar;
   in particular it does not work out which tokens are option values". So this invocation prints

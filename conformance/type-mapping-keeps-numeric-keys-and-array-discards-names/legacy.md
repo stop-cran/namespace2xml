@@ -71,7 +71,7 @@ projection.
 
 ## Legacy differential
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 3.2 correction against unhandled user-input exceptions; Section 16.6 `type=mapping` explicit escape hatch and `type=array` conversion; Section 8.7 numeric-map inference; Section 26 item 54.
 - Legacy observation: the baseline terminates with an unhandled `System.AggregateException: One or more errors occurred. (Requested value 'mapping' was not found.)` and exits `-532462766`. The measurement records `exit -532462766 (expected 0); missing cfg.properties`.
 - Clean behavior: `type=mapping` is a recognized directive value under Section 16.6, so pipeline step 16 evaluates it, `cfg.m` renders as a mapping projection with numeric keys preserved and `key=name` then materializes records, `cfg.s` converts under `type=array`, and the whole run exits `0` writing the expected `cfg.properties`.

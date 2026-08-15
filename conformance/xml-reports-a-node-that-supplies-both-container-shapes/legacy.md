@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. It aborts with an unhandled `System.Xml.XmlException`, "Name
+- namespace2xml 2.4.0: **fails**. It aborts with an unhandled `System.Xml.XmlException`, "Name
   cannot begin with the '0' character", leaves a zero-byte `cfg.xml` behind, and exits
   `-532462766`. **verified** — measured three times against the Appendix C.6 pinned 2.4.0 package,
   identical each time.

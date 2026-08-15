@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 11.2's requirement that an element or attribute name emitted as XML "must
   match the `NCName` production of Namespaces in XML 1.0, Third Edition", that a component which
   does not match "is `XML002` at the point the name would be written, and only there", and the

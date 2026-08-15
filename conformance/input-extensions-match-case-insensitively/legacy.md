@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**. It reads all four inputs as namespace profiles, reports
+- namespace2xml 2.4.0: **fails**. It reads all four inputs as namespace profiles, reports
   `Error parsing input: unexpected ...` once per file — `j.JSON` at line 1 column 2, `y.YAML` and
   `s.YML` at column 5, `x.XML` at column 38 — exits 1, and writes nothing. The case expects
   `cfg.properties` with one entry contributed by each of the four formats.

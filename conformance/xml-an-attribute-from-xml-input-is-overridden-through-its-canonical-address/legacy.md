@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. It terminates with
+- namespace2xml 2.4.0: **fails**. It terminates with
   `System.Xml.XmlException: Name cannot begin with the '@' character, hexadecimal value 0x40.`
   from `Namespace2Xml.Formatters.XmlFormatter.ToXmlValueSingle`, and exits 134 on Linux. A
   zero-length `r.xml` is left behind. The case expects exit `0` and `r.xml` containing

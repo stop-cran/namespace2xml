@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 3.2 correction against unhandled user-input exceptions, together with
   Section 15's rule that "unknown directives are blocking errors" and Section 16.6's
   enumeration of the recognized XML `type` values (`element`, `attribute`, `cdata`, `text`).

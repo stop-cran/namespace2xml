@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 3.2 correction against unhandled user-input exceptions, together with
   Section 11.4's rules that "for element-only repeated children ... the canonical child paths
   are `a.b.0`, `a.b.1` ... using the `a.b` sequence path's own high-water allocator" and that

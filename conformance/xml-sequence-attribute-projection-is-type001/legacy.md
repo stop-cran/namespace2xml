@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**. It terminates with an unhandled
+- namespace2xml 2.4.0: **fails**. It terminates with an unhandled
   `System.ArgumentException: Requested value 'attribute' was not found.` from `Enum.Parse`
   inside `Namespace2Xml.Formatters.Extensions.ParseValueType`, and exits 134 on Linux (the
   runtime's SIGABRT convention). No output tree is written. The case expects exit 1 with

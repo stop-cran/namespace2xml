@@ -39,7 +39,7 @@ unambiguous under either.
 
 ## Legacy differential
 
-- namespace2xml 2.4.0: **differs**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 12.4 wildcard fixed-point evaluation and iteration accounting; Section 23 wildcard iteration budget; Section 26 items 7 and 36. Section 3 does not enumerate `--max-wildcard-iterations`; the fixture pins the bound side of Section 12.4 rather than a Section 3.1 preservation or a Section 3.2 correction.
 - Legacy observation: the baseline exits `1` with no output tree and prints `ERROR(S):` on standard error. The measurement records `exit 1 (expected 0); missing a.properties`.
 - Clean behavior: `--max-wildcard-iterations 3` admits the three generating waves, the fixed point settles, and the run writes `a.properties` with the four expected lines at exit `0`.

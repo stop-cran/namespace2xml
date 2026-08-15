@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **differs**. It exits `-532462766` (0xE0434352, an unhandled CLR
+- namespace2xml 2.4.0: **fails**. It exits `-532462766` (0xE0434352, an unhandled CLR
   exception) and writes nothing. The terminating exception is
   `System.ArgumentException: Requested value 'arrby' was not found.` from `Enum.Parse` in
   `Formatters/Extensions.cs:72`, reached through `SchemeNodeExtensions.WithImplicitArrays`.

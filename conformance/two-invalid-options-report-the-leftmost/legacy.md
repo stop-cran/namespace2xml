@@ -1,6 +1,6 @@
 # Legacy differential
 
-- namespace2xml 2.4.0: **crashes**.
+- namespace2xml 2.4.0: **fails**.
 - Contract: Section 22's rule that where a cardinality admits fewer records than the run detects,
   "the survivor is the one detected first in the traversal that phase specifies", and that
   "command-line parsing traverses arguments left to right under Section 6, so an invocation

@@ -72,7 +72,7 @@ compatibility warning does not apply, and no source contributes a native sequenc
 
 ## Legacy differential
 
-- namespace2xml 2.4.0: **differs**. It exits `1` where the contract requires `0`, reporting
+- namespace2xml 2.4.0: **fails**. It exits `1` where the contract requires `0`, reporting
   `Reference OutputRoot.a.p.1 was not found at OutputRoot.b.pick`, and writes `a.json` containing
   `{ "p": [ "second" ] }` and no `b.properties` at all. The baseline's own diagnostic names the
   address the contract requires to exist: `a.p.1` is missing there because only one of the three

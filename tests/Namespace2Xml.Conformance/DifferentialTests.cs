@@ -110,12 +110,27 @@ public class DifferentialTests
             "expected tree and exit code. Either the correction was never needed or the case does not " +
             "reach it; a divergence nobody can observe is not a correction.");
 
-        if (claim.Verdict == LegacyVerdict.Crashes)
+        if (claim.Verdict == LegacyVerdict.Fails)
         {
             samples.ShouldAllBe(
                 sample => sample.ExitCode != 0,
-                $"{conformanceCase.Name} claims the baseline crashes, but at least one run exited " +
-                "successfully.");
+                $"{conformanceCase.Name} claims the baseline fails, but at least one run exited " +
+                "successfully. Appendix C.6 requires 'differs' for a baseline that completes.");
+
+            return;
+        }
+
+        if (claim.Verdict == LegacyVerdict.Differs)
+        {
+            // Appendix C.6: the zero-exit clause is what makes 'differs' and 'fails' disjoint rather
+            // than nested. Without it every failing baseline would also satisfy 'differs', an author
+            // could truthfully declare either, and the generated migration notes would publish four
+            // buckets whose completeness nothing established.
+            samples.ShouldContain(
+                sample => sample.ExitCode == 0,
+                $"{conformanceCase.Name} claims '{claim.Line}', but the baseline exited nonzero on " +
+                $"every one of {samples.Count} runs, so it never produced a result to differ with. " +
+                "Appendix C.6 requires the 'fails' verdict for that.");
         }
     }
 
