@@ -275,20 +275,34 @@ jobs:
           echo "contract changed and the bundle revision moved with it"
 
   # Section 19.6 requires conformance tests to cover every parser the compatibility documentation
-  # names, and docs/format-ini.md names Python's configparser. The check reads published expected
-  # output with a third-party parser and imports nothing from this repository, so it needs neither
-  # the SDK nor a build and runs in about a second; it is a separate job rather than a step so that
-  # a broken interoperability claim is named on the summary page instead of hiding inside a lint
-  # failure.
+  # names, and docs/format-ini.md names two: Python's configparser and npm's ini. Each check reads
+  # published expected output with its parser and imports nothing from this repository, so neither
+  # needs the SDK nor a build and both run in about a second; it is a separate job rather than a
+  # step so that a broken interoperability claim is named on the summary page instead of hiding
+  # inside a lint failure. The two lanes are separate steps for the same reason.
   ini-interop:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: The emitted INI dialect must agree with the parser we name
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: The emitted INI dialect must agree with Python's configparser
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/check-ini-interop.py .
+      - name: The emitted INI dialect must agree with npm's ini
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Installed outside the working tree, from a directory carrying its own package.json so
+          # that npm resolves here rather than walking up into the repository.
+          lane="${RUNNER_TEMP}/ini-interop"
+          mkdir -p "${lane}"
+          printf '{"name":"ini-interop-lane","private":true}\n' > "${lane}/package.json"
+          ( cd "${lane}" && npm install --no-save --no-audit --no-fund ini@6.0.0 )
+          NODE_PATH="${lane}/node_modules" node tools/check-ini-interop.js .
 
   lint:
     runs-on: ubuntu-latest

@@ -1,0 +1,4 @@
+quoted.output=ini
+quoted.inioutputoptions=QuoteValues,EscapeMultiline
+bare.output=ini
+bare.inioutputoptions=EscapeMultiline

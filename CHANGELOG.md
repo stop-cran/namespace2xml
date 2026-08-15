@@ -46,6 +46,50 @@ independently.
   — `QuoteValues`, `EscapeMultiline`, and a written preamble — and which parsers remain untested.
   [#67](https://github.com/stop-cran/namespace2xml/issues/67).
 
+- **The INI dialect now names a second parser, and both dialect switches are inside an envelope.**
+  [#67](https://github.com/stop-cran/namespace2xml/issues/67) named Python's `configparser` and left
+  three things verified against no external reader at all: a written preamble, `QuoteValues`, and
+  `EscapeMultiline`. npm's [`ini`](https://github.com/npm/ini) 6 — ISC, no dependencies, and the
+  parser `@npmcli/config` reads `.npmrc` with — covers the first two.
+
+  Candidates were restricted to runtimes the CI job already has, because a check nobody runs is not
+  a check: Go, Java and PHP are absent, which ruled out `gopkg.in/ini.v1`, `ini4j` and `inih`
+  without adding a toolchain to the build. `ini` was **measured before it was named**, and it loses
+  data silently in six ways of its own, every one at exit `0` — a global key sharing a name with a
+  section discards the section entirely, decimal-integer keys are enumerated ahead of the rest, an
+  unquoted `;` or `#` truncates the value, an unquoted value that is itself quoted text is
+  unquoted, `__proto__` disappears as a key and as a section, and a raw control character inside
+  quotation marks defeats the `JSON.parse` that decodes them. All six are published as the envelope
+  in `docs/format-ini.md`, alongside the reader configuration §19.6 also requires — `ini.parse`
+  takes one option, `bracketedArray`, and the pin is its default.
+
+  What it buys is coverage of the shapes the first parser could not look at: `tools/check-ini-interop.js`
+  checks **21** of the corpus's 26 emitted `.ini` files where the `configparser` lane checks 13. The
+  preamble exclusion alone accounts for ten of those, and it is the one a consumer meets first. The
+  two lanes were written separately and share no code, so a mistake in one oracle is not in the
+  other.
+
+  Two fixtures were added for the switches §19.6 defines and nothing had ever emitted — before
+  them the corpus contained no `.ini` file written under either option.
+  `ini-quotevalues-writes-markers-and-edge-whitespace` pins that `QuoteValues` quotes *every* value
+  rather than only the ones that need it, and that edge whitespace, a leading `;` or `#`, `\"` and
+  `\\` all survive; `ini-escapemultiline-doubles-a-backslash-with-or-without-quoting` writes two
+  destinations from one input to pin the clause that a literal backslash doubles "whether or not
+  `QuoteValues` is also selected". 2.4.0 differs on both, and ignores `inioutputoptions` entirely.
+
+  **Fixed** while adding them: `tools/check-ini-interop.py` attributed `inioutputoptions` per
+  *case*, by substring match over every scheme file, so a case writing two INI files under
+  different options gave both files the union of the two. No corpus case had that shape until the
+  second fixture above, which is why it had never mattered; both lanes now attribute options per
+  destination, honouring the selector prefix and §16.1's rule that a later option set replaces the
+  earlier one completely.
+
+  **Changed** in `KNOWN-LIMITS.md`: §2.1 records two named parsers rather than one, and what stays
+  open is now the unnamed parsers and the five corpus files no named parser reads —
+  `EscapeMultiline` without `QuoteValues`, which neither reader can express, and four shapes `ini`
+  loses that `configparser` never reaches because they also write a preamble.
+  [#98](https://github.com/stop-cran/namespace2xml/issues/98).
+
 ### Fixed
 
 - **A later scalar no longer deletes the XML content it lands on.** Reported as

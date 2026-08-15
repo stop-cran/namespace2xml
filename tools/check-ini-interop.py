@@ -21,6 +21,7 @@ Usage:  python tools/check-ini-interop.py [repo-root]
 
 import configparser
 import pathlib
+import re
 import sys
 
 # Section 19.6, as documented in docs/format-ini.md. Changing any of these changes the
@@ -41,6 +42,9 @@ DEFAULT_SECTION_SENTINEL = "\x00 no default section \x00"
 # outside the published envelope; Section 19.6 makes that a limit on the pairing rather than
 # a defect in either side.
 OUT_OF_ENVELOPE_OPTIONS = ("QuoteValues", "EscapeMultiline")
+
+# A `[selector.]inioutputoptions=` declaration, wherever it appears in a scheme file.
+OPTION_LINE = re.compile(r"^\s*(?:(.*)\.)?inioutputoptions\s*=\s*(.*?)\s*$", re.IGNORECASE)
 
 # The corpus cases whose emitted bytes carry the shapes parsers actually disagree about.
 # The lane is nearly vacuous without them -- every other in-envelope corpus file is lowercase
@@ -88,13 +92,34 @@ def reserialize(parser):
     return lines
 
 
-def envelope_exclusion(case, text):
+def selected_options(case, stem):
+    """The dialect options in force at one destination.
+
+    Attributed per destination rather than per case, because one case can write two INI files
+    under different options and the corpus contains one that does. The destination's path is
+    the file name without its extension, so a selector prefix applies when it names that path
+    or an ancestor of it, and the last applicable line wins under Section 16.1's rule that a
+    later option set replaces the earlier one completely.
+    """
+    chosen = ""
+    schemes = case / "schemes"
+    for scheme in sorted(schemes.glob("*.txt")) if schemes.is_dir() else []:
+        for line in scheme.read_text(encoding="utf-8").split("\n"):
+            match = OPTION_LINE.match(line)
+            if match is None:
+                continue
+            selector = match.group(1) or ""
+            if selector == "" or stem == selector or stem.startswith(selector + "."):
+                chosen = match.group(2)
+    return [flag.strip().lower() for flag in chosen.split(",")]
+
+
+def envelope_exclusion(case, stem, text):
     """Why this file is outside the published envelope, or None if it is inside."""
-    for scheme in sorted((case / "schemes").glob("*.txt")) if (case / "schemes").is_dir() else []:
-        selected = scheme.read_text(encoding="utf-8")
-        for option in OUT_OF_ENVELOPE_OPTIONS:
-            if option.lower() in selected.lower():
-                return f"selects {option}"
+    flags = selected_options(case, stem)
+    for option in OUT_OF_ENVELOPE_OPTIONS:
+        if option.lower() in flags:
+            return f"selects {option}"
 
     for line in significant(text):
         if line.startswith("["):
@@ -122,7 +147,7 @@ def main():
 
         text = path.read_text(encoding="utf-8")
 
-        reason = envelope_exclusion(case, text)
+        reason = envelope_exclusion(case, path.stem, text)
         if reason is not None:
             skipped.append((label, reason))
             print(f"skip  {label}  ({reason})")

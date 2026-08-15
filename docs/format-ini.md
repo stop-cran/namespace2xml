@@ -412,11 +412,32 @@ to name the parsers it holds itself interoperable with, to cover each of them in
 and to state the reader configuration and the envelope each claim holds within — because a bare
 parser name is not a claim anyone can act on or test.
 
-**This document names one parser: Python's `configparser`.** The claim is verified on every run by
-`tools/check-ini-interop.py`, which the `ini-interop` CI job runs over the conformance corpus's
-expected output. It is stated below in the three parts §19.6 requires.
+**This document names two parsers: Python's `configparser` and npm's `ini`.** Both claims are
+verified on every run by the `ini-interop` CI job, which runs `tools/check-ini-interop.py` and
+`tools/check-ini-interop.js` over the conformance corpus's expected output. Each is stated below in
+the three parts §19.6 requires.
 
-### The reader configuration
+Two rather than one because neither is a substitute for the other. `configparser` is the stricter
+reader and refuses shapes it cannot represent; `ini` reads a preamble and both dialect switches, and
+so reaches output the Python lane cannot look at — but it also loses data silently in places
+`configparser` does not. Agreement with two independently written readers is the evidence §19.6 asks
+for; agreement with one is a smaller claim.
+
+| Of the corpus's 26 emitted `.ini` files | checked | skipped |
+|---|---|---|
+| Python's `configparser` | 13 | 13 |
+| npm's `ini` | 21 | 5 |
+| at least one of the two | 21 | 5 |
+
+On this corpus the `ini` lane's set happens to contain the `configparser` lane's. That is a property
+of which fixtures write a preamble, not of the parsers, whose envelopes are not nested: an unquoted
+value containing `;` round-trips through `configparser` and is truncated by `ini`, while a preamble
+round-trips through `ini` and stops `configparser` at line 1. Five files are read by neither, and
+each lane names its own reason on the file's `skip` line.
+
+### Python's `configparser`
+
+#### The reader configuration
 
 ```python
 parser = configparser.ConfigParser(
@@ -441,7 +462,7 @@ Three of those four produce a successful parse and a different document, which i
 for agreement rather than acceptance and why the check re-serializes what the parser returned
 instead of merely confirming that it did not raise.
 
-### The envelope
+#### The envelope
 
 The claim holds for a file that satisfies all of the following. Outside it, this document makes no
 interoperability claim at all — an option §19.6 defines and `configparser` cannot represent is a
@@ -464,22 +485,90 @@ limit on the pairing, not a defect in either.
 Values may otherwise contain `=`, `;`, `#`, `%`, and `%%`; keys may contain upper case, `.`, `:`,
 `-` and `_`. Those were measured to round-trip exactly.
 
-### What the check establishes, and what it does not
+### npm's `ini`
 
-`tools/check-ini-interop.py` reads each in-envelope expected file with the configuration above,
-re-serializes what `configparser` recovered under §19.6's layout rules, and compares that to the
-file's own section and key lines. Anything dropped, folded, split, reordered or rewritten is a
-difference. The check imports nothing from this repository, so a defect in the writer cannot define
-its own oracle.
+[`ini`](https://github.com/npm/ini) 6.0.0 — ISC, no dependencies, maintained by npm, and the parser
+`@npmcli/config` reads `.npmrc` with. It requires Node `^20.17.0 || >=22.9.0`.
 
-It does **not** establish that other parsers agree. `ini4j`, the Windows profile API, `inih` and
+The pin is 6.0.0 rather than the current 7.0.0 because 7 requires Node
+`^22.22.2 || ^24.15.0 || >=26.0.0`, which the workstation this evidence was gathered on does not
+satisfy — so every measurement behind the claim was taken on a runtime the package supports. 7.0.0
+was measured on the same probes and over the whole corpus and behaves identically on all of them,
+so the claim is not fragile to the pin; the lane is what would notice if a later release changed
+it.
+
+#### The reader configuration
+
+```js
+const ini = require('ini');
+ini.parse(text, { bracketedArray: true });
+```
+
+`bracketedArray` is the only option `parse` accepts and `true` is its default. It selects which
+spelling collects repeated keys into an array: with `true`, `k[]=a` does; with `false`, a repeated
+plain `k=` does. §19.6 emits neither — `[` and `]` are errors in a key name, and a destination has
+no duplicate keys after merge — so both settings behave identically inside the envelope. It is
+stated because §19.6 asks for the configuration, not because a choice was available.
+
+Three further behaviours are benign here and worth knowing before relying on the pairing: `true`,
+`false` and `null` are decoded into the JavaScript values, so the check compares `String(value)`; an
+unquoted value is trimmed, which is why edge whitespace needs `QuoteValues`; and a section name is
+split on `.` and re-nested, which the check undoes by rejoining. The default nested-section
+delimiter is `:`, so that split is rarely reached.
+
+#### The envelope
+
+The claim holds for a file that satisfies all of the following. Every entry was measured against
+6.0.0, and every one of them loses data **silently** — the parser reports success and hands back a
+different document, which is exactly why §19.6 asks for agreement rather than acceptance.
+
+1. **Not `EscapeMultiline` without `QuoteValues`.** `ini` decodes `\n`, `\r` and `\t` only inside a
+   quoted value, where the decoding is `JSON.parse`. Unquoted, `a\nb` stays four characters. The two
+   options selected together express the dialect; `EscapeMultiline` alone does not.
+2. **No global key sharing its name with a section.** `db=primary` followed by `[db]` returns the
+   key and discards the section with everything in it. §19.6 permits that shape and this guide
+   documents it as legal, so this is a limit on the pairing rather than on either side.
+3. **No key or section named with a decimal integer.** JavaScript enumerates integer-like properties
+   first and in ascending order, so `1=a`, `b=c`, `0=d` reads back as `0`, `1`, `b`. §8.7 densifies
+   sequences into exactly those names; this excludes three corpus files.
+4. **No `;` or `#` inside an unquoted value.** `ini` treats both as inline comment markers and
+   truncates at the first. `configparser`, configured as above, keeps them.
+5. **No unquoted value that is itself quoted text.** Both `"` and `'` count as quoting and the
+   parser strips them.
+6. **No key or section named `__proto__`.** Silently dropped, as a key and as a section. §19.6's key
+   grammar admits the name.
+7. **No raw control character inside a quoted value.** The value is decoded with `JSON.parse`, which
+   refuses one, and `ini` then returns the quoted text unchanged — quotation marks included. An
+   interior tab reaches this under `QuoteValues` alone, since `RejectMultiline` refuses only NUL, CR,
+   LF and edge whitespace.
+
+Entries 6 and 7 are triggered by no file in the current corpus. They are published anyway: an
+envelope states what the pairing supports, not what happens to have been exercised.
+
+What this pairing adds over `configparser` is the two things §19.6 defines and `configparser` cannot
+represent. A **preamble** reads back faithfully, and that single exclusion is what removes 10 of the
+corpus's files from the Python lane. **`QuoteValues`** round-trips completely: the quotation marks
+are removed, `\\` and `\"` are decoded, and edge whitespace and a leading `;` or `#` survive inside
+the quotes.
+
+### What the checks establish, and what they do not
+
+Each check reads every in-envelope expected file with the configuration stated for its parser,
+re-serializes what that parser recovered under §19.6's layout rules, and compares the result to the
+file's own section and key lines. Anything dropped, folded, split, reordered, truncated or rewritten
+is a difference. Neither check imports anything from this repository and the two re-serializers were
+written separately, so a defect in the writer cannot define its own oracle, and a mistake in one
+lane's oracle is not shared by the other. Each lane also fails when a case it names stops being
+checked at all, so an envelope exclusion that widens until it swallows the corpus is a failure
+rather than a quiet pass.
+
+They do **not** establish that any other parser agrees. `ini4j`, the Windows profile API, `inih` and
 Go's `gopkg.in/ini.v1` are not named here and are not tested; each has its own view of quoting,
-comments and case. If you are aiming this tool at one of them, treat the envelope above as a
+comments and case. If you are aiming this tool at one of them, treat the two envelopes above as a
 starting point rather than an answer, and test your own reader against the emitted file.
 
-This discharges acceptance item 28 for the named parser. `KNOWN-LIMITS.md` §2.1 records what
-remains, which is now the unnamed parsers rather than the absence of any named one, and
-[#98](https://github.com/stop-cran/namespace2xml/issues/98) tracks it.
+This discharges acceptance item 28 for both named parsers. `KNOWN-LIMITS.md` §2.1 records what
+remains, which is the unnamed parsers and the five files no named parser reads.
 ## Traps
 
 - **`-i config.ini` is not an INI reader.** §7.1 sends `.ini` down the namespace-profile
@@ -494,7 +583,8 @@ remains, which is now the unnamed parsers rather than the absence of any named o
 - **All globals hoist to the preamble.** Global keys appear before any section, even when
   declared later in source order than a sectioned key. This is a format projection with no
   precedence effect. It also emits `WARN012`, because a preamble is what `configparser` and
-  parsers like it refuse; `inioutputoptions=GlobalSection` removes both.
+  parsers like it refuse — npm's `ini` reads one faithfully, so the warning marks a portability
+  risk rather than a certain failure; `inioutputoptions=GlobalSection` removes both.
 - **Sequences densify.** Ordering values `0` and `5` render as `0` and `1`. Downstream code that
   reads INI keys as identifiers will see a different set of keys than the overlay contains.
 - **Default multiline mode rejects.** Under `RejectMultiline` (the default), CR, LF, NUL,
@@ -506,9 +596,11 @@ remains, which is now the unnamed parsers rather than the absence of any named o
   writer had.
 - **Default comment flags discard comments.** `WARN003` is on stderr, but no comment appears in
   the file. Select `SemicolonComments` or `HashComments` if you want them.
-- **`PortableIni1` is verified against exactly one parser.** Python's `configparser`, under the
-  configuration and envelope stated above and checked on every CI run. No other parser is named
-  or tested; `KNOWN-LIMITS.md` §2.1 records what that leaves open.
+- **`PortableIni1` is verified against two parsers, but not every file against both.** Python's
+  `configparser` and npm's `ini`, each under its own configuration and envelope, both checked on
+  every CI run. Thirteen of the corpus's 26 emitted `.ini` files are read by both, eight by `ini`
+  alone, and five by neither. No other parser is named or tested; `KNOWN-LIMITS.md` §2.1 records
+  what that leaves open.
 
 ## Open questions
 

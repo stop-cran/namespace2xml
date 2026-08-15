@@ -830,7 +830,7 @@ did not determine. Appendix B now states the member set each *condition* supplie
 have since been authored — `merge-error-rejects-a-second-source-contribution` for §16.10
 `merge=error`, and `WILDCARD002` across the four wildcard-bound cases.
 
-### 2.1 The INI dialect names one third-party parser, and is verified against no other
+### 2.1 The INI dialect names two third-party parsers, and is verified against no others
 
 Acceptance item 28 asks for "the documented INI dialect against representative parsers", and
 Section 19.6 names the dialect `PortableIni1`. Section 19.6 also says what an implementation owes
@@ -838,12 +838,21 @@ the question: the compatibility documentation "names the parsers it holds itself
 with, and conformance tests must cover every parser it names", and naming a parser "means naming
 three things" — the parser, the reader configuration, and the envelope.
 
-**3.0 names Python's `configparser`, and nothing else.** The claim, its configuration and its
-envelope are in `docs/format-ini.md`; `tools/check-ini-interop.py` enforces it on every CI run in
-the `ini-interop` job, by re-serializing what the parser recovered and comparing that to the
-emitted file. That establishes agreement rather than acceptance, which matters because three of the
-four ways a default-configured `configparser` misreads this dialect are silent: it folds `Host` to
-`host`, splits `a:b=1` at the colon, and rewrites `100%%` to `100%`, reporting success each time.
+**3.0 names Python's `configparser` and npm's `ini` 6.** Each claim, with its own reader
+configuration and its own envelope, is in `docs/format-ini.md`; `tools/check-ini-interop.py` and
+`tools/check-ini-interop.js` enforce them on every CI run in the `ini-interop` job, by
+re-serializing what the parser recovered and comparing that to the emitted file. That establishes
+agreement rather than acceptance, which matters because nearly every way either reader misreads this
+dialect is silent, at exit `0`: a default-configured `configparser` folds `Host` to `host`, splits
+`a:b=1` at the colon and rewrites `100%%` to `100%`, while `ini` truncates a value at an unquoted
+`;`, enumerates decimal-integer keys ahead of the rest, and discards a whole section whose name a
+global key already used.
+
+The second parser closes most of what the first left open. `ini` reads a preamble faithfully — the
+single exclusion that keeps ten of the corpus's 26 emitted `.ini` files out of the `configparser`
+lane — and expresses `QuoteValues` completely, including edge whitespace and the `\\` and `\"`
+escapes. Corpus coverage rises from 13 files to 21, and the two lanes were written separately, so a
+mistake in one oracle is not shared by the other.
 
 Two things remain open, and this entry is the statement of both.
 
@@ -851,21 +860,22 @@ Two things remain open, and this entry is the statement of both.
 `gopkg.in/ini.v1` each have their own view of quoting, comment markers and case folding. Nothing
 here says whether they read `PortableIni1` back faithfully, and the corpus contains no evidence
 either way. A consumer aiming at one of them should test the emitted file against that reader
-rather than reading the `configparser` result as a general claim.
+rather than reading either named result as a general claim. Candidates were restricted to runtimes
+the CI job already has, because a claim is worth what its check is worth and a check that needs a
+toolchain no job installs is not one; Go, Java and PHP are not present.
 
-**Part of the dialect is outside the one envelope that exists.** `QuoteValues` and `EscapeMultiline`
-have no expression in `configparser` — it neither unquotes nor decodes backslash escapes — so a
-file produced under either option is unverified against any external reader, and those are exactly
-the options a consumer reaches for when values get awkward. The same is true of a written preamble,
-which `configparser` refuses outright; `inioutputoptions=GlobalSection` is the answer to that one
-and is what [#88 (closed)](https://github.com/stop-cran/namespace2xml/issues/88) added. Ten of the
-corpus's 23 emitted `.ini` files still write a preamble, because they are about something else and
-set no INI options at all, and the lane skips them for that reason rather than passing them.
+**Five corpus files are read by no named parser.** `EscapeMultiline` without `QuoteValues` has no
+expression in either reader — `configparser` decodes no backslash escapes at all, and `ini` decodes
+them only inside quotation marks — so `bare.ini` in
+`conformance/ini-escapemultiline-doubles-a-backslash-with-or-without-quoting` is unverified against
+any external reader, and it is in the corpus because §19.6 distinguishes it from its quoted
+sibling. The other four are shapes `ini` loses silently and `configparser` never reaches because
+they also write a preamble: one global key colliding with a section name, and three files whose
+densified sequence indices JavaScript enumerates ahead of the rest.
 
-Item 28 is discharged for the named parser and no further, which closed
-[#67 (closed)](https://github.com/stop-cran/namespace2xml/issues/67). Widening it — a second parser,
-or an envelope that covers the two dialect switches — is tracked as
-[#98](https://github.com/stop-cran/namespace2xml/issues/98).
+Item 28 is discharged for the two named parsers and no further, which closed
+[#67 (closed)](https://github.com/stop-cran/namespace2xml/issues/67) and
+[#98 (closed)](https://github.com/stop-cran/namespace2xml/issues/98).
 ## 3. Platform and environment
 
 - **Supported:** Linux, Windows and macOS on x64 and arm64, via the .NET 10 runtime.

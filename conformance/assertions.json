@@ -510,7 +510,9 @@
       "fixtures": [
         "ini-a-colon-inside-a-key-is-key-text",
         "ini-a-key-keeps-the-letter-case-it-was-given",
-        "ini-a-percent-sign-in-a-value-is-ordinary-text"
+        "ini-a-percent-sign-in-a-value-is-ordinary-text",
+        "ini-escapemultiline-doubles-a-backslash-with-or-without-quoting",
+        "ini-quotevalues-writes-markers-and-edge-whitespace"
       ],
       "gates": [
         "ci:ini-interop"
