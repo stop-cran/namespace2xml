@@ -1189,7 +1189,9 @@ Inside `Q{...}`, a backslash followed by any character other than `}` or backsla
 
 Every XML parent assigns stable content-token ordering values across all child elements, text, CDATA, and comments, including element-only parents. Element-only children retain ordinary element-name addressing while also carrying their content-token ordering value for deterministic placement. A comment in `<a><b/><!--c--><d/></a>` is therefore addressed as `a.#1`.
 
-One content node stands outside that addressing. An element with no child elements and exactly one non-comment text or CDATA node exposes that run as the scalar at the element path rather than as a content node, under the scalarization rule below, so the run is not addressable as `#n` and the scalar the overlay carries at the element path holds no ordering value of its own. The index the run would have occupied is consumed rather than reassigned: in `<a><!--c-->1<!--d--></a>` the comments are `a.#0` and `a.#2`, while `a.#1` matches nothing and a directive written against it emits `WARN009`. Section 19.5 states what the absent ordering value costs — such a comment cannot be placed relative to the value and is written after it — and `KNOWN-LIMITS.md` records that limit. The exception is stated here because the general rule above is otherwise read as promising that the position survives, which for this one shape it does not.
+One content node stands outside that addressing. An element with no child elements and exactly one non-comment text or CDATA node exposes that run as the scalar at the element path rather than as a content node, under the scalarization rule below, so the run is not addressable as `#n`. The index the run would have occupied is consumed rather than reassigned: in `<a><!--c-->1<!--d--></a>` the comments are `a.#0` and `a.#2`, while `a.#1` matches nothing and a directive written against it emits `WARN009`.
+
+The run's ordering value is nonetheless retained, on the scalar payload the overlay carries at the element path, so that Section 19.5 can place the element's comments on either side of it. That value belongs to the payload rather than to the node: it records where the XML text run this value came from stood among its siblings, so a later contribution that replaces the payload replaces the position with it, and a payload from any other source has none. A namespace-profile entry writing `a=2` over the example above expresses no position and acquires none, which is what stops a replacing value from inheriting the placement of the value it replaced. Section 19.5 states what an absent ordering value costs.
 
 Example:
 
@@ -2791,12 +2793,9 @@ comment after the XML declaration and before the document element, and a documen
 after the document element. A comment content node read from XML keeps the position its ordering
 value gives it among the element and comment nodes it sits among, under Section 11.4.
 
-Its position relative to the element's own text is not preserved. Section 11.4 exposes a lone text
-run as the scalar at the element path rather than as a content node, so that run holds no ordering
-value to be compared against, and the scalar is written first, ahead of every comment node the
-element carries: `<a><!--c-->1</a>` emits as `<a>1<!--c--></a>`. Mixed content is unaffected,
-because there every run is a content node with an ordering value of its own and the general rule
-applies.
+A scalar exposed at an element path under Section 11.4 is written at the position its retained ordering value gives it, among the element and comment nodes the element carries, exactly as though it were a content node: `<a><!--c-->1</a>` emits as `<a><!--c-->1</a>`, and `<a>1<!--c--></a>` emits as `<a>1<!--c--></a>`. Mixed content already places every run this way, because there each run is a content node with an ordering value of its own.
+
+A payload carrying no ordering value is written first, ahead of every comment node the element carries. That is the position of a value no XML text run supplied — one written by a namespace profile, a JSON or YAML document, or a reference — and of a value that replaced an XML-sourced one, because Section 11.4 gives the ordering value to the payload rather than to the node. Writing it first rather than last places it where an element's content begins, which is where a reader looks for the value and where a comment written before it in the source would have to move to be preserved.
 
 This is a limit rather than a preference, and `KNOWN-LIMITS.md` records it. Lifting it means giving
 the exposed scalar an ordering value the overlay carries alongside its payload, so that a later

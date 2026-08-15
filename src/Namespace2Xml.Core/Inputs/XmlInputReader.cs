@@ -730,12 +730,14 @@ public static class XmlInputReader
                 else if (children.Count == 0 && texts.Count == 1)
                 {
                     // One text run and a comment: Section 11.4 still exposes the scalar at the
-                    // element path, and the comment still occupies the content token it took.
+                    // element path, and the comment still occupies the content token it took. The
+                    // run's own token rides on the exposed scalar so Section 19.5 can place the
+                    // comment on the side of the value it was written on.
                     Comments(comments, properties);
 
                     return new StructuredMapping(properties.ToImmutable(), Line, Column)
                     {
-                        Scalar = Scalar(texts[0]),
+                        Scalar = Scalar(texts[0]) with { ContentToken = texts[0].Ordinal },
                     };
                 }
                 else

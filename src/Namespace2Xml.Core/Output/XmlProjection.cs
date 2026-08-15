@@ -357,6 +357,8 @@ public sealed class XmlProjection
                 + "element to repeat within");
         }
 
+        XNode? content = null;
+
         if (node.Payload is not { } payload)
         {
             if (kind is TypeValue.Text or TypeValue.Cdata)
@@ -369,24 +371,40 @@ public sealed class XmlProjection
         }
         else if (SpelledAsComment(kind, payload))
         {
-            element.Add(new XComment(Text(payload)));
+            content = new XComment(Text(payload));
         }
         else if (SpelledAsCdata(kind, payload))
         {
-            element.Add(new XCData(Text(payload)));
+            content = new XCData(Text(payload));
         }
         else
         {
-            element.Add(new XText(Text(payload)));
+            content = new XText(Text(payload));
         }
 
         if (!node.Marks.RendersAsMapping)
         {
+            if (content is not null)
+            {
+                element.Add(content);
+            }
+
             return true;
         }
 
-        foreach (var unit in Placed(node, path))
+        // Section 19.5: a payload carrying a Section 11.4 ordering value is written at the position
+        // that value gives it among the element's content nodes, and one carrying none is written
+        // first. long.MinValue is below every allocated token, so the absent case needs no branch.
+        var contentKey = node.Payload?.ContentToken ?? long.MinValue;
+
+        foreach (var (key, unit) in Placed(node, path))
         {
+            if (content is not null && key > contentKey)
+            {
+                element.Add(content);
+                content = null;
+            }
+
             var placed = unit.IsItem
                 ? TryAddItem(element, unit.Name, unit.Node, unit.Path)
                 : TryAddChild(element, unit.Name, unit.Node, unit.Path);
@@ -395,6 +413,11 @@ public sealed class XmlProjection
             {
                 return false;
             }
+        }
+
+        if (content is not null)
+        {
+            element.Add(content);
         }
 
         return true;
@@ -432,7 +455,8 @@ public sealed class XmlProjection
     /// <see cref="XElement"/> does, so their order among themselves is all that is observable.
     /// </para>
     /// </remarks>
-    private IEnumerable<Unit> Placed(OverlayNode node, ImmutableArray<NamePart> path)
+    private IEnumerable<(long Key, Unit Unit)> Placed(
+        OverlayNode node, ImmutableArray<NamePart> path)
     {
         var units = new List<(long Key, Unit Unit)>();
 
@@ -474,7 +498,7 @@ public sealed class XmlProjection
                 new Unit(name, child, childPath, IsItem: false)));
         }
 
-        return units.OrderBy(unit => unit.Key).Select(unit => unit.Unit);
+        return units.OrderBy(unit => unit.Key);
     }
 
     /// <summary>One node to place in an element's content, and how to place it.</summary>

@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r96+ad1c595e1300`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r97+bf917c19b962`. Dated 2026-08.**
 
 This file tracks the branch, and the branch normally runs ahead of the last published preview:
 `3.0.0-preview.4` carries `r90+e172e0ba4d2a`, `3.0.0-preview.3` carries `r44+a91f25bf49ec`,
@@ -769,32 +769,32 @@ restore it; a directive stranded beneath a `type=ignore`, whose path is destroye
 Both sides are pinned — `a-directive-on-an-ignored-output-instance-does-not-warn` and
 `type-ignore-removes-a-subtree-and-strands-its-directives`.
 
-### 1.21 An XML comment moves to the far side of the value it sits beside
+### 1.21 *(resolved)* An XML comment moved to the far side of the value it sat beside
 
-`<a><!--c-->1</a>` emits as `<a>1<!--c--></a>`. The comment survives with its text intact, in the
-same element, and so does the value — but a comment written **before** an element's text is written
-**after** it, so this one aspect of an XML → XML round trip is not byte-identical.
+Resolved by [#91 (closed)](https://github.com/stop-cran/namespace2xml/issues/91). `<a><!--c-->1</a>`
+emitted as `<a>1<!--c--></a>`: the comment survived with its text intact, in the same element, and so
+did the value, but a comment written **before** an element's text was written **after** it, so this
+one aspect of an XML → XML round trip was not byte-identical.
 
-The cause is structural rather than an oversight in the writer. §11.4 exposes an element's lone text
-run as the scalar at the element path — that is what makes `<a>1</a>` the value `1` rather than the
-content node `a.#0` — and a scalar exposed that way carries no content-token ordering value. The
-comment beside it does carry one, so the writer has nothing to compare it against and emits the
-value first. §19.5 states this outcome rather than leaving it to the implementation.
+§11.4 exposes an element's lone text run as the scalar at the element path — that is what makes
+`<a>1</a>` the value `1` rather than the content node `a.#0` — and the ordering value of that run had
+nowhere to live, because the node's own content token already records where the *element* stands
+among its siblings. The writer therefore had nothing to compare the comment against and emitted the
+value first.
 
-Mixed content is **not** affected: `<a>x<!--c-->y</a>` gives every run its own ordering value, and
-the comment keeps its place. Nor is a comment among element-only children. The limit is confined to
-an element holding exactly one text run and at least one comment.
+The run's ordering value now travels on the scalar payload. That placement is what makes the rule
+this limit called hard fall out by construction: a contribution that replaces the value replaces the
+position with it, so a replacing value cannot inherit the position of the value it replaced, and a
+payload from a namespace profile, JSON, YAML, or a reference expresses no position and is written
+first. Node marks, which every format shares, were not touched — the estimate that lifting this
+required changing them is what had deferred it.
 
-The exposed run still consumes the index it would have occupied, so the comments beside it keep the
-values they would otherwise have had and a directive written against the gap matches nothing:
-`<a><!--c-->1<!--d--></a>` addresses its comments as `a.#0` and `a.#2`, and `a.#1` emits `WARN009`.
-
-Lifting it means carrying an ordering value for the exposed scalar through the overlay beside its
-payload, so that a later contribution replacing the value does not inherit the position of the value
-it replaced. That is a change to the shared node marks rather than to the XML writer, which is why
-it is not in 3.0. Pinned by `an-xml-comment-is-written-after-the-value-it-sits-beside` and
-`xml-an-exposed-scalar-consumes-its-content-token-index`, so the behaviour cannot drift while the
-limit stands.
+Mixed content was never affected: `<a>x<!--c-->y</a>` gives every run its own ordering value. Nor was
+a comment among element-only children. The exposed run still consumes the index it would have
+occupied, so `<a><!--c-->1<!--d--></a>` still addresses its comments as `a.#0` and `a.#2` and `a.#1`
+still emits `WARN009`. Pinned by `xml-a-comment-keeps-its-side-of-an-exposed-scalar`,
+`xml-a-comment-keeps-its-side-of-an-exposed-cdata-run` and
+`xml-an-exposed-scalar-consumes-its-content-token-index`.
 
 ### 1.22 *(resolved)* `WARN010` was raised for a mapping nothing inferred
 

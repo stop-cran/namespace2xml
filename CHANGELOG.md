@@ -13,6 +13,32 @@ independently.
 
 ## [Unreleased]
 
+### Fixed
+
+- **An XML comment now keeps the side of the value it sits beside.** Reported as
+  [#91](https://github.com/stop-cran/namespace2xml/issues/91): `<a><!--c-->1</a>` emitted as
+  `<a>1<!--c--></a>`, so a comment written before an element's text came back after it and an
+  XML → XML round trip was not byte-identical. Nothing was lost and no diagnostic fired, which is
+  what made it easy to approve in a diff.
+
+  §11.4 exposes an element's lone text run as the scalar at the element path, and that run's
+  ordering value had nowhere to live: the node's own content token already records where the
+  *element* stands among its siblings, a different parent's allocator. The value now travels on the
+  scalar payload instead. §11.4 and §19.5 were amended to say so, and to state the consequence that
+  had been the stated reason for deferring the fix — a contribution that replaces the value replaces
+  the position with it, so a replacing value does not inherit the position of the value it replaced,
+  and a payload from a namespace profile, JSON, YAML, or a reference carries no position and is
+  written first.
+
+  **Removed** from `KNOWN-LIMITS.md`: §1.21, which had recorded the limit as structural and
+  estimated the fix as a change to the node marks every format shares. It is not — the marks were
+  not touched, and the estimate is what had deferred it. Pinned by
+  `xml-a-comment-keeps-its-side-of-an-exposed-scalar` (renamed from
+  `an-xml-comment-is-written-after-the-value-it-sits-beside`, whose name asserted the defect),
+  `xml-an-exposed-scalar-consumes-its-content-token-index`, and a new
+  `xml-a-comment-keeps-its-side-of-an-exposed-cdata-run` covering the CDATA spelling, whose payload
+  is rebuilt on its way through the reader and so could lose the position independently.
+
 ### Added
 
 - **Documented that a dot in an XML element name is a separator, and pinned the escape.**

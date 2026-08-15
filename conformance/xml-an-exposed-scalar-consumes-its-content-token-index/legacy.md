@@ -15,7 +15,8 @@
 - Clean behavior: the comments occupy `cfg.lone.#0` and `cfg.lone.#2`, so `cfg.lone.#2.type=ignore`
   removes the second one and the first survives. `cfg.lone.#1` is the index the exposed run
   consumed; it names nothing, so the directive written against it emits one `WARN009` and changes
-  no output. The value is written ahead of the surviving comment under the Section 19.5 limit.
+  no output. The surviving comment took content token 0 and the exposed run took 1, so Section 19.5
+  writes the comment ahead of the value even though the run is not addressable.
 - Why the difference is intentional: 2.4.0 had no content-token model at all, so the question this
   case asks could not be put to it. The addressing exists so that a comment can be selected without
   naming its text, and the gap is the observable consequence of Section 11.4's one exception. A run

@@ -40,7 +40,8 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
         BigDecimal decimalValue = default,
         InterpretedValue? unresolved = null,
         ValueOrigin origin = default,
-        XmlContentSpelling spelling = XmlContentSpelling.Text)
+        XmlContentSpelling spelling = XmlContentSpelling.Text,
+        long? contentToken = null)
     {
         Kind = kind;
         this.text = text;
@@ -50,10 +51,29 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
         this.unresolved = unresolved;
         this.origin = origin;
         Spelling = spelling;
+        ContentToken = contentToken;
     }
 
     /// <summary>The Section 4.3 kind of this payload.</summary>
     public ScalarKind Kind { get; }
+
+    /// <summary>
+    /// The Section 11.4 content-token ordering value of the XML text or CDATA run this payload was
+    /// read from, or <see langword="null"/> for a payload no such run supplied.
+    /// </summary>
+    /// <remarks>
+    /// Section 11.4 exposes an element's lone non-comment run as the scalar at the element path
+    /// rather than as a content node, which leaves the run's ordering value with nowhere to live on
+    /// the node — <see cref="NodeMarks.ContentToken"/> already holds the element's own position
+    /// among <em>its</em> siblings, a different parent's allocator. Section 19.5 needs the run's
+    /// value to place the element's comments on either side of it, so it rides here instead.
+    ///
+    /// Carrying it on the payload rather than the node is what makes Section 11.4's replacement
+    /// rule fall out by construction: a contribution that replaces the value replaces the position
+    /// with it, and a contribution from a namespace profile, JSON, YAML, or a reference expresses no
+    /// position and so acquires none. Section 19.5 writes a payload with no ordering value first.
+    /// </remarks>
+    public long? ContentToken { get; }
 
     /// <summary>
     /// The Section 11.6 spelling this payload carries when XML holds it, which is
@@ -72,9 +92,10 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
     public ScalarPayload AsCdata() => Kind switch
     {
         ScalarKind.String or ScalarKind.UntypedString =>
-            new ScalarPayload(Kind, text, spelling: XmlContentSpelling.Cdata),
+            new ScalarPayload(Kind, text, spelling: XmlContentSpelling.Cdata, contentToken: ContentToken),
         ScalarKind.Unresolved => new ScalarPayload(
-            Kind, unresolved: unresolved, origin: origin, spelling: XmlContentSpelling.Cdata),
+            Kind, unresolved: unresolved, origin: origin, spelling: XmlContentSpelling.Cdata,
+            contentToken: ContentToken),
         _ => throw new InvalidOperationException($"a {Kind} payload cannot be spelled as CDATA."),
     };
 
@@ -87,9 +108,10 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
     public ScalarPayload AsComment() => Kind switch
     {
         ScalarKind.String or ScalarKind.UntypedString =>
-            new ScalarPayload(Kind, text, spelling: XmlContentSpelling.Comment),
+            new ScalarPayload(Kind, text, spelling: XmlContentSpelling.Comment, contentToken: ContentToken),
         ScalarKind.Unresolved => new ScalarPayload(
-            Kind, unresolved: unresolved, origin: origin, spelling: XmlContentSpelling.Comment),
+            Kind, unresolved: unresolved, origin: origin, spelling: XmlContentSpelling.Comment,
+            contentToken: ContentToken),
         _ => throw new InvalidOperationException($"a {Kind} payload cannot be spelled as a comment."),
     };
 
@@ -119,11 +141,34 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
         XmlContentSpelling.Cdata => AsCdata(),
         _ => Kind switch
         {
-            ScalarKind.String or ScalarKind.UntypedString => new ScalarPayload(Kind, text),
+            ScalarKind.String or ScalarKind.UntypedString =>
+                new ScalarPayload(Kind, text, contentToken: ContentToken),
             ScalarKind.Unresolved => new ScalarPayload(
-                Kind, unresolved: unresolved, origin: origin),
+                Kind, unresolved: unresolved, origin: origin, contentToken: ContentToken),
             _ => this,
         },
+    };
+
+    /// <summary>
+    /// This payload carrying the Section 11.4 content-token ordering value of the XML run it was
+    /// read from.
+    /// </summary>
+    /// <param name="contentToken">The ordering value the run held among its siblings.</param>
+    /// <remarks>Only the XML reader calls this; every other source leaves the value absent.</remarks>
+    public ScalarPayload AtContentToken(long contentToken) => Kind switch
+    {
+        ScalarKind.String or ScalarKind.UntypedString => new ScalarPayload(
+            Kind, text, spelling: Spelling, contentToken: contentToken),
+        ScalarKind.Unresolved => new ScalarPayload(
+            Kind, unresolved: unresolved, origin: origin, spelling: Spelling,
+            contentToken: contentToken),
+        ScalarKind.Boolean => new ScalarPayload(
+            Kind, boolean: boolean, spelling: Spelling, contentToken: contentToken),
+        ScalarKind.Integer => new ScalarPayload(
+            Kind, integer: integer, spelling: Spelling, contentToken: contentToken),
+        ScalarKind.Decimal => new ScalarPayload(
+            Kind, decimalValue: decimalValue, spelling: Spelling, contentToken: contentToken),
+        _ => new ScalarPayload(Kind, spelling: Spelling, contentToken: contentToken),
     };
 
     /// <summary>The null payload of Section 4.3.</summary>
@@ -250,6 +295,14 @@ public sealed class ScalarPayload : IEquatable<ScalarPayload>
     };
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <see cref="ContentToken"/> deliberately takes no part. <see cref="Spelling"/> does, because
+    /// Section 11.6 makes CDATA a property of the value itself — it changes what is written. Where
+    /// the value was found is not a property of the value: two payloads holding the same characters
+    /// are the same value whichever slot of an element supplied them. Equality decides whether two
+    /// contributions agree, and a position-sensitive answer would make that decision depend on
+    /// something no section asks it to depend on.
+    /// </remarks>
     public bool Equals(ScalarPayload? other) =>
         other is not null &&
         Kind == other.Kind &&

@@ -248,11 +248,17 @@ public static class StructuredProfileReader
         private OverlayNode BuildScalar(
             StructuredScalar scalar, ImmutableArray<NamePart> path, StableOrderingKey key)
         {
+            // Section 11.4 keeps the ordering value of the XML run a payload was read from on the
+            // payload, so that Section 19.5 can place an element's comments around a scalar exposed
+            // at the element path. Only the XML reader sets it; every other source leaves it absent.
+            ScalarPayload Placed(ScalarPayload payload) =>
+                scalar.ContentToken is { } token ? payload.AtContentToken(token) : payload;
+
             // Section 18: "Typed JSON and YAML input scalars retain their source kind without
             // re-inference", so a number, a Boolean, and null are finished where they were read.
             if (scalar.Payload is { } typed)
             {
-                return OverlayNode.OfPayload(typed, key);
+                return OverlayNode.OfPayload(Placed(typed), key);
             }
 
             // Section 13.4: "Native JSON, YAML, and XML strings matched by Key or None are
@@ -265,7 +271,7 @@ public static class StructuredProfileReader
                 var preserved = ScalarPayload.OfString(scalar.NativeString!);
 
                 return OverlayNode.OfPayload(
-                    scalar.IsCdata ? preserved.AsCdata() : preserved, key);
+                    Placed(scalar.IsCdata ? preserved.AsCdata() : preserved), key);
             }
 
             // Section 12.1 reads a value's wildcard form from its owning name's captures. This
@@ -284,7 +290,7 @@ public static class StructuredProfileReader
                 var payload = ScalarPayload.OfString(lexed.Value.LiteralText!);
 
                 return OverlayNode.OfPayload(
-                    scalar.IsCdata ? payload.AsCdata() : payload, key);
+                    Placed(scalar.IsCdata ? payload.AsCdata() : payload), key);
             }
 
             if (path.IsEmpty)
@@ -315,7 +321,7 @@ public static class StructuredProfileReader
                     source.ColumnOf(scalar.Column)));
 
             return OverlayNode.OfPayload(
-                scalar.IsCdata ? unresolved.AsCdata() : unresolved, key);
+                Placed(scalar.IsCdata ? unresolved.AsCdata() : unresolved), key);
         }
 
         private void EmitValueFault(

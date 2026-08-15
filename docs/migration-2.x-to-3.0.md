@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r96+ad1c595e1300`.**
+**Contract bundle `r97+bf917c19b962`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (155)
+## Observable differences (156)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1175,29 +1175,6 @@ implemented, its case says so plainly rather than letting the heading imply othe
   case names an element in a namespace and an unmarked component, and a single message covering
   both told the reader about a component their run did not contain. That distinction is asserted in
   `AliasedComponentWarningTests`, which is where prose belongs.
-
-### `an-xml-comment-is-written-after-the-value-it-sits-beside`
-
-- namespace2xml 2.4.0: **differs**. It writes `<cfg lone="" mixed=""><elems p="" /></cfg>` — every
-  value is replaced by an empty attribute and all three comments are gone — with CRLF and no final
-  newline. Exit 0, nothing reported. **verified** — measured against the Appendix C.6 pinned 2.4.0
-  package.
-- Contract: Section 19.5's comment placement and indentation rules; Section 11.4's content-token
-  ordering; `KNOWN-LIMITS.md` section 1.21.
-- Legacy observation: XML output was not a rendering of the input document. Text became attributes,
-  comments vanished, and no diagnostic distinguished the result from a faithful copy.
-- Clean behavior: three placements, one rule each. `mixed` has every run as a content node with its
-  own ordering value, so `x`, the comment and `y` keep their order. `elems` holds only elements and
-  a comment, so the comment takes its own line at the children's indentation, ahead of `p` where its
-  ordering value puts it. `lone` is the documented limit: Section 11.4 exposes its single text run
-  as the scalar at the element path, so that run holds no ordering value, and the scalar is written
-  before the comment even though the source wrote the comment first.
-- This case exists to hold that limit still. It is the one place where an XML to XML round trip is
-  not byte-identical, and the failure is quiet — the comment is present, the value is present, and
-  only the side changes. A characterization fixture is the only thing that would notice the day the
-  behaviour drifts, in either direction: toward a fix nobody recorded, or toward losing the comment
-  outright. The other two elements are here so that a change to the general ordering rule cannot
-  hide behind the limit.
 
 ### `an-xml-scheme-file-is-not-a-scheme-format`
 
@@ -2901,6 +2878,51 @@ implemented, its case says so plainly rather than letting the heading imply othe
 
   Both differences are therefore additive: this build carries components the baseline dropped.
 
+### `xml-a-comment-keeps-its-side-of-an-exposed-cdata-run`
+
+- namespace2xml 2.4.0: **differs**. It writes `<cfg before="" after="" />` — both CDATA sections and
+  both comments are gone and the document element is empty and self-closing — with CRLF and no final
+  newline. Exit 0, nothing reported. **verified** — measured against the Appendix C.6 pinned 2.4.0
+  package on the .NET 9 runtime it targets, under this case's own `args.txt`.
+- Contract: Section 19.5's placement of a scalar exposed at an element path; Section 11.4's
+  content-token ordering; Section 11.6's preservation of imported CDATA.
+- Legacy observation: XML output was not a rendering of the input document. A CDATA section became
+  an empty attribute, both comments vanished, and no diagnostic distinguished the result from a
+  faithful copy.
+- Clean behavior: `before` holds the comment at content token 0 and the CDATA run at 1, so the
+  comment is written first; `after` holds them the other way round and so is written the other way
+  round. Section 11.6 keeps both runs spelled as CDATA, so the ordering rule is exercised on a
+  payload whose spelling had to survive the same journey as its position.
+- Why the case is here: the ordering value of an exposed run travels on the scalar payload, and
+  `AsCdata` builds a new payload. A change that rebuilds a payload without carrying the position
+  across would leave text placement correct and CDATA placement wrong, which no text-only case can
+  see. The two elements are mirror images so that a rule which merely wrote the value first, or
+  merely wrote it last, fails one of them whichever it picked.
+
+### `xml-a-comment-keeps-its-side-of-an-exposed-scalar`
+
+- namespace2xml 2.4.0: **differs**. It writes `<cfg lone="" mixed=""><elems p="" /></cfg>` — every
+  value is replaced by an empty attribute and all three comments are gone — with CRLF and no final
+  newline. Exit 0, nothing reported. **verified** — measured against the Appendix C.6 pinned 2.4.0
+  package.
+- Contract: Section 19.5's comment placement and indentation rules; Section 11.4's content-token
+  ordering and its retention of an exposed run's ordering value on the scalar payload.
+- Legacy observation: XML output was not a rendering of the input document. Text became attributes,
+  comments vanished, and no diagnostic distinguished the result from a faithful copy.
+- Clean behavior: three placements, one rule each. `mixed` has every run as a content node with its
+  own ordering value, so `x`, the comment and `y` keep their order. `elems` holds only elements and
+  a comment, so the comment takes its own line at the children's indentation, ahead of `p` where its
+  ordering value puts it. `lone` exposes its single text run as the scalar at the element path under
+  Section 11.4, and that run's ordering value travels with the payload, so the comment written
+  before the value is written before the value.
+- Why the case is here: `lone` is the one shape where the value's position is not carried by the
+  node, so a projection that emitted the payload before consulting the ordering of anything else
+  would still satisfy every other case in the corpus. The failure it guards is quiet — the comment
+  is present, the value is present, and only the side changes — which is exactly the kind an
+  eyeballed diff approves. The other two elements are here so that a regression in the general
+  ordering rule cannot hide behind the exception, and so that a fix which simply moved every payload
+  to the end fails them.
+
 ### `xml-a-reference-does-not-import-a-spelling`
 
 - namespace2xml 2.4.0: **differs**.
@@ -2944,7 +2966,8 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - Clean behavior: the comments occupy `cfg.lone.#0` and `cfg.lone.#2`, so `cfg.lone.#2.type=ignore`
   removes the second one and the first survives. `cfg.lone.#1` is the index the exposed run
   consumed; it names nothing, so the directive written against it emits one `WARN009` and changes
-  no output. The value is written ahead of the surviving comment under the Section 19.5 limit.
+  no output. The surviving comment took content token 0 and the exposed run took 1, so Section 19.5
+  writes the comment ahead of the value even though the run is not addressable.
 - Why the difference is intentional: 2.4.0 had no content-token model at all, so the question this
   case asks could not be put to it. The addressing exists so that a comment can be selected without
   naming its text, and the gap is the observable consequence of Section 11.4's one exception. A run
