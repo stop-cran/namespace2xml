@@ -1,0 +1,3 @@
+app.db.ratio=50%
+app.db.pair=100%%
+app.db.token=%(ratio)s

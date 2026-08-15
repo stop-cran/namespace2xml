@@ -274,6 +274,22 @@ jobs:
           fi
           echo "contract changed and the bundle revision moved with it"
 
+  # Section 19.6 requires conformance tests to cover every parser the compatibility documentation
+  # names, and docs/format-ini.md names Python's configparser. The check reads published expected
+  # output with a third-party parser and imports nothing from this repository, so it needs neither
+  # the SDK nor a build and runs in about a second; it is a separate job rather than a step so that
+  # a broken interoperability claim is named on the summary page instead of hiding inside a lint
+  # failure.
+  ini-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The emitted INI dialect must agree with the parser we name
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check-ini-interop.py .
+
   lint:
     runs-on: ubuntu-latest
     steps:

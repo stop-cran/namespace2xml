@@ -506,8 +506,14 @@
       "milestone": "unassigned",
       "status": "pending",
       "assertions": [],
-      "fixtures": [],
-      "whyNotAFixture": "No fixture can discharge this item and no gate does yet. The claim is about how the documented INI dialect behaves in parsers this project does not ship, so establishing it needs both a specification decision naming which parsers are normative and harness machinery to run them. KNOWN-LIMITS.md section 2.1 records it as the largest remaining gap in the corpus."
+      "fixtures": [
+        "ini-a-colon-inside-a-key-is-key-text",
+        "ini-a-key-keeps-the-letter-case-it-was-given",
+        "ini-a-percent-sign-in-a-value-is-ordinary-text"
+      ],
+      "gates": [
+        "ci:ini-interop"
+      ]
     },
     {
       "item": 29,

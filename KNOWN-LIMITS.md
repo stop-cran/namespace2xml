@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r97+bf917c19b962`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r98+5c76f294ea85`. Dated 2026-08.**
 
 This file tracks the branch, and the branch normally runs ahead of the last published preview:
 `3.0.0-preview.4` carries `r90+e172e0ba4d2a`, `3.0.0-preview.3` carries `r44+a91f25bf49ec`,
@@ -830,51 +830,41 @@ did not determine. Appendix B now states the member set each *condition* supplie
 have since been authored — `merge-error-rejects-a-second-source-contribution` for §16.10
 `merge=error`, and `WILDCARD002` across the four wildcard-bound cases.
 
-### 2.1 The INI dialect names no third-party parser, and is verified against none
+### 2.1 The INI dialect names one third-party parser, and is verified against no other
 
 Acceptance item 28 asks for "the documented INI dialect against representative parsers", and
-Section 19.6 names the dialect `PortableIni1`. It also now says what an implementation owes the
-question: the compatibility documentation "names the parsers it holds itself interoperable with,
-and conformance tests must cover every parser it names", and "naming none is a permitted and
-complete answer".
+Section 19.6 names the dialect `PortableIni1`. Section 19.6 also says what an implementation owes
+the question: the compatibility documentation "names the parsers it holds itself interoperable
+with, and conformance tests must cover every parser it names", and naming a parser "means naming
+three things" — the parser, the reader configuration, and the envelope.
 
-**3.0 names none, deliberately, and this entry is that statement.** `PortableIni1` is verified
-against the specification and against no external reader. `IniSerializerTests` and the
-`.ini`-producing fixtures compare the serializer's own bytes against expected bytes authored from
-Section 19.6, which establishes that the output is stable and matches the specification's
-description of the dialect — not that any real parser reads it back as the same key-value model.
-Those are different claims, and only the second is what item 28 asks for.
+**3.0 names Python's `configparser`, and nothing else.** The claim, its configuration and its
+envelope are in `docs/format-ini.md`; `tools/check-ini-interop.py` enforces it on every CI run in
+the `ini-interop` job, by re-serializing what the parser recovered and comparing that to the
+emitted file. That establishes agreement rather than acceptance, which matters because three of the
+four ways a default-configured `configparser` misreads this dialect are silent: it folds `Host` to
+`host`, splits `a:b=1` at the colon, and rewrites `100%%` to `100%`, reporting success each time.
 
-Naming a parser is not paperwork. Feeding the corpus's `.ini` files to Python's `configparser`
-rejects **10 of 17** with `MissingSectionHeaderError`, because Section 19.6 emits a scalar path of one
-part as a global key in a preamble before the first section header and `configparser` has no default
-section. The first parser anyone would name is therefore one this dialect could not be made to
-satisfy at all, in its most ordinary case, and the incompatibility was in the projection rule rather
-than in either dialect switch — so neither `QuoteValues` nor `EscapeMultiline` avoided it.
+Two things remain open, and this entry is the statement of both.
 
-That much is now fixed. `inioutputoptions=GlobalSection` writes the global keys into a leading
-section named `global` instead of a preamble, and a file produced under it is accepted by
-`configparser`; the option, its `WARN012` counterpart on an unguarded preamble, and the blocking
-`FLAT001` when a path already projects to that section are pinned by acceptance item 88. Tracked as
-[#88 (closed)](https://github.com/stop-cran/namespace2xml/issues/88). The count above is what the
-corpus looks like with the option *not* selected, which is how most of its cases are written: they
-are about something else and set no INI options at all.
+**Other parsers are not named and not tested.** `ini4j`, the Windows profile API, `inih` and Go's
+`gopkg.in/ini.v1` each have their own view of quoting, comment markers and case folding. Nothing
+here says whether they read `PortableIni1` back faithfully, and the corpus contains no evidence
+either way. A consumer aiming at one of them should test the emitted file against that reader
+rather than reading the `configparser` result as a general claim.
 
-What remains is the original item-28 claim, which the option does not settle. That a `GlobalSection`
-file is accepted by one parser on one machine is a spot check, not a verification lane: there is
-still no named parser list, no coverage of the dialect switches against real readers, and no harness
-that would notice a regression. Building the lane also needs a decision about which parsers are
-normative — plausibly
-`configparser`, `ini4j`, and whatever the Windows profile API accepts, each under both
-`QuoteValues` settings and both `EscapeMultiline` settings, since those options are where dialects
-disagree elsewhere. That list is a compatibility policy this release does not state, and
-Section 19.6 makes it normative by referring to it, so it has to be written down before any harness
-is built. Tracked as [#67](https://github.com/stop-cran/namespace2xml/issues/67).
+**Part of the dialect is outside the one envelope that exists.** `QuoteValues` and `EscapeMultiline`
+have no expression in `configparser` — it neither unquotes nor decodes backslash escapes — so a
+file produced under either option is unverified against any external reader, and those are exactly
+the options a consumer reaches for when values get awkward. The same is true of a written preamble,
+which `configparser` refuses outright; `inioutputoptions=GlobalSection` is the answer to that one
+and is what [#88 (closed)](https://github.com/stop-cran/namespace2xml/issues/88) added. Ten of the
+corpus's 23 emitted `.ini` files still write a preamble, because they are about something else and
+set no INI options at all, and the lane skips them for that reason rather than passing them.
 
-Until then, treat `PortableIni1` output as specified-and-self-consistent rather than as verified
-interoperable, and read `docs/format-ini.md` before pointing it at a specific consumer. Item 28
-stays `pending` and is the largest single gap in the corpus.
-
+Item 28 is discharged for the named parser and no further. Widening it — a second parser, or an
+envelope that covers the two dialect switches — is tracked as
+[#67](https://github.com/stop-cran/namespace2xml/issues/67).
 ## 3. Platform and environment
 
 - **Supported:** Linux, Windows and macOS on x64 and arm64, via the .NET 10 runtime.

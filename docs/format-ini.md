@@ -404,40 +404,82 @@ Post-projection key collisions — two distinct logical paths flattening to the 
 section-plus-key text — are blocking `FLAT001` (§16.4, §22). If you rely on a non-default INI
 delimiter, review your paths for delimiter occurrences inside part names.
 
-## Interoperability, and the item-28 gap
+## Interoperability
 
 The `PortableIni1` dialect is specified in §19.6, self-consistent, and produces byte-identical
-output for identical input on every supported platform. That is what this project verifies.
+output for identical input on every supported platform. §19.6 additionally asks an implementation
+to name the parsers it holds itself interoperable with, to cover each of them in conformance tests,
+and to state the reader configuration and the envelope each claim holds within — because a bare
+parser name is not a claim anyone can act on or test.
 
-It is **not** verified against any third-party INI parser, and §19.6 asks an implementation to say
-so rather than to leave the question open: the compatibility documentation "names the parsers it
-holds itself interoperable with, and conformance tests must cover every parser it names", and
-"naming none is a permitted and complete answer". **This document is that answer for 3.0, and it
-names none.**
+**This document names one parser: Python's `configparser`.** The claim is verified on every run by
+`tools/check-ini-interop.py`, which the `ini-interop` CI job runs over the conformance corpus's
+expected output. It is stated below in the three parts §19.6 requires.
 
-That is a stated position, not an oversight, and there is a measurement behind it. Feeding the
-conformance corpus's `.ini` files to Python's `configparser` rejects 10 of 17 with
-`MissingSectionHeaderError` — every one of them for the same reason, and none for either dialect
-switch: §19.6 projects a scalar path of one part as a **global key**, emitted in a preamble before
-the first section header, and `configparser` has no default section to put those keys in.
+### The reader configuration
 
-That finding was filed as [#88 (closed)](https://github.com/stop-cran/namespace2xml/issues/88) and
-is answered by `inioutputoptions=GlobalSection`, described above: it removes the preamble, and the
-corpus cases that select it are accepted by `configparser`. The count above is what the corpus
-looks like *without* the option, because most of its cases are about something else and set no INI
-options at all. The remaining gap is narrower than it was: the dialect can now produce a file
-`configparser` accepts, but there is still no named parser list and no harness enforcing one, which
-is [#67](https://github.com/stop-cran/namespace2xml/issues/67). `KNOWN-LIMITS.md` §2.1 carries it.
+```python
+parser = configparser.ConfigParser(
+    interpolation=None,          # the dialect has no interpolation; % is ordinary value text
+    delimiters=("=",),           # : is a permitted key character, so it cannot also split a line
+    comment_prefixes=(";", "#"), # both markers the dialect can emit
+)
+parser.optionxform = str         # §19.6 emits the key text; it does not case-fold
+```
 
-If you are aiming this tool at a specific INI consumer, treat `PortableIni1` as
-**specified-and-self-consistent, not verified-interoperable**, and check two things by hand before
-you rely on it. First, whether your parser accepts keys before the first section header — select
-`GlobalSection`, or give every output path at least two parts, if it does not. Second, the two
-dialect switches, `QuoteValues` and
-`EscapeMultiline`, which are where INI parsers disagree elsewhere; the `EscapeMultiline`
-backslash-doubling rule described above is the single most likely thing to surprise a parser that
-does not know it. Read the KNOWN-LIMITS entry linked here in full before picking flags.
+Every one of those settings is load-bearing, and each was measured. Under `configparser`'s
+**defaults** the same files are read back wrong in four distinct ways, three of them silently:
 
+| Emitted line | Default `configparser` reads | |
+|---|---|---|
+| `Host=localhost` | key `host` | key silently folded |
+| `a:b=1` | key `a`, value `b=1` | key silently split |
+| `ratio=100%%` | value `100%` | value silently rewritten |
+| `ratio=50%` | `InterpolationSyntaxError` | file rejected |
+
+Three of those four produce a successful parse and a different document, which is why §19.6 asks
+for agreement rather than acceptance and why the check re-serializes what the parser returned
+instead of merely confirming that it did not raise.
+
+### The envelope
+
+The claim holds for a file that satisfies all of the following. Outside it, this document makes no
+interoperability claim at all — an option §19.6 defines and `configparser` cannot represent is a
+limit on the pairing, not a defect in either.
+
+1. **No preamble.** §19.6 projects a one-part scalar path as a global key written before the first
+   section header, and `configparser` has no section to put those keys in: it raises
+   `MissingSectionHeaderError` and reads nothing. Select `inioutputoptions=GlobalSection`, or give
+   every output path at least two parts. This is the condition that excludes 10 of the corpus's 23
+   emitted `.ini` files, and it is what [#88 (closed)](https://github.com/stop-cran/namespace2xml/issues/88)
+   added `GlobalSection` for.
+2. **Not `QuoteValues`.** `configparser` has no unquoting step, so the quotation marks and any
+   `\\` or `\"` escapes arrive as literal characters of the value.
+3. **Not `EscapeMultiline`.** `configparser` decodes no backslash escapes, so `\n` arrives as two
+   characters. The unconditional backslash-doubling described above compounds this.
+4. **No Appendix A escapes surviving into a value.** A value that reaches the file containing
+   leading or trailing whitespace, or an embedded control character, is either rejected by
+   `RejectMultiline` or requires one of the two options above.
+
+Values may otherwise contain `=`, `;`, `#`, `%`, and `%%`; keys may contain upper case, `.`, `:`,
+`-` and `_`. Those were measured to round-trip exactly.
+
+### What the check establishes, and what it does not
+
+`tools/check-ini-interop.py` reads each in-envelope expected file with the configuration above,
+re-serializes what `configparser` recovered under §19.6's layout rules, and compares that to the
+file's own section and key lines. Anything dropped, folded, split, reordered or rewritten is a
+difference. The check imports nothing from this repository, so a defect in the writer cannot define
+its own oracle.
+
+It does **not** establish that other parsers agree. `ini4j`, the Windows profile API, `inih` and
+Go's `gopkg.in/ini.v1` are not named here and are not tested; each has its own view of quoting,
+comments and case. If you are aiming this tool at one of them, treat the envelope above as a
+starting point rather than an answer, and test your own reader against the emitted file.
+
+This discharges acceptance item 28 for the named parser. `KNOWN-LIMITS.md` §2.1 records what
+remains, which is now the unnamed parsers rather than the absence of any named one, and
+[#67](https://github.com/stop-cran/namespace2xml/issues/67) tracks it.
 ## Traps
 
 - **`-i config.ini` is not an INI reader.** §7.1 sends `.ini` down the namespace-profile
@@ -464,8 +506,9 @@ does not know it. Read the KNOWN-LIMITS entry linked here in full before picking
   writer had.
 - **Default comment flags discard comments.** `WARN003` is on stderr, but no comment appears in
   the file. Select `SemicolonComments` or `HashComments` if you want them.
-- **`PortableIni1` is not verified interoperable.** `KNOWN-LIMITS.md` §2.1 records this as
-  acceptance item 28 and it is the largest single unclosed gap in the corpus.
+- **`PortableIni1` is verified against exactly one parser.** Python's `configparser`, under the
+  configuration and envelope stated above and checked on every CI run. No other parser is named
+  or tested; `KNOWN-LIMITS.md` §2.1 records what that leaves open.
 
 ## Open questions
 

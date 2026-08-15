@@ -13,6 +13,39 @@ independently.
 
 ## [Unreleased]
 
+### Added
+
+- **The INI dialect now names a parser it is verified against.** `docs/format-ini.md` previously
+  answered §19.6's compatibility question with "it names none", which the section permits. Measuring
+  the dialect against Python's `configparser` showed that answer was costing more than it saved:
+  under the parser's **default** settings the emitted files are misread in four ways, and three of
+  them are silent — `Host=localhost` comes back as key `host`, `a:b=1` splits at the colon into key
+  `a`, and `100%%` is rewritten to `100%`. Each reports a successful parse and returns a different
+  document.
+
+  All four disappear under a stated reader configuration, so 3.0 names `configparser` with one:
+  `interpolation=None`, `delimiters=('=',)`, `comment_prefixes=(';', '#')`, and `optionxform = str`.
+  §19.6 was amended to require that, because a bare parser name is not a claim anyone can act on —
+  naming a parser now means naming the reader configuration and the envelope the claim holds within,
+  and a conformance test for a named parser must establish that it recovers the same keys, values and
+  order rather than merely that it accepts the file.
+
+  `tools/check-ini-interop.py` enforces it in the new `ini-interop` CI job. It re-serializes what
+  `configparser` recovered and compares that to the emitted file's own lines, so a fold, a split or a
+  rewrite is a failure rather than a pass; it imports nothing from this repository, so the writer
+  cannot define its own oracle. The job needs no SDK and no build, and runs in about a second.
+
+  Three fixtures give it something to bite on — `ini-a-key-keeps-the-letter-case-it-was-given`,
+  `ini-a-colon-inside-a-key-is-key-text` and `ini-a-percent-sign-in-a-value-is-ordinary-text`. Every
+  other in-envelope `.ini` file in the corpus is lowercase ASCII with no `%` and no `:`, so the lane
+  would have passed while proving almost nothing; it now fails if any of the three stops being
+  checked. Each pins a §19.6 rule that was stated and unenforced, and 2.4.0 agrees on all three.
+
+  This discharges acceptance item 28 for the named parser. **Changed** in `KNOWN-LIMITS.md`: §2.1 no
+  longer records the absence of any named parser, and records instead what the one envelope excludes
+  — `QuoteValues`, `EscapeMultiline`, and a written preamble — and which parsers remain untested.
+  [#67](https://github.com/stop-cran/namespace2xml/issues/67).
+
 ### Fixed
 
 - **An XML comment now keeps the side of the value it sits beside.** Reported as

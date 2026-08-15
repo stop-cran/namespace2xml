@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r97+bf917c19b962`.**
+**Contract bundle `r98+5c76f294ea85`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -4638,7 +4638,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (43)
+## Same observable result as 2.4.0 (46)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -5196,6 +5196,50 @@ those that name a shared reason are behaviour 3.0 preserved.
   of data, and a case with no input would not distinguish the two.
 - `WARN008` declares no optional Section 6.4.3 members, so the occurrence is exactly the five
   required ones. It is the only diagnostic in the corpus whose whole content is its identity.
+
+### `ini-a-colon-inside-a-key-is-key-text`
+
+- namespace2xml 2.4.0: **agrees** on content, modulo CRLF line endings under the Section 24
+- Contract: Section 19.6 — "section and key names must match `[A-Za-z0-9_.:-]+` after delimiter
+  joining". A colon is admitted in a key name, and the section/key split is by path part rather
+  than by scanning the text, so a colon inside the final path part stays inside the key.
+- Legacy observation: no divergence.
+- It exists because the colon is doing two jobs in Section 19.6 — it is the default nested-section
+  delimiter and a permitted key character — and nothing pinned the second. A writer that formed
+  the key by splitting on the delimiter, or that escaped the colon, would pass every other case.
+- It is an input to `tools/check-ini-interop.py`, and the reason the documented reader
+  configuration fixes `delimiters=('=',)`: `configparser` treats `:` as a key/value separator by
+  default, which turns this line into the key `a` with the value `b=1` and reports success.
+
+### `ini-a-key-keeps-the-letter-case-it-was-given`
+
+- namespace2xml 2.4.0: **agrees** on content, modulo CRLF line endings under the Section 24
+- Contract: Section 19.6 — "section and key names must match `[A-Za-z0-9_.:-]+` after delimiter
+  joining", and "a key line is the key text, `=`, and the value text". The grammar admits upper
+  case, and nothing in Section 19.6 folds it, so the key text is written as the path spells it.
+- Legacy observation: no divergence. This case does not exist to record a 2.4.0 difference.
+- It exists because Section 19.6 states the key text rule and no fixture exercised it with a
+  letter that could be folded. Every other INI case in the corpus is lowercase ASCII, so an
+  implementation that lowercased keys would have passed the entire corpus.
+- It is also an input to `tools/check-ini-interop.py`. Python's `configparser` folds option names
+  to lower case by default, so this file is the one that makes the documented `optionxform = str`
+  setting a claim with teeth rather than a line of prose; removing that setting turns this case
+  red. See `docs/format-ini.md`.
+
+### `ini-a-percent-sign-in-a-value-is-ordinary-text`
+
+- namespace2xml 2.4.0: **agrees** on content, modulo CRLF line endings under the Section 24
+- Contract: Section 19.6 — "default values are unquoted single-line UTF-8 text". Section 19.6
+  defines no interpolation, no variable syntax inside a value, and no meaning for `%`, so `%`,
+  `%%` and `%(ratio)s` are ordinary characters and are emitted as they stand.
+- Legacy observation: no divergence.
+- It exists because "the value text is written as it stands" is easy to state and easy to break in
+  exactly one direction — a writer that escaped or doubled `%` for a consumer's benefit would look
+  helpful and would corrupt the value. No corpus file contained a `%` before this one.
+- The third value is chosen to be the shape a parser with interpolation enabled would rewrite
+  rather than reject, which is the failure that leaves no trace. It is an input to
+  `tools/check-ini-interop.py`: with `interpolation=None` removed, `50%` is rejected outright and
+  `100%%` silently becomes `100%`.
 
 ### `limit-attribution-across-sources`
 
