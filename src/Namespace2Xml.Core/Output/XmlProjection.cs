@@ -81,7 +81,7 @@ public sealed class XmlProjection
 
         ReportShapeConflicts(view, []);
 
-        if (view.Marks.RendersAsSequence)
+        if (view.Marks.ContainerIsSequence)
         {
             return Document(ProjectRootSequence(view, root));
         }
@@ -258,12 +258,12 @@ public sealed class XmlProjection
     {
         if (node.Marks.HasBothContainers)
         {
-            ReportShapeConflict(path, node.Marks.RendersAsSequence);
+            ReportShapeConflict(path, node.Marks.ContainerIsSequence);
         }
 
         // Only what this destination renders is walked: a node under the container that lost is not
         // emitted, so a conflict inside it is not a loss anyone can observe here.
-        if (node.Marks.RendersAsSequence)
+        if (node.Marks.ContainerIsSequence)
         {
             foreach (var (value, item) in node.OrderedSequence)
             {
@@ -273,7 +273,7 @@ public sealed class XmlProjection
             return;
         }
 
-        if (node.Marks.RendersAsMapping)
+        if (node.Marks.ContainerIsMapping)
         {
             foreach (var (name, child) in node.OrderedChildren)
             {
@@ -347,7 +347,7 @@ public sealed class XmlProjection
             return Refuse(path, "'type=attribute' is invalid where no containing element exists");
         }
 
-        if (node.Marks.RendersAsSequence)
+        if (node.Marks.ContainerIsSequence)
         {
             // A sequence reached here is a sequence-valued mapping child whose repeated siblings
             // the caller could not emit, because only the parent can hold repeated names.
@@ -382,7 +382,11 @@ public sealed class XmlProjection
             content = new XText(Text(payload));
         }
 
-        if (!node.Marks.RendersAsMapping)
+        // Section 19.5: "An overlay payload plus element children is represented as text or CDATA
+        // plus children when the effective XML type permits mixed content." The payload does not
+        // contest the container here, so the test is the container-only one: a mapping this node
+        // carries is emitted however late the payload landed on top of it.
+        if (!node.Marks.ContainerIsMapping)
         {
             if (content is not null)
             {
@@ -464,7 +468,7 @@ public sealed class XmlProjection
         {
             var childPath = path.Add(name);
 
-            if (child.Marks.RendersAsSequence
+            if (child.Marks.ContainerIsSequence
                 && Kind(childPath) is null
                 && child.OrderedSequence.Any(item => item.Value.Node.Marks.ContentToken is not null))
             {
@@ -536,7 +540,7 @@ public sealed class XmlProjection
                 return TryFill(parent, child, path);
 
             default:
-                if (child.Marks.RendersAsSequence)
+                if (child.Marks.ContainerIsSequence)
                 {
                     return TryAddSequence(parent, name, child, path);
                 }
@@ -618,7 +622,7 @@ public sealed class XmlProjection
                     + "position rather than a name");
             }
 
-            if (child.Marks.RendersAsSequence)
+            if (child.Marks.ContainerIsSequence)
             {
                 return TryAddSequence(parent, promoted, child, path);
             }
@@ -635,7 +639,7 @@ public sealed class XmlProjection
             return TryFill(element, child, path);
         }
 
-        if (child.Marks.RendersAsSequence)
+        if (child.Marks.ContainerIsSequence)
         {
             return Refuse(
                 path,
@@ -689,7 +693,7 @@ public sealed class XmlProjection
         OverlayNode child,
         ImmutableArray<NamePart> path)
     {
-        if (child.Marks.RendersAsSequence)
+        if (child.Marks.ContainerIsSequence)
         {
             // Section 19.5: "attribute is TYPE001 because one XML attribute cannot represent
             // repeated values."

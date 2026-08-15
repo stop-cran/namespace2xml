@@ -48,6 +48,37 @@ independently.
 
 ### Fixed
 
+- **A later scalar no longer deletes the XML content it lands on.** Reported as
+  [#97](https://github.com/stop-cran/namespace2xml/issues/97): overlaying `cfg.a=9` onto an XML
+  `<a><!--d-->2</a>` emitted `<a>9</a>`, and the comment was gone. The same invocation destroyed
+  element children — `<a>7<x>1</x></a>` came back as `<a>9</a>`, losing `<x>1</x>` entirely — so the
+  reported comment case was the visible corner of a general loss of an element's content. Exit code
+  `0`, empty diagnostic stream, well-formed output: nothing in the run said a value had been
+  destroyed. It did not even require the value to change; `cfg.a=9` over a source `9` lost the
+  content just the same, because the trigger was the arrival of a later scalar contribution rather
+  than any difference in what it contributed.
+
+  §4.4's exclusive-shape contest is written "when a destination requires one exclusive shape", and
+  §19.5 makes XML require one *container* shape only — mapping against sequence — because "an
+  overlay payload plus element children is represented as text or CDATA plus children when the
+  effective XML type permits mixed content". The payload does not compete there. The XML projection
+  was nevertheless dispatching on `RendersAsMapping` and `RendersAsSequence`, which fold in the
+  scalar-against-container test, so a payload that arrived later than the container silently
+  switched every child and comment node off. Its own commentary already described the correct rule —
+  "XML holds a scalar and children together as mixed content, so unlike the Section 4.4 JSON and
+  YAML case no payload is omitted here and none is reported" — while the code beneath it asked the
+  other question. Eleven shape dispatches now use the container-only marks that carry exactly that
+  meaning.
+
+  No specification change was needed and the `contract-bundle` revision is unchanged: the contract
+  already said this, in §19.5's placement rule for "a value that replaced an XML-sourced one" and in
+  its note that a payload carrying no ordering value is written first, "where a comment written
+  before it in the source would have to move to be preserved".
+  `xml-a-later-scalar-keeps-the-content-it-lands-on` pins both arms and a third path that receives
+  no overlay, so a fix that stopped discarding content by discarding nothing anywhere cannot pass
+  it. The corpus had no case in which an overridden path carried a sibling, which is why 1 079
+  conformance cases and 2 719 unit tests all passed over the defect.
+
 - **An XML comment now keeps the side of the value it sits beside.** Reported as
   [#91](https://github.com/stop-cran/namespace2xml/issues/91): `<a><!--c-->1</a>` emitted as
   `<a>1<!--c--></a>`, so a comment written before an element's text came back after it and an

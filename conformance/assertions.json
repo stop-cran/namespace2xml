@@ -289,6 +289,7 @@
         "an-element-takes-no-prefix-when-an-attribute-has-one",
         "xml-a-comment-keeps-its-side-of-an-exposed-scalar",
         "xml-a-comment-keeps-its-side-of-an-exposed-cdata-run",
+        "xml-a-later-scalar-keeps-the-content-it-lands-on",
         "xml-an-exposed-scalar-consumes-its-content-token-index",
         "xml-comments-are-ordered-content-nodes",
         "xml-element-only-children-keep-their-place",
