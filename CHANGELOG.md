@@ -15,6 +15,35 @@ independently.
 
 ### Added
 
+- **Documented that a dot in an XML element name is a separator, and pinned the escape.**
+  Reported as [#95](https://github.com/stop-cran/namespace2xml/issues/95) after an `app.config`
+  specialization silently missed: `<system.web>` is one name part containing a dot, so
+  `configuration.system.web.compilation.@debug=true` names four parts, none of which exists, and
+  §17.1 creates them. The run exits `0` with an empty diagnostic stream, the real element keeps
+  its value, and a `<system><web>` subtree appears beside it. The correct address escapes the
+  dot — `configuration.system\.web.…` — and `\u{2E}` is an equally valid second spelling of the
+  same name part.
+
+  The tool is right and the specification is unambiguous, so neither changed. What was missing was
+  any place a reader would find it. `docs/format-xml.md` gained a subsection under canonical XML
+  addressing covering both escape spellings, the fact that the namespace writer always emits
+  `\u{2E}` and never `\.` (§16.4) so a rendered model looks unfamiliar, the same rule inside a
+  `Q{uri}local` local name, and why no diagnostic reports this — `WARN011` is confined by §11.4 to
+  an attribute and a namespace-qualified element sharing a simple alias, and a dotted name is
+  neither. `docs/usage-methodology.md` §3 gained a companion entry beside the indentation trap
+  ([#40](https://github.com/stop-cran/namespace2xml/issues/40)) and the bare-attribute trap
+  ([#56](https://github.com/stop-cran/namespace2xml/issues/56)), which fail the same way.
+
+  Both note the wrinkle that made the report worth filing: without `root` the phantom subtree
+  makes the view multi-rooted and `TYPE001` fires, which is the only signal that anything went
+  wrong — and adding `root`, which that error asks for and the shape genuinely needs, removes the
+  signal while leaving the phantom. A clean exit is not evidence that an address bound.
+
+  Pinned by `xml-an-element-name-with-a-dot-needs-an-escape`, which asserts that `\.` and `\u{2E}`
+  reach one node and the unescaped spelling reaches another. Measured against 2.4.0: the baseline
+  crashes on `@debug` with an unhandled `XmlException`, but on the dot alone it behaves exactly as
+  3.0 does — the hazard is inherent to a dotted namespace, not a 3.0 regression.
+
 - **`{}` and `[]` are namespace values again, and now they have an escape.** 2.4.0 read a bare
   `{}` as an empty mapping and a bare `[]` as an empty sequence; the 3.0 specification never
   mentioned braces, so §8.3 read them as ordinary two-character strings. That was correct against

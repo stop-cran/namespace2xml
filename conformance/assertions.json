@@ -660,6 +660,7 @@
       "fixtures": [
         "xml-a-2-x-style-attribute-override-adds-a-sibling-element",
         "xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address",
+        "xml-an-element-name-with-a-dot-needs-an-escape",
         "xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component",
         "xml-canonical-addresses"
       ]

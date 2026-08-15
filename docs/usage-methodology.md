@@ -160,6 +160,51 @@ you are regenerating anyway, that is exactly the trade you want. For a document 
 carries meaning — mixed content, a `<pre>`, anything where the spaces are the point — it is not,
 and you should address the `#n` positions directly instead.
 
+### A dot in an element name is a separator, and the obvious spelling builds a second tree
+
+The trap above is about where an element sits. This one is about what it is called, and it has the
+same ending. `.` separates name parts (§8.2), and XML lets an element name contain one, so an
+`app.config` reads like this:
+
+```xml
+<configuration>
+  <system.web>
+    <compilation debug="false" />
+  </system.web>
+</configuration>
+```
+
+`system.web` is **one** name part containing a dot, not two parts. The override a person writes
+from looking at the file:
+
+```text
+configuration.system.web.compilation.@debug=true
+```
+
+names four parts, none of which exists. Nothing is malformed, so §17.1 creates them, and the run
+exits `0` with an empty diagnostic stream while producing a document that has the original element
+untouched and a `<system><web>` subtree beside it. The escape is what expresses the intent:
+
+```text
+configuration.system\.web.compilation.@debug=true
+```
+
+Two spellings work — `\.` and `\u{2E}` — and they are the same name part, so it does not matter
+which you write. It does matter which you *read*: the namespace writer always emits `\u{2E}`
+(§16.4), so a rendered model shows `system\u{2E}web` and never `system\.web`. If that spelling
+looks like noise, it is the delimiter telling you it is part of a name.
+
+There is no diagnostic for this and none is planned; `docs/format-xml.md` explains why, and what
+`WARN011` does and does not cover. This is
+[#95](https://github.com/stop-cran/namespace2xml/issues/95), and it is the second reason the first
+habit in this section is to render the model before writing anything.
+
+One wrinkle is worth knowing, because it can teach the wrong lesson. Without `root`, the phantom
+subtree makes the view multi-rooted and XML refuses it with `TYPE001` — a real signal that
+something you did not intend is in the model. The remedy that error names is `root`, the shape
+genuinely needs `root`, and adding it makes the signal disappear while the phantom stays. A clean
+exit is not evidence that an address bound.
+
 ### An XML attribute is `@name`, and the bare name silently means something else
 
 `<endpoint domain="example.com"/>` addresses as `endpoint.@domain`. Writing the override without

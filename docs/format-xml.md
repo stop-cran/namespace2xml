@@ -120,6 +120,66 @@ attributes therefore address canonically: `xml:space` is
 `@Q{http://www.w3.org/XML/1998/namespace}space`. That is the shape a scheme selector must use to
 match it.
 
+### An element name containing a dot needs an escape
+
+XML admits `.` inside an NCName, and §8.2 makes `.` the delimiter between namespace name parts.
+An element named `system.web` is therefore **one** name part whose text contains a dot, and every
+namespace spelling of that part has to escape it:
+
+```text
+configuration.system\.web.compilation.@debug=true
+```
+
+Appendix A.2 gives that character two spellings, and both denote the same name part and so the
+same overlay node:
+
+- `\.` — the literal-character escape, which is what a person writes;
+- `\u{2E}` — the Unicode-scalar escape, which is what the namespace **writer** emits. §16.4 fixes
+  the delimiter's own output form as `\u{HEX}`, so rendering the model of an `app.config`-shaped
+  document hands back `system\u{2E}web.compilation.@debug=false`, never `system\.web…`. Only the
+  output spelling is fixed; both forms read back identically, and a profile may use either.
+
+The same rule applies inside a qualified component once the URI has closed, because §11.4 gives
+the local name ordinary Section 8.2 escaping: `Q{urn:p}system\.web` and `Q{urn:p}system\u{2E}web`
+are one component. Dots *inside* `Q{...}` are part of the URI and need no escape, as above.
+
+Written without the escape, the address is not malformed — it is a **different, valid** address.
+`.` separates, so `configuration.system.web.compilation.@debug` names four parts, none of which
+exists in the document, and §17.1 creates them. The run exits `0` with an empty diagnostic stream,
+the real element keeps its value, and a parallel subtree appears beside it:
+
+```xml
+<configuration>
+  <system.web>
+    <compilation debug="false" />
+  </system.web>
+  <system>
+    <web>
+      <compilation debug="true" />
+    </web>
+  </system>
+</configuration>
+```
+
+Verified, and pinned by the `xml-an-element-name-with-a-dot-needs-an-escape` conformance case.
+
+No diagnostic reports this, and none is specified. Creating an absent path is ordinary overlay
+behaviour, and nothing distinguishes a mis-escaped address from an intended new element.
+`WARN011` does not reach it either: §11.4 confines that warning to an attribute and a
+namespace-qualified element sharing one simple alias, and a dotted name is neither.
+
+One partial signal exists, and the obvious fix for it hides the problem. Without `root`, the
+phantom raises the view's top-level member count and XML refuses the document:
+
+```text
+error TYPE001 §19.5: the selected view has 2 top-level members and XML has one document
+element, so Section 14.1 requires an explicit 'root'.
+```
+
+Adding `root`, which is what that error asks for and what the shape genuinely needs, silences the
+only hint that the override missed. So do not read a clean run as confirmation that an address
+bound to something. Render the model first — `docs/usage-methodology.md` §3 makes that a habit.
+
 ### The alias shorthand
 
 An XML document contains typed components; a namespace scheme can address them either
