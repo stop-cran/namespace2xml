@@ -479,7 +479,7 @@ starting point rather than an answer, and test your own reader against the emitt
 
 This discharges acceptance item 28 for the named parser. `KNOWN-LIMITS.md` §2.1 records what
 remains, which is now the unnamed parsers rather than the absence of any named one, and
-[#67](https://github.com/stop-cran/namespace2xml/issues/67) tracks it.
+[#98](https://github.com/stop-cran/namespace2xml/issues/98) tracks it.
 ## Traps
 
 - **`-i config.ini` is not an INI reader.** §7.1 sends `.ini` down the namespace-profile

@@ -862,9 +862,10 @@ and is what [#88 (closed)](https://github.com/stop-cran/namespace2xml/issues/88)
 corpus's 23 emitted `.ini` files still write a preamble, because they are about something else and
 set no INI options at all, and the lane skips them for that reason rather than passing them.
 
-Item 28 is discharged for the named parser and no further. Widening it — a second parser, or an
-envelope that covers the two dialect switches — is tracked as
-[#67](https://github.com/stop-cran/namespace2xml/issues/67).
+Item 28 is discharged for the named parser and no further, which closed
+[#67 (closed)](https://github.com/stop-cran/namespace2xml/issues/67). Widening it — a second parser,
+or an envelope that covers the two dialect switches — is tracked as
+[#98](https://github.com/stop-cran/namespace2xml/issues/98).
 ## 3. Platform and environment
 
 - **Supported:** Linux, Windows and macOS on x64 and arm64, via the .NET 10 runtime.
