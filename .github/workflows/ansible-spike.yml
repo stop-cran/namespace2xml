@@ -1,0 +1,96 @@
+name: ansible-spike
+
+# Issue #37. Manual dispatch only: this measures an integration that is not part of the product,
+# against a published preview, and nothing in the repository depends on its result.
+#
+# It runs here rather than on a workstation because an Ansible controller is POSIX-only. The
+# encoder and the marshalling can be exercised anywhere Python runs; the claim that a playbook
+# renders a file and that a second run changes nothing can only be measured where ansible-playbook
+# runs at all.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published namespace2xml version to prototype against
+        default: 3.0.0-preview.4
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  ansible:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the published tool
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          dotnet tool install --global namespace2xml --version "${VERSION}"
+          echo "${HOME}/.dotnet/tools" >> "${GITHUB_PATH}"
+
+      - name: Install ansible-core
+        run: python -m pip install --disable-pip-version-check 'ansible-core>=2.16'
+
+      - name: Record what is being measured
+        run: |
+          {
+            echo "runner:  $(uname -srm)"
+            echo "tool:    $(namespace2xml --version | tr '\n' ' ')"
+            echo "ansible: $(ansible --version | head -1)"
+            echo "python:  $(python --version)"
+          } | tee outcome.txt
+
+      # The filter does not get to define its own correctness: side A compares the encoder against
+      # profile text authored from Sections 8.2, 8.3 and 8.7, side B against the tool run by hand.
+      - name: Oracle checks
+        run: python spikes/ansible/test_filter.py | tee -a outcome.txt
+
+      - name: Run the playbook twice
+        env:
+          ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
+          N2X_SPIKE_OUTPUT: ${{ github.workspace }}/rendered
+        run: |
+          ansible-playbook -i localhost, spikes/ansible/playbook.yml | tee first-run.txt
+          ansible-playbook -i localhost, spikes/ansible/playbook.yml | tee second-run.txt
+
+      # This is the claim the filter shape is chosen for. ansible.builtin.copy owns idempotence;
+      # if the second run reports a change, either the tool is not deterministic or the filter is
+      # feeding it something that varies, and both are worth failing over.
+      - name: The second run must change nothing
+        run: |
+          if grep -qE 'changed=[1-9]' second-run.txt; then
+            echo 'FAIL: the second run reported a change'
+            cat second-run.txt
+            exit 1
+          fi
+          echo 'second run changed nothing' | tee -a outcome.txt
+
+      # full - prepared is the temporary-file marshalling overhead, which is the evidence that
+      # would reopen the deferred --stdout decision (G4, #26). bare is the process floor, which is
+      # what Native AOT (#28) would attack instead.
+      - name: Measure invocation cost
+        run: |
+          python spikes/ansible/measure-invocation.py --runs 25 --out timings.json | tee -a outcome.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ansible-spike
+          path: |
+            outcome.txt
+            timings.json
+            first-run.txt
+            second-run.txt
+            rendered/
