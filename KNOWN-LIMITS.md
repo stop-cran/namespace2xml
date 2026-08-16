@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r98+5c76f294ea85`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r99+bad2fa36f0a5`. Dated 2026-08.**
 
 This file tracks the branch, and the branch normally runs ahead of the last published preview:
 `3.0.0-preview.4` carries `r90+e172e0ba4d2a`, `3.0.0-preview.3` carries `r44+a91f25bf49ec`,
@@ -812,6 +812,48 @@ also produces. Step 11 now discards the provenance at a node it declined to infe
 what §3.2 says. Pinned by `warn010-is-not-owed-when-a-sequence-wins-the-shape-contest`, which
 asserts the whole diagnostic stream rather than one record — the defect was an extra warning, and
 only a stream assertion can fail on an extra.
+
+### 1.23 *(resolved)* Emitted YAML was under-quoted, and some readers lost data
+
+Present in every preview up to and including `3.0.0-preview.4`; resolved on the `v3` branch at this
+revision. There is no issue because the defect was found and fixed before any report reached the
+tracker — an exploratory round against independent parsers, run deliberately before the 3.0 merge.
+
+§19.4 said to quote a string that "would resolve to a non-string kind under `RestrictedYaml1`", and
+§10 says `RestrictedYaml1` "is intentionally not the complete YAML 1.2 Core Schema". A writer keyed
+to a strict subset of the schema its consumers use under-quotes by exactly that difference. The
+principle was right and the operative test was too narrow — it is still in the clause, now joined
+by a second condition — so this was an amendment to the contract and not only a repair to the code.
+
+Measured on a published preview's own output, at exit `0`:
+
+- a value of `<<` or `=` resolves to `tag:yaml.org,2002:merge` or `:value`, and a reader with no
+  constructor for that tag abandons the **whole document** — PyYAML and ruamel lose every sibling
+  entry, not just the one;
+- seven keys written came back as **five**, because `yes` and `on` both resolve to `True` and `no`
+  and `off` to `False`. §19.3 makes a key collision blocking `FLAT001`, and a collision that
+  appears only after the *reader* resolves the scalar defeats that rule from outside it;
+- `0x1F`, `0o17`, `.inf`, `.nan`, `+1`, `.5`, `1.` and `010` read back as numbers under YAML 1.2,
+  and `yes`/`no`/`on`/`off`, `1_000`, `12:30`, `2001-12-14`, `0b101` and `010` under YAML 1.1;
+- `type=string` was **no remedy**, because the values were already strings.
+
+**If you are running a published preview**, the exposure is any string value or key whose spelling
+is one of those forms; `--diagnostics-format json` says nothing about it, because nothing was wrong
+from the tool's point of view. Reading the output back with this tool also says nothing: §3.3's
+same-format round trip passed throughout, since the reader shares the writer's schema. Quote the
+affected values by hand, or upgrade.
+
+§19.4 now quotes any *portably typed* spelling — the union of the YAML 1.2 Core Schema's
+resolutions and the YAML 1.1 type repository's, enumerated as productions and applied identically
+to keys and values. The union is used rather than a census of libraries because both schemas are
+frozen published documents, and §24 byte-identity needs a rule that is stable and enumerable.
+`y` and `n` are in the set although PyYAML, SnakeYAML and Psych all leave them strings, because
+`gopkg.in/yaml.v2` implements the 1.1 list as published; that was measured against the resolver
+source rather than assumed. The rule only ever adds quotes, so it breaks no reader that worked.
+
+Pinned by `yaml-quotes-every-portably-typed-spelling`, which carries a negative half so that
+quoting everything fails it too, and guarded from outside by `tools/check-yaml-interop.{py,js}` —
+two lanes, because an unquoted `0o17` passes the 1.1 lane and fails the 1.2 lane.
 
 ## 2. Acceptance coverage
 

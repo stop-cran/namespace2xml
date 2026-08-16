@@ -425,6 +425,28 @@ the wrong destination format — YAML preserves them.
 JSON decoding: the JSON escape `\\` produces a literal `\`, then `\${` becomes the literal `${`,
 and no reference is expanded. Ordinary `${host}` in a JSON string does resolve.
 
+**A number the tool writes exactly may still be read as `Infinity` or `0`.** §18 keeps arbitrary
+precision and §19.3 emits the number in full, so `1e400` in a namespace profile is written
+`1.0e400` — which is valid JSON, and which both `json.loads` and `JSON.parse` return as infinity.
+`1e-400` comes back as `0`, and an integer wider than 2^53 loses its low digits in JavaScript.
+Nothing is wrong on this side: RFC 8259 §6 sets no range and warns that implementations vary. But
+the magnitude is gone in the consumer, at exit `0`, with no diagnostic anywhere.
+
+Declare `type=string` on the path when a number's exact value matters more than its kind. That
+writes `"1.0e400"`, which every parser returns intact; the consumer then chooses how to widen it.
+Verified against Python 3 and Node.
+
+**`type=string` restores the kind, not the spelling.** §18 rule 3 infers `[+-]?[0-9]+` as an
+integer, and the section closes with "Numeric source spelling is never retained" — so `0755`
+becomes `755`, `01234` becomes `1234`, `1.10` becomes `1.1`, and `+15551234` becomes `15551234`.
+Adding `type=string` gives `"755"`, not `"0755"`: the inference has already run and the leading
+zero is not recoverable from the model.
+
+File modes, zip codes, phone numbers and two-part version numbers are the everyday casualties. If
+the spelling carries meaning, write the value so §18's grammar declines it — a file mode as `0o755`
+or `u=rwx,go=rx`, a zip code with its country prefix — rather than expecting a directive to undo
+the inference. This is §18, not §19.3, so it applies identically to YAML, XML and the flat formats.
+
 ## Deliberate omissions
 
 The following are true statements about the JSON side of the tool that this guide does not

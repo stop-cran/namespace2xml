@@ -115,10 +115,11 @@ independently.
 - **YAML output no longer under-quotes by the difference between this tool's reader and its
   readers'.** Found in session by an exploratory round against independent parsers, with no inbound
   report. §19.4's principle was right — quote a string whose plain form would not read back as the
-  same string — but its operative test was "would resolve to a non-string kind under
-  `RestrictedYaml1`", and §10 says outright that `RestrictedYaml1` "is intentionally not the
-  complete YAML 1.2 Core Schema". A writer keyed to a strict subset of the schema its consumers use
-  under-quotes by exactly that difference, at exit `0`, with nothing to show for it.
+  same string — but its only operative test for a *typed* spelling was "would resolve to a
+  non-string kind under `RestrictedYaml1`", and §10 says outright that `RestrictedYaml1` "is
+  intentionally not the complete YAML 1.2 Core Schema". A writer keyed to a strict subset of the
+  schema its consumers use under-quotes by exactly that difference, at exit `0`, with nothing to
+  show for it.
 
   §19.4 previously **required** the defect, so this is a contract amendment and not only a code
   change. It also **removes** the carve-out that wrote a value of `<<` plain, whose stated reasoning
