@@ -29,11 +29,25 @@ dotnet build namespace2xml.slnx -c Release
 dotnet test  namespace2xml.slnx --no-build -c Release
 dotnet format namespace2xml.slnx --verify-no-changes --severity error
 pwsh -NoProfile -File tools/check-specification-quotations.ps1
+pwsh -NoProfile -File tools/check-known-limits-issues.ps1
 pwsh -NoProfile -File tools/hash-corpus-outputs.ps1 -Output corpus-hashes.txt
 ```
 CI additionally runs `actionlint` over `.github/workflows/`, and a gate asserting that no path under
 `conformance`, `spec`, `tools` or `spikes` is gitignored and that no conformance fixture carries a
 CR byte.
+
+**`check-known-limits-issues.ps1` is in that list because it was once missing from it.** It asserts
+that `KNOWN-LIMITS.md`'s header names the revision in `spec/contract-bundle.json`, so *every*
+specification amendment moves the revision and strands the header — and the four steps above it,
+plus 3 859 tests, all pass over that. One amendment went to CI with a stale header and failed
+`lint` on a docs line, after everything anyone habitually runs was green. Without `-RequireGh` the
+script skips only the issue-state half; the revision check runs either way, which is the half an
+amendment breaks.
+
+Its failure message asks for the *entries* to be re-read and not only the header bumped. Take that
+literally: an amendment that changes behaviour usually owes a `*(resolved)*` entry telling a reader
+of the last published preview what their binary does, and the header revision is what makes such an
+entry legible.
 
 **Run the quotation gate whenever you touch `docs/specification.md`.** It is the only thing that
 notices when an amendment strands a copy of the amended sentence elsewhere — see the trap below.

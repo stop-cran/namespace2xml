@@ -86,6 +86,11 @@ An amendment also strands every copy of the amended sentence elsewhere in the re
 `tools/check-specification-quotations.ps1` as well. Quote the contract in a blockquote and that gate
 covers you.
 
+An amendment moves the contract revision, and `KNOWN-LIMITS.md` names the revision it describes, so
+run `tools/check-known-limits-issues.ps1` too. It fails on the stale header alone, and its message
+is also the prompt to ask whether the amendment owes a `*(resolved)*` entry — a reader running the
+last published preview has the old behaviour and nothing else tells them so.
+
 See `.github/copilot-instructions.md` for the mechanical traps in this repository — several of them
 fail in ways that point at the wrong file.
 
