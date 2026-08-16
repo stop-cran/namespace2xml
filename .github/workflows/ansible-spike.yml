@@ -15,6 +15,15 @@ on:
         default: 3.0.0-preview.4
         required: false
         type: string
+  # workflow_dispatch alone is unreachable until v3 becomes the default branch, which is why the
+  # native-aot spike has never run. A measurement that cannot be taken is not evidence, so this
+  # also runs when the spike's own files change -- and only then.
+  push:
+    branches:
+      - v3
+    paths:
+      - 'spikes/ansible/**'
+      - '.github/workflows/ansible-spike.yml'
 
 permissions:
   contents: read
@@ -35,7 +44,7 @@ jobs:
 
       - name: Install the published tool
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ inputs.version || '3.0.0-preview.4' }}
         run: |
           dotnet tool install --global namespace2xml --version "${VERSION}"
           echo "${HOME}/.dotnet/tools" >> "${GITHUB_PATH}"
