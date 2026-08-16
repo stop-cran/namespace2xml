@@ -91,6 +91,19 @@ jobs:
           unzip -l "artifacts/namespace2xml.${version}.nupkg" | grep -q 'diagnostics.registry.json'
           unzip -l "artifacts/namespace2xml.${version}.snupkg" | grep -q '\.pdb'
 
+      - name: The symbols must reach their source, not merely exist
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # The check above proves the symbol package contains a .pdb. A .pdb whose documents nobody
+        # can resolve satisfies that and is worth nothing: symbols only pay for themselves if the
+        # path from a stack trace back to source is real. This walks that path for every document,
+        # and compares the bytes served against the checksum the compiler recorded rather than
+        # settling for a 200 - between two adjacent previews 90 of 131 files were byte-identical,
+        # so a status-only check would have accepted a package pinned to the wrong commit.
+        # The tag is pushed by the time this runs, so its SourceLink URLs are already servable.
+        run: pwsh -NoProfile -File tools/verify-sourcelink.ps1 -SymbolPackage "artifacts/namespace2xml.${env:version}.snupkg"
+
       - name: Install the packed tool and check it reports the released contract
         shell: bash
         run: |

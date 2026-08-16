@@ -15,6 +15,26 @@ independently.
 
 ### Added
 
+- **The release now proves its symbols can reach source, rather than proving they exist.** The
+  packaging check asserted that the `.snupkg` contains a `.pdb`, which a `.pdb` full of unresolvable
+  paths satisfies exactly. `tools/verify-sourcelink.ps1` walks the path a debugger walks instead:
+  read the SourceLink document map out of each PDB, resolve every document through it, fetch it, and
+  compare the served bytes against the checksum the compiler recorded. Documents whose source is
+  embedded in the PDB are settled without a fetch, and a package that embedded everything fails
+  rather than passing with nothing checked.
+
+  Measured against the published `3.0.0-preview.4`: 131 documents fetched with byte-exact checksums,
+  8 embedded, 0 unsettled, resolving to `b4cad05` — the commit `v3.0.0-preview.4` tags.
+
+  Comparing checksums rather than accepting a 200 is what makes the check real. Between
+  `v3.0.0-preview.3` and `v3.0.0-preview.4` **90 of 131 source files were byte-identical**, so a
+  package pinned to the wrong commit would have answered 200 for two thirds of its documents. That
+  is not a hypothetical: pointing the map at the earlier commit is one of the three mutations the
+  check was proven red against, and it left 90 documents passing.
+
+  This discharges the M9 requirement that symbols and SourceLink be *verified* end to end rather
+  than assumed. [#36](https://github.com/stop-cran/namespace2xml/issues/36).
+
 - **The INI dialect now names a parser it is verified against.** `docs/format-ini.md` previously
   answered §19.6's compatibility question with "it names none", which the section permits. Measuring
   the dialect against Python's `configparser` showed that answer was costing more than it saved:

@@ -552,12 +552,30 @@ The moving parts, so nobody has to rediscover them:
 | Credential | none stored — nuget.org **trusted publishing** | The workflow proves its identity with a GitHub OIDC token and receives a key valid for one hour. There is no long-lived secret to leak, rotate, or forget. `NuGet/login@v1` runs immediately before the push because each token buys exactly one key. |
 | Trust policy | owner `stop-cran`, repo `namespace2xml`, workflow `release.yml` | Registered on nuget.org, and it names the **workflow file**. Renaming `release.yml` silently revokes the ability to publish; change the policy first. |
 | Environment | `nuget`, restricted to `v3.*` tags | The workflow's own trigger already says tags only; the environment says it again where a workflow edit cannot reach. Add required reviewers here if you want a human gate, and name `nuget` in the nuget.org policy to require it. |
-| Order | verify → pack → check contents → install → check `--version` → follow every printed link → attest → exchange token → push | Everything cheap and reversible happens before the one step that is neither. |
+| Order | verify → pack → check contents → check symbols reach source → install → check `--version` → follow every printed link → attest → exchange token → push | Everything cheap and reversible happens before the one step that is neither. |
 
 The link check exists because `--version` reports a `specification-sha256` and a URL, and those are
 only worth printing if the URL serves bytes that hash to that value. It fetches the specification
 the tool points at and compares. A release whose contract identity cannot be resolved is worse than
 no release, because a report filed against it cannot be acted on.
+
+The symbol check is the same argument one layer down. Asserting that the `.snupkg` contains a `.pdb`
+proves the file is there and nothing about whether it is useful: a `.pdb` whose documents nobody can
+resolve satisfies it exactly. `tools/verify-sourcelink.ps1` walks the path a debugger walks — read
+the SourceLink map out of each PDB, resolve every document through it, fetch, and compare the served
+bytes against the checksum the compiler recorded. Documents with source embedded in the PDB are
+settled without a fetch, and a package that embedded everything fails rather than passing with
+nothing checked.
+
+Comparing checksums rather than accepting a 200 is the part that carries the weight. Between
+`v3.0.0-preview.3` and `v3.0.0-preview.4`, **90 of 131 source files were byte-identical**, so a
+package pinned to the wrong commit would have answered 200 for two thirds of its documents and
+looked fine.
+
+To run it against a published version, `pwsh -NoProfile -File tools/verify-sourcelink.ps1` — with no
+arguments it verifies the newest `v3.*` tag. Set `GH_TOKEN` first; it makes one request per source
+file, and an unauthenticated burst that long draws a 429. Transient statuses are retried, because
+reporting one as "cannot be traced back to source" would accuse a good package.
 
 ### 9.2 Preparing the tag
 
