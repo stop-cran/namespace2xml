@@ -92,6 +92,45 @@ independently.
 
 ### Fixed
 
+- **Output-instance consolidation no longer decides §15.2 twice, and no longer decides it wrongly.**
+  Found in session, with no inbound report. `PlanningPhase.Consolidate` folds the instances that
+  share one concrete selector and re-merged each per-instance setting as it went — `filename`,
+  `root`, `delimiter`, and the `ini`, `namespace`, `json` and `yaml` output options — but omitted
+  `xmloutputoptions`, so the method broke the invariant its own documentation states.
+
+  The omission turned out not to be the defect. `RebindInstanceOptions` runs immediately afterwards
+  and re-resolves **every** per-instance setting from §15.2's override stream, including the omitted
+  one, and it supersedes the merge in all cases: `BuildInstances` attaches an option only to the
+  instance built from the same written selector, that selector literalizes to the concrete selector
+  by construction, and every winner but `output` is carried on `SchemeConfiguration.InstanceOptions`.
+  The merge was therefore unreachable in effect, and where it could have decided anything it was the
+  copy that was wrong — it ordered its candidates by the `output` declaration, where §15.2 orders
+  them by the option declaration.
+
+  **Removed**: the whole per-setting merge, rather than the two lines that would have completed it.
+  The fold now keeps only the later member, which is what §16.1 needs for `output=ignore` and its
+  restoration, and leaves the settings to the rebind. Verified by measurement, not by reading:
+  `a.*.xmloutputoptions=noindent` still reaches an instance that a later `a.x.output=xml` also
+  produced, against a control run that shows the indented default. Two mutations of the code that
+  remains — making the fold first-wins, and making it stop deduplicating concrete selectors — are
+  killed by four and one conformance cases respectively, while neutralizing the deleted merge left
+  all 249 cases green, which is the evidence that it was dead.
+
+  No conformance fixture accompanies this, because no input distinguishes the two behaviours. A
+  fixture asserting one would be recording the implementation's opinion rather than the contract's.
+
+- **A deferred scheme directive no longer blames a reference nobody wrote.** Found in session, with
+  no inbound report. `SchemeCompiler` defers an entry for two reasons — a reference that step 1 did
+  not resolve, and its `switch` default catching a recognized directive that no arm routes — and
+  `PlanningPhase.ApplyTransformations` described both as "references in scheme values", reporting
+  that the declaration "contains a reference that step 1 did not resolve". The second reason exists
+  precisely to catch a directive added to `SchemeDirective` without a compile route, and it would
+  have sent whoever added it looking for a reference in a value that has none. The arm now names the
+  directive instead. Both paths remain unreachable today — an unresolved reference is refused
+  earlier with `REFERENCE002` and exit 1, and all seventeen recognized directives are routed — so
+  this is a correction to a safety net rather than to observable behaviour, and no fixture can see
+  it either.
+
 - **A comment-only container no longer draws a shape-conflict warning it cannot have lost.**
   Reported as [#99](https://github.com/stop-cran/namespace2xml/issues/99): overlaying `cfg.a=9` onto
   an XML `<a><!--one-->1</a>` and rendering JSON or YAML emitted `TYPE002`, saying the run had

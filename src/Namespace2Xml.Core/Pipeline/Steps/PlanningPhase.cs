@@ -555,13 +555,13 @@ public static class PlanningPhase
     /// declarations are in one stream.
     /// </para>
     /// <para>
-    /// Each setting is taken from the latest member that declared it, which is why the nullable
-    /// settings and the declaration sites are consulted rather than the values: a member that never
-    /// wrote <c>filemerge</c> carries the Section 16.11 default, and letting that default win over an
-    /// earlier explicit declaration would invert the override. <see cref="OutputInstance.Captures"/>
-    /// travels with <see cref="OutputInstance.FilenameTemplate"/> because it is only ever applied to
-    /// it, and a template written on a wildcard declaration must be substituted with that
-    /// declaration's captures rather than the winning one's.
+    /// Only the later member survives. Section 15.2's per-instance settings are deliberately not
+    /// merged here, because <see cref="RebindInstanceOptions"/> re-resolves every one of them from
+    /// the override stream immediately afterwards: an option reaches an instance only from a
+    /// declaration written on the selector that instance was literalized from, so that declaration
+    /// always matches the instance again during the rebind. Deciding the settings here as well
+    /// would implement one rule twice, and the copy would order its candidates by their
+    /// <c>output</c> declaration where Section 15.2 orders them by the option declaration.
     /// </para>
     /// </remarks>
     private static ImmutableArray<OutputInstance> Consolidate(
@@ -572,50 +572,22 @@ public static class PlanningPhase
 
         foreach (var instance in expanded)
         {
-            if (!streams.TryGetValue(instance.Selector, out var accumulated))
+            if (!streams.ContainsKey(instance.Selector))
             {
-                streams.Add(instance.Selector, instance);
                 order.Add(instance.Selector);
-                continue;
             }
 
-            streams[instance.Selector] = instance with
-            {
-                FilenameTemplate = instance.FilenameDeclaration is null
-                    ? accumulated.FilenameTemplate
-                    : instance.FilenameTemplate,
-                Captures = instance.FilenameDeclaration is null
-                    ? accumulated.Captures
-                    : instance.Captures,
-                FilenameDeclaration = instance.FilenameDeclaration ?? accumulated.FilenameDeclaration,
-                Root = instance.Root ?? accumulated.Root,
-                Delimiter = instance.Delimiter ?? accumulated.Delimiter,
-                IniOptions = instance.IniOptionsDeclaration is null
-                    ? accumulated.IniOptions
-                    : instance.IniOptions,
-                IniOptionsDeclaration =
-                    instance.IniOptionsDeclaration ?? accumulated.IniOptionsDeclaration,
-                NamespaceOptions = instance.NamespaceOptionsDeclaration is null
-                    ? accumulated.NamespaceOptions
-                    : instance.NamespaceOptions,
-                NamespaceOptionsDeclaration =
-                    instance.NamespaceOptionsDeclaration ?? accumulated.NamespaceOptionsDeclaration,
-                JsonOptions = instance.JsonOptionsDeclaration is null
-                    ? accumulated.JsonOptions
-                    : instance.JsonOptions,
-                JsonOptionsDeclaration =
-                    instance.JsonOptionsDeclaration ?? accumulated.JsonOptionsDeclaration,
-                YamlOptions = instance.YamlOptionsDeclaration is null
-                    ? accumulated.YamlOptions
-                    : instance.YamlOptions,
-                YamlOptionsDeclaration =
-                    instance.YamlOptionsDeclaration ?? accumulated.YamlOptionsDeclaration,
-                FileMerge = instance.FileMergeDeclaration is null
-                    ? accumulated.FileMerge
-                    : instance.FileMerge,
-                FileMergeDeclaration =
-                    instance.FileMergeDeclaration ?? accumulated.FileMergeDeclaration,
-            };
+            // Section 15.2's cross-selector override stream is resolved from scratch by
+            // RebindInstanceOptions immediately after this fold, and it re-derives every
+            // per-instance setting: BuildInstances attaches an option only to the instance built
+            // from the same written selector, that selector literalizes to this concrete one by
+            // construction, and every winner but 'output' is carried on
+            // SchemeConfiguration.InstanceOptions. Merging the settings again here would be a
+            // second, weaker implementation of one rule -- weaker because it would order the
+            // candidates by their 'output' declaration, where Section 15.2 orders them by the
+            // option declaration -- so the fold keeps only the later member, whose Formats
+            // Section 16.1 wants, and leaves the settings to the rebind.
+            streams[instance.Selector] = instance;
         }
 
         // Section 16.1 filters ignored instances after Section 15.2's cross-selector override
@@ -931,18 +903,27 @@ public static class PlanningPhase
         {
             var entry = configuration.Deferred[0];
 
-            // Only one thing defers an entry now that Section 15.1 step 1 resolves references and
-            // Section 12.1 excludes 'type' and 'output' from capture substitution: a reference that
+            // Two things defer an entry, and they need different explanations. A reference that
             // failed to resolve leaves its value unresolved, and Section 15.4 lets the phase finish
-            // its independent checks first. It cannot reach *here*, because the scheme phase aborts
-            // on that blocking diagnostic. The arm is written out rather than asserted because the
-            // reachability is a property of another component.
+            // its independent checks first; that one cannot reach *here*, because the scheme phase
+            // aborts on the blocking diagnostic. The compiler's default arm defers anything its
+            // switch does not route, which is unreachable only for as long as every recognized
+            // directive is routed -- so the arm exists to catch a directive added without a
+            // compile route, and must name that directive rather than blame a reference nobody
+            // wrote. Both are written out rather than asserted because the reachability is a
+            // property of another component.
             return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
-                new UnsupportedCapability(
-                    "references in scheme values",
-                    $"'{entry.Declaration}' in {entry.Source} contains a reference that step 1 "
-                    + "did not resolve.",
-                    "\u00A715.1"));
+                entry.Value.ContainsReference
+                    ? new UnsupportedCapability(
+                        "references in scheme values",
+                        $"'{entry.Declaration}' in {entry.Source} contains a reference that step 1 "
+                        + "did not resolve.",
+                        "\u00A715.1")
+                    : new UnsupportedCapability(
+                        $"the '{SchemeDirectives.CanonicalSpelling(entry.Directive)}' scheme directive",
+                        $"'{entry.Declaration}' in {entry.Source} is recognized by Section 15 and "
+                        + "this build compiles no configuration from it.",
+                        "\u00A715.1"));
         }
 
         if (configuration.Transforms.IsEmpty)
