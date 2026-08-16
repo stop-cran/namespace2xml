@@ -582,6 +582,8 @@
         "XML is not yet pinned for this item."
       ],
       "fixtures": [
+        "a-comment-beside-a-child-still-contests-a-later-scalar",
+        "a-comment-only-container-does-not-contest-a-later-scalar",
         "a-discarded-comment-does-not-delete-the-value-it-annotates",
         "empty-container-versus-scalar-picks-the-later-shape",
         "json-and-yaml-render-one-exclusive-shape"

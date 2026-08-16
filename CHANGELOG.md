@@ -92,6 +92,33 @@ independently.
 
 ### Fixed
 
+- **A comment-only container no longer draws a shape-conflict warning it cannot have lost.**
+  Reported as [#99](https://github.com/stop-cran/namespace2xml/issues/99): overlaying `cfg.a=9` onto
+  an XML `<a><!--one-->1</a>` and rendering JSON or YAML emitted `TYPE002`, saying the run had
+  "omit[ted] the mapping children" — and emitted no `WARN003`, so the two comments that really were
+  dropped went unannounced. Both halves were wrong, and each was the other's cover: the warning that
+  fired described a loss that had not happened, and the warning that would have described the actual
+  loss stayed silent.
+
+  §4.4 applies a destination's discard *before* step 2, so at a destination that renders no comment
+  nodes "a container whose members are all discarded there is not a container contribution at that
+  destination". A contribution that never enters the contest cannot lose one. The projection already
+  applied that rule in one direction — restoring the scalar when the comment container carried the
+  later shape-mark, which is what made it win — but reached the reporting path unchanged when the
+  scalar was later and the container would merely have *lost*. Nothing about §4.4's sentence depends
+  on which mark is later; the discard removes the contribution outright, in both directions. The
+  losing facet is now recognized the same way, so no `TYPE002` is raised, and its comments are
+  counted where nothing else would have visited them, so the summarized `WARN003` reports them.
+
+  The boundary is unchanged and now pinned: a container that keeps a member after the discard is
+  still a container contribution, still contests, and still produces `TYPE002` when the later scalar
+  wins. Two fixtures cover the pair —
+  `a-comment-only-container-does-not-contest-a-later-scalar` and
+  `a-comment-beside-a-child-still-contests-a-later-scalar`. The second exists because without it an
+  implementation could suppress the warning for any losing mapping that merely *contains* a comment;
+  it is the case that dies when the guard is weakened that way, and the empty-container fixture is
+  not, because an empty container has no members to discard.
+
 - **A later scalar no longer deletes the XML content it lands on.** Reported as
   [#97](https://github.com/stop-cran/namespace2xml/issues/97): overlaying `cfg.a=9` onto an XML
   `<a><!--d-->2</a>` emitted `<a>9</a>`, and the comment was gone. The same invocation destroyed

@@ -120,7 +120,22 @@ public sealed class DocumentProjection
             return new DocumentScalar(ForcedString(path) ? AsString(surviving) : surviving, comments);
         }
 
-        Report(marks, path);
+        // The same discard applies to a container facet the scalar outranked. Section 4.4 makes
+        // it "not a container contribution at that destination", so it never entered the contest
+        // and cannot have lost one: no shape-conflict warning arises in either direction. Its
+        // comments are still discarded, and nothing below will visit them, so they are counted
+        // here or not at all.
+        var lostChildren = marks.MappingShape is not null && !marks.RendersAsMapping
+            ? DiscardedChildCount(node)
+            : 0;
+
+        var lostItems = marks.SequenceShape is not null && !marks.RendersAsSequence
+            ? DiscardedSequenceItemCount(node)
+            : 0;
+
+        discardedComments += lostChildren + lostItems;
+
+        Report(marks, path, lostChildren > 0, lostItems > 0);
 
         if (marks.RendersAsSequence)
         {
@@ -198,57 +213,69 @@ public sealed class DocumentProjection
     /// mapping "participate in precedence even though it has no children", so an author who wrote
     /// one after a scalar meant it to win, and nothing about it is discarded here.
     /// </remarks>
-    private static bool EveryMemberIsADiscardedComment(OverlayNode node, NodeMarks marks)
+    private static bool EveryMemberIsADiscardedComment(OverlayNode node, NodeMarks marks) =>
+        DiscardedMemberCount(node, marks) > 0;
+
+    /// <summary>Counts the comment members this node loses when its scalar wins instead.</summary>
+    /// <param name="node">The node.</param>
+    /// <param name="marks">Its Section 4.4 marks.</param>
+    private void DiscardCommentMembers(OverlayNode node, NodeMarks marks) =>
+        discardedComments += DiscardedMemberCount(node, marks);
+
+    /// <summary>
+    /// The number of members in this node's rendering container when every one of them is a
+    /// comment this destination discards, and zero otherwise.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <param name="marks">Its Section 4.4 marks.</param>
+    /// <returns>The count, or zero when the container survives the discard.</returns>
+    private static int DiscardedMemberCount(OverlayNode node, NodeMarks marks) =>
+        marks.RendersAsSequence ? DiscardedSequenceItemCount(node) : DiscardedChildCount(node);
+
+    /// <summary>
+    /// The number of mapping children when every one of them is a comment this destination
+    /// discards, and zero otherwise.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The count, or zero when the mapping survives the discard.</returns>
+    private static int DiscardedChildCount(OverlayNode node)
     {
-        var any = false;
-
-        if (marks.RendersAsSequence)
-        {
-            foreach (var (_, item) in node.OrderedSequence)
-            {
-                if (!CommentNodes.Vanishes(item.Node))
-                {
-                    return false;
-                }
-
-                any = true;
-            }
-
-            return any;
-        }
+        var count = 0;
 
         foreach (var (_, child) in node.OrderedChildren)
         {
             if (!CommentNodes.Vanishes(child))
             {
-                return false;
+                return 0;
             }
 
-            any = true;
+            count++;
         }
 
-        return any;
+        return count;
     }
 
-    /// <summary>Counts the comment members this node loses when its scalar wins instead.</summary>
+    /// <summary>
+    /// The number of sequence items when every one of them is a comment this destination
+    /// discards, and zero otherwise.
+    /// </summary>
     /// <param name="node">The node.</param>
-    /// <param name="marks">Its Section 4.4 marks.</param>
-    private void DiscardCommentMembers(OverlayNode node, NodeMarks marks)
+    /// <returns>The count, or zero when the sequence survives the discard.</returns>
+    private static int DiscardedSequenceItemCount(OverlayNode node)
     {
-        if (marks.RendersAsSequence)
+        var count = 0;
+
+        foreach (var (_, item) in node.OrderedSequence)
         {
-            foreach (var _ in node.OrderedSequence)
+            if (!CommentNodes.Vanishes(item.Node))
             {
-                discardedComments++;
+                return 0;
             }
 
-            return;
+            count++;
         }
 
-        foreach (var _ in node.OrderedChildren)
-        {
-            discardedComments++;
-        }
+        return count;
     }
 
     /// <summary>
@@ -315,7 +342,11 @@ public sealed class DocumentProjection
     private static ScalarPayload AsString(ScalarPayload payload) =>
         payload.IsNull ? payload : ScalarPayload.OfString(payload.ToCanonicalText());
 
-    private void Report(NodeMarks marks, ImmutableArray<NamePart> path)
+    private void Report(
+        NodeMarks marks,
+        ImmutableArray<NamePart> path,
+        bool mappingVanished,
+        bool sequenceVanished)
     {
         var omitted = new List<string>();
 
@@ -326,12 +357,12 @@ public sealed class DocumentProjection
 
         if (marks.HasBothContainers || marks.RendersAsScalar)
         {
-            if (marks.MappingShape is not null && !marks.RendersAsMapping)
+            if (marks.MappingShape is not null && !marks.RendersAsMapping && !mappingVanished)
             {
                 omitted.Add("the mapping children");
             }
 
-            if (marks.SequenceShape is not null && !marks.RendersAsSequence)
+            if (marks.SequenceShape is not null && !marks.RendersAsSequence && !sequenceVanished)
             {
                 omitted.Add("the sequence items");
             }

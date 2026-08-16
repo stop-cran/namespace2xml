@@ -1,0 +1,4 @@
+[
+{"code":"TYPE002","severity":"warning","phase":"planning","path":"a","destination":"cfg.json"},
+{"code":"TYPE002","severity":"warning","phase":"planning","path":"a","destination":"cfg.yaml"}
+]
