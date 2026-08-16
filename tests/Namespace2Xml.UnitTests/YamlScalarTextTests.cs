@@ -125,20 +125,88 @@ public class YamlScalarTextTests
         YamlScalarText.Spell(text).ShouldBe(expected);
 
     /// <summary>
-    /// A string that resolves to itself needs no quoting, so Section 19.4's plain form applies. The
-    /// spellings Section 10.1 explicitly keeps as strings are exactly the ones that survive here.
+    /// A string that resolves to itself and is typed by neither published schema needs no quoting,
+    /// so Section 19.4's plain form applies. Every numeric production in the portably typed set
+    /// requires at least one digit, so a prefix or a separator with nothing behind it stays plain,
+    /// and a sexagesimal group needs a value below sixty.
     /// </summary>
     /// <param name="text">A string with a safe plain spelling.</param>
+    [TestCase("hello")]
+    [TestCase("a b")]
+    [TestCase(".")]
+    [TestCase("._")]
+    [TestCase("+.")]
+    [TestCase(".x")]
+    [TestCase("a:b")]
+    [TestCase("1:60")]
+    [TestCase("99:99")]
+    [TestCase("0b")]
+    [TestCase("0x")]
+    [TestCase("0o")]
+    [TestCase("1e")]
+    [TestCase("_")]
+    public void AStringWithASafePlainSpellingIsNotQuoted(string text) =>
+        YamlScalarText.Spell(text).ShouldBe(text);
+
+    /// <summary>
+    /// Section 19.4's portably typed set is the union of the YAML 1.2 Core Schema's resolutions and
+    /// the YAML 1.1 type repository's, so a spelling either revision types is quoted even where
+    /// Section 10.1 keeps it a string. Read back plain, one of these returns a number, a Boolean or
+    /// a date instead of the string that was written.
+    /// </summary>
+    /// <param name="text">A spelling one of the two published schemas types.</param>
     [TestCase("yes")]
+    [TestCase("no")]
+    [TestCase("on")]
     [TestCase("off")]
+    [TestCase("Yes")]
+    [TestCase("OFF")]
+    [TestCase("y")]
+    [TestCase("N")]
+    [TestCase("yEs")]
     [TestCase("+1")]
     [TestCase(".5")]
     [TestCase("1.")]
-    [TestCase("hello")]
-    [TestCase("a b")]
+    [TestCase("010")]
+    [TestCase("0x1F")]
+    [TestCase("0o17")]
+    [TestCase("0b101")]
+    [TestCase("1_000")]
+    [TestCase("0x_")]
+    [TestCase("12:30")]
+    [TestCase("190:20:30")]
+    [TestCase(".inf")]
+    [TestCase("-.inf")]
+    [TestCase(".NaN")]
     [TestCase("2001-12-14")]
-    public void AStringWithASafePlainSpellingIsNotQuoted(string text) =>
-        YamlScalarText.Spell(text).ShouldBe(text);
+    [TestCase("2001-12-14T21:59:43.10-05:00")]
+    public void APortablyTypedSpellingIsQuotedThoughSectionTenKeepsItAString(string text) =>
+        YamlScalarText.Spell(text).ShouldBe("'" + text + "'");
+
+    /// <summary>
+    /// The productions match "on the value's exact characters", so a trailing line break is not an
+    /// end of input. A .NET <c>$</c> anchor matches before one, which would report a value carrying
+    /// a line break as portably typed and, read backwards, as safe to spell plain.
+    /// </summary>
+    /// <param name="text">A typed spelling followed by a line break.</param>
+    [TestCase("42\n")]
+    [TestCase("yes\n")]
+    [TestCase("2001-12-14\n")]
+    public void ATrailingLineBreakIsNotAnEndOfInputForTheProductions(string text) =>
+        YamlScalarText.IsPortablyTyped(text).ShouldBeFalse();
+
+    /// <summary>
+    /// The two key tags cost a refused document rather than a changed value: a YAML 1.1 reader
+    /// resolves them to <c>tag:yaml.org,2002:merge</c> and <c>tag:yaml.org,2002:value</c>, and a
+    /// reader with no constructor for those tags abandons the whole load, losing every sibling
+    /// entry with them. Section 19.4 spells a key by these same rules, so both positions are
+    /// covered.
+    /// </summary>
+    /// <param name="text">A spelling a reader resolves to a key tag.</param>
+    [TestCase("<<")]
+    [TestCase("=")]
+    public void AKeyTagSpellingIsQuotedInEitherPosition(string text) =>
+        YamlScalarText.Spell(text).ShouldBe("'" + text + "'");
 
     /// <summary>
     /// A plain scalar must also be syntactically plain. YAML gives these characters indicator
@@ -167,6 +235,7 @@ public class YamlScalarTextTests
     [TestCase("trailing:")]
     [TestCase(" leading")]
     [TestCase("trailing ")]
+    [TestCase("-.")]
     public void AStringNeedingIndicatorCharactersIsNotPlain(string text) =>
         YamlScalarText.IsPlainSafe(text).ShouldBeFalse();
 

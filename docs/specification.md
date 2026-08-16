@@ -2661,16 +2661,43 @@ Exactly one style is chosen for a scalar, by taking the first rule below that ap
    - begins or ends with a space or a TAB;
    - contains a TAB anywhere;
    - contains `,`, `[`, `]`, `{`, or `}` anywhere;
-   - contains `: ` or ` #` anywhere, or ends with `:`; or
-   - would resolve to a non-string kind under `RestrictedYaml1`.
+   - contains `: ` or ` #` anywhere, or ends with `:`;
+   - would resolve to a non-string kind under `RestrictedYaml1`; or
+   - is a *portably typed* spelling, defined below.
 
 4. **Plain**, otherwise.
+
+**Portably typed spellings.** `RestrictedYaml1` is deliberately a strict subset of the YAML 1.2 Core Schema, as Section 10 says outright. A quoting rule keyed to that subset under-quotes by exactly the difference between it and the schema the *consumer* uses — and the consumer is not this tool. A value written as a string is then read back as a number, a boolean, a date, or a merge key, at exit `0`, with nothing to show that it happened. This tool's own reader is no evidence to the contrary, because it shares this tool's resolutions; a same-format round trip through Section 3.3 succeeds while every other reader disagrees, so the failure is invisible from inside.
+
+A scalar is *portably typed* when it matches any production below. The set is the union of the YAML 1.2 Core Schema's resolutions and the YAML 1.1 type repository's, so a portably typed scalar is quoted whichever revision a consumer's library implements. Matching is on the value's exact characters, and an optional leading `+` or `-` is admitted wherever a sign is shown.
+
+- **Boolean**: `y`, `Y`, `n`, `N`, or any ASCII case spelling of `yes`, `no`, `on`, `off`, `true`, or `false`.
+- **Null**: the empty string, `~`, or any ASCII case spelling of `null`.
+- **Integer**: `[0-9]+`, including a spelling with a leading zero; `[0-9][0-9_]*`; `0b[01_]+`; `0[0-7_]+`; `0o[0-7]+`; `0x[0-9A-Fa-f_]+`; or a sexagesimal `[0-9][0-9_]*(:[0-5]?[0-9])+`.
+- **Float**: `[0-9][0-9_]*\.[0-9_]*([eE][-+]?[0-9]+)?` or `\.[0-9][0-9_]*([eE][-+]?[0-9]+)?`, which between them admit `1.` and `.5`; `[0-9][0-9_]*[eE][-+]?[0-9]+`; a sexagesimal `[0-9][0-9_]*(:[0-5]?[0-9])+\.[0-9_]*`; `.inf`, `.Inf`, or `.INF`; or `.nan`, `.NaN`, or `.NAN`, which take no sign.
+- **Timestamp**: `[0-9]{4}-[0-9]{2}-[0-9]{2}`; or `[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}` followed by `T`, `t`, or one or more spaces or tabs, then `[0-9]{1,2}:[0-9]{2}:[0-9]{2}`, an optional `.` and digits, and an optional zone written `Z` or a signed hour with an optional `:` and minutes.
+- **Merge key**: `<<`.
+- **Value key**: `=`.
+
+The boolean and null cases fold ASCII case rather than listing the three casings each published schema names. The folded form is a strict superset, it is one clause instead of eighteen literals, and the mistake it can make — quoting `yEs`, which no schema types — costs two characters, where the mistake a literal table can make is an omitted casing that silently changes a value.
+
+The single-letter `y` and `n` are in the set although several widely consulted implementations do not resolve them, and a survey of libraries rather than of schemas would drop them as inert. The YAML 1.1 type repository lists them, and at least one broadly deployed reader implements that list as published, so `y` reaches it as a boolean. A key is where this costs most, because `y` is an ordinary name: the alternative to quoting it is a mapping whose member is addressed as `true` by some of its readers and as `y` by the rest. The set follows the published schemas rather than a census of libraries, for the same reason Section 24 fixes output bytes against a document rather than against the current behavior of a dependency.
+
+Every numeric production requires at least one digit, so `.`, `._`, and `+.` stay plain: no schema types them, and quoting a value no reader would misread buys nothing. `0b_` and `0x_` do not stay plain even though they name no number, because a YAML 1.1 reader recognizes the prefix and then fails to convert the digits, ending the load with an error rather than a string.
+
+Several of these are typed by only one revision, and two are typed differently by each: `010` is `8` to a YAML 1.1 reader and `10` to a YAML 1.2 one, and `0o17` is a string to the first and `15` to the second. A rule that picked either revision would leave the other's readers wrong, which is why the set is their union rather than a choice between them.
+
+`.5`, `1.`, and `+1` appear here although Section 10 keeps them strings on input. That is not a contradiction: Section 10 fixes what this tool *reads*, and this section fixes what a conforming reader may do with what this tool *writes*. Both YAML revisions type all three, so all three are quoted.
+
+`<<` and `=` are the two whose cost is not a changed value but a refused document. A YAML 1.1 reader resolves them to `tag:yaml.org,2002:merge` and `tag:yaml.org,2002:value`, and a reader with no constructor for those tags — the default in the most widely deployed implementations — abandons the whole load rather than that one node, so every sibling entry is lost with them.
 
 Rule 3 is deliberately stricter than YAML's own plain-scalar productions in two places, and the strictness is the specified behavior rather than a permitted approximation. An indicator character is refused wherever it opens the value, though YAML admits `-`, `?` and `:` there when the next character is not a space; and a flow indicator is refused in every position, though only flow context requires it. Both make the spelling of a value independent of where it is written, which is what lets a fixture pin it. An implementation applying YAML's productions literally emits `-ab` and `a,b` plain and does not conform.
 
 A single-quoted scalar has one escape, `''` for a literal single quote. A double-quoted scalar uses `\"`, `\\`, `\n`, `\r` and `\t`, and spells every other escaped character `\uXXXX` with four uppercase hexadecimal digits. YAML's remaining short forms — `\0`, `\a`, `\b`, `\v`, `\f`, `\e`, `\N`, `\_`, `\L`, `\P` — are never emitted, so that one rule covers the whole range rather than a table of exceptions. A character outside the sets named in rule 2 is written as itself in UTF-8, including U+00A0 and every non-ASCII printable character.
 
-A mapping key is spelled by these same rules, with one addition: a key whose text is `<<` is single-quoted, because Section 10 refuses to read an unquoted merge key back. The addition applies to keys alone. A *value* of `<<` is written plain, since nothing resolves a merge key in value position and the plain form reads back as the two characters it is. `RestrictedYaml1` also resolves no tag on a key, so quoting a key is never required for resolution alone; a key is nevertheless quoted on the same conditions as a value, so that one string has one spelling wherever it appears.
+A mapping key is spelled by these same rules, and by exactly these rules, so that one string has one spelling wherever it appears. An earlier revision of this section wrote a *value* of `<<` plain, reasoning that nothing resolves a merge key in value position. That reasoning was wrong — a YAML 1.1 reader resolves the merge tag in either position — and the exception it granted contradicted the sentence it was attached to. The portably typed set above now covers both positions, and `RestrictedYaml1` resolving no tag on a key changes nothing, because a key is quoted on the same conditions as a value regardless.
+
+Quoting a key matters more than quoting a value, because a key carries identity rather than data. Two keys distinct as written can resolve to one key in the reader: `yes` and `on` are both `true` to a YAML 1.1 reader, so a mapping holding both loses a member outright, and `no` and `off` lose another. Section 19.3 makes a mapping-key collision blocking `FLAT001` precisely so this tool never emits a document whose keys collide; a scalar that collides only after the reader resolves it would defeat that rule from outside, and quoting it is what prevents that.
 
 Layout is fixed as well:
 

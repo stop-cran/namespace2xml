@@ -74,8 +74,8 @@ public class YamlSerializerTests
     /// </summary>
     [Test]
     public void MappingOrderIsThePreservedDocumentOrderNotKeyOrder() =>
-        Serialize(Map(("z", Text("x")), ("a", Text("y"))))
-            .ShouldBe("z: x\na: y\n");
+        Serialize(Map(("z", Text("x")), ("a", Text("w"))))
+            .ShouldBe("z: x\na: w\n");
 
     /// <summary>
     /// A sequence under a key is a block sequence, whose items are indented under it. The two
@@ -84,8 +84,8 @@ public class YamlSerializerTests
     /// </summary>
     [Test]
     public void ASequenceUnderAKeyIsABlockSequence() =>
-        Serialize(Map(("a", Seq(Text("x"), Text("y")))))
-            .ShouldBe("a:\n  - x\n  - y\n");
+        Serialize(Map(("a", Seq(Text("x"), Text("w")))))
+            .ShouldBe("a:\n  - x\n  - w\n");
 
     /// <summary>
     /// Section 14.1 permits YAML to emit a document that is not a mapping, so a top-level sequence
@@ -93,7 +93,7 @@ public class YamlSerializerTests
     /// </summary>
     [Test]
     public void ATopLevelSequenceNeedsNoKey() =>
-        Serialize(Seq(Text("x"), Text("y"))).ShouldBe("- x\n- y\n");
+        Serialize(Seq(Text("x"), Text("w"))).ShouldBe("- x\n- w\n");
 
     /// <summary>
     /// A mapping inside a sequence item shares the item's first line, which is YAML's compact
@@ -110,7 +110,7 @@ public class YamlSerializerTests
     /// </summary>
     [Test]
     public void ASequenceInsideASequenceItemSharesTheItemLine() =>
-        Serialize(Seq(Seq(Text("x"), Text("y")))).ShouldBe("- - x\n  - y\n");
+        Serialize(Seq(Seq(Text("x"), Text("w")))).ShouldBe("- - x\n  - w\n");
 
     /// <summary>
     /// Every enclosing sequence contributes its own indicator to the shared first line, so the
@@ -119,7 +119,7 @@ public class YamlSerializerTests
     /// </summary>
     [Test]
     public void EveryEnclosingSequenceContributesItsIndicator() =>
-        Serialize(Seq(Seq(Seq(Text("x"), Text("y"))))).ShouldBe("- - - x\n    - y\n");
+        Serialize(Seq(Seq(Seq(Text("x"), Text("w"))))).ShouldBe("- - - x\n    - w\n");
 
     /// <summary>
     /// A block scalar as a sequence item indents its content beyond the indicator, so the reader's
@@ -204,7 +204,7 @@ public class YamlSerializerTests
     [TestCase("true", "'true'")]
     [TestCase("42", "'42'")]
     [TestCase("", "''")]
-    [TestCase("yes", "yes")]
+    [TestCase("yes", "'yes'")]
     [TestCase("it's", "it's")]
     [TestCase("'quoted'", "'''quoted'''")]
     public void AStringThatWouldResolveOtherwiseIsSingleQuoted(string value, string expected) =>

@@ -9,9 +9,9 @@ tail: end
 truthy: 'true'
 numeric: '42'
 blank: ''
-yes: yes
-plus: +1
-half: .5
+'yes': 'yes'
+plus: '+1'
+half: '.5'
 items:
   - alpha
   - beta

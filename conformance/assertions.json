@@ -652,6 +652,7 @@
       "fixtures": [
         "a-quoted-merge-key-is-an-ordinary-key",
         "yaml-indentation-block-scalars-and-quoting",
+        "yaml-quotes-every-portably-typed-spelling",
         "yaml-restricted-schema-and-scalar-kinds",
         "yaml-restricted-schema-refusals",
         "yaml-scalar-style-selection",
@@ -1055,6 +1056,7 @@
       "fixtures": [
         "a-block-scalar-is-declined-when-it-would-not-be-exact",
         "yaml-indentation-block-scalars-and-quoting",
+        "yaml-quotes-every-portably-typed-spelling",
         "yaml-scalar-style-selection",
         "yaml-scalars-survive-a-same-format-round-trip"
       ]

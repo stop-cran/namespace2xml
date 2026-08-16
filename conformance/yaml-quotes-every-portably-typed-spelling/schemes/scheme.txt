@@ -1,0 +1,2 @@
+output=yaml
+filename=o.yaml

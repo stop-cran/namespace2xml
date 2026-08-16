@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Namespace2Xml.Output;
 
@@ -22,7 +23,7 @@ namespace Namespace2Xml.Output;
 /// correctly.
 /// </para>
 /// </remarks>
-internal static class YamlScalarText
+internal static partial class YamlScalarText
 {
     private const string LeadingIndicators = "-?:,[]{}#&*!|>'\"%@`";
 
@@ -156,11 +157,86 @@ internal static class YamlScalarText
         return count > 0;
     }
 
+    /// <summary>
+    /// Section 19.4's <em>portably typed</em> words: the boolean and null spellings, folded by
+    /// ASCII case as Section 1 requires of every case-insensitive comparison in this contract.
+    /// </summary>
+    private static readonly string[] PortableWords =
+        ["y", "n", "yes", "no", "on", "off", "true", "false", "null"];
+
+    /// <summary>
+    /// Whether the text is one of Section 19.4's <em>portably typed</em> spellings: a scalar that a
+    /// conforming YAML reader resolves to something other than a string, under either the YAML 1.2
+    /// Core Schema or the YAML 1.1 type repository.
+    /// </summary>
+    /// <param name="text">The string value.</param>
+    /// <remarks>
+    /// <para>
+    /// This is deliberately not <see cref="ResolvesToNonString"/>. That method answers what
+    /// <c>RestrictedYaml1</c> resolves, which is what <em>this tool</em> reads back, and Section 10
+    /// says outright that the schema is "intentionally not the complete YAML 1.2 Core Schema".
+    /// Quoting on that answer under-quotes by exactly the difference between the two, and the
+    /// difference cannot be seen from inside the tool: a same-format round trip through this writer
+    /// and this reader agrees with itself while every other reader disagrees.
+    /// </para>
+    /// <para>
+    /// The set is the union of the two published schemas rather than a choice between them, because
+    /// they disagree with each other as well as with this one: <c>010</c> is 8 to a YAML 1.1 reader
+    /// and 10 to a YAML 1.2 one, and <c>0o17</c> is a string to the first and 15 to the second.
+    /// </para>
+    /// <para>
+    /// <c>&lt;&lt;</c> and <c>=</c> are here for a heavier reason than a changed value. A YAML 1.1
+    /// reader resolves them to the merge and value tags, and a reader with no constructor for those
+    /// tags -- the default in the most widely deployed implementations -- abandons the entire
+    /// document rather than that one node, so every sibling entry is lost with them.
+    /// </para>
+    /// </remarks>
+    public static bool IsPortablyTyped(string text)
+    {
+        if (text.Length == 0 || text is "~" or "<<" or "=")
+        {
+            return true;
+        }
+
+        foreach (var word in PortableWords)
+        {
+            if (Ascii.EqualsIgnoreCase(text, word))
+            {
+                return true;
+            }
+        }
+
+        return PortableInteger().IsMatch(text)
+            || PortableFloat().IsMatch(text)
+            || PortableTimestamp().IsMatch(text);
+    }
+
+    /// <summary>Section 19.4's portably typed integer productions.</summary>
+    [GeneratedRegex(
+        @"\A[+-]?(?:[0-9][0-9_]*|0b[01_]+|0[0-7_]+|0o[0-7]+|0x[0-9A-Fa-f_]+|[0-9][0-9_]*(?::[0-5]?[0-9])+)\z",
+        RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture)]
+    private static partial Regex PortableInteger();
+
+    /// <summary>
+    /// Section 19.4's portably typed float productions. Every one requires at least one digit, so
+    /// <c>.</c>, <c>._</c>, and <c>+.</c> stay plain: no schema types them.
+    /// </summary>
+    [GeneratedRegex(
+        @"\A(?:[+-]?(?:[0-9][0-9_]*\.[0-9_]*(?:[eE][+-]?[0-9]+)?|\.[0-9][0-9_]*(?:[eE][+-]?[0-9]+)?|[0-9][0-9_]*[eE][+-]?[0-9]+|[0-9][0-9_]*(?::[0-5]?[0-9])+\.[0-9_]*|\.(?:inf|Inf|INF))|\.(?:nan|NaN|NAN))\z",
+        RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture)]
+    private static partial Regex PortableFloat();
+
+    /// <summary>Section 19.4's portably typed timestamp productions.</summary>
+    [GeneratedRegex(
+        @"\A(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[Tt]|[ \t]+)[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]*)?(?:[ \t]*(?:Z|[+-][0-9]{1,2}(?::[0-9]{2})?))?)\z",
+        RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture)]
+    private static partial Regex PortableTimestamp();
+
     /// <summary>Whether the text may be written as a plain scalar.</summary>
     /// <param name="text">The string value.</param>
     public static bool IsPlainSafe(string text)
     {
-        if (text.Length == 0 || ResolvesToNonString(text))
+        if (text.Length == 0 || ResolvesToNonString(text) || IsPortablyTyped(text))
         {
             return false;
         }

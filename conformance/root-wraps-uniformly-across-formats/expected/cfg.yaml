@@ -1,4 +1,4 @@
 x:
-  y:
+  'y':
     name: demo
     port: 8080

@@ -112,6 +112,60 @@ independently.
 
 ### Fixed
 
+- **YAML output no longer under-quotes by the difference between this tool's reader and its
+  readers'.** Found in session by an exploratory round against independent parsers, with no inbound
+  report. §19.4's principle was right — quote a string whose plain form would not read back as the
+  same string — but its operative test was "would resolve to a non-string kind under
+  `RestrictedYaml1`", and §10 says outright that `RestrictedYaml1` "is intentionally not the
+  complete YAML 1.2 Core Schema". A writer keyed to a strict subset of the schema its consumers use
+  under-quotes by exactly that difference, at exit `0`, with nothing to show for it.
+
+  §19.4 previously **required** the defect, so this is a contract amendment and not only a code
+  change. It also **removes** the carve-out that wrote a value of `<<` plain, whose stated reasoning
+  — that nothing resolves a merge key in value position — was measured and found false.
+
+  Measured, before the fix, on the tool's own output at exit `0`:
+
+  - A value of `<<` or `=` resolves to `tag:yaml.org,2002:merge` / `:value`, and a reader with no
+    constructor for those tags **abandons the whole document**. PyYAML and ruamel lose every sibling
+    entry; the tool reads its own output back perfectly, so §3.3's same-format round trip passed
+    throughout.
+  - Keys were worse than values: seven keys written, **five** read back. `yes` and `on` both resolve
+    to `True`, `no` and `off` to `False`, so two entries were silently overwritten. §19.3 makes a
+    key collision blocking `FLAT001`; a collision that appears only after the reader resolves the
+    scalar defeated that rule from outside.
+  - `0x1F`, `0o17`, `.inf`, `.nan`, `+1`, `.5`, `1.` and `010` came back as numbers under YAML 1.2;
+    `yes`/`no`/`on`/`off`, `1_000`, `12:30`, `2001-12-14`, `0b101` and `010` under YAML 1.1. `010`
+    is `8` to one revision and `10` to the other.
+  - `type=string`, §16.6's designated way to force string rendering, was **no remedy**: the values
+    were already strings. A reading whose remedy is unavailable to the author is the wrong reading.
+
+  §19.4 now quotes any *portably typed* spelling — the union of the YAML 1.2 Core Schema's
+  resolutions and the YAML 1.1 type repository's, enumerated as productions, applied identically to
+  keys and values. Both schemas are frozen published documents, so the union is stable, which is
+  what §24 byte-identity needs; a rule keyed to a survey of libraries would not be. The change only
+  ever *adds* quotes, so no reader that worked before breaks.
+
+  `y` and `n` are in the set although PyYAML, SnakeYAML and Ruby's Psych all leave them strings — a
+  survey of libraries would drop them as inert. `gopkg.in/yaml.v2` implements the 1.1 list as
+  published, and `y` is an ordinary key name.
+
+- **Added the interoperability gate whose absence let this reach a final review.**
+  `tools/check-yaml-interop.py` and `tools/check-yaml-interop.js` read the corpus's published
+  expected YAML with PyYAML (1.1) and js-yaml (1.2) and require it to come back as the JSON it was
+  built from. Neither imports the implementation, so a defect in the writer cannot define its own
+  oracle — the same rule `check-ini-interop` follows.
+
+  The two lanes are not redundant, and that was measured rather than argued: with only `0o17` left
+  unquoted the 1.1 lane passes and the 1.2 lane fails. Both were proven red against the
+  pre-amendment spelling, separately for the refused-document case and for the key-collision case.
+
+  Nothing in the project could see the defect before this. The tool read its own output back
+  correctly, the corpus compared bytes that were stable and wrong together, and the only YAML
+  parser in the repository read workflow files. This is the M5 lesson recurring: for a format the
+  tool both reads and writes, a round trip through an *independent* parser is worth more than any
+  number of shape assertions.
+
 - **Output-instance consolidation no longer decides §15.2 twice, and no longer decides it wrongly.**
   Found in session, with no inbound report. `PlanningPhase.Consolidate` folds the instances that
   share one concrete selector and re-merged each per-instance setting as it went — `filename`,

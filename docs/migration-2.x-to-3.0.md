@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r98+5c76f294ea85`.**
+**Contract bundle `r99+bad2fa36f0a5`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (161)
+## Observable differences (162)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -3578,6 +3578,37 @@ implemented, its case says so plainly rather than letting the heading imply othe
   advertised YAML 1.1 or 1.2 mode", so the quoting a writer must apply follows from it and not
   from a library's own emitter.
 
+### `yaml-quotes-every-portably-typed-spelling`
+
+- namespace2xml 2.4.0: **differs**. It reads the case as posed and exits `0`, writing all
+  twenty-one entries, but it orders keys alphabetically rather than in document order, writes
+  `010` as `10`, and spells every portably typed value and key plain.
+- Contract: Section 19.4's portably typed spellings.
+- Clean behavior: a scalar that either published YAML schema types is single-quoted, in key
+  position and in value position alike; a scalar neither schema types stays plain.
+- Why this case exists: a writer that consults only its own reader under-quotes by exactly the
+  difference between that reader and the schema a consumer uses. The cost is not a diagnostic but
+  a silent one, at exit `0`, and it was measured on the 2.4.0 output rather than argued: a YAML
+  1.1 reader abandons that document entirely on the `<<` value, and with the two key tags
+  neutralised nineteen of the twenty-one entries survive, because `yes`, `on` and `y` all resolve
+  to one key and `no`, `off` and `n` to another.
+- Why the keys are half the case: a key carries identity rather than data, so two keys distinct as
+  written that resolve to one key lose a member outright. Section 19.3 makes a mapping-key
+  collision blocking `FLAT001`; a collision that appears only after the reader resolves the scalar
+  would defeat that rule from outside the tool.
+- Why `y` and `n` are present although several widely consulted readers leave them strings: the
+  YAML 1.1 type repository lists them and at least one broadly deployed reader implements the list
+  as published. They are the entries a survey of libraries rather than of schemas would drop.
+- Why `hex`, `octal` and `infinity` are separate from `sexagesimal`, `date`, `underscored` and
+  `leadingzero`: the first group is typed by YAML 1.2 and the second by YAML 1.1. A rule that
+  picked either revision passes half of them and fails the other half, which is what makes the
+  union rather than a choice the thing under test.
+- Why `plain`, `colonmid`, `dotfirst`, `minuteoverflow`, `bareprefix` and `lonedot` are present:
+  they are the negative half. Every numeric production requires at least one digit and a
+  sexagesimal group a value below sixty, so an implementation that quotes defensively rather than
+  by the productions round-trips perfectly and still fails here. The case has to fail on
+  over-quoting as readily as on under-quoting, or it would be satisfied by quoting everything.
+
 ### `yaml-restricted-schema-and-scalar-kinds`
 
 - namespace2xml 2.4.0: **differs**.
@@ -3613,7 +3644,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   supported format, and every one of them is valid. A writer choosing among them by its own taste
   satisfies YAML and breaks Section 24, which asks two conforming implementations for identical
   bytes. Nothing else in the corpus distinguishes a legal spelling from the specified one.
-- Why `indicator_mid`, `colon_mid`, `hash_mid`, `dot_first` and `stays` are present: they are the
+- Why `indicator_mid`, `colon_mid`, `hash_mid` and `dot_first` are present: they are the
   negative half of each rule. A conservative implementation that quotes everything round-trips
   perfectly and produces different bytes, so the case has to fail on over-quoting as readily as on
   under-quoting.
@@ -3622,11 +3653,14 @@ implemented, its case says so plainly rather than letting the heading imply othe
   indicator only in flow context. This specification refuses both positionally. An implementation
   applying the productions literally emits `indicator_first` and `flow_mid` plain and fails here,
   which is the intent — the value's spelling must not depend on where it is written.
-- Why `merge` and the `<<` key are both present: Section 10 refuses to read an *unquoted merge
-  key* back, so a key of `<<` is quoted; nothing resolves a merge key in value position, so a
-  value of `<<` is plain. Authoring this case is what showed that Section 19.4 had stated the
-  quoting rule for both positions, which would have made the specification demand output the tool
-  does not produce and, worse, would have been wrong on its own principle.
+- Why `merge`, the `<<` key and `stays` are present: all three are portably typed under Section
+  19.4, so all three are quoted. An earlier revision of that section wrote a *value* of `<<` plain,
+  reasoning that nothing resolves a merge key in value position, and this case was authored to pin
+  that reasoning. It was wrong: a YAML 1.1 reader resolves the merge tag in either position, and a
+  reader with no constructor for it abandons the whole document rather than that one node. The case
+  now pins the corrected rule, and the episode is why the specification spells key and value by
+  exactly the same conditions — an exception granted to one position is an exception nothing in a
+  byte-comparing corpus can see, because the bytes were stable and wrong together.
 - Why `nbsp` is present: U+00A0 is not YAML whitespace, so it neither forces quoting nor is
   escaped. It distinguishes "escape what YAML cannot carry" from "escape what is not ASCII".
 - `del` and `ctl` pin the uppercase hexadecimal digits of `\uXXXX`, and `cr` pins that CR takes

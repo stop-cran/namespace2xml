@@ -218,13 +218,14 @@ public sealed class YamlSerializer
     /// outside <c>RestrictedYaml1</c> reads back the same key.
     /// </summary>
     /// <remarks>
-    /// <c>&lt;&lt;</c> is the one key that needs this treatment beyond the value rules: it is an
-    /// ordinary string as a value, but plain as a key it is the merge key, which Section 10.1 makes
-    /// an error. Quoting it keeps the round trip exact -- Section 10.1 says so directly, because a
-    /// plain spelling would produce a document this tool refuses to read.
+    /// Section 19.4 spells a key "by these same rules, and by exactly these rules", so no key-only
+    /// case is left: <c>&lt;&lt;</c> is portably typed and is quoted in either position. A key
+    /// carries identity rather than data, which is what makes the quoting matter more here than in a
+    /// value -- <c>yes</c> and <c>on</c> both resolve to <c>true</c> for a YAML 1.1 reader, so a
+    /// mapping holding both would lose a member with no diagnostic, defeating Section 19.3's
+    /// <c>FLAT001</c> from outside the tool.
     /// </remarks>
-    private static string Key(string text) =>
-        text is "<<" ? YamlScalarText.SingleQuote(text) : YamlScalarText.Spell(text);
+    private static string Key(string text) => YamlScalarText.Spell(text);
 
     private static string Join(string label, string? value, string? inline)
     {

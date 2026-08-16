@@ -304,6 +304,40 @@ jobs:
           ( cd "${lane}" && npm install --no-save --no-audit --no-fund ini@6.0.0 )
           NODE_PATH="${lane}/node_modules" node tools/check-ini-interop.js .
 
+  # Section 19.4 takes the union of the two published YAML schemas rather than a side, so proving
+  # it needs a reader of each revision: PyYAML resolves YAML 1.1 and js-yaml YAML 1.2, and a
+  # spelling only one of them types is caught only by that one. Measured on this corpus, an
+  # unquoted `0o17` passes the 1.1 lane and fails the 1.2 lane, so the two are not redundant.
+  #
+  # Both read published expected output and import nothing from this repository. The absence of a
+  # lane like this is why a writer keyed to its own reader's subset survived to a final review:
+  # the tool read its own output back correctly, and the corpus compared bytes that were stable
+  # and wrong together.
+  yaml-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: The emitted YAML must read back unchanged under a YAML 1.1 reader
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check pyyaml
+          python3 tools/check-yaml-interop.py .
+      - name: The emitted YAML must read back unchanged under a YAML 1.2 reader
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Installed outside the working tree, from a directory carrying its own package.json so
+          # that npm resolves here rather than walking up into the repository.
+          lane="${RUNNER_TEMP}/yaml-interop"
+          mkdir -p "${lane}"
+          printf '{"name":"yaml-interop-lane","private":true}\n' > "${lane}/package.json"
+          ( cd "${lane}" && npm install --no-save --no-audit --no-fund js-yaml@4.1.0 )
+          NODE_PATH="${lane}/node_modules" node tools/check-yaml-interop.js .
+
   lint:
     runs-on: ubuntu-latest
     steps:

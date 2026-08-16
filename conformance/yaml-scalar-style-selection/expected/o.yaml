@@ -11,10 +11,10 @@ lead_space: ' x'
 tab_mid: 'a	b'
 dots_first: '...x'
 dot_first: .x
-merge: <<
+merge: '<<'
 '<<': merge-key
 resolves: 'true'
-stays: yes
+stays: 'yes'
 empty: ''
 nbsp: a b
 ctl: "a\u0001b"
