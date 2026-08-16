@@ -1,0 +1,4 @@
+lone.output=namespace,quotednamespace,ini,json,yaml
+lone.root=x.y
+deep.inner.leaf.output=ini
+deep.inner.leaf.root=r

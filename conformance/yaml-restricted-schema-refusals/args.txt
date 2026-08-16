@@ -1,0 +1,9 @@
+-i
+inputs/anchor.yaml
+inputs/explicit-tag.yaml
+inputs/document-marker.yaml
+inputs/duplicate-key.yaml
+inputs/merge-key.yaml
+inputs/complex-key.yaml
+-s
+schemes/scheme.txt

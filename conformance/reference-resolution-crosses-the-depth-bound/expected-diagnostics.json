@@ -1,0 +1,3 @@
+[
+{"code":"LIMIT001","severity":"error","phase":"planning","source":"inputs/data.txt","line":3,"column":5,"path":"r.c","spec":"§23"}
+]

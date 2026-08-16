@@ -1,0 +1,3 @@
+app:
+  base: 1
+  <<: {other: 2}

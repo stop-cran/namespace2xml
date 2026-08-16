@@ -1,0 +1,55 @@
+<Project>
+
+  <!-- Shared by every project. Version 3.0 targets net10.0 (implementation plan D2). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    Determinism. Specification Section 24 requires byte-identical results for identical inputs;
+    a reproducible build lets a consumer verify that the published binary is the one built
+    from the commit the package advertises.
+  -->
+  <PropertyGroup>
+    <Deterministic>true</Deterministic>
+    <DebugType>portable</DebugType>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <!--
+      The SDK appends a "+commit-sha" suffix to the informational version by default. That makes
+      the version string reported by the version option change on every commit, which defeats the
+      point of asking a binary which contract it implements, and makes the release workflow's
+      exact-match assertion unsatisfiable. Provenance is carried by SourceLink and by the build
+      attestation instead.
+    -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <!-- Package identity and AI discoverability (implementation plan Section 8.1). -->
+  <PropertyGroup>
+    <Version>3.0.0-preview.4</Version>
+    <Authors>stop-cran &lt;stop-cran@list.ru&gt;</Authors>
+    <Company>stop-cran &lt;stop-cran@list.ru&gt;</Company>
+    <Copyright>Apache License 2.0 (stop-cran, 2019-2026)</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/stop-cran/namespace2xml</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/stop-cran/namespace2xml</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,7 @@
+before: 0
+key:
+  # C47 before first nested value
+  child: 1
+sequence:
+  # C48 before first sequence item
+  - one

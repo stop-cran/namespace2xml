@@ -1,0 +1,4 @@
+cfg.output=namespace
+cfg.lone.type=multiline
+cfg.empty.type=multiline
+cfg.mixed.type=multiline

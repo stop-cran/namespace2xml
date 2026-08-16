@@ -1,0 +1,4 @@
+--diagnostics-format
+bogus
+--verbosity
+nonsense

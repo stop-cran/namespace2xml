@@ -1,0 +1,4 @@
+r.output=xml
+r.root=Q{}r
+r.@nsattr.type=string
+lit.output=namespace

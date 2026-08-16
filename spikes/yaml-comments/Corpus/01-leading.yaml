@@ -1,0 +1,11 @@
+first: 1
+# C01 leading top-level
+second: 2
+nested:
+  first: 1
+  # C02 leading nested
+  second: 2
+items:
+  - one
+  # C03 leading sequence item
+  - two

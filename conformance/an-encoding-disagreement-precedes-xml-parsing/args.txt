@@ -1,0 +1,4 @@
+-i
+inputs/both-wrong.xml
+-s
+schemes/scheme.txt

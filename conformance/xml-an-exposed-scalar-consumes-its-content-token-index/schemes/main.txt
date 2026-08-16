@@ -1,0 +1,4 @@
+cfg.output=xml
+cfg.root=cfg
+cfg.lone.#1.type=ignore
+cfg.lone.#2.type=ignore

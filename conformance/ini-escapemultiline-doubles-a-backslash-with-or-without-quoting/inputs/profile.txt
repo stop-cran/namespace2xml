@@ -1,0 +1,8 @@
+quoted.db.lf=a\nb
+quoted.db.cr=a\rb
+quoted.db.tab=a\tb
+quoted.db.slash=a\\b
+bare.db.lf=a\nb
+bare.db.cr=a\rb
+bare.db.tab=a\tb
+bare.db.slash=a\\b

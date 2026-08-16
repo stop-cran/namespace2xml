@@ -1,0 +1,3 @@
+a.*.output=namespace
+a.*.filename=out.properties
+a.*.filemerge=error

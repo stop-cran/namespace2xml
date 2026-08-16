@@ -1,0 +1,4 @@
+[
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/malformed.txt","line":1,"column":1,"spec":"§8.1"},
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/bad-escape.txt","line":1,"column":5,"spec":"§8.2"}
+]

@@ -1,0 +1,10 @@
+deep.output=namespace
+repl.output=namespace
+pat.output=namespace
+app.output=namespace
+solo.output=namespace
+deep.merge=deep
+repl.merge=replace
+pat.merge=deep
+app.merge=append
+solo.merge=error

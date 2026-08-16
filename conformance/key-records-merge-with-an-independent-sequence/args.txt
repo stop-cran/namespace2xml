@@ -1,0 +1,5 @@
+-i
+inputs/native.yaml
+inputs/data.txt
+-s
+schemes/main.txt

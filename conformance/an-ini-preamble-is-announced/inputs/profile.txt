@@ -1,0 +1,3 @@
+app.name=demo
+app.db.host=localhost
+bare.db.host=elsewhere

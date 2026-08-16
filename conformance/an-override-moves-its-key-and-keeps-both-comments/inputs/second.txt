@@ -1,0 +1,3 @@
+app.tail=end
+# renamed
+app.name=second

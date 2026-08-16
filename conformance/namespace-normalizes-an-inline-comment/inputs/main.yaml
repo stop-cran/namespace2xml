@@ -1,0 +1,4 @@
+cfg:
+  a: 1
+  b: 2 # inline note
+# trailing note

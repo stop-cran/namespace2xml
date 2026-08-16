@@ -1,0 +1,3 @@
+[
+{"code":"TYPE001","severity":"error","phase":"planning","source":"schemes/scheme.txt","line":2,"path":"cfg.a","declaration":"cfg.a.key","spec":"§16.5"}
+]

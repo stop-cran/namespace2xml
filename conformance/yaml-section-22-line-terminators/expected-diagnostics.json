@@ -1,0 +1,6 @@
+[
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/control.yaml","line":3,"column":4,"spec":"§10.2"},
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/nel.yaml","line":2,"column":4,"spec":"§10.2"},
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/separator.yaml","line":2,"column":4,"spec":"§10.2"},
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/paragraph.yaml","line":2,"column":4,"spec":"§10.2"}
+]

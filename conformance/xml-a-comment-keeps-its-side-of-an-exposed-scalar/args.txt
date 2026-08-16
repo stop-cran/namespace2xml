@@ -1,0 +1,4 @@
+-i
+inputs/cfg.xml
+-s
+schemes/main.txt

@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Namespace2Xml.Cli</RootNamespace>
+    <AssemblyName>namespace2xml</AssemblyName>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>namespace2xml</ToolCommandName>
+    <PackageId>namespace2xml</PackageId>
+    <IsPackable>true</IsPackable>
+    <Description>Deterministic configuration transformer. Merges and templates namespace profiles into XML, JSON, YAML, INI and shell outputs from a single normative specification. Every diagnostic carries a stable code and a specification anchor, and --diagnostics-format json makes the whole diagnostic stream machine-readable for automation and AI agents.</Description>
+    <PackageTags>configuration;codegen;xml;json;yaml;ini;templating;deterministic;ai-agent;dotnet-tool</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>Preview of the 3.0 rewrite against the normative specification in docs/specification.md. See CHANGELOG.md.</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Namespace2Xml.Core\Namespace2Xml.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <!--
+      The contract travels with the package so an agent can read it without network access, and
+      llms.txt travels with it so the agent can find the rest. That index links by relative path,
+      which resolves inside the package only if the package mirrors the repository layout, so the
+      documents it names are packed at the paths it names them by. The one deliberate omission is
+      docs/migration-2.x-to-3.0.md: it is 300 KB describing the version this one replaces, which
+      is the least useful thing to carry offline and the most expensive. Its link dangles, and an
+      agent that follows it has the release-pinned URL the version option prints to fall back on.
+    -->
+    <None Include="..\..\llms.txt" Pack="true" PackagePath="\" />
+    <None Include="..\..\AGENTS.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\CONTRIBUTING.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\KNOWN-LIMITS.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\docs\specification.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\docs\diagnostics.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\docs\usage-methodology.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\docs\format-ini.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\docs\format-json.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\docs\format-namespace.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\docs\format-xml.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\docs\format-yaml.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\spec\diagnostics.registry.json" Pack="true" PackagePath="spec\" />
+    <None Include="..\..\spec\contract-bundle.json" Pack="true" PackagePath="spec\" />
+    <None Include="..\..\spec\diagnostic-stream.schema.json" Pack="true" PackagePath="spec\" />
+    <None Include="..\..\conformance\assertions.json" Pack="true" PackagePath="conformance\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Namespace2Xml.UnitTests" />
+    <InternalsVisibleTo Include="Namespace2Xml.Conformance" />
+  </ItemGroup>
+
+</Project>

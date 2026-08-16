@@ -1,0 +1,8 @@
+app.db.plain=simple
+app.db.lead= head
+app.db.trail=tail 
+app.db.semi=; not a comment
+app.db.hash=# not a comment
+app.db.quote=say "hi"
+app.db.slash=C:\\path
+app.db.inline=a;b#c

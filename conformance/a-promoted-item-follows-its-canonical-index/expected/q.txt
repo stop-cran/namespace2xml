@@ -1,0 +1,4 @@
+b.0=one
+b.1=two
+b.2=three
+c=mid

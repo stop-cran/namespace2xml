@@ -1,0 +1,3 @@
+[
+{"code":"WILDCARD002","severity":"error","phase":"planning","rule":["a.*"],"spec":"§12.4"}
+]

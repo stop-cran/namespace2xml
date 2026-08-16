@@ -1,0 +1,7 @@
+cfg:
+  lone: hello
+  empty: []
+  mixed:
+    - one
+    - ~
+    - three

@@ -1,609 +1,226 @@
-# Overview [![NuGet](https://img.shields.io/nuget/v/namespace2xml.svg)](https://www.nuget.org/packages/namespace2xml) [![Actions Status](../../workflows/.NET%209/badge.svg)](../../actions) [![Coverage Status](https://coveralls.io/repos/github/stop-cran/namespace2xml/badge.svg?branch=master)](https://coveralls.io/github/stop-cran/namespace2xml?branch=master)
+# namespace2xml
 
-Namespace2xml is a tool for generating, templating and merging files in following formats:
- - XML
- - JSON
- - YAML
- - INI
- - Bash variables
+[![NuGet](https://img.shields.io/nuget/v/namespace2xml.svg)](https://www.nuget.org/packages/namespace2xml)
+[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 
-The tool is primarily intended to deal with various configuration files. Here its basic features:
+A deterministic configuration transformer. It reads ordered namespace profiles and structured
+inputs, applies scheme directives, and renders **many outputs from one overlaid model** — XML, JSON,
+YAML, INI, namespace profiles and quoted-namespace files.
 
-Basic usage:
+Identical inputs always produce byte-identical outputs, on every supported platform, in every
+locale, on every run.
+
+---
+
+## Version 3.0 is a rewrite
+
+3.0 replaces the 2.x implementation entirely, against a specification written **before** the code.
+The specification is the contract; the implementation is an attempt to satisfy it. Behaviour that
+2.4.0 left undefined is now defined, and the intentional differences are listed in
+[docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md).
+
+`3.0.0-preview.N` is a preview line. It is meant to be used, reported against, and revised. See
+[KNOWN-LIMITS.md](KNOWN-LIMITS.md) for what it does not do yet.
+
+---
+
+## Install
 
 ```
-namespace2xml -i <a set of input files> -s <a set of scheme files>
+dotnet tool install --global namespace2xml --prerelease
 ```
-Here scheme files describe format and details of output files - format, XML element or attribute etc.
 
-## Store all configuration in a format-agnostic mode
+## Basic usage
 
-Input file comprises a set of key-value pairs with namespaces (referred below as a *profile*):
 ```
-some.namespace.key=value
-some.another.namespace.another-key=another-value
+namespace2xml -i <input files> -s <scheme files> [-o <output directory>]
 ```
- 
-## Generate configuration files of various formats
 
-Input profile (test.properties):
+Input files carry the data. Scheme files describe what to produce from it: which output formats,
+which parts become XML elements or attributes, which keys are hidden, and so on.
+
+### One model, many formats
+
+`test.properties`:
+
 ```
 a.b.x=1
 ```
-Scheme (scheme.properties):
+
+`scheme.properties`:
+
 ```
 a.output=xml,json,yaml,ini,namespace
 ```
-Call:
+
 ```
 namespace2xml -i test.properties -s scheme.properties
 ```
-Output files:
-a.json:
+
+produces `a.xml`, `a.json`, `a.yaml`, `a.ini` and `a.properties`:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<b>
+  <x>1</x>
+</b>
 ```
+
+```json
 {
   "b": {
     "x": 1
   }
 }
 ```
-a.yml:
-```
+
+```yaml
 b:
   x: 1
-  ```
-a.ini:
 ```
+
+```ini
 [b]
-x = 1
+x=1
 ```
-a.properties (another profile):
+
 ```
 b.x=1
 ```
-a.xml (root `a` remains here since there should be a single root XML element):
+
+The output selector `a` names what to render, and Section 16.3 removes it before rendering, so
+`b` is what each document contains. Add `root` to wrap the result in a name of your choosing.
+
+Scalars become elements in XML unless a scheme directive asks otherwise. Section 16.6 makes
+attributes an explicit opt-in, and the choice is scoped to the formats that have attributes:
+
 ```
-<a>
-  <b x="1" />
-</a>
+a.output=xml,json
+a.b.x.type=attribute
 ```
 
-## Merge data from multiple sources
+renders `<b x="1" />` in XML while JSON keeps `"x": 1` as an ordinary member.
 
-When one have more than one source of configuration, merging them into a single file can be awkward. Often it's done by introducing templates like JSON-with-dollars `{ "a": $MY_VAR }` and processing them with sed and a bunch of environment variables.
-In general, merging two XML, JSON or YAML files into a single one is a non-trivial job and many solutions are non-composable, i.e. when merging three files the order matters, `(a+b)+c` is not the same as `a+(b+c)`. This causes further difficulties in complex scenarios.
-On contrary, merging two profiles is straightforward - actually, it doesn't matter if one passes multiple input files to the namespace2xml tool, or concatenate all of them into a single file (delimiting with newlines) and then pass this single file.
-The value overriding is performed from the beginnging to the end, giving priority to later values. It is logged if `--verbosity debug` command-line option is passed to the tool.
- 
-## Support for value references and wildcard substitutes
+### Overlaying
 
-### Reference one value from another:
-Example:
+Inputs are applied in command-line order, and later files win:
 
-*Input*
 ```
-a.x=1,${b.y},3
-b.y=2
-```
-*Schema*
-```
-a.output=namespace
-```
-*Output*
-```
-x=1,2,3
+namespace2xml -i base.properties -i production.properties -i secrets.properties -s scheme.properties
 ```
 
-### Substitutions:
-Example:
+Layer by lifetime — base, then environment, then instance, then secrets — not by topic. See
+[docs/usage-methodology.md](docs/usage-methodology.md) for why, and for the anti-patterns that
+follow from getting it backwards.
 
-*Input*
-```
-a.x=1
-a.y=2
-a.*.z=3
-```
-*Schema*
-```
-output=namespace
-```
-*Output*
-```
-a.x=1
-a.y=2
-a.x.z=3
-a.y.z=3
-```
-\
-Example:
+### Reading XML that was formatted for humans
 
-*Input*
-```
-a.x=1
-a.*.y=*
-a.*.*.z=*.*
-```
-*Schema*
-```
-output=namespace
-```
-*Output*
-```
-a.x=1
-a.x.y=x
-a.x.y.z=x.y
-```
-\
-Example:
+Indented XML holds whitespace-only text between element children, and the default
+`xmlinputoptions=PreserveWhitespace` keeps every text node. Those become content components, so
 
-*Input*
-```
-a.x.y=1
-a.*.*=*.*.*.*
-```
-*Schema*
-```
-output=namespace
-```
-*Output*
-```
-a.x.y=x.y.y.y
-```
-
-### Reference with substitutions:
-Example:
-
-*Input*
-```
-a.b.x=1
-a.b.*=${c.*}
-c.x=2
-```
-*Schema*
-```
-a.output=namespace
-```
-*Output*
-```
-b.x=2
-```
-\
-All use-cases above can be combined and used simultaneously.
-
-Example:
-
-*Input*
-```
-a.b.x=1
-a.b.*=2,${c.*},${d.*}
-c.x=3
-d.x=4
-```
-*Schema*
-```
-a.output=namespace
-```
-*Output*
-```
-b.x=2,3,4
-```
-\
-Example
-
-*Input*
-```
-a.x.y=1
-a.*.*=1,${b.*},${c.*}
-b.x=2
-c.x=3
-```
-*Schema*
-```
-a.output=namespace
-```
-*Output*
-```
-x.y=1,2,3
-```
-\
-Example:
-
-*Input*
-```
-a.x.y=1
-a.*.*=1,*,${c.*},*
-c.x=3
-```
-*Schema*
-```
-a.output=namespace
-```
-*Output*
-```
-x.y=1,x,3,y
-```
-
-### Ignore
-Example:
-
-*Input*
-```
-a.b=1
-!x.y=2
-```
-*Schema*
-```
-output=namespace
-```
-*Output*
-```
-a.b=1
-```
-
-It is possible to use wildcards with `!`.
-
-Example:
-
-*Input*
-```
-a.b.c=1
-a.b.d=2
-a.b.e=3
-a.x.y=4
-a.x.z=5
-!a.x.*
-```
-*Schema*
-```
-output=namespace
-```
-*Output*
-```
-a.b.c=1
-a.b.d=2
-a.b.e=3
-```
-
-### Delimiter escape
-Example:
-
-*Input*
-```
-a.b\.c=1
-```
-*Schema*
-```
-output=yaml
-```
-*Output*
-```yaml
-a:
-  b.c: 1
-```
-
-# Scheme description
-
-## Output
-
-### Supported output types
-```
-[name.]*output=[xml|json|yaml|ini|namespace|quotednamespace]
-```
-
-### Full output
-Example:
-
-*Input*
-```
-a.b.x=1
-a.b.y=2
-a.c=3
-x.y=4
-```
-*Scheme*
-```
-output=namespace
-```
-*Output*
-```
-a.b.x=1
-a.b.y=2
-a.c=3
-x.y=4
-```
-
-### Partial output
-Example:
-
-*Input*
-```
-a.b.x=1
-a.b.y=2
-a.c=3
-x.y=4
-```
-*Scheme*
-```
-a.output=namespace
-```
-*Output*
-```
-b.x=1
-b.y=2
-c=3
-```
-
-## Set output file name or path
-```
-[name.]*filename=<overridden file name>
-```
-
-It is possible to write multiple output to a single file. The content will be added in case of `namespace` and `yaml` output types, otherwise it will be overriden.
-
-## Change name of the root element(s)/namespace/INI section name
-```
-[name.]*root=<name, maybe hierarchical, separated by dots>
-```
-For all direct child elements treat child entry name as a key and group grand-children by that key:
-```
-[name.]*root=<a name of XML attribute or YAML/JSON property name used to write the value of the key>
-```
-
-Example (add root element):
-
-*Input*
-```
-a.b.x=1
-a.b.y=2
-```
-*Scheme*
-```
-a.output=namespace
-a.root=c
-```
-*Output*
-```
-c.b.x=1
-c.b.y=2
-```
-
-Xml example (rename root element):
-
-*Input*
-```
-a.b.x=1
-a.b.y=2
-```
-*Scheme*
-```
-a.output=namespace
-a.root=c
-```
-*Output*
 ```xml
-<c>
-  <b x="1" y="2" />
-</c>
+<r>
+  <b>1</b>
+</r>
 ```
 
-## Keys
-Treat all elements in given namespace as a dictionary with given key attribute.
+is the model `r.#0`, `r.#1.b`, `r.#2` — and **not** `r.b`. Nothing warns about this: an override
+written `r.b=2` becomes a new node beside `r.#1.b` rather than a replacement of it, and the run
+still exits `0`.
 
-Example:
+When the input was formatted for a human to read, ask for the compatibility mode:
 
-*Input*
 ```
-a.b.x=1
-a.b.y=2
-a.c.x=3
-```
-*Scheme*
-```
-a.output=yaml
-a.key=name
-```
-*Output*
-```yaml
-- name: b
-  x: 1
-  y: 2
-- name: c
-  x: 3
+xmlinputoptions=NormalizeFormattingWhitespace
 ```
 
-## Specify entry type
-```
-[name.]*type=[ignore|string|element|array|multiline]
-```
-### Ignore
-Same as using `!` before namespace in input file.
+It discards whitespace-only text between element children, which makes those elements addressable
+by name, and warns once per document (`WARN007`) because specification Section 11.7 says discarding
+that text weakens the same-format round-trip guarantee. That trade is the reason it is opt-in:
+preserving every byte is what makes an unmodified round trip byte-identical, and only you know
+whether the file you are reading is data or layout.
 
-`namespace.type=ignore` - exclude element from the output;
+[docs/format-xml.md](docs/format-xml.md) covers the whitespace modes in full, and
+[docs/usage-methodology.md](docs/usage-methodology.md) works through the override that this defeats.
 
-Example:
+---
 
-*Input*
-```
-a.b.x=1
-a.b.y=2
-a.c.x=3
-```
-*Scheme*
-```
-a.output=namespace
-a.c.x.type=ignore
-```
-*Output*
-```~~~~
-b.x=1
-b.y=2
-```
+## For automation and AI agents
 
-### String
-`namespace.type=string` - force element type to string for JSON and YAML;
+This tool is designed to be used by programs, and to be **argued with** by them.
 
-Example:
+- **`--diagnostics-format json`** writes the entire diagnostic stream to standard error as one
+  canonical JSON array conforming to [`spec/diagnostic-stream.schema.json`](spec/diagnostic-stream.schema.json).
+  Operational log messages are suppressed in that mode, so standard error is pure data. The array is
+  written once, at exit, so it is always complete and always well-formed.
+- **Every diagnostic carries a stable code and a specification anchor** naming the clause it
+  enforces, so a disagreement can be reported precisely rather than described. See
+  [docs/diagnostics.md](docs/diagnostics.md).
+- **`--version`** prints one `<field>: <value>` line per field, including the `contract-bundle`
+  revision that identifies exactly which specification and diagnostic registry the binary implements.
+- **Exit codes are contractual.** `0` is success, including success with warnings; `1` is failure.
+  Specification Section 6.3 fixes those two and no others. During the `3.0.0-preview` line a third
+  code, **`70`**, means *this preview has not implemented the requested work* — the pipeline was
+  never entered, no destination was written, and nothing about the input has been judged. An agent
+  must treat `70` as "come back later", never as a failure of the configuration it supplied. It
+  disappears at `3.0.0`; a released build returns only `0` or `1`.
+- **The specification ships inside the package**, so an agent can read the contract offline.
+- **Symbols and source link** are published alongside every release, so a stack trace resolves to
+  the exact source that produced it.
 
-*Input*
-```
-a.b=1
-```
-*Scheme*
-```
-a.output=yaml
-a.b.type=string
-```
-*Output*
-```yaml
-b: '1'
-```
+Start at [AGENTS.md](AGENTS.md). The machine-readable index is [llms.txt](llms.txt).
 
-### Element
-`namespace.type=element` - in case of XML output, write the entry as an element with inner text, rather than an attribute (which is default).
+---
 
-### Array
-`namespace.type=array` - treat all elements in given namespace as array.
+## Documentation
 
-Example:
+| File | What it is |
+|---|---|
+| [docs/specification.md](docs/specification.md) | **The contract.** Normative and self-contained. |
+| [docs/diagnostics.md](docs/diagnostics.md) | Every diagnostic code, its meaning and its anchor. |
+| [docs/usage-methodology.md](docs/usage-methodology.md) | When to use this tool, how to layer, how to specialize a document you did not write, what not to do. |
+| [docs/format-namespace.md](docs/format-namespace.md) | The namespace profile: syntax, escapes, comments, references. |
+| [docs/format-json.md](docs/format-json.md) | JSON input and output, scalar kinds, the numeric-map trap. |
+| [docs/format-yaml.md](docs/format-yaml.md) | YAML input and output, the `RestrictedYaml1` subset. |
+| [docs/format-xml.md](docs/format-xml.md) | XML input and output, typed components, CDATA, comments. |
+| [docs/format-ini.md](docs/format-ini.md) | INI output, the two-level projection, `PortableIni1`. |
+| [docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md) | Every intentional behaviour change from 2.4.0. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | The change protocol and the feedback forms. |
+| [KNOWN-LIMITS.md](KNOWN-LIMITS.md) | What is deliberately not covered yet. |
+| [AGENTS.md](AGENTS.md) | Entry point for automated agents. |
 
-*Input*
-```
-a.b.b0=1
-a.b.b1=2
-a.b.b2=3
-```
-*Scheme*
-```
-a.output=yaml
-a.b.type=array
-```
-*Output*
-```yaml
-b:
-  - 1
-  - 2
-  - 3
-```
-\
-Arrays can be defined without explicit definition in the schema if indexes are used:
+---
 
-Example:
+## Found a problem?
 
-*Input*
+Good — that is what the preview is for, and the project is built to absorb it.
+
+Before filing, ask one question: **what would have to change so this never surprises anyone again?**
+
+| Answer | File this |
+|---|---|
+| The code should have matched the specification | [Bug report](../../issues/new?template=bug_report.yml) |
+| The specification does not say, or says two things | [Specification ambiguity](../../issues/new?template=spec_ambiguity.yml) |
+| Both are right; I could not find out how to do this | [Usage gap](../../issues/new?template=usage_gap.yml) |
+| The tool cannot express this at all | [Feature request](../../issues/new?template=feature_request.yml) |
+
+Always include the `contract-bundle` revision from `--version`. A report against an unknown contract
+revision cannot be acted on.
+
+Full guidance, including the report form and the rules for agent-authored reports, is in
+[CONTRIBUTING.md](CONTRIBUTING.md#4-the-feedback-channel-binding).
+
+---
+
+## Building from source
+
 ```
-a.b.0=1
-a.b.1=2
-a.b.2=3
-```
-*Scheme*
-```
-a.output=yaml
-```
-*Output*
-```yaml
-b:
-  - 1
-  - 2
-  - 3
+dotnet build namespace2xml.slnx
+dotnet test  namespace2xml.slnx
 ```
 
-### Multiline
-`namespace.type=multiline` - treat all elements in given namespace as multiline string for YAML.
+Requires the .NET 10 SDK. The solution uses the `.slnx` format.
 
-Example:
+## License
 
-*Input*
-```
-a.b.0=row1
-a.b.1=row2
-a.b.2=row3
-```
-*Scheme*
-```
-a.output=yaml
-a.b.type=multiline
-```
-*Output*
-```yaml
-b: |-
-  row1
-  row2
-  row3
-```
-
-## Specify ouptut delimiter
-Only for output types: namespace, quotednamespace
-
-Example:
-
-*Input*
-```
-a.b.c=1
-```
-*Scheme*
-```
-a.output=namespace
-a.delimiter=_
-```
-*Output*
-```
-b_c=1
-```
-
-## Disable substitutions
-`namespace.substitute=key` - disable substitutions for the value.
-
-Example:
-
-*Input*
-```
-a.b=1
-*.x=*
-```
-*Scheme*
-```
-output=namespace
-a.x.substitute=key
-```
-*Output*
-```
-a.b=1
-a.x=*
-```
-\
-`namespace.substitute=none` - disable all substitutions.
-
-Example:
-
-*Input*
-```
-a.b=1
-*.x=*
-```
-*Scheme*
-```
-output=namespace
-a.x.substitute=none
-```
-*Output*
-```
-a.b=1
-*.x=*
-```
-
-## Specify xml options
-```
-[name.]*xmloptions=[NoIndent|NewLineOnAttributes]
-```
-
-# Installation
-
-From [Nuget](https://www.nuget.org/packages/namespace2xml) as a global tool:
-```
-dotnet tool install --global namespace2xml --version 0.5.0
-```
-
-As a local tool:
-```
-dotnet tool install namespace2xml --version 0.5.0 --tool-path ./tools
-```
+[MIT](LICENSE).

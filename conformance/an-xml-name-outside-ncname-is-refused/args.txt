@@ -1,0 +1,4 @@
+-i
+inputs/in.json
+-s
+schemes/main.txt

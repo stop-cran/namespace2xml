@@ -1,0 +1,4 @@
+cfg.keep=1
+cfg.drop.x=2
+cfg.drop.y=3
+!cfg.drop.*

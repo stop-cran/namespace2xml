@@ -1,0 +1,7 @@
+-i
+inputs/1.json
+inputs/2.txt
+inputs/3.txt
+inputs/4.json
+-s
+schemes/scheme.txt

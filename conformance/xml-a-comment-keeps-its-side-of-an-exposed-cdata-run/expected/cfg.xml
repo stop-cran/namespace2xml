@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cfg>
+  <before><!--c--><![CDATA[1]]></before>
+  <after><![CDATA[2]]><!--d--></after>
+</cfg>

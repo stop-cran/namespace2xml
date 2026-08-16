@@ -1,0 +1,5 @@
+s1.output=yaml
+s1.filename=out.yaml
+s2.output=yaml
+s2.filename=out.yaml
+s2.filemerge=replace

@@ -1,0 +1,5 @@
+-i
+inputs/data.txt
+inputs/rules.txt
+-s
+schemes/scheme.txt

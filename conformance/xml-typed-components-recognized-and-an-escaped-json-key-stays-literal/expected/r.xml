@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<r nsattr="ATTRVAL" varattr="VAR_VAL">
+  <nsattr>ELEMVAL</nsattr>
+  <body>hello</body>
+  <ref>ATTRVAL</ref>
+</r>

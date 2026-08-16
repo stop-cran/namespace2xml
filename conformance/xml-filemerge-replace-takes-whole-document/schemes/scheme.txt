@@ -1,0 +1,7 @@
+a.output=xml
+a.filename=out.xml
+a.root=doc
+b.output=xml
+b.filename=out.xml
+b.root=doc
+b.filemerge=replace

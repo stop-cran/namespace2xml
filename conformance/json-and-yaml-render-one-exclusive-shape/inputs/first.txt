@@ -1,0 +1,2 @@
+cfg.mapwins.x=1
+cfg.scalarwins.x.z=3

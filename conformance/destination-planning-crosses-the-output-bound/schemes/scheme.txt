@@ -1,0 +1,3 @@
+x.output=namespace
+y.output=namespace
+z.output=namespace

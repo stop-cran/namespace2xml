@@ -1,0 +1,4 @@
+hosts.*.at=idx-*
+b.*.label=generated
+!hosts.5
+!hosts.name

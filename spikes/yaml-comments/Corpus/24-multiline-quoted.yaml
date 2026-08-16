@@ -1,0 +1,7 @@
+double_quoted: "first
+  # C70 double-quoted body, not a comment
+  last" # C71 actual double-quoted inline comment
+single_quoted: 'first
+  # C72 single-quoted body, not a comment
+  last' # C73 actual single-quoted inline comment
+flow: ["# C74 flow scalar, not a comment", value] # C75 actual flow inline comment

@@ -1,0 +1,3 @@
+a.output=ignore
+a.filename=out.ini
+b.output=namespace

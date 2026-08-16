@@ -1,0 +1,5 @@
+[
+{"code":"TYPE001","severity":"error","phase":"planning","source":"schemes/scheme.txt","line":3,"path":"app.x.k","declaration":"app.x.k.type","spec":"§16.6"},
+{"code":"TYPE001","severity":"error","phase":"planning","source":"schemes/scheme.txt","line":3,"path":"app.x.k","declaration":"app.x.k.type","spec":"§16.6"},
+{"code":"TYPE001","severity":"error","phase":"planning","source":"schemes/scheme.txt","line":5,"path":"solo.m","declaration":"solo.m.type","spec":"§16.6"}
+]

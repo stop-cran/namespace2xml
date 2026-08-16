@@ -1,0 +1,4 @@
+[
+{"code":"WARN012","severity":"warning","phase":"planning","destination":"ok.ini","spec":"§19.6"},
+{"code":"FLAT001","severity":"error","phase":"planning","path":"a:b.k","destination":"bad.ini","spec":"§16.4"}
+]

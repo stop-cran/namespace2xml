@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<r>
+  <system.web>
+    <compilation debug="true" mode="strict" />
+  </system.web>
+  <system>
+    <web>
+      <compilation debug="phantom" />
+    </web>
+  </system>
+</r>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<r>
+  <mixed>t1<!-- between --><b>x</b></mixed>
+  <only>
+    <b>1</b>
+    <!-- after -->
+  </only>
+</r>

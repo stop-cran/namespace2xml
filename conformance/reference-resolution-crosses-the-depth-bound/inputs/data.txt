@@ -1,0 +1,4 @@
+r.a=${r.b}
+r.b=${r.c}
+r.c=${r.d}
+r.d=leaf

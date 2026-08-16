@@ -1,0 +1,2 @@
+cfg.output=yaml
+cfg.key=name

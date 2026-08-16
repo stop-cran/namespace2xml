@@ -1,0 +1,7 @@
+svc.port=8443
+svc.enabled=true
+svc.ratio=1.5
+svc.label=alpha
+svc.copy=${svc.port}
+svc.echo=${svc.ratio}
+api.timeout=30

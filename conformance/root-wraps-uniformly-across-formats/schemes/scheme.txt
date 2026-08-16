@@ -1,0 +1,2 @@
+cfg.output=namespace,quotednamespace,json,yaml,xml,ini
+cfg.root=x.y

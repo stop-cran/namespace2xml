@@ -1,0 +1,4 @@
+-i
+inputs/cfg.json
+-s
+schemes/scheme.txt

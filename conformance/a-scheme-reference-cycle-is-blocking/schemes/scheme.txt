@@ -1,0 +1,6 @@
+a.output=namespace
+b.output=namespace
+c.output=namespace
+a.filename=${b.filename}
+b.filename=${a.filename}
+c.filename=${c.filename}

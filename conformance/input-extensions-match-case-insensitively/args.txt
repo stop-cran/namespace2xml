@@ -1,0 +1,7 @@
+-i
+inputs/j.JSON
+inputs/y.YAML
+inputs/s.YML
+inputs/x.XML
+-s
+schemes/scheme.txt

@@ -1,0 +1,3 @@
+[
+{"code":"WARN009","severity":"warning","phase":"planning","source":"schemes/main.txt","line":3,"path":"cfg.lone.#1","declaration":"cfg.lone.#1.type"}
+]

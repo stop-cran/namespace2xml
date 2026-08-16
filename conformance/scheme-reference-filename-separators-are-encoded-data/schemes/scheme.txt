@@ -1,0 +1,11 @@
+a.output=namespace
+b.output=namespace
+c.output=namespace
+d.output=namespace
+e.output=namespace
+c.filename=dir/leaf.conf
+b.filename=${c.filename}
+a.filename=pre-${b.filename}
+d.filename=first
+e.filename=${d.filename}-copy.conf
+d.filename=second

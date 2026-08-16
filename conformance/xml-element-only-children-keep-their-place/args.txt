@@ -1,0 +1,5 @@
+-i
+inputs/main.xml
+inputs/extra.txt
+-s
+schemes/main.txt

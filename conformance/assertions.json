@@ -1,0 +1,1448 @@
+{
+  "$comment": "Item numbers and text are derived from Section 26 of docs/specification.md. Do not edit them by hand; run tools/sync-assertion-manifest.ps1.",
+  "generatedBy": "tools/sync-assertion-manifest.ps1",
+  "statuses": {
+    "pending": "Not yet owned by a merged milestone. Not enforced by the traceability gate.",
+    "required": "Appendix C.5: the fixtures field must name exactly the fixtures that reference this item, and each must assert more than an exit code. Enforced by the traceability gate."
+  },
+  "gates": "Appendix C.5: an item no fixture can discharge names the test or CI job that checks it instead, and says why a fixture cannot. Every name must resolve to something that exists, or the field is an accounting fiction.",
+  "items": [
+    {
+      "item": 1,
+      "text": "CLI behavior and exit codes.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "an-empty-path-token-is-rejected",
+        "cli-option-missing-value-rejected"
+      ]
+    },
+    {
+      "item": 2,
+      "text": "Case-insensitive file extensions.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "input-extensions-match-case-insensitively"
+      ]
+    },
+    {
+      "item": 3,
+      "text": "Missing-file warnings.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "a-repeated-missing-path-warns-once-per-occurrence",
+        "cli-end-of-options-values"
+      ]
+    },
+    {
+      "item": 4,
+      "text": "Stable CLI/file/line precedence.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "key-directive-precedence-follows-source-order",
+        "namespace-input-merge-strategies"
+      ]
+    },
+    {
+      "item": 5,
+      "text": "Namespace escaping and strict references.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "A reference cycle is a blocking error rather than a value, a truncation, or a nontermination.",
+        "The cycle report is rotated to the cycle's lexicographically least member and located at that member's origin, so source, line, column and path do not depend on which member the resolver reached first.",
+        "The rotation is chosen under unsigned UTF-8 byte order, which orders an astral scalar above U+F900 where ordinal UTF-16 comparison orders it below.",
+        "Two rings whose chains print identically are two canonically distinct cycles and are reported as two diagnostics.",
+        "Namespace escaping remains outstanding under this item."
+      ],
+      "fixtures": [
+        "cycle-rotation-uses-utf8-byte-order",
+        "reference-cycle-report-source-order-first",
+        "reference-cycle-report-source-order-reversed",
+        "two-cycles-that-print-alike-are-both-reported"
+      ]
+    },
+    {
+      "item": 6,
+      "text": "Legacy and explicit wildcard captures.",
+      "milestone": "m3",
+      "status": "required",
+      "assertions": [
+        "The bare * capture form substitutes the matched text into a template value, so a.*.z=tag-* generates tag-x at a.x.z.",
+        "The *[id] form names a capture, and one identifier used twice in a name and again twice in a value carries one text through every occurrence.",
+        "A generated name takes its matched prefix from the concrete path rather than from the pattern, so capture text is ordinary literal text in one name part and is never re-lexed.",
+        "A scheme directive value is decided from the captures its selector defines, so root, delimiter, and key are substituted from the same tuple filename is, not filename alone.",
+        "A value carrying more substitutions than the name produced repeats the last capture, and one carrying fewer ignores the unused ones.",
+        "Under a selector defining no capture, an asterisk in a filename, root, or delimiter value is literal text rather than a capture or an error, and Sections 16.4 and 21 escape it on output.",
+        "A template extracted from a native JSON or YAML key owns its captures for Section 12.1 purposes, so a bare asterisk in the extracted value substitutes what the key matched.",
+        "A type value and an output value are excluded from capture substitution whatever the selector defines, so an unescaped asterisk in either is literal text that the Section 16.6 keyword set or the Section 16.1 format list rejects as SCHEME001 in the scheme phase.",
+        "The exclusion belongs to the directive rather than to the declaration, so a wildcard selector does not make the value a capture and cfg.*.output=* is the same error as cfg.output=*."
+      ],
+      "fixtures": [
+        "a-capture-repeats-for-a-shorter-name-and-is-ignored-when-unused",
+        "a-capture-substitutes-into-a-key-field-name",
+        "a-capture-substitutes-into-root-and-delimiter",
+        "a-native-template-value-substitutes-its-own-capture",
+        "a-yaml-scheme-key-carries-a-wildcard-template",
+        "an-asterisk-in-a-directive-value-under-a-literal-selector-is-text",
+        "an-asterisk-in-a-type-value-is-scheme001",
+        "an-asterisk-in-an-output-value-is-scheme001",
+        "wildcard-repeated-capture-backtracking",
+        "wildcard-template-generation"
+      ]
+    },
+    {
+      "item": 7,
+      "text": "Fixed-point expansion and expansion limits.",
+      "milestone": "m3",
+      "status": "required",
+      "assertions": [
+        "Generation runs to a fixed point in breadth waves, so a template matches names an earlier wave generated and a two-level cascade completes in one run.",
+        "A wave evaluates candidates against the items present when that wave began, so which rule sees which item depends on the wave the item appeared in rather than on rule order within a wave.",
+        "A later concrete entry overrides a generated one, because Section 12.4 makes source order control precedence rather than visibility.",
+        "A permanent ignore mask consumes the shared candidate-check limit once per eligible pair, including for the items it suppresses, so a run whose only wildcard rule is a mask can cross the limit.",
+        "An excessively expanding rule set, whose every wave produces the item that justifies another wave, is stopped by the iteration bound and reports it rather than running to exhaustion.",
+        "Only waves that generate are charged against the iteration bound, so the same cascade completes at a bound of one per generating level and the number behaves as a threshold rather than a refusal.",
+        "The generated-entry bound is separate from the iteration bound and counts newly materialized nodes, so a rule set that settles in one wave can still cross it.",
+        "A crossed bound names the rules that spent it, in source order, and not the rule that was about to run or the matched item.",
+        "A wildcard scheme selector consumes the same shared candidate-check limit, although it is expanded in the planning phase rather than inside the fixed point, so the limit bounds every wildcard rule category and not only the two the fixed point evaluates."
+      ],
+      "fixtures": [
+        "mask-candidates-consume-the-wildcard-limit",
+        "selector-candidates-consume-the-wildcard-limit",
+        "wildcard-cascade-completes-within-the-iteration-bound",
+        "wildcard-cascade-crosses-the-iteration-bound",
+        "wildcard-generation-crosses-the-generated-bound",
+        "wildcard-template-generation"
+      ]
+    },
+    {
+      "item": 8,
+      "text": "Strict output-prefix matching.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "wildcard-output-selectors-expand-per-capture-tuple"
+      ]
+    },
+    {
+      "item": 9,
+      "text": "Typed scalar references, canonical and unique format-agnostic reference addressing, ambiguity errors, and string concatenation.",
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A value that is exactly one reference forwards the referent's settled scalar kind rather than the text of it.",
+        "A canonical reference names an XML attribute, qualified element, or content position directly, and bypasses the alias index.",
+        "A format-agnostic reference resolves through the simple alias of a canonical path, and is admissible only when that alias names exactly one canonical path at the node.",
+        "An alias naming more than one canonical path is REFERENCE004, attributed to the referring value rather than to either candidate.",
+        "A value mixing literals and references, or more than one reference, is a string, and its concatenation is not re-inferred.",
+        "A reference containing an unescaped Q{} component is canonical and bypasses the simple alias index, so Q{}x selects the child element where the unmarked spelling is ambiguous with an attribute of the same name.",
+        "Section 13.1 decides canonical addressing per reference rather than per component, so a marker on any component takes the whole reference off the index.",
+        "The marker is an addressing annotation and not part of a component identity: a.Q{}b and a.b remain one overlay node, and no canonical path is ever spelled with an empty qualifier.",
+        "A canonical reference addressing an XML comment position is the non-scalar REFERENCE005, and is distinguished from a content position naming nothing, which is the missing REFERENCE002."
+      ],
+      "fixtures": [
+        "a-reference-to-an-xml-comment-is-not-a-value",
+        "an-empty-qualifier-escapes-the-alias-ambiguity",
+        "reference-alias-ambiguity-lists-candidates",
+        "reference-typed-values-and-alias-addressing",
+        "type-string-forces-document-scalar-rendering"
+      ]
+    },
+    {
+      "item": 10,
+      "text": "Winning-source mapping order and logical-path comment movement across overrides.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "an-override-moves-its-key-and-keeps-both-comments"
+      ]
+    },
+    {
+      "item": 11,
+      "text": "Sequence concatenation across every input format.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "namespace-numeric-map-inference"
+      ]
+    },
+    {
+      "item": 12,
+      "text": "YAML wildcard enrichment across files.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "A wildcard in a native YAML mapping key is a template rather than a name: it is extracted entry by entry before structural input merging and expanded during the Section 12.4 fixed point, so records contributed by another file gain the template's keys.",
+        "The generated entry sorts at its rule's Section 4.7 source position, so listing the template file before the data places the generated key ahead of the record's own keys, and listing it after places it behind them.",
+        "A sequence beneath a wildcard key is extracted through its items' ordering values, which Section 5.4 exposes as decimal name parts, so the template declares the same entries as the equivalent namespace template and a native template and its namespace spelling are one rule written twice.",
+        "An empty mapping or an empty sequence beneath a wildcard key has no entries for entry-by-entry extraction to find, so it is PARSE001 against Section 10.4, once per failing source, naming each document that carries one.",
+        "The explicit Section 5.4 provenance extraction gives a template's sequence items is observable against a destination that already holds items: the template's values address the destination's ordering values, so reuse of an ordering value overrides the item there by ordinary source order and the template replaces the items it addresses rather than appending to them.",
+        "Configuring merge=append at the target path appends a generated sequence contribution instead, rebasing each supplied ordering value above the destination's high-water mark while the destination's sole earlier contribution is not rebased."
+      ],
+      "fixtures": [
+        "a-namespace-sequence-template-overrides-the-same-destination-items",
+        "a-native-sequence-template-overrides-the-destination-items-it-addresses",
+        "a-native-template-value-substitutes-its-own-capture",
+        "a-native-wildcard-template-over-a-sequence-extracts-by-ordering-value",
+        "a-native-wildcard-template-over-an-empty-container-is-parse001",
+        "a-sequence-template-appends-when-the-target-path-says-append",
+        "a-yaml-wildcard-key-enriches-each-record-of-a-later-file",
+        "a-yaml-wildcard-key-enriches-each-record-of-an-earlier-file"
+      ]
+    },
+    {
+      "item": 13,
+      "text": "YAML comment input and output.",
+      "milestone": "m5",
+      "status": "required",
+      "assertions": [
+        "Section 10.1 lists leading, inline, and trailing comments among YAML input's supported features, and every one of those positions survives a same-format round trip attached to the value it was read against.",
+        "Section 20 classifies a comment by the content around it before Section 4.5 binds it, so a comment before the first payload or item is document-leading and a comment between two payloads or items is a leading comment of the following one; a comment at the boundary between a nested container and its parent's next sibling therefore leads that sibling rather than trailing the nested value.",
+        "Section 4.5 gives document-leading and document-trailing comments no value owner, and Section 20 places them at the start and the end of each output instance the source reaches rather than binding them to its first or last entry.",
+        "Section 8.5 states the namespace format's own association rule, so a namespace comment with a following entry binds to it and one without stays document-trailing instead of being discarded; its one exception is a source's opening run, which is document-leading and therefore outlives an ignore mask over the first entry that Section 8.6 would otherwise suppress it with.",
+        "\"Each output instance\" in Section 20 means every destination that emits comments at all, not only the structured ones: a namespace output brackets its entries with the document-leading and document-trailing comments rather than dropping the comments no entry owns, and an XML output emits a document-trailing comment after the final child rather than ahead of the first.",
+        "Section 8.5's exception has a cost the corpus states rather than leaves to be discovered: an opening comment is bound to no path, so Section 5.2 does not move it when the first entry is overridden and Section 16.5 does not carry it into a generated record, while a comment that follows an entry in the same source does both.",
+        "A source that forms no entry at all still reaches the output: Section 8.5 makes its whole run document-leading, because it has no contribution to trail, so commenting out every line of a file disables its settings without deleting the note that says why.",
+        "Section 19.5 promotes a lone top-level member to the document element, leaving no element for the view itself, and the document comments then go to the XML prolog and epilogue rather than being discarded."
+      ],
+      "fixtures": [
+        "a-commented-out-source-leads-the-document",
+        "a-contributionless-source-comments-every-instance",
+        "a-namespace-header-comment-outlives-its-first-entry",
+        "an-implicit-xml-root-carries-document-comments",
+        "an-opening-comment-does-not-move-with-its-entry",
+        "namespace-document-trailing-comments-reach-the-output",
+        "namespace-normalizes-an-inline-comment",
+        "namespace-output-carries-document-comments",
+        "xml-output-places-a-document-trailing-comment-last",
+        "yaml-comment-positions-survive-a-round-trip",
+        "yaml-document-comments-have-no-value-owner"
+      ]
+    },
+    {
+      "item": 14,
+      "text": "JSON strict parsing and absence of comments.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "A standard JSON document parses, and Section 9.1 decides a number's kind from its lexical form.",
+        "Comments, trailing commas, and duplicate object keys are each PARSE001 against the source that carries them.",
+        "A \\u escape standing for an unpaired or reversed surrogate denotes no Unicode scalar, so the source is refused rather than repaired, and the condition reaches the diagnostic stream as PARSE001 rather than leaving the process as the unhandled exception Section 6.3 forbids."
+      ],
+      "fixtures": [
+        "json-scalar-kinds-and-sequence-order",
+        "json-strict-parsing-refusals"
+      ]
+    },
+    {
+      "item": 15,
+      "text": "XML DTD rejection and external-resource prohibition.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "A document type definition is rejected outright rather than partially processed, so an internal subset's entities are never defined and a nested-entity document costs nothing to refuse.",
+        "A reachable external subset is never retrieved: one existing definition is named both relative to the document and relative to the invocation, so no resolution base can miss it, and the entity it defines would appear in the output were it read.",
+        "Each failing document is XML001 at the Section 22 one-based line and column of the DOCTYPE token, every failing source reports in Section 7.3 command-line order, and nothing is published."
+      ],
+      "fixtures": [
+        "xml-prohibited-dtd-and-external-resources"
+      ]
+    },
+    {
+      "item": 16,
+      "text": "XML namespaces, attributes, text, mixed content, comments, CDATA, and whitespace modes.",
+      "milestone": "m6",
+      "status": "required",
+      "assertions": [
+        "A namespace-qualified name addresses through its URI as Q{uri}local rather than through the prefix the document wrote, an attribute carries its @ marker so it cannot collide with a child element of the same name, and repeated same-name element children form a Section 5.4 sequence while a singleton keeps its name.",
+        "Every content position in a mixed element takes a #n content token, a child element there is #n.name, and adjacent runs of one kind coalesce while text and CDATA do not coalesce with each other.",
+        "CDATA is retained as a distinct node kind and re-emitted as CDATA, the spelling rides the scalar payload so Section 4.4 replacement carries it, a reference imports the referent's value but not its spelling, and a Section 16.6 type directive overrides the spelling in both directions.",
+        "Comments are retained as ordered comment nodes at their own content token, both between mixed-content nodes and after the final child, are never reassigned to an adjacent value, and comments alone do not make a parent mixed-content.",
+        "Only XML renders comment nodes; every other destination omits them and reports one summarized WARN003 for the output file rather than one per comment.",
+        "PreserveWhitespace is the default and retains every text node, NormalizeFormattingWhitespace discards whitespace-only text between element children while preserving whitespace in mixed content, under xml:space=\"preserve\", and in CDATA, and reports one WARN007 per document that lost anything.",
+        "The three Section 16.8 input options are root-level only, so a selector-qualified one is a blocking SCHEME001 and the later complete directive wins.",
+        "An element-only child carries a content-token ordering value as well as its name, so it is emitted at the position its parent assigned even when a same-name sibling makes it a sequence item.",
+        "Mixedness and repeated-child classification are properties of the merged element rather than of one document, so a mixed contribution makes an element-only contribution's child a content node with its own fresh content token, and a contribution that repeats a name makes another contribution's singleton an item of that one sequence rather than a scalar beside it.",
+        "A comment among element-only children takes a content token whose index counts its element siblings, and that token is a real address: a scheme directive at that #n selects the comment and type=ignore removes it.",
+        "An element that exposes its lone text run as the scalar at the element path leaves that run unaddressable as #n while the index it would have occupied stays consumed rather than reassigned, so the comments beside it keep their own values and a directive written against the gap matches nothing and emits WARN009."
+      ],
+      "fixtures": [
+        "xml-a-comment-among-element-only-children-is-addressable",
+        "xml-a-reference-does-not-import-a-spelling",
+        "xml-canonical-addresses",
+        "xml-cdata-survives-a-round-trip",
+        "xml-reports-a-node-that-supplies-both-container-shapes",
+        "an-xml-name-outside-ncname-is-refused",
+        "a-promoted-item-follows-its-canonical-index",
+        "a-name-xml-would-refuse-is-ordinary-elsewhere",
+        "an-element-takes-no-prefix-when-an-attribute-has-one",
+        "xml-a-comment-keeps-its-side-of-an-exposed-scalar",
+        "xml-a-comment-keeps-its-side-of-an-exposed-cdata-run",
+        "xml-a-later-scalar-keeps-the-content-it-lands-on",
+        "xml-an-exposed-scalar-consumes-its-content-token-index",
+        "xml-comments-are-ordered-content-nodes",
+        "xml-element-only-children-keep-their-place",
+        "xml-generated-attribute-namespace-prefixes",
+        "xml-input-options-are-root-level-only",
+        "xml-mixedness-spans-contributions",
+        "xml-node-types-select-the-spelling",
+        "xml-normalize-formatting-whitespace",
+        "xml-output-escapes-carriage-return",
+        "xml-singleton-promotion-spans-contributions",
+        "xml-whitespace-is-preserved-by-default"
+      ]
+    },
+    {
+      "item": 17,
+      "text": "Cross-format metadata-loss warnings.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "xml-comments-are-ordered-content-nodes"
+      ]
+    },
+    {
+      "item": 18,
+      "text": "Every scheme directive and deprecated alias.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "Section 15 gives scheme files the case-insensitive .json, .yaml and .yml extensions and routes every other extension to namespace-profile parsing, so a scheme file named .xml is PARSE001 against Section 15 in the scheme phase, once per failing source, reported before the file is read rather than by handing it to the Section 8.1 namespace parser.",
+        "A substitute directive governs the node it matches and not its descendants, its default is All, and its pathless form matches every node rather than the root alone, so a pathless mode reaches an entry nested two levels below any path a directive names.",
+        "A pathless substitute directive and a path-scoped one compete under Section 15.2 by source order alone, so the later declaration wins whichever of the two forms it takes and being more specific does not help the earlier one.",
+        "A substitute pattern matches an entry's declared pre-expansion path as it was written, so a directive path spelling a wildcard governs the template declared with that spelling, which is the only way the mode's name column reaches any entry at all.",
+        "A Section 8.6 exclusion mask is not an entry, so substitute does not govern it and a wildcard mask still expands under None rather than becoming a literal path that matches nothing.",
+        "WARN009 tests whether a directive bound to a concrete output instance or path and not whether that instance produced anything, so a directive naming an instance whose output is ignore is silent while a directive stranded beneath a type=ignore is not.",
+        "An output=ignore instance still exists under Section 16.1 so that a later declaration can restore it, which is why the directives configuring it have bound and the run exits 0 with no diagnostic at all."
+      ],
+      "fixtures": [
+        "a-container-value-in-a-structured-scheme-is-scheme001",
+        "a-directive-on-an-ignored-output-instance-does-not-warn",
+        "a-json-scheme-nests-directive-paths",
+        "a-pathless-substitute-mode-matches-every-node",
+        "a-yaml-scheme-key-carries-a-wildcard-template",
+        "an-exclusion-mask-is-not-governed-by-substitute",
+        "an-xml-scheme-file-is-not-a-scheme-format",
+        "substitute-key-preserves-a-native-string-exactly",
+        "substitute-keyonly-is-a-deprecated-alias",
+        "substitute-none-disables-interpretation-at-the-matched-node",
+        "type-ignore-removes-a-subtree-and-strands-its-directives",
+        "type-string-forces-document-scalar-rendering"
+      ]
+    },
+    {
+      "item": 19,
+      "text": "Source-order scheme precedence, including wildcard then specific and specific then wildcard.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "key-directive-precedence-follows-source-order",
+        "wildcard-then-specific-and-specific-then-wildcard-follow-source-order"
+      ]
+    },
+    {
+      "item": 20,
+      "text": "Negative `output=ignore`.",
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A wildcard declaration and a later exact output=ignore that literalize to the same concrete selector are one Section 15.2 source-ordered override stream, so the ignore wins and Section 14.2 creates no output instance for it.",
+        "The suppression is scoped to that one concrete instance: the other instances the same wildcard declaration created still publish, because Section 15.2 states output=ignore never removes data from another output instance."
+      ],
+      "fixtures": [
+        "output-ignore-suppresses-one-concrete-instance"
+      ]
+    },
+    {
+      "item": 21,
+      "text": "Uniform `root`.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "`root` wraps and never renames. The key a flat format retains for a bare scalar is content by the time `root` applies, so `root=x.y` over a bare scalar selected at `lone` emits `x.y.lone` in namespace output rather than replacing the retained key with the root parts.",
+        "The one rule renders three ways in the flat formats without changing what it means: `x_y_lone` under the quoted-namespace delimiter, and key `lone` inside section `[x:y]` in INI, where Section 19.6 makes root parts section-path parts rather than key text.",
+        "JSON and YAML wrap the same bare scalar with no synthesized key, so the retained key is the flat formats' contribution and not something `root` supplies."
+      ],
+      "fixtures": [
+        "root-wraps-a-bare-scalars-retained-key",
+        "root-wraps-uniformly-across-formats"
+      ]
+    },
+    {
+      "item": 22,
+      "text": "Output-neutral `key`.",
+      "milestone": "unassigned",
+      "status": "required",
+      "assertions": [
+        "The Section 16.5 worked example transforms an ordered mapping into a sequence of records, with the generated key field first in Section 5.2 mapping order and the child's own mapping fields following it.",
+        "The generated field holds the decoded mapping-key text, and each record receives a fresh implicit ordering value in mapping order because neither child carried ordering-value provenance.",
+        "The transformation is output-neutral: it happens once at pipeline step 16, so namespace and INI files from one output instance show the same records differing only in how Section 19 spells a sequence.",
+        "When an independent sequence projection already exists at the target, the generated records fold onto it under Section 17.1 rather than replacing it: a record that retained an explicit ordering value addresses that value, a record allocated a fresh implicit value lands above the high-water mark, and the untouched native items keep their own values, so Section 5.4 ascending order can place a native item between two generated records."
+      ],
+      "fixtures": [
+        "key-projects-an-ordered-mapping-as-records",
+        "key-records-merge-with-an-independent-sequence"
+      ]
+    },
+    {
+      "item": 23,
+      "text": "Locale-independent scalar inference.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "json-scalar-kinds-and-sequence-order",
+        "namespace-numeric-map-inference",
+        "yaml-restricted-schema-and-scalar-kinds"
+      ],
+      "gates": [
+        "Namespace2Xml.UnitTests.BigDecimalTests.CanonicalTextIgnoresTheCurrentCulture",
+        "Namespace2Xml.Conformance.RuntimeConfigurationTests.TheShippedToolRunsWithInvariantGlobalization",
+        "ci:determinism"
+      ]
+    },
+    {
+      "item": 24,
+      "text": "JSON, YAML, and XML input structural merge.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "A native container and a namespace-profile mapping at one path are two contributions to one node, so a YAML sequence and a profile-written mapping child meet under Section 4.4 rather than in one reader.",
+        "When both a mapping and a sequence projection survive at one path, a flat output keeps the later contribution under Section 17.1 and reports the omitted shape as TYPE002 rather than merging or silently discarding it.",
+        "Precedence is decided by source order alone, so reversing which format contributes last reverses which shape survives."
+      ],
+      "fixtures": [
+        "namespace-shape-conflict-precedence"
+      ]
+    },
+    {
+      "item": 25,
+      "text": "Array concatenation, explicit-index patching, and input `merge=replace`.",
+      "milestone": "m3",
+      "status": "required",
+      "assertions": [
+        "Under the default deep strategy an all-canonical-numeric mapping patches at the supplied ordering value, so a later contribution at an existing value is merged into the item already there by the ordinary rules of Section 17.1 and leaves the other items alone.",
+        "Under append the same two contributions concatenate instead: the later contribution is rebased onto fresh implicit ordering values above the high-water mark rather than patching.",
+        "Append refuses a path whose accumulator is not a sequence just as it refuses a later contribution that is not one, so appending onto a scalar is an error rather than a silent deep merge.",
+        "Under replace the later complete value replaces the earlier one, so a child written only by the earlier contribution is gone even though the later contribution never mentioned it.",
+        "A merge directive governs only the node it matches, so sibling roots carrying different strategies over identical two-source input each behave as their own directive says.",
+        "An explicitly empty native sequence is a sequence contribution with no items to rebase, so appending it leaves the earlier sequence unchanged rather than being rejected as a non-sequence use.",
+        "Under replace a later contribution whose container shape differs from the earlier one replaces that shape outright in both directions, without reporting a conflict between the two.",
+        "Under error a second contribution at the path is refused outright, and because the condition is a property of the folded node rather than of either contribution the diagnostic names the path and no source.",
+        "A generated contribution remains a separate contribution under append, so a template and every concrete source that contributes at the path all survive into the appended sequence rather than the generated value standing in place of one of them.",
+        "A generated contribution under append merges at its own rule/match position among the concrete contributions, so a template listed between two sources that write the same path publishes its items between theirs rather than beside the node as a whole.",
+        "A later contribution that supplies no item still moves the node's mark, so a generated contribution earlier than that mark but later than every item is appended after the items rather than before them."
+      ],
+      "fixtures": [
+        "a-generated-contribution-sorts-between-the-sources-that-straddle-it",
+        "a-later-empty-sequence-does-not-reorder-a-generated-contribution",
+        "append-onto-a-non-sequence-accumulator-is-an-error",
+        "merge-error-rejects-a-second-source-contribution",
+        "merge-strategies-over-native-sequence-shapes",
+        "namespace-input-merge-strategies",
+        "wildcard-generation-appends-beside-every-contribution",
+        "wildcard-generation-merges-at-rule-position"
+      ]
+    },
+    {
+      "item": 26,
+      "text": "Deterministic same-path `filemerge` and cross-format complete-plan overrides.",
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "Two wildcard matches writing one destination fold in the Section 12.4 match order, which is first appearance in the model, rather than in selector byte order: the later-appearing match's sequence items are allocated second even though its selector sorts first.",
+        "Every destination collision emits one WARN005 in phase planning anchored at Section 17.5 and naming the destination, and a warning does not fail the run.",
+        "A cross-format collision replaces the complete earlier file plan instead of merging it, so a key only the earlier contribution supplied is absent from the published file.",
+        "A later same-format contribution's implicit sequence items are rebased above the destination accumulator's high-water mark rather than patching the items already at those values.",
+        "`filemerge=error` rejects the second contribution to one destination with a blocking COLLISION001 that names the `filemerge` declaration rather than the `output` declaration the two contributions share, and no file is published.",
+        "Four contributions reaching one destination from a two-format wildcard declaration fold by format ordinal before wildcard match order, not in the order the expansion produced them, so a cross-format replacement lands once rather than between every pair.",
+        "A filemerge=append between two mapping views is refused at each destination's view root, where Appendix A.2 leaves path absent, and Section 22 counts TYPE001 once per path and applicable output instance, so two destinations report two refusals rather than one being retired as a repeat of the other.",
+        "A step 18 fold diagnostic carries the Appendix B destination member, which is the only member separating two root refusals that share a code, a phase, an anchor, a message and an absent path.",
+        "WARN005 is counted once per folded contribution pair, so four contributions at one destination report three warnings even when two of the pairs name the same two selectors.",
+        "A destination filemerge=replace discards the accumulated items at a sequence path below the declaration without lowering that path's high-water mark, and the accumulator absorbs that mark before allocating, so the replacing contribution's own implicit item allocates above every discarded value and later explicit items at the values the discarded items had used land beside it rather than patching it.",
+        "A destination `filemerge=replace` keeps the high-water mark of a sequence path the replacement does not name, because Section 17.5 makes the per-path map complete and explicitly includes marks raised by items the output projection hides, so a later contribution recreating that path allocates above every discarded value instead of reusing one; the recreated path takes the position of the contribution that recreated it, because the high-water mark is the only thing Section 17.5 carries across the replacement.",
+        "A sequence path removed by a destination `filemerge=replace` and never recreated is absent from an exclusive destination entirely, rather than reappearing as an empty container, because the retained high-water mark is state belonging to the fold and not a node of the document the fold produces."
+      ],
+      "fixtures": [
+        "a-cross-format-collision-replaces-the-earlier-plan",
+        "a-destination-fold-keeps-every-contribution-type",
+        "a-fold-creates-a-shape-conflict-no-contribution-has",
+        "a-refused-fold-is-reported-once-per-destination",
+        "a-replaced-destination-keeps-the-high-water-mark",
+        "a-replacement-keeps-the-mark-of-a-path-it-does-not-name",
+        "a-replacement-leaves-no-trace-of-a-path-it-removed",
+        "destination-fold-follows-wildcard-match-order",
+        "filemerge-error-rejects-a-second-contribution",
+        "folded-implicit-items-rebase-above-the-destination-mark",
+        "one-destination-folds-by-format-before-match-order"
+      ]
+    },
+    {
+      "item": 27,
+      "text": "Portable shell quoting and invalid identifiers.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "quoted-namespace-hyphen-key-is-shell001",
+        "quoted-namespace-shell-quoting-preserves-hostile-values"
+      ]
+    },
+    {
+      "item": 28,
+      "text": "The documented INI dialect against representative parsers.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "ini-a-colon-inside-a-key-is-key-text",
+        "ini-a-key-keeps-the-letter-case-it-was-given",
+        "ini-a-percent-sign-in-a-value-is-ordinary-text",
+        "ini-escapemultiline-doubles-a-backslash-with-or-without-quoting",
+        "ini-quotevalues-writes-markers-and-edge-whitespace"
+      ],
+      "gates": [
+        "ci:ini-interop"
+      ]
+    },
+    {
+      "item": 29,
+      "text": "Output-root path confinement, including symlink or reparse-point escape attempts.",
+      "milestone": "m7",
+      "status": "required",
+      "assertions": [
+        "An output root that already exists as a regular file is the PATH001 of Section 21.1 rather than the PATH002 that the underlying directory-creation failure would otherwise report, and the file is left byte-identical because the refusal precedes any creation.",
+        "A host that cannot provide no-follow, handle-relative filesystem operations reports PATH001 and creates nothing at all, so the refusal precedes the output root rather than following it.",
+        "A destination reached through a symbolic link, junction, or other reparse point at any path component is refused rather than followed, and the file outside the root is never created."
+      ],
+      "fixtures": [
+        "an-existing-non-directory-output-root-is-rejected"
+      ]
+    },
+    {
+      "item": 30,
+      "text": "Global semantic/serialization validation gate and deterministic direct publication.",
+      "milestone": "m7",
+      "status": "required",
+      "assertions": [
+        "The gate runs across every planned output before any file is written, so a failure detected while projecting the second output instance leaves no file from the first, which had already serialized successfully.",
+        "Destinations are written in the Section 21.3 order, by minimum fold key and then by canonical relative path compared as unsigned UTF-8 bytes, with each destination flushed and closed before the next begins.",
+        "A storage failure mid-publication attempts no rollback, so the destinations already written remain and every later destination is untouched, making the surviving set a function of the destination order rather than of the failure."
+      ],
+      "fixtures": [
+        "validation-gate-leaves-the-output-root-untouched"
+      ]
+    },
+    {
+      "item": 31,
+      "text": "Byte-identical repeated runs under different thread schedules and locales.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [],
+      "gates": [
+        "Namespace2Xml.Conformance.RuntimeConfigurationTests.TheShippedToolRunsWithInvariantGlobalization",
+        "ci:determinism",
+        "ci:cross-os-hash"
+      ],
+      "whyNotAFixture": "The claim is that every fixture produces identical bytes when the same run is repeated under a different worker count, locale, and time zone. A fixture states one run and one expected tree; it cannot state \"run me three times under three environments and compare\", because the comparison is between runs rather than inside one. tools/hash-corpus-outputs.ps1 supplies that repetition over the whole corpus and the cross-os-hash job compares the resulting digests across the three platforms, so every fixture is evidence for this item without any fixture naming it."
+    },
+    {
+      "item": 32,
+      "text": "Complexity bounds expressed in `N`, `P`, `E`, `M`, `C`, `G`, and `B`, verified through deterministic instrumentation of node visits, candidate checks, reference-edge visits, and produced bytes rather than wall-clock thresholds.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "selector-candidates-consume-the-wildcard-limit"
+      ]
+    },
+    {
+      "item": 33,
+      "text": "Scalar-plus-descendant overlays across namespace, JSON, YAML, XML, and INI.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "JSON and YAML are Section 4.4 exclusive-shape destinations: the payload competes with the container, the later contribution wins, and the omitted facet is one `TYPE002` counted once per path and output instance.",
+        "The flat formats emit both projections without a shape warning, so the same overlay renders differently by format rather than being rejected.",
+        "An empty mapping participates in the Section 4.4 contest without children, so it wins over an earlier scalar and loses to a later one, and the loss warns in both directions.",
+        "XML is not yet pinned for this item."
+      ],
+      "fixtures": [
+        "a-comment-beside-a-child-still-contests-a-later-scalar",
+        "a-comment-only-container-does-not-contest-a-later-scalar",
+        "a-discarded-comment-does-not-delete-the-value-it-annotates",
+        "empty-container-versus-scalar-picks-the-later-shape",
+        "json-and-yaml-render-one-exclusive-shape"
+      ]
+    },
+    {
+      "item": 34,
+      "text": "Permanent ignore masks across concrete input, wildcard generation, references, selectors, and comments.",
+      "milestone": "m3",
+      "status": "pending",
+      "assertions": [
+        "A mask suppresses a matching contribution whether it was written before or after the ignore entry, and a later contribution cannot recreate the path.",
+        "A mask declared in one source suppresses a path contributed by another, because the exclusion is run-wide rather than source-ordered.",
+        "The exclusion reaches the matched path's descendants, and comments bound to a suppressed path are suppressed with it.",
+        "A comment that precedes the first entry of a source is document-leading under Section 4.5 and has no value owner, so it survives a mask over the entry it happens to sit against, while a comment that does own a masked entry does not. The two sit one line apart in the same input.",
+        "A masked contribution is discarded before literal-path merge validation, so a masked path under merge=error does not report a second contribution.",
+        "Masks remain active after contributions are merged, so a mask naming an ordering value that merge=append assigned during rebasing suppresses the item at that value.",
+        "A mask suppresses a name a wildcard template generated exactly as it suppresses a written one, so the generated sibling of a masked path still appears.",
+        "A mask removes a candidate before wildcard matching enumerates it, so a masked sequence item produces no generated contribution and no capture.",
+        "A mask is charged a candidate check for every eligible item it examines, including the ones it goes on to suppress and which therefore never reach the merged model."
+      ],
+      "fixtures": [
+        "mask-after-sequence-rebasing",
+        "mask-candidates-consume-the-wildcard-limit",
+        "namespace-permanent-ignore-masks",
+        "wildcard-ordering-values-survive",
+        "wildcard-repeated-capture-backtracking",
+        "wildcard-template-generation"
+      ]
+    },
+    {
+      "item": 35,
+      "text": "Stable ordering-value matching after cross-file concatenation.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "mask-after-sequence-rebasing"
+      ]
+    },
+    {
+      "item": 36,
+      "text": "Concrete output-instance expansion and wildcard default filenames.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "Expansion walks only the items under the selector's literal prefix, and charges the shared candidate-check limit once per eligible pair, so a selector cannot expand over an unbounded number of items."
+      ],
+      "fixtures": [
+        "a-concrete-filename-binds-to-the-instance-a-wildcard-created",
+        "selector-candidates-consume-the-wildcard-limit"
+      ]
+    },
+    {
+      "item": 37,
+      "text": "`RestrictedYaml1` scalar and key behavior.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "A RestrictedYaml1 document parses, and Section 10.1 decides a plain scalar's kind independently of the host library's own schema.",
+        "Anchors, explicit tags, document markers, duplicate keys, merge keys, and complex keys are each PARSE001 against the source that carries them.",
+        "A refusal's reported line counts LF, CRLF and a lone CR and nothing else, so U+0085, U+2028 and U+2029 are data on the line that carries them and do not advance it.",
+        "An unquoted merge key is an error rather than an ordinary key, because RestrictedYaml1 performs no merge and accepting one would place the referenced mapping one level too deep under a member named `<<`, losing nothing visibly while changing the model.",
+        "Quoting the key makes it ordinary data, and a component whose text is `<<` is written quoted on YAML output, so a document carrying it reads back as itself rather than as the merge key Section 10.1 refuses."
+      ],
+      "fixtures": [
+        "a-quoted-merge-key-is-an-ordinary-key",
+        "yaml-indentation-block-scalars-and-quoting",
+        "yaml-quotes-every-portably-typed-spelling",
+        "yaml-restricted-schema-and-scalar-kinds",
+        "yaml-restricted-schema-refusals",
+        "yaml-scalar-style-selection",
+        "yaml-scalars-survive-a-same-format-round-trip",
+        "yaml-section-22-line-terminators"
+      ]
+    },
+    {
+      "item": 38,
+      "text": "XML canonical addresses for namespaces, attributes, repeated children, and mixed content.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "Section 11.4 addresses an attribute as @name and a namespace-qualified name as Q{uri}local resolved from the URI rather than the prefix, and an element owning both text and attributes exposes the text at its own element path with the attributes beneath it.",
+        "Repeated same-name children become a Section 5.4 sequence with generated zero-based parts while a single child keeps its name, and mixed content addresses every position as a #n content token which a Section 11.5 comment occupies in its own right.",
+        "Section 11.4 emits WARN011 when a later contribution writes an unmarked component whose simple alias is an XML component already at the node, reporting the sibling it added and the canonical address that would have overridden instead, and withholds it both when the two components arrive in one contribution and when the later one is spelled Q{}local."
+      ],
+      "fixtures": [
+        "xml-a-2-x-style-attribute-override-adds-a-sibling-element",
+        "xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address",
+        "xml-an-element-name-with-a-dot-needs-an-escape",
+        "xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component",
+        "xml-canonical-addresses"
+      ]
+    },
+    {
+      "item": 39,
+      "text": "XML singleton-versus-sequence merge classification across three or more contributions.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "xml-sequence-classification-spans-three-contributions"
+      ]
+    },
+    {
+      "item": 40,
+      "text": "Complete output-option replacement and contradictory flag errors.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "contradictory-output-option-flags-are-scheme001",
+        "later-output-options-replace-earlier-set-completely",
+        "noindent-with-newline-on-attributes-is-scheme001"
+      ]
+    },
+    {
+      "item": 41,
+      "text": "Flat-key collision detection after delimiter and shell-identifier normalization.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "quoted-namespace-key-collision-is-blocking"
+      ]
+    },
+    {
+      "item": 42,
+      "text": "Namespace multiline escape round trips.",
+      "milestone": "M2",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "namespace-escaping-round-trip"
+      ]
+    },
+    {
+      "item": 43,
+      "text": "UTF BOM handling, LF output, no output BOM, and deterministic diagnostic ordering.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "An XML declaration naming an encoding that disagrees with the one Section 7.4 selected is PARSE002 and not XML002, because the condition is a decoding failure the declaration reveals rather than a defect of the markup.",
+        "That PARSE002 is raised before the document is parsed, so a source carrying both an encoding disagreement and a well-formedness error reports only the disagreement, at line 1 column 1, and never reports the tag mismatch."
+      ],
+      "fixtures": [
+        "an-empty-comment-is-its-marker-alone",
+        "an-encoding-disagreement-precedes-xml-parsing",
+        "cross-destination-diagnostic-order",
+        "cross-format-replacement-renumbers-the-destination-order",
+        "swapping-two-invalid-options-swaps-the-reported-one",
+        "two-invalid-options-report-the-leftmost",
+        "xml-declaration-encoding-disagreement"
+      ]
+    },
+    {
+      "item": 44,
+      "text": "Direct-publication external failure behavior without rollback.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [],
+      "gates": [
+        "Namespace2Xml.UnitTests.PublisherTests.AFailureStopsPublicationAndLeavesEarlierFilesInPlace",
+        "Namespace2Xml.UnitTests.PublisherTests.AStorageFailureIsReportedAgainstItsDestination",
+        "ci:publication-invariants"
+      ],
+      "whyNotAFixture": "Section 21.3 is about what survives an external storage failure. A conformance fixture states inputs and expects files, and the harness has no way to make a write fail partway, so no case in the corpus can reach the path. The gate injects the failure through a substituted sink and asserts that earlier destinations remain written, the failing one is reported against its own destination, and no rollback occurs."
+    },
+    {
+      "item": 45,
+      "text": "Empty output-plan warnings and inferred-sequence compatibility warnings.",
+      "milestone": "m3",
+      "status": "required",
+      "assertions": [
+        "When multiple sources contribute native implicit sequences at one path and no explicit merge directive applies, exactly one WARN004 compatibility warning is emitted for that path.",
+        "An explicit merge directive at the path silences the warning, including a bare directive governing the overlay root, because the directive says which reading was meant.",
+        "Explicit ordering values meeting native implicit items do not warn, because they patch rather than concatenate.",
+        "A validated output plan containing no destinations reports exactly one WARN008 per invocation, so a scheme that declares no output is distinguishable from one that was applied.",
+        "WARN008 is a warning and not an error: the run still exits successfully, and a well-formed scheme whose only directives are non-output directives is still honoured.",
+        "WARN008 declares no optional Section 6.4.3 members, so the occurrence carries exactly the five required ones."
+      ],
+      "fixtures": [
+        "empty-output-plan-warning",
+        "namespace-numeric-map-inference"
+      ]
+    },
+    {
+      "item": 46,
+      "text": "Scalar-only references and rejection of subtree and free-wildcard references.",
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A reference naming a node that has descendants but no scalar or null payload is REFERENCE002 rather than a subtree copy or an empty string.",
+        "A reference whose name carries a capture that the referring name does not bind is REFERENCE001, because Section 13.3 admits only explicitly bound and mutually consistent captures.",
+        "Two reference defects written in one file are ordered by where they were written, not by their codes.",
+        "A free-wildcard reference in an entry no concrete output instance reaches does not fail the run, in either of its spellings, whether the owner is unreachable because no declaration selects it or because the winning declaration is output=ignore.",
+        "The reachability suppression covers every member of the Section 14.4 list, so a missing, cyclic and non-scalar reference in the same unreachable position are equally silent.",
+        "Section 12.2 and Section 13.3 divide the undefined-capture condition by position rather than overlapping: outside a reference it is WILDCARD001 once per rule in the input phase, and inside one it is REFERENCE001 once per reachable owning value in the planning phase, so one template matching two names reports one diagnostic in the first case and two in the second.",
+        "A WILDCARD001 raised over a wildcard rule names it in the rule member and supplies no path, because Section 22 gives path to an overlay node or a projected output key and a template's declared name is neither."
+      ],
+      "fixtures": [
+        "an-unbound-capture-inside-a-reference-names-each-owning-value",
+        "an-undefined-capture-outside-a-reference-names-its-rule-once",
+        "an-unreachable-free-wildcard-reference-does-not-fail-the-run",
+        "reference-scalar-only-and-free-wildcard-rejected"
+      ]
+    },
+    {
+      "item": 47,
+      "text": "Native sequence concatenation versus explicit ordering-value override.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "mask-after-sequence-rebasing"
+      ]
+    },
+    {
+      "item": 48,
+      "text": "Stable ordering values across deletion, wildcard matching, references, and final dense rendering.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "A mask that deletes one item does not renumber its neighbours, so the ordering values that survive are the ones the input supplied.",
+        "A wildcard matching a sequence item captures the item's stable ordering value, not its rendered display index, so substituting the capture writes the ordering value into the generated value.",
+        "Flat output renders fresh dense indices over those same items, so a run whose ordering values and display indices disagree spells both without confusing them."
+      ],
+      "fixtures": [
+        "output-selector-addresses-a-sequence-item",
+        "wildcard-ordering-values-survive"
+      ]
+    },
+    {
+      "item": 49,
+      "text": "One concrete output instance per last-wildcard capture tuple, never per descendant.",
+      "milestone": "unassigned",
+      "status": "required",
+      "assertions": [
+        "Expansion enumerates the concrete paths at the depth of the selector's last wildcard-containing part, so a subtree with several descendants yields one instance and not one per descendant.",
+        "A subtree the selector does not name contributes to no instance, and the concrete selector prefix is removed from every selected view.",
+        "A wildcard filename is filled from the tuple the selector expansion already bound rather than matched again, so each concrete instance chooses its own destination.",
+        "A wildcard filename is a filename: it is neither discarded for having no literal text nor given the format's default extension."
+      ],
+      "fixtures": [
+        "wildcard-filename-substitutes-the-selector-captures",
+        "wildcard-output-selectors-expand-per-capture-tuple"
+      ]
+    },
+    {
+      "item": 50,
+      "text": "Output-instance-scoped scheme overrides and `output=ignore` restoration.",
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A wildcard output=ignore suppresses an instance created by an earlier exact declaration, because Section 15.2 orders the stream by source position and states that pattern specificity does not alter precedence.",
+        "Section 15.2 evaluates type and key against absolute pre-transformation paths in every output instance containing the path, and Section 14.1 lets nested output declarations select overlapping data, so one refused rule at one path is refused once per instance. Section 22 counts TYPE001 once per path and applicable output instance, so both refusals are reported rather than the second being retired as a repeat of the first.",
+        "Two formats of one output declaration are one concrete output instance under Section 14.1, which makes the selector what creates an instance, so a rule refused in it is reported once and not once per format.",
+        "A later non-ignore output declaration restores an instance an earlier ignore suppressed, which is the restoration column of the Section 15.2 ignore-mechanism table."
+      ],
+      "fixtures": [
+        "a-concrete-filename-binds-to-the-instance-a-wildcard-created",
+        "a-later-output-declaration-restores-an-ignored-instance",
+        "a-refused-transform-is-reported-in-every-overlapping-instance"
+      ]
+    },
+    {
+      "item": 51,
+      "text": "Substituted relative subfolders, encoded captures, and rejection of every `..` segment.",
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A separator written literally in the scheme splits the path and creates a subdirectory, so a relative subfolder can be substituted into the destination.",
+        "A separator arriving inside a capture is encoded as %2F rather than obeyed, because Section 16.2 step 1 splits the scheme-written path before step 2 substitutes captures into a segment.",
+        "A capture is encoded by step 5 whatever it holds, so a reserved device name, a space, and a traversal sequence all compose to one ordinary file name inside the output root.",
+        "A dot segment the scheme wrote itself is rejected with PATH001 in phase planning, before any directory is created, rather than being renamed.",
+        "Section 22 counts PATH001 once per destination, and Section 16.2 appends no format extension to an explicit filename, so two formats sharing one rejected filename are one destination and one diagnostic."
+      ],
+      "fixtures": [
+        "a-rejected-filename-is-reported-once-for-two-formats",
+        "a-written-traversal-segment-is-rejected",
+        "filename-captures-are-opaque-segment-data"
+      ]
+    },
+    {
+      "item": 52,
+      "text": "INI global-key preamble hoisting and rooted-section behavior.",
+      "milestone": "M2",
+      "status": "required",
+      "assertions": [
+        "Section 19.6's \"INI output bytes\" writes no blank line anywhere -- not between the global preamble and the first section, not between one section's last key and the next section header, and not around a comment -- so the layout of the preamble and the sections that follow it is fixed rather than presentational.",
+        "An enabled comment line carries its marker, one space, and the comment text, and immediately precedes the line it is attached to."
+      ],
+      "fixtures": [
+        "ini-output-writes-no-blank-lines",
+        "ini-projection-and-section-order"
+      ]
+    },
+    {
+      "item": 53,
+      "text": "Final fixed-point numeric-map inference, including empty mappings and generated or ignored nonnumeric children.",
+      "milestone": "m3",
+      "status": "required",
+      "assertions": [
+        "A nonempty mapping whose surviving child names are all canonical non-negative decimal ordering values projects as an explicitly indexed sequence at step 11.",
+        "Explicit indexed contributions patch the sequence at their supplied ordering values, so a later contribution at an existing value replaces that item rather than appending one.",
+        "Native implicit items concatenate in CLI source order above the allocation high-water mark, including when they follow explicit indexed contributions at the same path.",
+        "Gaps and non-zero bases are allowed and create no null placeholders, and namespace output renders the surviving items at fresh dense display indices.",
+        "A leading-zero spelling or a canonical decimal above the supported maximum is an ordinary mapping key and prevents sequence interpretation for the whole mapping.",
+        "A surviving empty mapping remains a mapping, so it still competes with a sequence contribution at the same path rather than being absorbed into it.",
+        "Inference reads the surviving key names, so masking the one nonnumeric child of a mapping makes the rest of it sequence-eligible.",
+        "A wildcard-generated nonnumeric child counts for inference exactly as a parsed one does, so generating a named child under an all-numeric mapping keeps that mapping a mapping."
+      ],
+      "fixtures": [
+        "mask-clears-shape-marks",
+        "namespace-numeric-map-inference",
+        "namespace-shape-conflict-precedence",
+        "wildcard-ordering-values-survive"
+      ]
+    },
+    {
+      "item": 54,
+      "text": "`type=mapping` preservation of numeric mapping keys and `type=array` conversion of nonnumeric mappings.",
+      "milestone": "unassigned",
+      "status": "required",
+      "assertions": [
+        "type=mapping turns the Section 8.7 inferred sequence back into an ordered mapping whose keys are the ordering values as canonical decimal strings, which a following key directive then observes by copying those keys into a field.",
+        "Without type=mapping the same key directive would be TYPE001 against a sequence-only target, so the directive is what makes the mapping projection exist at step 16.",
+        "type=array on a mapping whose keys are not ordering values discards every key and allocates fresh implicit ordering values above the node's high-water mark in current mapping order.",
+        "Section 15.1 step 16 applies type=array before multiline, which is observable because the reverse order would meet a mapping with no sequence projection and be TYPE001 rather than a differently ordered result.",
+        "A directive bound beneath a node that an earlier step-16 pass reshaped is re-addressed together with the value it bound to, so multiline beneath a converted mapping still joins and an explicit scalar type beneath one still reaches the serializer.",
+        "The same re-addressing carries a directive beneath a key transformation into the generated record, whether the child kept its fields at the top of the record or was placed under the 'value' field.",
+        "Re-addressing is not a restart of scheme matching: a directive spelling an address that exists only after a reshaping matches nothing at step 11 and emits the Section 15.2 unbound-directive warning."
+      ],
+      "fixtures": [
+        "a-descendant-directive-applies-before-its-ancestor",
+        "a-directive-under-a-converted-mapping-follows-its-value",
+        "a-directive-under-a-generated-record-follows-its-value",
+        "array-runs-before-multiline",
+        "type-mapping-keeps-numeric-keys-and-array-discards-names"
+      ]
+    },
+    {
+      "item": 55,
+      "text": "Deterministic multiple-capture partitioning and literal capture insertion.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "wildcard-repeated-capture-backtracking"
+      ]
+    },
+    {
+      "item": 56,
+      "text": "Bare-scalar output behavior for every format.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "The bare-scalar question is asked of the rendered view, not the step-15 one: a sequence that a step-16 transform joins into a scalar takes the final concrete selector part as its key, rather than failing with SERIALIZE001 for having no key at all.",
+        "Namespace renders the joined LF as the two-character escape and quoted namespace renders it as a literal line break inside single quotes, which Sections 19.1 and 19.2 require separately.",
+        "INI renders the bare scalar as a global key with no section header.",
+        "Only the final concrete selector part is retained: a bare scalar at `deep.inner.leaf` with `root=r` emits key `leaf` in section `[r]`, never `inner` or the whole selector path.",
+        "NOT COVERED: XML. Section 14.1 gives JSON and YAML a scalar document with no synthesized key, which the structured writers now emit; the XML writer is still declined in this preview with exit 70, so this item cannot become required until it lands."
+      ],
+      "fixtures": [
+        "a-transform-that-makes-a-bare-scalar-still-has-a-key",
+        "root-wraps-a-bare-scalars-retained-key",
+        "structured-bare-scalar-and-empty-documents"
+      ]
+    },
+    {
+      "item": 57,
+      "text": "Output-option defaults, XML declaration control, and comment-option enablement.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "Section 16.9's default for JSON layout is indentation and for YAML comments is preservation, and Section 16.9 reapplies a mode group's default when a replacement omits every flag from it.",
+        "Naming both flags of a mutually exclusive mode group is a `SCHEME001` contradiction.",
+        "JSON has no comment syntax, so comments are discarded with one summarized `WARN003` per destination; YAML's `DiscardComments` suppresses them silently because that is what the option asked for.",
+        "Section 16.9's `NewLineOnAttributes` places every attribute on its own line, including the first, indented two spaces beyond the owning start tag, while `Indent` uses two spaces per element nesting level.",
+        "A replacement that names neither `Declaration` nor `NoDeclaration` reapplies the documented `Declaration` default, so the XML declaration is written.",
+        "`SemicolonComments` and `HashComments` each emit INI comments with their own marker, and Section 20's placements are all reachable: a document-leading comment precedes the first global key, a comment owned by a section's first key follows the section header, and a document-trailing comment is emitted at end of file.",
+        "The INI placements agree with namespace output for the same input, so choosing INI does not silently move or drop a note.",
+        "With neither flag selected, one summarized `WARN003` per destination covers every discarded comment, including the document-leading and document-trailing runs that no entry owns."
+      ],
+      "fixtures": [
+        "an-ini-discarded-ownerless-comment-is-announced",
+        "an-ini-document-trailing-comment-is-emitted-at-end-of-file",
+        "json-discards-comments-and-yaml-keeps-them",
+        "json-output-options-and-escaping",
+        "xml-newline-on-attributes"
+      ]
+    },
+    {
+      "item": 58,
+      "text": "Deterministic distinct-destination publication order under partial storage failure.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [],
+      "gates": [
+        "Namespace2Xml.UnitTests.PublisherTests.DestinationsAreWrittenInPublicationKeyOrder",
+        "Namespace2Xml.UnitTests.PublisherTests.TheFoldKeyOrdersItsComponentsFromCoarsestToFinest",
+        "Namespace2Xml.UnitTests.PublisherTests.AFailureStopsPublicationAndLeavesEarlierFilesInPlace",
+        "ci:publication-invariants"
+      ],
+      "whyNotAFixture": "The order in which distinct destinations are published is observable only while publication is still running. Once a successful run finishes, every destination exists and the tree is the same whatever order produced it, so a fixture cannot distinguish a correct order from any other. Interrupting the run at a chosen point is what makes the order visible, and only an injected failure can do that."
+    },
+    {
+      "item": 59,
+      "text": "Single-pass native decoded-string escaping for adjacent backslashes, wildcards, and reference starts.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "A backslash-asterisk in a native mapping key suppresses the wildcard-template grammar and contributes a literal asterisk, and Section 21 re-escapes it on the way out so the namespace output reads back as the same literal name.",
+        "Suppression is total: a sibling record contributed by a later file does not acquire the escaped key's children, because the key is a name and not a rule.",
+        "Section 9.2 gives a JSON object-property name the same unescaped-asterisk recognition that Section 10.4 gives a YAML mapping key, so the two front ends cannot diverge on whether a native key is a template.",
+        "Section 16.7 'names interpreted: no' literalizes a wildcard token in a native key at the point it is read, so no live token survives into a concrete path where a later matcher would read it back as a pattern."
+      ],
+      "fixtures": [
+        "a-backslash-asterisk-in-a-native-key-is-a-literal-asterisk",
+        "a-wildcard-in-a-native-json-key-is-a-template",
+        "names-uninterpreted-makes-a-native-wildcard-key-literal",
+        "native-strings-do-not-get-a-second-escape-pass"
+      ]
+    },
+    {
+      "item": 60,
+      "text": "JSON `EscapeNonAscii` for keys, BMP values, and supplementary Unicode scalars.",
+      "milestone": "m5",
+      "status": "required",
+      "assertions": [
+        "Section 16.9's `EscapeNonAscii` escapes a basic-plane scalar above U+007F as an uppercase hexadecimal `\\uXXXX` escape, and applies to mapping keys as well as to values.",
+        "A supplementary Unicode scalar has no single `\\uXXXX` escape and is emitted as its surrogate pair, so the option leaves no byte above U+007F in the file.",
+        "Without the option, non-ASCII text is emitted literally as UTF-8."
+      ],
+      "fixtures": [
+        "json-output-options-and-escaping"
+      ]
+    },
+    {
+      "item": 61,
+      "text": "`--help`, `--version`, and every verbosity threshold without changing processing or exit status.",
+      "milestone": "m0",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "cli-help",
+        "cli-help-outranks-version",
+        "cli-informational-in-value-position",
+        "cli-version"
+      ]
+    },
+    {
+      "item": 62,
+      "text": "Fixed two-space YAML indentation, block-scalar indentation, and type-preserving string quoting.",
+      "milestone": "m5",
+      "status": "required",
+      "assertions": [
+        "Section 19.4 indents two ASCII spaces per nesting level and emits no `---`; a block sequence under a key indents its indicator by one step, and a sequence item's own content therefore aligns with a mapping value at the same depth.",
+        "Section 19.4 uses a literal block scalar for a multiline value, indented two spaces beyond its owning key or sequence indicator, and its chomping indicator distinguishes no trailing line break, exactly one, and more than one.",
+        "A string whose plain spelling would resolve to a non-string kind under `RestrictedYaml1` is single-quoted with a literal single quote doubled as `''`, while the spellings Section 10.1 keeps as strings stay plain.",
+        "Section 19.4 declines the block spelling for a value it could not carry exactly -- trailing whitespace on a line, a CR line break, a control character outside c-printable, or an indented first non-empty line -- and for one ending in a blank line, which needs the keep indicator whose block cannot satisfy Section 24's single trailing LF, writing every one of them double-quoted instead.",
+        "That refusal is a property of the value alone rather than of its position, so a value ending in a blank line is quoted even where it is not last in the document and adding an unrelated key never rewrites an untouched value.",
+        "Section 19.4's \"YAML output bytes\" fixes one style per scalar by first-match: literal block, then double-quoted for a character no other style carries exactly, then single-quoted for a plain form that would not read back as itself, then plain.",
+        "The single-quote conditions are refused positionally rather than contextually -- an indicator character wherever it opens the value, and a flow indicator or a TAB in any position -- so a value's spelling does not depend on where it is written.",
+        "A key whose text is `<<` is single-quoted because Section 10 refuses to read an unquoted merge key back, while a *value* of `<<` is written plain, since nothing resolves a merge key in value position.",
+        "A double-quoted scalar uses only `\\\"`, `\\\\`, `\\n`, `\\r` and `\\t`, spelling every other escaped character `\\uXXXX` with uppercase hexadecimal digits, and writes every character outside the escape set as itself in UTF-8."
+      ],
+      "fixtures": [
+        "a-block-scalar-is-declined-when-it-would-not-be-exact",
+        "yaml-indentation-block-scalars-and-quoting",
+        "yaml-quotes-every-portably-typed-spelling",
+        "yaml-scalar-style-selection",
+        "yaml-scalars-survive-a-same-format-round-trip"
+      ]
+    },
+    {
+      "item": 63,
+      "text": "XML comment exclusion from reference aliases and whole-element replacement under both input `merge=replace` and destination `filemerge=replace`.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "xml-comments-are-invisible-to-alias-resolution",
+        "xml-filemerge-replace-takes-whole-document",
+        "xml-input-merge-replace-takes-whole-element"
+      ]
+    },
+    {
+      "item": 64,
+      "text": "Portable filename device-name handling, ASCII-case-insensitive destination collision detection, and cross-format high-water reset identically on every platform.",
+      "milestone": "m4",
+      "status": "required",
+      "assertions": [
+        "A capture whose portion before the first dot is a reserved device name is prefixed with %5F by steps 4 and 7, identically on every operating system rather than only where the name is reserved.",
+        "Two destinations differing only by ASCII case share a portability key and are a blocking PATH001 collision rather than a merge, detected in the tool and therefore on every filesystem.",
+        "A cross-format replacement also resets the Section 21.3 publication key to the replacing contribution, so a destination reached first can be published and diagnosed after one reached later. Step 18 numbers its own destination diagnostics from the folded plan rather than from the order it met destinations in, and from the same expression step 19 uses, so one run cannot report the two steps in two orders.",
+        "The cross-format high-water reset is not observable in any published output on any platform, because Section 5.4 renders namespace and INI with fresh dense indices and the structured formats carry no indices at all. It is pinned by DestinationFoldTests.ACrossFormatReplacementDiscardsTheDestinationHighWaterMark instead, which a per-path carry-forward implementation fails."
+      ],
+      "fixtures": [
+        "cross-format-replacement-renumbers-the-destination-order",
+        "destinations-differing-only-by-case-collide",
+        "filename-captures-are-opaque-segment-data"
+      ]
+    },
+    {
+      "item": 65,
+      "text": "Namespace record classification, malformed no-`=` records, literal ordinary-value `*`, and Unicode-scalar escape validation.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "a-literal-asterisk-in-an-ordinary-value-reaches-the-output",
+        "a-malformed-variable-omits-source-line-and-column",
+        "a-namespace-value-decodes-every-section-8-3-escape",
+        "namespace-parse001-classification-and-literal-star"
+      ]
+    },
+    {
+      "item": 66,
+      "text": "INI path-to-section/key projection, namespace-only delimiter disambiguation, and `FLAT001` collisions.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        "Two distinct logical paths whose INI section and key coincide are a `FLAT001` collision, and the diagnostic names the view-relative path rather than the absolute one."
+      ],
+      "fixtures": [
+        "quoted-namespace-key-collision-is-blocking",
+        "validation-gate-leaves-the-output-root-untouched"
+      ]
+    },
+    {
+      "item": 67,
+      "text": "Scheme-reference filename separators as encoded data, empty directive rejection, and `type=array` plus `key` rejection.",
+      "milestone": "unassigned",
+      "status": "required",
+      "assertions": [
+        "Text a scheme reference contributes is opaque segment data, so a `/` or `\\` it supplies is encoded rather than creating a directory, and the opacity survives a further reference to the value that holds it.",
+        "A scheme reference reads the Section 15.2 winner of the directive it names, including when that declaration comes later in source order.",
+        "A scheme reference resolves against scheme entries alone: a name whose final part is not a Section 15 directive is missing even when input data exists at that path.",
+        "Each canonically distinct cycle among scheme references is reported once, at its canonically first member, including a cycle of one.",
+        "Applying `key` to a sequence-only target is blocking `TYPE001`: a node whose child names are all ordering values projects a sequence, and Section 16.5 requires an ordered mapping."
+      ],
+      "fixtures": [
+        "a-missing-scheme-reference-is-blocking",
+        "a-scheme-reference-cycle-is-blocking",
+        "an-empty-scheme-directive-is-blocking",
+        "key-on-a-sequence-only-target-is-type001",
+        "scheme-reference-filename-separators-are-encoded-data",
+        "type-array-with-key-is-an-illegal-combination"
+      ]
+    },
+    {
+      "item": 68,
+      "text": "Output-instance-scoped `WARN010` suppression by `type=mapping` and stable diagnostic stream/code behavior.",
+      "milestone": "m9",
+      "status": "required",
+      "assertions": [
+        "A native JSON or YAML mapping whose keys are all canonically numeric raises WARN010 when the output instance renders it as a sequence.",
+        "The warning is scoped to the output instance: the same node projected as a mapping by type=mapping in one output raises nothing there, while another output that leaves it inferred still raises it.",
+        "One warning is raised per source contribution, so every document that wrote keys into the inferred mapping is named individually.",
+        "A native sequence raises nothing, because no inference occurred at a node written as a sequence.",
+        "A namespace-format contribution to the same inferred sequence raises nothing, because a numeric path segment makes no shape claim to contradict.",
+        "A native mapping that loses a Section 17.1 shape contest to a sequence contribution raises nothing, because Section 8.7 inferred no mapping there: the warning is owed for an inference, not for a rendered shape."
+      ],
+      "fixtures": [
+        "type-mapping-suppresses-warn010-per-output-instance",
+        "warn010-fires-once-per-native-source-contribution",
+        "warn010-is-not-owed-when-a-sequence-wins-the-shape-contest"
+      ]
+    },
+    {
+      "item": 69,
+      "text": "Differential compatibility fixtures against namespace2xml 2.4.0 for every behavior claimed in Section 3.1, with explicit expected divergences for every correction in Section 3.2.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [],
+      "gates": [
+        "Namespace2Xml.Conformance.DifferentialTests.TheBaselineBehavesAsTheCaseClaims",
+        "ci:differential"
+      ],
+      "whyNotAFixture": "This item is a claim about the corpus rather than about a run: that every Section 3.1 behaviour and every Section 3.2 correction is carried by some case. A case inside the corpus cannot establish a property of the corpus containing it without circularity. The differential lane discharges it by running the pinned 2.4.0 baseline over every case and refusing any divergence no case explains."
+    },
+    {
+      "item": 70,
+      "text": "XML sequence projection for mapping children, root sequences, scalar items, record items, and illegal attribute projection.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "xml-sequence-attribute-projection-is-type001",
+        "xml-sequence-projection-covers-mapping-children-scalars-records-and-root"
+      ]
+    },
+    {
+      "item": 71,
+      "text": "Typed XML component recognition in namespace input, variables, scheme paths, references, and `root`.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "Appendix A.2's typed components are recognized wherever a name is written -- namespace input, variables, scheme paths, references, and root -- while a JSON or YAML key that merely looks like a marker stays literal data.",
+        "Section 15.2 gives an unmarked scheme component the simple alias index, so a directive written a.x binds an attribute written a.@x and a qualified element written a.Q{uri}x, which is the 2.x spelling the clause grants for compatibility.",
+        "Section 15.2 has an explicitly marked component select only that XML component, so a.@x binds the attribute alone and a.Q{}x the element alone, and the grant is per component rather than per path as Section 13.1 makes it for a reference.",
+        "Section 15.2 makes an alias that reaches two canonical components at a matched location a blocking SCHEME002 that lists the alternatives and writes no output, rather than a choice the tool makes for the author.",
+        "Section 15.2's alias is looked up by a written name, so a wildcard component does not consult it: a wildcard reaching an attribute and an element of one name is a pattern matching two components rather than an ambiguous alias, and SCHEME002's remedy of marking the component to name one outright is not available to it."
+      ],
+      "fixtures": [
+        "an-unmarked-component-meets-an-xml-component-of-the-same-alias",
+        "scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias",
+        "scheme-an-ambiguous-simple-alias-is-blocking",
+        "scheme-an-unmarked-directive-reaches-an-attribute-through-the-simple-alias",
+        "xml-typed-components-recognized-and-an-escaped-json-key-stays-literal"
+      ]
+    },
+    {
+      "item": 72,
+      "text": "Deterministic global-budget attribution under varied parser thread schedules.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "Section 23 accumulates parsed node, comment, and comment-byte totals at the parse-phase join in CLI source order, and Section 11.1 makes the single reported LIMIT001 the earliest under that order rather than the first crossing detected, so a global crossing decided at the join is reported in preference to a per-source crossing that a later source detected earlier in time.",
+        "Appendix C.7 runs every case under varied DOTNET_PROCESSOR_COUNT values and compares the structured diagnostic stream with prose removed, so Section 11.1's claim that attribution is independent of parser worker scheduling is measured rather than only stated.",
+        "Section 23's reference budget is consumed in its normative pipeline order, so --max-reference-depth bounds the nesting of unresolved values entered during step 15 and the crossing is attributed to the value that crossed it rather than to the run.",
+        "Section 23's output budget is consumed at step 18, where a destination file becomes planned, so --max-outputs bounds distinct canonical destinations after collisions have folded and the crossing names the destination that crossed it."
+      ],
+      "fixtures": [
+        "destination-planning-crosses-the-output-bound",
+        "limit-attribution-across-sources",
+        "limit-xml-attributes-per-element",
+        "reference-resolution-crosses-the-depth-bound"
+      ]
+    },
+    {
+      "item": 73,
+      "text": "Phase-local diagnostic collection, complete failed-source discard, and phase-boundary abort.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "cross-destination-diagnostic-order"
+      ]
+    },
+    {
+      "item": 74,
+      "text": "Informational-mode precedence, repeated list options, `--`, and explicit-filename extension behavior.",
+      "milestone": "m0",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "cli-help",
+        "cli-help-outranks-version",
+        "cli-repeated-list-options-concatenate"
+      ]
+    },
+    {
+      "item": 75,
+      "text": "Empty concrete output views and wildcard declarations producing no concrete instance.",
+      "milestone": "unassigned",
+      "status": "required",
+      "assertions": [
+        "A wildcard declaration matching no concrete path emits WARN009 and creates no file, which is the one case the empty-view rule does not reach because there is no concrete selector to plan with.",
+        "That WARN009 carries the source, line, path, and declaration of the written directive and no column, because the condition is about a whole record rather than a position inside one.",
+        "Creating no file is not a blocking error, so the run still publishes the instances that did match and exits 0."
+      ],
+      "fixtures": [
+        "a-literal-output-selector-matching-nothing-warns",
+        "wildcard-output-selector-matching-nothing-warns"
+      ]
+    },
+    {
+      "item": 76,
+      "text": "`multiline` on lone scalars, empty sequences, scalar/null sequences, mappings, and container-only items.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "multiline-joins-the-sequence-and-omits-the-scalar",
+        "multiline-omits-the-scalar-once-in-each-output-instance",
+        "multiline-on-lone-scalar-empty-sequence-and-scalar-null-sequence"
+      ]
+    },
+    {
+      "item": 77,
+      "text": "INI simultaneous scalar-key and descendant-section projection.",
+      "milestone": "M2",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "ini-projection-and-section-order"
+      ]
+    },
+    {
+      "item": 78,
+      "text": "XML singleton-to-sequence promotion without implicit reference or directive retargeting.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "xml-singleton-promotion-does-not-retarget-references"
+      ]
+    },
+    {
+      "item": 79,
+      "text": "Generated `key` string typing and comment movement.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "a-comment-on-a-container-only-path-moves-to-the-first-key-beneath-it",
+        "multiline-carries-the-comments-of-the-items-it-joins",
+        "key-generates-a-string-name-and-moves-comments"
+      ]
+    },
+    {
+      "item": 80,
+      "text": "The conformance fixture layout, diagnostic-code mapping, and grammar appendices.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [],
+      "gates": [
+        "Namespace2Xml.UnitTests.DiagnosticRegistryTests.RegistryReproducesTheSection22Table",
+        "Namespace2Xml.UnitTests.DiagnosticRegistryTests.EveryCodeHasAtLeastOneAppendixBMapping",
+        "Namespace2Xml.UnitTests.DiagnosticRegistryTests.ExtractedStreamSchemaMatchesTheSpecificationBlock"
+      ],
+      "whyNotAFixture": "Appendix C fixes how a fixture is laid out and read. A fixture cannot prove that fixtures are read correctly, because the harness under test is the one interpreting it: a misread layout would misread the evidence too. The harness self-tests check the reader against hand-written cases, and the registry tests check Appendix B and the grammar appendices against the specification text."
+    },
+    {
+      "item": 81,
+      "text": "`--diagnostics-format` pre-scan resolution, covering `--` termination, the `=value` form, repeated occurrences, a missing value, an unrecognized value, and reporting the resulting `CLI001` in the resolved encoding.",
+      "milestone": "m0",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "cli-diagnostics-format-inline-invalid",
+        "cli-diagnostics-format-invalid-value",
+        "cli-diagnostics-format-missing-value"
+      ]
+    },
+    {
+      "item": 82,
+      "text": "`json` diagnostic-stream framing and closed-schema conformance, standard-error purity with operational messages suppressed, `[]` under `--verbosity none`, and a single emitted array that still contains late `PATH002` publication diagnostics.",
+      "milestone": "m0",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "cli-diagnostics-format-inline-invalid",
+        "cli-diagnostics-format-invalid-value",
+        "cli-diagnostics-format-missing-value",
+        "cli-diagnostics-stream-on-a-clean-run",
+        "diagnostic-source-spelling-is-independent-of-separator",
+        "verbosity-none-still-emits-the-json-array-container"
+      ]
+    },
+    {
+      "item": 83,
+      "text": "Per-occurrence `phase` and `spec` fields for codes that arise in more than one phase.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [],
+      "fixtures": [
+        "a-refused-fold-is-reported-once-per-destination",
+        "a-refused-transform-is-reported-in-every-overlapping-instance",
+        "append-onto-a-non-sequence-accumulator-is-an-error",
+        "limit-attribution-across-sources",
+        "reference-resolution-crosses-the-depth-bound"
+      ]
+    },
+    {
+      "item": 84,
+      "text": "XML attribute-count limits, absence of any separate entity-expansion budget, and deterministic `LIMIT001` attribution when per-source and global bounds are crossed together.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [
+        "Section 23 checks XML attributes per element within each source under --max-xml-attributes as specified in Section 11.1, and a crossing refuses that source outright, so its nodes never reach the global total the parse-phase join accumulates.",
+        "Section 11.1 prohibits a document type definition outright rather than bounding its expansion, so no separate entity-expansion budget exists to cross: a DTD in any position is XML001 and never a limit diagnostic.",
+        "Section 22 scopes LIMIT001 to once per invocation, so a per-source bound and a global bound crossed together in one run yield exactly one occurrence, attributed by Section 11.1 to the earliest source in command-line order irrespective of which crossing was detected first."
+      ],
+      "fixtures": [
+        "limit-attribution-across-sources",
+        "limit-xml-attributes-per-element",
+        "xml-prohibited-dtd-and-external-resources"
+      ]
+    },
+    {
+      "item": 85,
+      "text": "`--version` contract-bundle reporting and machine-readable field layout, and registry agreement with the Section 22 code-level facts.",
+      "milestone": "m0",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "cli-version"
+      ]
+    },
+    {
+      "item": 86,
+      "text": "The uniform option-token grammar of Section 6.2: the `--name=value` inline form on every long option, the absence of an inline form on short options, a value that is not attached to any option, an option token that ends the argument vector still requiring a value, and `-` as an ordinary value.",
+      "milestone": "m1",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "an-empty-path-token-is-rejected",
+        "cli-end-of-options-values",
+        "cli-informational-in-value-position",
+        "cli-inline-value-accepted",
+        "cli-option-missing-value-rejected",
+        "cli-short-option-inline-rejected",
+        "cli-unattached-value-rejected"
+      ]
+    },
+    {
+      "item": 87,
+      "text": "Marker-carrying JSON and YAML mapping keys: reading an attribute, content, and qualified-element key, the leading-backslash escape and its suppression of marker recognition, `PARSE001` for a key that begins like a marker without completing it, escaping on output, and an XML → JSON → XML round trip that preserves attributes.",
+      "milestone": "m8",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "a-json-key-carries-xml-markers-through-a-round-trip",
+        "a-json-override-reaches-an-xml-attribute",
+        "a-native-key-marker-commits-once-recognized",
+        "xml-typed-components-recognized-and-an-escaped-json-key-stays-literal"
+      ]
+    },
+    {
+      "item": 88,
+      "text": "INI global-key framing: `WARN012` on a written preamble and its absence when no global key survives, `GlobalSection` hoisting the global keys into a leading section named `global` that a reader requiring a section header accepts, no empty header when the hoisted section would be empty, and the blocking `FLAT001` when a path of two or more parts already projects to that section.",
+      "milestone": "M2",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "an-ini-preamble-is-announced",
+        "ini-global-section-collides-with-an-existing-section",
+        "ini-global-section-hoists-the-preamble",
+        "ini-global-section-writes-no-empty-header"
+      ]
+    },
+    {
+      "item": 89,
+      "text": "Namespace trailing-whitespace framing: the blocking `NAMESPACE001` for a value that would end its line in a space, `namespaceoutputoptions=AllowTrailingWhitespace` writing that value intact under `WARN013`, leading whitespace passing unreported in both modes, and whitespace outside the Section 24 pair reaching the output literally.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "a-namespace-value-ending-in-a-space-is-refused",
+        "namespace-allowtrailingwhitespace-writes-the-space-and-warns"
+      ]
+    },
+    {
+      "item": 90,
+      "text": "Namespace empty-container sentinels: `{}` and `[]` as whole-value shape contributions, `\\{}` and `\\[]` as the strings they displace, the near-miss values that stay strings, bidirectional emission including the escape, an empty container coexisting with a later child, and the JSON round trip through namespace that the sentinels make lossless.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "a-namespace-value-spells-an-empty-container",
+        "namespace-output-spells-an-empty-container"
+      ]
+    }
+  ]
+}

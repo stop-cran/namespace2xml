@@ -1,0 +1,5 @@
+-i
+inputs/template.json
+inputs/data.json
+-s
+schemes/scheme.txt

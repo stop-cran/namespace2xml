@@ -1,0 +1,3 @@
+cfg.output=namespace
+substitute=None
+cfg.raw.substitute=All

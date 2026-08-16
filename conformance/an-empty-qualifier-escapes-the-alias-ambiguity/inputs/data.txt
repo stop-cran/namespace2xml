@@ -1,0 +1,6 @@
+a.t.@x=attribute
+a.t.x=element
+a.marked=${a.t.Q{}x}
+a.attribute=${a.t.@x}
+a.same=${a.t.Q{}x}-${a.t.x2}
+a.t.x2=${a.Q{}t.x}

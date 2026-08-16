@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Namespace2Xml</RootNamespace>
+    <AssemblyName>Namespace2Xml.Core</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- YAML is used for input scanning only; Section 19.4 output uses this repository's own emitter. -->
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The binary reports the contract revision it implements (specification Section 22). -->
+    <EmbeddedResource Include="..\..\spec\contract-bundle.json" LogicalName="Namespace2Xml.contract-bundle.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Namespace2Xml.UnitTests" />
+    <InternalsVisibleTo Include="Namespace2Xml.Conformance" />
+  </ItemGroup>
+
+</Project>

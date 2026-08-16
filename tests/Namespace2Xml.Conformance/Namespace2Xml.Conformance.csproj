@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Namespace2Xml.Conformance</RootNamespace>
+    <AssemblyName>Namespace2Xml.Conformance</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="NUnit" Version="4.4.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="5.1.0" />
+    <PackageReference Include="Shouldly" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The harness drives the packaged executable as a separate process with a real argument
+      vector and real standard streams. Observing the tool through anything narrower would let a
+      seam diverge from what a user actually runs.
+    -->
+    <ProjectReference Include="..\..\src\Namespace2Xml.Cli\Namespace2Xml.Cli.csproj" />
+  </ItemGroup>
+
+</Project>

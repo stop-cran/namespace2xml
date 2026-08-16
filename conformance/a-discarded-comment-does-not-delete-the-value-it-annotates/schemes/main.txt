@@ -1,0 +1,2 @@
+cfg.output=json,yaml
+cfg.root=cfg

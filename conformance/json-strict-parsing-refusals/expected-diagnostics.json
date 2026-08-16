@@ -1,0 +1,6 @@
+[
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/comment.json","line":4,"column":1,"spec":"§9.2"},
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/trailing-comma.json","line":3,"column":1,"spec":"§9.2"},
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/duplicate-key.json","line":3,"column":3,"spec":"§9.3"},
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/surrogate-escape.json","line":2,"column":10,"spec":"§9.1"}
+]

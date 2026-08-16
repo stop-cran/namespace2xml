@@ -1,0 +1,7 @@
+anchored: &base # C35 after anchor before nested block
+  # C36 inside anchored mapping
+  child: value
+alias: *base # C37 after alias
+tagged: !local value # C38 after tagged scalar
+# C39 before anchored scalar
+scalar_anchor: &scalar anchored-value

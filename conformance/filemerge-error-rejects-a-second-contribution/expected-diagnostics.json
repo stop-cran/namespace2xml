@@ -1,0 +1,3 @@
+[
+{"code":"COLLISION001","severity":"error","phase":"planning","declaration":"a.*.filemerge","destination":"out.properties","spec":"§16.11"}
+]

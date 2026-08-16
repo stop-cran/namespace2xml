@@ -1,0 +1,12 @@
+mapping: {
+  # C58 leading flow mapping entry
+  first: 1,
+  # C59 leading second flow mapping entry
+  second: 2
+}
+sequence: [
+  # C60 leading flow sequence item
+  one,
+  # C61 leading second flow sequence item
+  two
+]

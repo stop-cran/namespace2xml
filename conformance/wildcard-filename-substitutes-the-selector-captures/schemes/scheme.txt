@@ -1,0 +1,2 @@
+a.*.output=namespace
+a.*.filename=cfg/*.conf

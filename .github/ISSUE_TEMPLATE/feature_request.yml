@@ -14,7 +14,7 @@ body:
         more important than the proposed solution. A well-stated problem often turns out to be
         expressible already — which is a usage gap, and a faster fix for you.
 
-        Please read [docs/usage-methodology.md §1](https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.1/docs/usage-methodology.md) first.
+        Please read [docs/usage-methodology.md §1](../blob/master/docs/usage-methodology.md) first.
         Some things are deliberately out of scope: this tool has no programming language in it, and
         it is not going to acquire one.
 

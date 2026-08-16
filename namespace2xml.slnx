@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj" />
+    <Project Path="src/Namespace2Xml.Core/Namespace2Xml.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Namespace2Xml.Conformance/Namespace2Xml.Conformance.csproj" />
+    <Project Path="tests/Namespace2Xml.UnitTests/Namespace2Xml.UnitTests.csproj" />
+  </Folder>
+</Solution>

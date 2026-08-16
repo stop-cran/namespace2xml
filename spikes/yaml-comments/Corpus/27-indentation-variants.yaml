@@ -1,0 +1,7 @@
+outer:
+# C79 shallower comment before nested child
+  child: 1
+other:
+  child: 2
+    # C80 over-indented after nested child
+final: 3

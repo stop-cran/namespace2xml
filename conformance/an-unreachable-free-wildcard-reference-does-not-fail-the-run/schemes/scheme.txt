@@ -1,0 +1,2 @@
+app.output=namespace
+dead.output=ignore

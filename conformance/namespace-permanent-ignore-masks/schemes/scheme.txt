@@ -1,0 +1,3 @@
+app.output=ini
+app.inioutputoptions=HashComments
+app.strict.merge=error

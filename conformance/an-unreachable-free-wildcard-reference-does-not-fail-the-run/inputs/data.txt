@@ -1,0 +1,9 @@
+app.k=1
+app.out=${app.k}
+dead.free=${app.*}
+dead.named=${app.*[9]}
+orphan.free=${app.*}
+orphan.missing=${nope.here}
+orphan.cycle=${orphan.loop}
+orphan.loop=${orphan.cycle}
+orphan.subtree=${app}

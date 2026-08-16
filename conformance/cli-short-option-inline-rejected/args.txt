@@ -1,0 +1,3 @@
+-i=inputs/main.txt
+-s
+schemes/main.txt

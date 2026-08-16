@@ -1,0 +1,67 @@
+---
+# Prototype playbook for issue #37. Not a role, not a collection, not shipped.
+#
+# The point it exists to demonstrate is what the filter *does not* do. There is no idempotence
+# logic here, no check-mode handling, no diff support, no backup, no mode or ownership handling --
+# ansible.builtin.copy owns every one of those and has for a decade. The filter is a pure function
+# from data to text, which is what the tool is, so nothing has to be pretended.
+#
+# The measurable claim is the second run: it must report changed=0. That is the whole argument for
+# the filter shape over a module or an action plugin, and .github/workflows/ansible-spike.yml
+# fails if it does not hold.
+- name: Render configuration through the namespace2xml filter prototype
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # The shape the issue's reporters described: configuration declared as data, in one place,
+    # instead of a task per XPath expression.
+    logback_config:
+      appender:
+        - name: STDOUT
+          class: ch.qos.logback.core.ConsoleAppender
+          encoder:
+            pattern: "%d{HH:mm:ss} %-5level %logger{36} - %msg%n"
+        - name: FILE
+          class: ch.qos.logback.core.FileAppender
+          file: /var/log/app.log
+          append: true
+      root:
+        level: INFO
+        appender-ref:
+          - ref: STDOUT
+          - ref: FILE
+      scan: true
+      scanPeriod: 30
+
+    output_dir: "{{ lookup('env', 'N2X_SPIKE_OUTPUT') | default(playbook_dir + '/rendered', true) }}"
+
+  tasks:
+    - name: Ensure the output directory exists
+      ansible.builtin.file:
+        path: "{{ output_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render logback.xml
+      # XML has one document element and this view has four top-level members, so Section 14.1
+      # requires an explicit root. The element name is a fact about the target document, not about
+      # the data, so the caller supplies it rather than the filter guessing.
+      ansible.builtin.copy:
+        content: "{{ logback_config | namespace2xml_render('xml', root='configuration') }}"
+        dest: "{{ output_dir }}/logback.xml"
+        mode: "0644"
+
+    - name: Render the same data in the other formats
+      ansible.builtin.copy:
+        content: "{{ logback_config | namespace2xml_render(item) }}"
+        dest: "{{ output_dir }}/logback.{{ item }}"
+        mode: "0644"
+      loop:
+        - json
+        - yaml
+
+    - name: Show the profile the filter marshals, for the record
+      ansible.builtin.debug:
+        msg: "{{ (logback_config | namespace2xml_profile).split('\n') }}"

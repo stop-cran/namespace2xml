@@ -1,0 +1,3 @@
+[
+{"code":"WILDCARD001","severity":"error","phase":"input","source":"inputs/data.txt","line":4,"rule":["a.*[0].copy"],"spec":"§12.2","message":"the value substitutes a capture the rule's name does not define."}
+]

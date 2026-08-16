@@ -1,0 +1,5 @@
+-i
+inputs/second.txt
+inputs/first.txt
+-s
+schemes/scheme.txt

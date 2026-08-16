@@ -1,0 +1,4 @@
+app:
+  seqwins: [alpha]
+  mapwins: [beta]
+  emptywins: [gamma]

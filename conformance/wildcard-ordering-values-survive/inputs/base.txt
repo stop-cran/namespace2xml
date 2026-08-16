@@ -1,0 +1,6 @@
+hosts.2=alpha
+hosts.5=gamma
+hosts.7=beta
+hosts.name=label
+b.blocked.0=x
+b.blocked.1=y

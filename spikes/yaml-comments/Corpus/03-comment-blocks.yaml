@@ -1,0 +1,8 @@
+before: 0
+# C08 block line one
+# C09 block line two
+after: 1
+spaced_before: 2
+# C10 separated by blank line
+
+spaced_after: 3

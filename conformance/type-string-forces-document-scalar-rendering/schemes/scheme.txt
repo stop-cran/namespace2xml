@@ -1,0 +1,8 @@
+svc.output=json,yaml
+svc.port.type=string
+svc.enabled.type=string
+svc.label.type=string
+svc.echo.type=string
+api.output=json
+api.root=x.y
+api.timeout.type=string

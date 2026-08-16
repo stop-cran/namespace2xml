@@ -1,0 +1,6 @@
+# a leading note
+cfg.top=1
+# a note on the first section key
+cfg.db.host=localhost
+cfg.db.port=5432
+# a closing note

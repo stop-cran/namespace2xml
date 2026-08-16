@@ -1,0 +1,3 @@
+a.x.output=namespace
+a.*.output=ignore
+a.y.output=namespace

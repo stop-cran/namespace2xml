@@ -1,0 +1,5 @@
+-i
+inputs/first.json
+inputs/last.json
+-s
+schemes/scheme.txt

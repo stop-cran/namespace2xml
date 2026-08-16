@@ -1,0 +1,4 @@
+[
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/mapping.yaml","line":3,"column":8,"spec":"§10.4"},
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/sequence.yaml","line":3,"column":8,"spec":"§10.4"}
+]

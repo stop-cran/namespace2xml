@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cfg w="0" v="9" xmlns:n1="urn:p" xmlns:n2="urn:q">
+  <b xmlns="urn:p">t</b>
+  <z n1:k="1" x="2" n2:m="3" />
+  <d xmlns="urn:d">
+    <plain k="1" xmlns="">p</plain>
+  </d>
+</cfg>

@@ -1,0 +1,8 @@
+-i
+inputs/gone.properties
+inputs/gone.properties
+shared/gone.properties
+inputs/ok.txt
+-s
+shared/gone.properties
+schemes/main.txt

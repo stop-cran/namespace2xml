@@ -1,0 +1,2 @@
+app:
+  value: !!str 1

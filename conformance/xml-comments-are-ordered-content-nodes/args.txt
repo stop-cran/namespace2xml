@@ -1,0 +1,4 @@
+-i
+inputs/doc.xml
+-s
+schemes/scheme.txt

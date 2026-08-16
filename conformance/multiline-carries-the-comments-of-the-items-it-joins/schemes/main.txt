@@ -1,0 +1,3 @@
+cfg.output=yaml,namespace
+cfg.root=cfg
+cfg.a.type=multiline

@@ -1,0 +1,3 @@
+app.x.k=scalar
+app.z=other
+solo.m=scalar

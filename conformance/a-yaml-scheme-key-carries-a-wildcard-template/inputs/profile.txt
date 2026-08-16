@@ -1,0 +1,2 @@
+app.db.host=localhost
+app.web.host=example.com

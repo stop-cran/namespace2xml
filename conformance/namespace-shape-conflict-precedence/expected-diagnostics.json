@@ -1,0 +1,5 @@
+[
+{"code":"TYPE002","severity":"warning","phase":"planning","path":"emptywins","destination":"app.properties"},
+{"code":"TYPE002","severity":"warning","phase":"planning","path":"mapwins","destination":"app.properties"},
+{"code":"TYPE002","severity":"warning","phase":"planning","path":"seqwins","destination":"app.properties"}
+]

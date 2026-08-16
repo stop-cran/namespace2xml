@@ -1,0 +1,4 @@
+quoted_double: "value # C25 not a comment"
+quoted_single: 'value # C26 not a comment'
+plain: value#C27-not-a-comment
+actual: value # C28 actual inline comment

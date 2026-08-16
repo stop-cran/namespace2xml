@@ -1,0 +1,4 @@
+[
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/bare-at.json","line":3,"column":5,"spec":"§9.1"},
+{"code":"PARSE001","severity":"error","phase":"input","source":"inputs/bad-ordinal.yaml","line":2,"column":3,"spec":"§10.4"}
+]

@@ -1,0 +1,6 @@
+patch.output=namespace
+native.output=namespace
+mixed.output=namespace
+gaps.output=namespace
+ordinary.output=namespace
+huge.output=namespace

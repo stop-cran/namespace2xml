@@ -1,0 +1,2 @@
+cfg.a.0.k=alpha
+cfg.a.x.k=beta

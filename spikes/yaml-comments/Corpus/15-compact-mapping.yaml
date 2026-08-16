@@ -1,0 +1,5 @@
+items:
+  - key: value # C49 compact mapping child
+  - other: value
+    # C50 between compact mapping children
+    second: value

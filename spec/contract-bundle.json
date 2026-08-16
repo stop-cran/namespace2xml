@@ -1,0 +1,13 @@
+{
+  "revision": "r99+bad2fa36f0a5",
+  "revisionCounter": 99,
+  "specification": {
+    "path": "docs/specification.md",
+    "sha256": "1caae8b7ff90bd197a05bc7d98c482e5a412119365fd205d6053662f1c5525c7"
+  },
+  "registry": {
+    "path": "spec/diagnostics.registry.json",
+    "sha256": "fe467f3a5e0926771faaf1f87855958a0974e91d8bbcfe3f526cef135b6b4271"
+  },
+  "generatedBy": "tools/sync-contract-bundle.ps1"
+}

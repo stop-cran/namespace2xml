@@ -1,0 +1,5 @@
+-i
+inputs/data.yaml
+inputs/template.txt
+-s
+schemes/scheme.txt

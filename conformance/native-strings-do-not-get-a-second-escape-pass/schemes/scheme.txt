@@ -1,0 +1,2 @@
+ns.output=json
+nj.output=json

@@ -1,0 +1,5 @@
+-i
+inputs/profile.txt
+inputs/data.json
+-s
+schemes/scheme.txt

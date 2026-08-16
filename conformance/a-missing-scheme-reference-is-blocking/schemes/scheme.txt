@@ -1,0 +1,4 @@
+a.output=namespace
+b.output=namespace
+a.filename=${a.delimiter}.conf
+b.filename=${b.name}.conf

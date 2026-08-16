@@ -1,0 +1,3 @@
+r.output=xml
+r.root=r
+r.a.*.type=ignore

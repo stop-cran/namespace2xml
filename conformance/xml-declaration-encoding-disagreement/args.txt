@@ -1,0 +1,5 @@
+-i
+inputs/named-other.xml
+inputs/named-utf16.xml
+-s
+schemes/scheme.txt

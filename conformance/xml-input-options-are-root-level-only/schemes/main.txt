@@ -1,0 +1,3 @@
+r.xmlinputoptions=NormalizeFormattingWhitespace
+r.output=xml
+r.root=r

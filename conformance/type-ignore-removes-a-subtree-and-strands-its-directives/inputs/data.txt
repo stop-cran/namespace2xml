@@ -1,0 +1,2 @@
+cfg.a.p.x=1
+cfg.b=3

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["code", "severity", "phase", "spec", "message"],
+    "properties": {
+      "code": { "type": "string", "pattern": "^[A-Z]+[0-9]{3}$" },
+      "severity": { "enum": ["error", "warning"] },
+      "phase": { "enum": ["cli", "scheme", "input", "planning", "publication"] },
+      "source": { "type": "string", "minLength": 1 },
+      "line": { "type": "integer", "minimum": 1 },
+      "column": { "type": "integer", "minimum": 1 },
+      "path": { "type": "string" },
+      "declaration": { "type": "string" },
+      "rule": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+      "destination": { "type": "string" },
+      "spec": { "type": "string", "pattern": "^§[0-9A-Z]+(\\.[0-9]+)*$" },
+      "message": { "type": "string" }
+    },
+    "dependentRequired": { "column": ["line"], "line": ["source"] }
+  }
+}

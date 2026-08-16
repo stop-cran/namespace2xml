@@ -1,0 +1,4 @@
+[
+{"code":"REFERENCE001","severity":"error","phase":"planning","source":"inputs/data.txt","line":3,"path":"a.x.copy","spec":"§13.3","message":"the reference still contains a wildcard that no capture bound."},
+{"code":"REFERENCE001","severity":"error","phase":"planning","source":"inputs/data.txt","line":3,"path":"a.y.copy","spec":"§13.3","message":"the reference still contains a wildcard that no capture bound."}
+]

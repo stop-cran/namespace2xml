@@ -1,0 +1,7 @@
+indented.name=café
+indented.emoji=😀
+compact.name=café
+compact.emoji=😀
+escaped.name=café
+escaped.emoji=😀
+escaped.café=key

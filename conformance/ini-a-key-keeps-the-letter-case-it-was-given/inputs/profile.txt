@@ -1,0 +1,3 @@
+app.db.Host=localhost
+app.db.PORT=8080
+app.db.timeOut=30

@@ -1,0 +1,4 @@
+# why the port
+port: 8080
+# why the host
+host: localhost

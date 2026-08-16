@@ -1,0 +1,6 @@
+literal_keep: |+ # C62 literal keep header
+  body
+literal_indent: |2- # C63 literal indent header
+  body
+folded_keep: >+ # C64 folded keep header
+  body

@@ -1,0 +1,6 @@
+-i
+inputs/good.txt
+inputs/malformed.txt
+inputs/bad-escape.txt
+-s
+schemes/scheme.txt

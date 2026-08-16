@@ -1,0 +1,10 @@
+[
+  {
+    "name": "alpha",
+    "weight": "1"
+  },
+  {
+    "name": "beta",
+    "value": "2"
+  }
+]

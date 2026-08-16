@@ -1,0 +1,10 @@
+{
+  "cfg": {
+    "map": {},
+    "seq": [],
+    "text_map": "{}",
+    "text_seq": "[]",
+    "nested": { "inner": {} },
+    "keep": "v"
+  }
+}

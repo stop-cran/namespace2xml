@@ -1,0 +1,3 @@
+[
+{"code":"WARN010","severity":"warning","phase":"planning","source":"inputs/data.json","path":"second.data","destination":"second.properties","spec":"§8.7"}
+]

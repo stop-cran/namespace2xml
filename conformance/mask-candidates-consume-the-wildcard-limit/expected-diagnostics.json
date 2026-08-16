@@ -1,0 +1,3 @@
+[
+{"code":"WILDCARD002","severity":"error","phase":"input","rule":["a.*"],"spec":"§12.4"}
+]

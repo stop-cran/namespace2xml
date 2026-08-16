@@ -1,0 +1,7 @@
+USAGE
+REQUIRED
+COMMON
+EXIT CODES
+FOR AUTOMATION AND AI AGENTS
+!version: 3.0.0-preview.3
+!contract-bundle: ${contract-bundle}

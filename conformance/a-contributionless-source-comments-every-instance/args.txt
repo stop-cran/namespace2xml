@@ -1,0 +1,6 @@
+-i
+inputs/notes.txt
+-i
+inputs/data.txt
+-s
+schemes/main.txt

@@ -1,0 +1,3 @@
+cfg.output=xml
+cfg.root=cfg
+cfg.xmloutputoptions=Indent,NewLineOnAttributes

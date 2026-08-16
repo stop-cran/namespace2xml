@@ -1,0 +1,4 @@
+-i
+inputs/native.properties
+-s
+schemes/scheme.txt

@@ -1,0 +1,3 @@
+app.only=kept
+# original
+app.name=first

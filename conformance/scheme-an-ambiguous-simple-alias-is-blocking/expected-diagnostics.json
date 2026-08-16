@@ -1,0 +1,3 @@
+[
+{"code":"SCHEME002","severity":"error","phase":"planning","source":"schemes/scheme.txt","line":3,"path":"r.a.x","declaration":"r.*.x.type","spec":"§15.2"}
+]

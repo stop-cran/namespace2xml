@@ -1,0 +1,13 @@
+cfg.bare_map={}
+cfg.bare_seq=[]
+cfg.esc_map=\{}
+cfg.esc_seq=\[]
+cfg.near_suffix=x{}
+cfg.near_prefix={}x
+cfg.near_inner={a}
+cfg.near_nested={{}}
+cfg.near_spaced=[ ]
+cfg.double=\\{}
+cfg.grown={}
+cfg.grown.child=1
+cfg.literal={}

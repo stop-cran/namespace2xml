@@ -1,0 +1,5 @@
+cfg.e.@a=1
+cfg.e.@b=2
+cfg.e.t=x
+cfg.g.@only=1
+cfg.g.t=y

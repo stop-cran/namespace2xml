@@ -1,0 +1,5 @@
+svc.p/q.name=slash
+svc.CON.name=device
+svc.x y.name=space
+svc.\..name=dot
+svc.plain.name=plain

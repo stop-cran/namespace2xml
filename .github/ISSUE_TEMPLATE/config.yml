@@ -1,15 +1,7 @@
-# These forms are on the default branch ahead of the 3.0 merge, because GitHub serves issue
-# templates from the default branch only. namespace2xml 3.0.0-preview.1 tells every user and every
-# agent to file at /issues/new/choose; until 3.0 lands on master, this file is the only thing that
-# makes that instruction true.
-#
-# The two document links name the released tag rather than a branch. master does not carry those
-# documents yet, and the tag is the contract these reports are filed against. When 3.0 merges, the
-# 3.0 copy of this directory replaces this one and the links become branch-relative again.
 blank_issues_enabled: false
 contact_links:
   - name: Which form do I need?
-    url: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.1/CONTRIBUTING.md#41-four-destinations-and-why-routing-matters
+    url: https://github.com/stop-cran/namespace2xml/blob/master/CONTRIBUTING.md#41-four-destinations-and-why-routing-matters
     about: Ask "what would have to change so this never surprises anyone again?" — the code, the specification, the docs, or the feature set.
   - name: Question about behaviour
     url: https://github.com/stop-cran/namespace2xml/discussions
@@ -18,5 +10,5 @@ contact_links:
     url: https://github.com/stop-cran/namespace2xml/security/advisories/new
     about: Do not open a public issue. Report privately.
   - name: Working with an AI agent?
-    url: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.1/AGENTS.md
+    url: https://github.com/stop-cran/namespace2xml/blob/master/AGENTS.md
     about: Read AGENTS.md. Agent-authored reports are welcome and expected, under the rules in CONTRIBUTING.md.

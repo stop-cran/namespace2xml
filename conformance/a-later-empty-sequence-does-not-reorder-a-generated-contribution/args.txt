@@ -1,0 +1,6 @@
+-i
+inputs/first.txt
+inputs/template.txt
+inputs/empty.json
+-s
+schemes/scheme.txt

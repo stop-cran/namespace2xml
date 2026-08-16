@@ -1,0 +1,4 @@
+cfg.m.0=x
+cfg.m.1=y
+cfg.s.b=1
+cfg.s.c=2

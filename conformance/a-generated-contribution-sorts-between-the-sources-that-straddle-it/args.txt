@@ -1,0 +1,7 @@
+-i
+inputs/first.txt
+inputs/template.txt
+inputs/second.txt
+inputs/probe.txt
+-s
+schemes/scheme.txt

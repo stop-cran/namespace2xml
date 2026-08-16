@@ -1,0 +1,3 @@
+a.output=xml
+a.root=a
+c.output=json

@@ -1,0 +1,7 @@
+# C19 before document start
+--- # C20 after document start marker
+# C21 after document start
+first: 1
+# C22 before document end
+... # C23 after document end marker
+# C24 after explicit document end

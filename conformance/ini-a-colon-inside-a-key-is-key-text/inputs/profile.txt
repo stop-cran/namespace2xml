@@ -1,0 +1,2 @@
+app.db.a:b=1
+app.db.plain=2

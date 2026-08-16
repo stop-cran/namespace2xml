@@ -1,0 +1,87 @@
+{
+  "$comment": [
+    "Spans that tools/check-specification-quotations.ps1 would read as quotations of",
+    "docs/specification.md, and that deliberately are not. Every entry needs a reason: an exemption",
+    "without one is a silenced failure, and the script refuses to load it.",
+    "",
+    "An entry matches a quotation whose normalized text starts with its normalized text, so a long",
+    "worked example can be recorded by its opening sentence. Editing that opening re-arms the check."
+  ],
+  "exemptions": [
+    {
+      "file": "docs/usage-methodology.md",
+      "text": "**Status:** partial. Sections 1–3 and 6 are written from practice",
+      "reason": "A status callout about this document's own completeness, not a quotation of the contract."
+    },
+    {
+      "file": "CONTRIBUTING.md",
+      "text": "**Classification:** Bug",
+      "reason": "A worked example of the bug report form, quoting a reporter rather than the contract."
+    },
+    {
+      "file": "CONTRIBUTING.md",
+      "text": "**Classification:** Specification ambiguity",
+      "reason": "A worked example of the specification-ambiguity report form, quoting a reporter rather than the contract."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "the Key directive is not implemented",
+      "reason": "The refusal text this build printed, quoted to show that it named the directive rather than the capability."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "the same declaration with no `*` in its value runs",
+      "reason": "The author's description of the contrasting invocation, not a clause."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "reach a comment in mixed content but not one sitting among element-only children",
+      "reason": "Quotes a superseded revision of this file, which the entry goes on to correct."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "document order is preserved",
+      "reason": "Quotes a superseded revision of this file, kept because a withdrawn reassurance is worth recording."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "a wildcard capture substituted into a directive value",
+      "reason": "The capability named in the exit-70 refusal that 3.0.0-preview.1 and 3.0.0-preview.2 printed."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "per-source provenance the overlay does not retain",
+      "reason": "Quotes a superseded revision of this file, which the entry goes on to show was wrong."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "a native JSON or YAML document wrote a mapping here",
+      "reason": "The author's statement of the one fact the warning needs, not a clause."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "'key=nm' needs an ordered mapping, and this path projects a sequence or a scalar only",
+      "reason": "A TYPE001 diagnostic message. Diagnostic text is governed by the registry, not by prose in the specification."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "puts a path §16.10 has just removed back into the overlay tree",
+      "reason": "Quotes a rejected-fix note this entry used to carry, kept because the reasoning was wrong for an instructive reason."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "places each attribute after the first on its own line",
+      "reason": "Quotes §16.9 as it read before #53 amended it. The entry exists to record that the clause moved, so it must keep the old wording."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "the code was already like that",
+      "reason": "A characterization of an argument the entry declines to make, not a quotation of anything."
+    },
+    {
+      "file": "KNOWN-LIMITS.md",
+      "text": "create this link before the run",
+      "reason": "A hypothetical reserved fixture name that Appendix C does not define."
+    }
+  ]
+}

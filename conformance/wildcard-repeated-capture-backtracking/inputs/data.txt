@@ -1,0 +1,3 @@
+secret.aa=leak
+secret.ab=keep
+gen.pxqxr.b.pxq.v=1

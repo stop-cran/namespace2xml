@@ -1,0 +1,7 @@
+-i
+inputs/comment.json
+inputs/trailing-comma.json
+inputs/duplicate-key.json
+inputs/surrogate-escape.json
+-s
+schemes/scheme.txt

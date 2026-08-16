@@ -1,0 +1,57 @@
+# namespace2xml
+
+> A deterministic configuration transformer. Reads ordered namespace profiles and structured inputs,
+> applies scheme directives, and renders many outputs from one overlaid model. Identical inputs
+> always produce byte-identical outputs on every supported platform.
+>
+> Version 3.0 is a complete rewrite against a normative specification written before the
+> implementation. The specification is the contract; the code is an attempt to satisfy it. Every
+> diagnostic carries a stable code and the specification anchor it enforces.
+
+## Start here
+
+- [AGENTS.md](AGENTS.md): entry point for automated agents; read order, repository map, reporting rules.
+- [CONTRIBUTING.md](CONTRIBUTING.md): the binding change protocol and the feedback report forms.
+- [docs/specification.md](docs/specification.md): the contract. Normative, self-contained.
+
+## Contract
+
+- [spec/diagnostics.registry.json](spec/diagnostics.registry.json): canonical code-level diagnostic facts.
+- [spec/diagnostic-stream.schema.json](spec/diagnostic-stream.schema.json): JSON Schema for `--diagnostics-format json`.
+- [spec/contract-bundle.json](spec/contract-bundle.json): the revision `--version` reports, covering the specification and the registry.
+- [docs/diagnostics.md](docs/diagnostics.md): every diagnostic code, its meaning, and its anchor.
+
+## Usage
+
+- [README.md](README.md): installation and a first example.
+- [docs/usage-methodology.md](docs/usage-methodology.md): when to use this tool, how to layer overlays, how to specialize an existing document with a cross-format override, and known anti-patterns.
+- [docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md): every intentional behaviour change from 2.4.0.
+- [KNOWN-LIMITS.md](KNOWN-LIMITS.md): what is deliberately not covered yet.
+
+## Formats
+
+One guide per supported format. Each cites the specification clause behind every rule, and says so
+explicitly where the specification does not settle a question.
+
+- [docs/format-namespace.md](docs/format-namespace.md): the namespace profile — syntax, escapes, comments, references, wildcards.
+- [docs/format-json.md](docs/format-json.md): JSON input and output — scalar kinds, strict parsing refusals, the numeric-map trap.
+- [docs/format-yaml.md](docs/format-yaml.md): YAML input and output — the normative `RestrictedYaml1` subset and what it refuses.
+- [docs/format-xml.md](docs/format-xml.md): XML input and output — typed components, attributes, CDATA, comments, namespaces.
+- [docs/format-ini.md](docs/format-ini.md): INI output only — the two-level `PortableIni1` projection and its escapes.
+
+## Verification
+
+- [conformance/](conformance/): the portable conformance corpus, which is the independent oracle. Layout is specification Appendix C.
+- [conformance/assertions.json](conformance/assertions.json): every acceptance requirement, its status, and its fixture coverage.
+
+## Machine interface
+
+- Run with `--diagnostics-format json` for the whole diagnostic stream on standard error as one canonical JSON array. Operational messages are suppressed in that mode.
+- Run `--version` for `<field>: <value>` lines including `contract-bundle`.
+- Exit code `0` means success, including success with warnings. Exit code `1` means failure.
+
+## Reporting
+
+- Issue forms: https://github.com/stop-cran/namespace2xml/issues/new/choose
+- Route by asking what would have to change so this never surprises anyone again: the code (bug), the specification (ambiguity), the docs (usage gap), or the feature set (request).
+- Always include the `contract-bundle` revision from `--version`.

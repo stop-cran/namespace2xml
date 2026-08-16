@@ -1,0 +1,5 @@
+indented.output=json
+compact.output=json
+compact.jsonoutputoptions=Compact
+escaped.output=json
+escaped.jsonoutputoptions=Compact,EscapeNonAscii

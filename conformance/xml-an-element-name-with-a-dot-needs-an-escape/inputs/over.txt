@@ -1,0 +1,3 @@
+r.system\.web.compilation.@debug=true
+r.system\u{2E}web.compilation.@mode=strict
+r.system.web.compilation.@debug=phantom

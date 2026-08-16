@@ -1,0 +1,9 @@
+-i
+inputs/internal-subset.xml
+inputs/external-system.xml
+inputs/retrieval-relative-to-document.xml
+inputs/retrieval-relative-to-invocation.xml
+inputs/entity-expansion.xml
+inputs/after-prolog.xml
+-s
+schemes/scheme.txt

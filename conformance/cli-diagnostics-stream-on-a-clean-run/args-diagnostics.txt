@@ -1,0 +1,6 @@
+-i
+inputs/main.txt
+-s
+schemes/main.txt
+--diagnostics-format
+json

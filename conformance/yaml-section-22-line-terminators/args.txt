@@ -1,0 +1,7 @@
+-i
+inputs/control.yaml
+inputs/nel.yaml
+inputs/separator.yaml
+inputs/paragraph.yaml
+-s
+schemes/scheme.txt

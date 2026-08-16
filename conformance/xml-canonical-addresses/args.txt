@@ -1,0 +1,5 @@
+-i
+inputs/doc.xml
+inputs/pretty.xml
+-s
+schemes/scheme.txt

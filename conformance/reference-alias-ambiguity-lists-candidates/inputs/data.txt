@@ -1,0 +1,3 @@
+app.t.@x=attribute
+app.t.Q{urn:example}x=element
+app.k=${app.t.x}

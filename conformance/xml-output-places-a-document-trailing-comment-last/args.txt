@@ -1,0 +1,4 @@
+-i
+inputs/source.properties
+-s
+schemes/scheme.txt

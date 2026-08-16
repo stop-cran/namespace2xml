@@ -1,0 +1,8 @@
+exact: |-
+  one
+  two
+trailingspace: "one \ntwo"
+carriagereturn: "one\rtwo"
+blankend: "one\n\n"
+control: "one\u0001two"
+indentedfirst: "  one\ntwo"

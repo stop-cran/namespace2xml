@@ -1,0 +1,4 @@
+p.output=xml
+p.root=p
+q.output=namespace
+q.filename=q.txt

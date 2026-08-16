@@ -1,0 +1,20 @@
+app:
+  name: demo
+  port: 8080
+  ratio: 1.50
+  exponent: 1e0
+  signed: -0
+  enabled: tRuE
+  absent: null
+  spelled: nULL
+  legacy: yes
+  plus: +1
+  bare: .5
+  dot: 1.
+  quoted: "true"
+  tags:
+    - first
+    - second
+  db:
+    host: localhost
+  a.b: dotted

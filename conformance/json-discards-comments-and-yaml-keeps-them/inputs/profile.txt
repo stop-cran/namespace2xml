@@ -1,0 +1,6 @@
+# why the port
+cfg.port=8080
+# why the host
+cfg.host=localhost
+# not wanted here
+quiet.port=8080

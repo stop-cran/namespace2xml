@@ -1,0 +1,8 @@
+-i
+inputs/main.txt
+-s
+schemes/main.txt
+--verbosity
+none
+--diagnostics-format
+json

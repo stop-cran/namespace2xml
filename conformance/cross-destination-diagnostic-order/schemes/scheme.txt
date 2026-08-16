@@ -1,0 +1,3 @@
+zzz.output=ini
+app.output=ini
+app.x.output=ini

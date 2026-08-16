@@ -18,7 +18,7 @@ body:
     id: version
     attributes:
       label: Version
-      placeholder: "contract-bundle: r2+0654ebfa8b7a"
+      placeholder: "contract-bundle: r37+2d644be6926e"
     validations:
       required: true
 

@@ -1,0 +1,3 @@
+a.output=json
+b.output=namespace
+a.p.merge=append

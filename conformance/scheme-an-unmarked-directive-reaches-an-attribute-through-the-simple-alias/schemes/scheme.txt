@@ -1,0 +1,5 @@
+r.output=xml
+r.root=r
+r.attr.x.type=ignore
+r.both.@z.type=ignore
+r.pick.Q{}w.type=ignore

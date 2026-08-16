@@ -1,0 +1,421 @@
+name: ci
+
+on:
+  push:
+    branches: [master, v3]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+
+jobs:
+  # A workflow that can publish from a branch can publish an unreviewed artifact under a
+  # trusted name. This job fails the build if that ever becomes true again.
+  publication-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Only tags may publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check pyyaml
+          python3 tools/check-publication-triggers.py
+
+  # Section 21 governs paths a successful run never takes: an escape refused, a root that cannot
+  # hold destinations, a gate that must fire before anything is opened. An implementation that has
+  # silently lost one of these still passes every other job here, so this one runs on its own,
+  # depends on nothing, and is the first thing to go red. Running it last, mixed into the main
+  # suite, is how these invariants get lost.
+  publication-invariants:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build namespace2xml.slnx -c Release
+
+      # Both operating systems are named explicitly because the no-follow primitive differs
+      # between them -- NtCreateFile with a root directory handle on Windows, openat with
+      # O_NOFOLLOW elsewhere -- so a green Linux run says nothing about the Windows path.
+      - name: Confinement, no-follow publication and the validation gate
+        run: >
+          dotnet test namespace2xml.slnx --no-build -c Release
+          --filter "FullyQualifiedName~SecureDirectory|FullyQualifiedName~Publisher|FullyQualifiedName~DestinationPath|FullyQualifiedName~CanonicalPath"
+
+      - name: The conformance cases that assert refusal
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/run-publication-conformance.ps1
+
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore namespace2xml.slnx
+      - run: dotnet build namespace2xml.slnx --no-restore -c Release
+      - run: dotnet test namespace2xml.slnx --no-build -c Release --logger "trx;LogFileName=results.trx" -- --coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: '**/TestResults/**'
+          if-no-files-found: ignore
+
+  # A packaged tool is not the same artifact as a built binary: packing, the NuGet layout, the tool
+  # shim and the apphost all sit between them, and each can break while build and test stay green.
+  # This installs what a user installs, on every platform the tool claims. The version assertion is
+  # anchored exactly as the release workflow's is, so a Directory.Build.props drift fails here on a
+  # push instead of at tag time, when the only remaining move is to retag.
+  tool-install:
+    needs: build-test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Pack, install and smoke-test the tool
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/verify-tool-install.ps1
+
+  # Section 24 requires byte-identical output for identical inputs. A tool that only claims
+  # determinism is not determinate; this job measures it.
+  determinism:
+    needs: build-test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build namespace2xml.slnx -c Release
+      - name: Hash the conformance corpus outputs
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/hash-corpus-outputs.ps1 -Output corpus-hashes-${{ matrix.os }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corpus-hashes-${{ matrix.os }}
+          path: corpus-hashes-${{ matrix.os }}.txt
+
+  # Appendix C.6 makes every conformance case differential evidence: the pinned 2.4.0 baseline is
+  # run against all of them, and a divergence with no verdict to explain it fails the build. The
+  # lane is Linux-only and byte-exact on purpose. 2.4.0 writes Environment.NewLine, so on Windows
+  # every text output differs by its CR bytes alone and a verdict would describe the runner rather
+  # than the tool. Normalizing instead would hide a real line-terminator difference if one existed.
+  differential:
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      # The baseline package targets net9.0 and Appendix C.6 requires it be run on the runtime it
+      # was published against rather than rolled forward.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Fetch and verify the pinned 2.4.0 baseline
+        shell: pwsh
+        run: |
+          $package = pwsh -NoProfile -File tools/fetch-differential-baseline.ps1
+          "N2X_LEGACY_PACKAGE=$package" >> $env:GITHUB_ENV
+      - run: dotnet build namespace2xml.slnx -c Release
+      - run: dotnet test namespace2xml.slnx --no-build -c Release --filter "FullyQualifiedName~DifferentialTests"
+
+  cross-os-hash:
+    needs: determinism
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: corpus-hashes-*
+          merge-multiple: false
+      - name: Every platform must produce identical bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(corpus-hashes-*/*.txt)
+
+          # An unmatched glob, a renamed artifact or a narrowed matrix would otherwise leave this
+          # loop with nothing to compare and still report success, silently disabling the whole
+          # Section 24 cross-platform gate.
+          if [ "${#files[@]}" -ne 3 ]; then
+            echo "::error::expected 3 hash artifacts (one per platform) but found ${#files[@]}"
+            printf '::error::found: %s\n' "${files[@]:-<none>}"
+            exit 1
+          fi
+
+          reference="${files[0]}"
+
+          if [ ! -s "$reference" ]; then
+            echo "::error::$reference is empty; the determinism run produced no measurements"
+            exit 1
+          fi
+
+          for file in "${files[@]:1}"; do
+            if ! diff -u "$reference" "$file"; then
+              echo "::error::output differs across platforms, violating Section 24"
+              exit 1
+            fi
+          done
+          echo "all platforms agree across ${#files[@]} artifacts"
+
+  contract-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Regenerate the diagnostics registry
+        run: pwsh -NoProfile -File tools/sync-diagnostics-registry.ps1
+      - name: Regenerate the diagnostic factory surface
+        run: pwsh -NoProfile -File tools/sync-diagnostic-codes.ps1
+      - name: Regenerate the contract bundle
+        run: pwsh -NoProfile -File tools/sync-contract-bundle.ps1
+      - name: Regenerate the acceptance manifest
+        run: pwsh -NoProfile -File tools/sync-assertion-manifest.ps1
+      - name: Regenerate the derived documentation
+        run: pwsh -NoProfile -File tools/sync-docs.ps1
+      - name: The contract must not drift from the specification
+        shell: bash
+        run: |
+          set -euo pipefail
+          # git status, not git diff: a generator that creates a new untracked artifact is drift
+          # too, and git diff cannot see it.
+          derived=(
+            spec
+            conformance/assertions.json
+            docs/diagnostics.md
+            docs/migration-2.x-to-3.0.md
+            src/Namespace2Xml.Core/Diagnostics/DiagnosticCodes.g.cs
+          )
+          if [ -n "$(git status --porcelain -- "${derived[@]}")" ]; then
+            git status --porcelain -- "${derived[@]}"
+            git diff -- "${derived[@]}"
+            echo "::error::the specification or corpus changed without the derived artifacts being regenerated."
+            echo "::error::run the tools/sync-*.ps1 generators and commit the result."
+            exit 1
+          fi
+
+  # A changed contract that keeps its old revision is indistinguishable from an unchanged one,
+  # which makes every defect report ambiguous.
+  contract-revision:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: A contract change must move the bundle revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+
+          # git diff exits 0 for "same", 1 for "differs" and >1 for a fatal error. Treating a
+          # fatal error as "differs" made both probes fall through to success, so an unavailable
+          # base object silently disabled this gate.
+          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "::error::base commit $base is not available; cannot evaluate contract drift."
+            exit 1
+          fi
+
+          contract_changed() {
+            git diff --quiet "$base" HEAD -- "$@" && return 1
+            status=$?
+            if [ "$status" -gt 1 ]; then
+              echo "::error::git diff failed with status $status while comparing $*"
+              exit 1
+            fi
+            return 0
+          }
+
+          if ! contract_changed docs/specification.md spec/diagnostics.registry.json; then
+            echo "contract unchanged"
+            exit 0
+          fi
+
+          if ! contract_changed spec/contract-bundle.json; then
+            echo "::error::docs/specification.md or spec/diagnostics.registry.json changed but spec/contract-bundle.json did not."
+            exit 1
+          fi
+          echo "contract changed and the bundle revision moved with it"
+
+  # Section 19.6 requires conformance tests to cover every parser the compatibility documentation
+  # names, and docs/format-ini.md names two: Python's configparser and npm's ini. Each check reads
+  # published expected output with its parser and imports nothing from this repository, so neither
+  # needs the SDK nor a build and both run in about a second; it is a separate job rather than a
+  # step so that a broken interoperability claim is named on the summary page instead of hiding
+  # inside a lint failure. The two lanes are separate steps for the same reason.
+  ini-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: The emitted INI dialect must agree with Python's configparser
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check-ini-interop.py .
+      - name: The emitted INI dialect must agree with npm's ini
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Installed outside the working tree, from a directory carrying its own package.json so
+          # that npm resolves here rather than walking up into the repository.
+          lane="${RUNNER_TEMP}/ini-interop"
+          mkdir -p "${lane}"
+          printf '{"name":"ini-interop-lane","private":true}\n' > "${lane}/package.json"
+          ( cd "${lane}" && npm install --no-save --no-audit --no-fund ini@6.0.0 )
+          NODE_PATH="${lane}/node_modules" node tools/check-ini-interop.js .
+
+  # Section 19.4 takes the union of the two published YAML schemas rather than a side, so proving
+  # it needs a reader of each revision: PyYAML resolves YAML 1.1 and js-yaml YAML 1.2, and a
+  # spelling only one of them types is caught only by that one. Measured on this corpus, an
+  # unquoted `0o17` passes the 1.1 lane and fails the 1.2 lane, so the two are not redundant.
+  #
+  # Both read published expected output and import nothing from this repository. The absence of a
+  # lane like this is why a writer keyed to its own reader's subset survived to a final review:
+  # the tool read its own output back correctly, and the corpus compared bytes that were stable
+  # and wrong together.
+  yaml-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: The emitted YAML must read back unchanged under a YAML 1.1 reader
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check pyyaml
+          python3 tools/check-yaml-interop.py .
+      - name: The emitted YAML must read back unchanged under a YAML 1.2 reader
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Installed outside the working tree, from a directory carrying its own package.json so
+          # that npm resolves here rather than walking up into the repository.
+          lane="${RUNNER_TEMP}/yaml-interop"
+          mkdir -p "${lane}"
+          printf '{"name":"yaml-interop-lane","private":true}\n' > "${lane}/package.json"
+          ( cd "${lane}" && npm install --no-save --no-audit --no-fund js-yaml@4.1.0 )
+          NODE_PATH="${lane}/node_modules" node tools/check-yaml-interop.js .
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet format namespace2xml.slnx --verify-no-changes --severity error
+
+      - name: Workflows must be valid
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A workflow file issue is not a normal build failure: GitHub cannot evaluate the
+          # triggers, so it reports a bare failure with no job and no log. The release workflow
+          # published under a trusted package name, so an unvalidated one is a supply-chain
+          # concern rather than an inconvenience.
+          #
+          # This catches more than YAML syntax. The tools/check-publication-triggers.py gate
+          # parses the document and still accepts a file that Actions rejects, because an
+          # expression is only meaningful to the Actions parser. Notably, expressions are
+          # evaluated inside run: blocks even on lines that the shell would treat as comments.
+          version=1.7.7
+          curl -sSLo actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${version}/actionlint_${version}_linux_amd64.tar.gz"
+          tar -xzf actionlint.tar.gz actionlint
+          ./actionlint -no-color -oneline
+          echo "workflows are valid"
+
+      - name: No contract or fixture path may be gitignored
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A fixture that git silently drops produces a corpus which passes locally and asserts
+          # less in CI. The inherited Visual Studio template ignored bin/, Release/, *.log and
+          # *.cache, all of which are ordinary names inside a configuration-transformer fixture.
+          hidden="$(git ls-files --others --ignored --exclude-standard -- conformance spec tools spikes)"
+          if [ -n "$hidden" ]; then
+            echo "::error::these paths exist but are gitignored, so they would never be committed:"
+            echo "$hidden"
+            exit 1
+          fi
+          echo "every path under conformance, spec, tools and spikes is committable"
+
+      - name: KNOWN-LIMITS.md must not cite closed issues as live work
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # KNOWN-LIMITS.md records what is *not* verified, so nothing else in this workflow
+          # re-checks its claims. Section 1.9 of that file was published in 3.0.0-preview.2
+          # asserting a defect that had already been fixed, and a reader who acted on it was
+          # misled. An entry stops being true at about the moment its issue is closed, so the
+          # tracker is a cheap standing check on prose no test can reach.
+          pwsh -NoProfile -File tools/check-known-limits-issues.ps1 -RequireGh
+
+      - name: Every quotation of the specification must still be verbatim
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Amending the contract silently invalidates every copy of the amended sentence in the
+          # fixture rationales, the format guides and KNOWN-LIMITS.md. Nothing else notices, and
+          # the result is worse than a stale comment: the quotation is presented as normative and
+          # goes on asserting a rule the contract no longer contains. Two fixtures asserted that
+          # backslashes stay literal in a native key for months after Section 9.1 stopped saying so.
+          pwsh -NoProfile -File tools/check-specification-quotations.ps1
+
+      - name: Conformance fixtures must carry no CR bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Section 24 requires LF. .gitattributes marks these trees -text precisely so git will
+          # not fix this for us, which means it has to be checked.
+          offenders="$(git grep -lI $'\r' -- conformance || true)"
+          if [ -n "$offenders" ]; then
+            echo "::error::conformance fixtures contain CR bytes:"
+            echo "$offenders"
+            exit 1
+          fi
+          echo "conformance fixtures are LF-only"

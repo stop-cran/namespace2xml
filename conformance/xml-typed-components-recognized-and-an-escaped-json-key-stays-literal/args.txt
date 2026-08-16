@@ -1,0 +1,7 @@
+-i
+inputs/data.txt
+inputs/literal.json
+-s
+schemes/scheme.txt
+-v
+r.@varattr=VAR_VAL

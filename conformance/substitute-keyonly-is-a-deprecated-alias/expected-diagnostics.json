@@ -1,0 +1,3 @@
+[
+{"code":"WARN002","severity":"warning","phase":"scheme","source":"schemes/scheme.txt","line":2,"declaration":"cfg.raw.substitute","spec":"§15.3"}
+]
