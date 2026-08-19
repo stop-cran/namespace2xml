@@ -15,15 +15,10 @@ on:
         default: 3.0.0-preview.4
         required: false
         type: string
-  # workflow_dispatch alone is unreachable until v3 becomes the default branch, which is why the
-  # native-aot spike has never run. A measurement that cannot be taken is not evidence, so this
-  # also runs when the spike's own files change -- and only then.
-  push:
-    branches:
-      - v3
-    paths:
-      - 'spikes/ansible/**'
-      - '.github/workflows/ansible-spike.yml'
+  # This once also ran on push to v3, because workflow_dispatch reads only from the default branch
+  # and the workflow did not exist there -- the same reason the native-aot spike never ran. Since
+  # 3.0 merged, the file is on master and dispatch reaches it, so the push trigger is redundant
+  # and its branch no longer exists.
 
 permissions:
   contents: read

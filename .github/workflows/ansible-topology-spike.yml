@@ -1,0 +1,230 @@
+name: ansible-topology-spike
+
+# Issue #37. Two measurements the existing ansible-spike workflow cannot make, both of which
+# decide the shape of a Galaxy collection:
+#
+#   1. WHERE a filter plugin executes. spikes/ansible/playbook.yml is hosts: localhost /
+#      connection: local, so the controller and the target are one machine and the question
+#      cannot be discriminated there. Here the target is a container with no .NET at all.
+#      The answer decides whether an install role has one machine to reach or all of them.
+#
+#   2. Whether a tool installed by a task is reachable by a filter later in the same play --
+#      the exact shape of a collection that ships an install role next to the filter that
+#      needs it.
+#
+# Neither is part of the product and nothing in the repository depends on the outcome. This is a
+# spike; delete it with the rest of spikes/ansible once the collection exists.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published namespace2xml version to measure against
+        default: 3.0.0-preview.4
+        required: false
+        type: string
+  # workflow_dispatch reads only from the default branch, so it cannot reach this file until the
+  # branch merges. Until then the push trigger is the only way to take the measurement at all, and
+  # a measurement that cannot be taken is not evidence.
+  push:
+    branches:
+      - spike/ansible-topology
+    paths:
+      - spikes/ansible/**
+      - .github/workflows/ansible-topology-spike.yml
+
+permissions:
+  contents: read
+
+env:
+  TOOL_VERSION: ${{ inputs.version || '3.0.0-preview.4' }}
+
+jobs:
+  execution-locus:
+    name: Where does the filter execute
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the tool on the controller and nowhere else
+        env:
+          VERSION: ${{ env.TOOL_VERSION }}
+        run: |
+          dotnet tool install --global namespace2xml --version "${VERSION}"
+          echo "${HOME}/.dotnet/tools" >> "${GITHUB_PATH}"
+
+      - name: Install ansible-core and the docker connection plugin
+        run: |
+          python -m pip install --disable-pip-version-check 'ansible-core>=2.16'
+          ansible-galaxy collection install community.docker
+
+      - name: Start a target that provably cannot run the tool
+        run: |
+          docker run -d --name n2x-target python:3.12-slim sleep 3600
+          echo '--- the target must have neither, or the measurement is void ---'
+          if docker exec n2x-target sh -c 'command -v dotnet'; then
+            echo 'VOID: the target has dotnet'
+            exit 1
+          fi
+          if docker exec n2x-target sh -c 'command -v namespace2xml'; then
+            echo 'VOID: the target has namespace2xml'
+            exit 1
+          fi
+          echo 'confirmed: the target has no dotnet and no namespace2xml'
+
+      - name: Write the inventory
+        run: |
+          cat > /tmp/inventory.ini <<'EOF'
+          [n2xtarget]
+          n2x-target ansible_connection=community.docker.docker ansible_python_interpreter=/usr/local/bin/python3
+          EOF
+          cat /tmp/inventory.ini
+
+      - name: Render into the target
+        env:
+          ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
+          ANSIBLE_HOST_KEY_CHECKING: 'False'
+        run: |
+          ansible-playbook \
+            -i /tmp/inventory.ini \
+            spikes/ansible/topology-playbook.yml \
+            | tee /tmp/locus.log
+
+      - name: Record the finding
+        run: |
+          {
+            echo '## Measurement 1 -- where the filter executes'
+            echo
+            echo 'Controller: this runner, with dotnet and namespace2xml.'
+            echo 'Target: a python:3.12-slim container, verified to have neither.'
+            echo
+            echo 'The play rendered a document through the filter and copied it into the target,'
+            echo 'and it succeeded. A tool the target cannot run produced a file on the target.'
+            echo
+            echo 'FINDING: the filter executes on the CONTROLLER.'
+          } | tee /tmp/finding-1.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Stop the target
+        if: always()
+        run: docker rm -f n2x-target || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: execution-locus
+          path: |
+            /tmp/locus.log
+            /tmp/finding-1.md
+          if-no-files-found: warn
+
+  install-then-use:
+    name: Is a tool installed mid-play reachable
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Deliberately NOT adding ~/.dotnet/tools to GITHUB_PATH here. The existing spike workflow
+      # does add it, which is precisely what hides this problem from it.
+      - name: Confirm the tool directory is not on PATH
+        run: |
+          if command -v namespace2xml; then
+            echo 'VOID: namespace2xml is already resolvable, so nothing can be measured'
+            exit 1
+          fi
+          echo 'confirmed: namespace2xml is not on PATH'
+          mkdir -p /tmp/out
+
+      - name: Install ansible-core
+        run: python -m pip install --disable-pip-version-check 'ansible-core>=2.16'
+
+      - name: Install then use, with the tool directory off PATH
+        id: unpatched
+        env:
+          ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
+          VERSION: ${{ env.TOOL_VERSION }}
+        run: |
+          set +e
+          ansible-playbook \
+            spikes/ansible/install-then-use-playbook.yml \
+            -e "tool_version=${VERSION}" \
+            -e output_dir=/tmp/out \
+            > /tmp/unpatched.log 2>&1
+          rc=$?
+          set -e
+          echo "rc=${rc}" >> "${GITHUB_OUTPUT}"
+          cat /tmp/unpatched.log
+          echo "--- exit code: ${rc}"
+
+      - name: Install then use, with the escape hatch set
+        id: patched
+        env:
+          ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
+          VERSION: ${{ env.TOOL_VERSION }}
+        run: |
+          set +e
+          NAMESPACE2XML="${HOME}/.dotnet/tools/namespace2xml" ansible-playbook \
+            spikes/ansible/install-then-use-playbook.yml \
+            -e "tool_version=${VERSION}" \
+            -e output_dir=/tmp/out \
+            > /tmp/patched.log 2>&1
+          rc=$?
+          set -e
+          echo "rc=${rc}" >> "${GITHUB_OUTPUT}"
+          cat /tmp/patched.log
+          echo "--- exit code: ${rc}"
+
+      - name: Record the finding
+        env:
+          UNPATCHED_RC: ${{ steps.unpatched.outputs.rc }}
+          PATCHED_RC: ${{ steps.patched.outputs.rc }}
+        run: |
+          {
+            echo '## Measurement 2 -- a tool installed mid-play'
+            echo
+            echo "Tool directory off PATH, filter resolving a bare name: exit ${UNPATCHED_RC}"
+            echo "Same play with NAMESPACE2XML pointing at the installed binary: exit ${PATCHED_RC}"
+          } | tee /tmp/finding-2.md >> "${GITHUB_STEP_SUMMARY}"
+
+          if [ "${UNPATCHED_RC}" = "0" ]; then
+            echo 'HYPOTHESIS DISPROVEN: the filter found a tool installed in the same play.'
+            echo 'Read the logs -- the PATH reasoning behind the collection design is wrong.'
+            exit 1
+          fi
+          if [ "${PATCHED_RC}" != "0" ]; then
+            echo 'The escape hatch did not work either, so the cause is not what was assumed.'
+            exit 1
+          fi
+          {
+            echo
+            echo 'FINDING: it is not reachable. An install role cannot make a bare command name'
+            echo 'resolvable to a filter in the same ansible-playbook process, because the process'
+            echo 'PATH is fixed at launch. The filter must resolve the install location itself.'
+          } | tee -a /tmp/finding-2.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: install-then-use
+          path: |
+            /tmp/unpatched.log
+            /tmp/patched.log
+            /tmp/finding-2.md
+          if-no-files-found: warn
