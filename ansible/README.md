@@ -43,10 +43,11 @@ filter hands the problem to a transformer whose behaviour is fixed by a
 so the rendering is a contract rather than a template you have to review character by character.
 
 That specification is 300 KB and is not shipped here. What is shipped, next to this file, is
-[`docs/specification-summary.md`](docs/specification-summary.md): the rules that decide what the
-filter does to your data, each one quoted verbatim from the specification and checked against it in
-CI, with links to everything else. Read it if you are offline, if you are an agent that needs the
-contract without fetching 300 KB, or if you want the short version first.
+[`docs/specification-summary.md`](https://github.com/stop-cran/namespace2xml/blob/master/ansible/docs/specification-summary.md):
+the rules that decide what the filter does to your data, each one quoted verbatim from the
+specification and checked against it in CI, with links to everything else. Read it if you are
+offline, if you are an agent that needs the contract without fetching 300 KB, or if you want the
+short version first.
 
 ## Requirements
 
