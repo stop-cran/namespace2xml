@@ -12,8 +12,11 @@ name: ansible-topology-spike
 #      the exact shape of a collection that ships an install role next to the filter that
 #      needs it.
 #
-# Neither is part of the product and nothing in the repository depends on the outcome. This is a
-# spike; delete it with the rest of spikes/ansible once the collection exists.
+# Measurement 1 is not part of the product and nothing depends on its outcome. Measurement 2 has
+# since become load-bearing: its arm A is the only place the filter's own binary discovery is
+# exercised against real ansible-core with the install directory off PATH, so it gates that
+# behaviour rather than merely recording it. Fold arm A into the collection's integration tests
+# when spikes/ansible is deleted; the rest of this file goes with the spike.
 
 on:
   workflow_dispatch:
@@ -23,12 +26,17 @@ on:
         default: 3.0.0-preview.4
         required: false
         type: string
-  # workflow_dispatch reads only from the default branch, so it cannot reach this file until the
-  # branch merges. Until then the push trigger is the only way to take the measurement at all, and
-  # a measurement that cannot be taken is not evidence.
+  # Arm A of the second job is a regression gate on the filter resolving the tool without PATH,
+  # so it runs on any change to the spike or to this file rather than on dispatch alone. push is
+  # limited to master because pull_request already covers the branch, and running both would take
+  # the same measurement twice per push.
   push:
     branches:
-      - spike/ansible-topology
+      - master
+    paths:
+      - spikes/ansible/**
+      - .github/workflows/ansible-topology-spike.yml
+  pull_request:
     paths:
       - spikes/ansible/**
       - .github/workflows/ansible-topology-spike.yml
@@ -150,8 +158,9 @@ jobs:
       #
       # What the disproof taught: subprocess performs a fresh PATH lookup on every call. The PATH
       # string is fixed when ansible-playbook launches, but the filesystem it names is not. So an
-      # install during a play IS visible to a later filter -- but only if the install directory was
-      # already on PATH before the play began.
+      # install during a play IS visible to a later filter -- but, while the filter resolved the
+      # tool through PATH alone, only if the install directory was already on PATH before the play
+      # began. The filter now probes the install directories itself, which is what arm A guards.
       - name: Record the runner PATH and clear any pre-existing install
         id: baseline
         run: |
@@ -251,9 +260,14 @@ jobs:
             echo "| C | no | set | ${C_RC} |"
           } | tee /tmp/finding-2.md >> "${GITHUB_STEP_SUMMARY}"
 
+          # Arm A asserted `!= 0` while the filter resolved the tool through PATH alone, and it
+          # measured exit 2. The filter now probes the install directories itself, so the same arm
+          # measures 0 and the assertion is inverted. This is the only place the fix is exercised
+          # against real ansible-core on Linux with the directory genuinely off PATH -- the unit
+          # test beside the filter plants stubs, so it cannot see a packaging or import mistake.
           fail=0
-          if [ "${A_RC}" = "0" ]; then
-            echo 'UNEXPECTED: arm A succeeded with the directory off PATH.'
+          if [ "${A_RC}" != "0" ]; then
+            echo 'UNEXPECTED: arm A failed. The filter no longer resolves the tool without PATH.'
             fail=1
           fi
           if [ "${B_RC}" != "0" ]; then
@@ -271,12 +285,15 @@ jobs:
 
           {
             echo
-            echo 'FINDING: an install role and a filter can share one play, but only when the'
-            echo 'install directory is already named on PATH before ansible-playbook launches.'
-            echo 'subprocess re-resolves the command on every call, so the directory gaining a'
-            echo 'binary mid-process is fine (arm B); a directory PATH never named is not, and no'
-            echo 'task can fix that from inside the running process (arm A). A filter that probes'
-            echo 'the install location itself would remove the constraint (arm C shows the shape).'
+            echo 'FINDING: an install role and a filter can share one play, and the install'
+            echo 'directory no longer has to be named on PATH before ansible-playbook launches.'
+            echo 'That constraint was real: this arm A measured exit 2 while the filter resolved'
+            echo 'the tool through PATH alone, because the PATH string is fixed when the process'
+            echo 'starts and no task can amend it from inside. The filter now probes the install'
+            echo 'directories directly, so arm A passes (0) with the directory stripped from PATH.'
+            echo 'Arm B still passes because subprocess re-resolves on every call, so a directory'
+            echo 'that gains a binary mid-process is fine. Arm C shows NAMESPACE2XML still'
+            echo 'overrides discovery. Arm A is now a regression gate on that resolution order.'
           } | tee -a /tmp/finding-2.md >> "${GITHUB_STEP_SUMMARY}"
 
       - uses: actions/upload-artifact@v4
