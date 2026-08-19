@@ -18,12 +18,38 @@ body:
         Routing matters here. A specification gap filed as a bug gets patched in code and the
         contract silently rots — which is exactly what this project is built to prevent.
 
-  - type: input
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: |
+        Which surface you were using. If a playbook was in the loop it is the Ansible filter, even
+        when the message came from the tool underneath — the filter owns how the tool is invoked
+        and is where the fix would land.
+      options:
+        - CLI — the `namespace2xml` .NET tool
+        - Ansible filter — `stop_cran.namespace2xml.render`
+        - Documentation only
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
     id: version
     attributes:
-      label: Version
-      description: The `contract-bundle` line from `namespace2xml --version`. A report against an unknown contract revision cannot be acted on.
-      placeholder: "contract-bundle: r37+2d644be6926e"
+      label: Versions
+      description: |
+        The `contract-bundle` line from `namespace2xml --version`. A report against an unknown
+        contract revision cannot be acted on, because the specification it was judged against is
+        unknown.
+
+        For the Ansible filter, add `ansible --version` and the collection version from
+        `ansible-galaxy collection list stop_cran.namespace2xml`.
+      placeholder: |
+        contract-bundle: r37+2d644be6926e
+        ansible [core 2.16.14]
+        stop_cran.namespace2xml 1.0.0
+      render: text
     validations:
       required: true
 
@@ -65,6 +91,9 @@ body:
         Minimal inputs, scheme and arguments. If you can express it in the conformance fixture
         layout (specification Appendix C), open a pull request instead — it is worth far more than
         an issue.
+
+        For the Ansible filter, the smallest play that shows it: the `vars` inline rather than a
+        reference to your inventory, and the exact filter call.
       render: text
     validations:
       required: true

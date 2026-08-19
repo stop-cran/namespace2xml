@@ -1,0 +1,319 @@
+name: galaxy-release
+
+# Tag-only, for the same reason release.yml is: a published Galaxy collection version is
+# permanent. It cannot be yanked, unlisted, replaced or re-uploaded, so there is no recovery from
+# publishing the wrong bytes -- only a new version number. Publication is therefore a deliberate,
+# signed, tagged act and never a consequence of merging.
+#
+# The tag prefix is what separates the two release streams. `v3.*` releases the .NET tool through
+# release.yml; `ansible-v*` releases this collection. They are different artifacts with different
+# version numbers and different compatibility promises, so they must not share a trigger.
+#
+# tools/check-publication-triggers.py enforces the shape of this trigger block on every push. It
+# permits `push.tags` and nothing else, which is why there is no workflow_dispatch here: a manual
+# button would be a second, untagged route to a permanent publication.
+on:
+  push:
+    tags:
+      - 'ansible-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  # Everything that can fail is done here, in a job with no access to the publishing credential.
+  # The split is the security property: the token is only present in a job that builds nothing,
+  # tests nothing, and runs no third-party action.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install ansible-core
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
+
+      - name: The tag must name the version the collection declares
+        shell: bash
+        run: |
+          set -euo pipefail
+          # `ansible-v1.0.0` -> `1.0.0`.
+          tag="${GITHUB_REF_NAME#ansible-v}"
+          declared=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['version'])")
+          namespace=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['namespace'])")
+          name=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['name'])")
+          if [ "$tag" != "$declared" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not name version $declared in ansible/galaxy.yml"
+            exit 1
+          fi
+          {
+            echo "version=$declared"
+            echo "namespace=$namespace"
+            echo "name=$name"
+            echo "collection=${namespace}.${name}"
+          } >> "$GITHUB_ENV"
+
+      - name: This version must not already exist on Galaxy
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Asked before anything is built, because the answer decides whether this run can ever
+          # succeed. Re-publishing an existing version is refused by the registry, and finding
+          # that out at the final step means a release that failed after doing everything else.
+          #
+          # This endpoint needs no credential, which is why it can be asked from this job.
+          url="https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/index/${namespace}/${name}/versions/${version}/"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' "$url")
+          case "$code" in
+            404)
+              echo "$collection $version is not on Galaxy yet."
+              ;;
+            200)
+              echo "::error::$collection $version is already published. A Galaxy version is permanent: bump the version in ansible/galaxy.yml and tag again."
+              exit 1
+              ;;
+            *)
+              # Not "probably fine". An unexpected status means the question was not answered, and
+              # proceeding would be publishing on the strength of a check that did not run.
+              echo "::error::could not determine whether $collection $version exists; Galaxy answered HTTP $code for $url"
+              exit 1
+              ;;
+          esac
+
+      - name: The unit tests must pass on the code being released
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check pytest
+          python -m pytest ansible/tests/unit -q
+
+      - name: Build the collection
+        shell: bash
+        run: |
+          set -euo pipefail
+          ansible-galaxy collection build ansible --output-path "$RUNNER_TEMP/build" -vv
+          tarball=$(find "$RUNNER_TEMP/build" -name '*.tar.gz')
+          if [ "$(printf '%s\n' "$tarball" | wc -l)" -ne 1 ]; then
+            echo "::error::expected exactly one built tarball, found: $tarball"
+            exit 1
+          fi
+          expected="${namespace}-${name}-${version}.tar.gz"
+          if [ "$(basename "$tarball")" != "$expected" ]; then
+            echo "::error::built $(basename "$tarball") but the tag calls for $expected"
+            exit 1
+          fi
+          echo "Built $expected"
+
+      - name: Every tracked file reaches the tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The same assertion the pull-request workflow makes. It is repeated here rather than
+          # trusted from there because a build_ignore added after the last green run would
+          # otherwise drop a file from the permanent artifact with nothing to catch it.
+          tarball=$(find "$RUNNER_TEMP/build" -name '*.tar.gz')
+          tar -tzf "$tarball" | sed 's#^\./##' | sort -u > "$RUNNER_TEMP/shipped.txt"
+          # galaxy.yml is consumed rather than shipped: the build turns it into MANIFEST.json.
+          git ls-files -- ansible \
+            | sed 's#^ansible/##' \
+            | grep -vx 'galaxy.yml' \
+            | sort -u > "$RUNNER_TEMP/tracked.txt"
+
+          missing=$(comm -23 "$RUNNER_TEMP/tracked.txt" "$RUNNER_TEMP/shipped.txt")
+          if [ -n "$missing" ]; then
+            echo "::error::these files are tracked under ansible/ but absent from the built collection:"
+            printf '%s\n' "$missing"
+            exit 1
+          fi
+          for generated in MANIFEST.json FILES.json; do
+            if ! grep -qxF "$generated" "$RUNNER_TEMP/shipped.txt"; then
+              echo "::error::the built collection has no $generated"
+              exit 1
+            fi
+          done
+          echo "all $(wc -l < "$RUNNER_TEMP/tracked.txt") tracked files are present, plus MANIFEST.json and FILES.json"
+
+      - name: The tarball installs, its filter resolves, and its documentation ships with it
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball=$(find "$RUNNER_TEMP/build" -name '*.tar.gz')
+          ansible-galaxy collection install "$tarball" -p "$RUNNER_TEMP/installed" --force
+
+          root="$RUNNER_TEMP/installed/ansible_collections/${namespace}/${name}"
+          ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
+            ansible-doc -t filter "${collection}.render" >/dev/null
+
+          # The collection is the only copy of the contract some consumers will ever hold: the
+          # specification is 300 KB and stays in the repository. If these two are not installed
+          # next to the plugin, an offline reader has the code and no rules.
+          for doc in README.md docs/specification-summary.md; do
+            if [ ! -s "$root/$doc" ]; then
+              echo "::error::the installed collection has no $doc; the offline documentation path is broken"
+              exit 1
+            fi
+          done
+          echo "the installed collection resolves ${collection}.render and ships both documents"
+
+      - name: Every link in the shipped documents must resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          # These two files are the whole discovery path out of the collection: they are how a
+          # reader gets from the installed plugin to the specification, the diagnostic registry
+          # and the issue tracker. A dead link turns that path into a dead end that nobody
+          # notices, and the links are permanent once the version is.
+          #
+          # curl does not send a fragment, so this proves the page exists and not that the anchor
+          # within it does. That is the same depth of check release.yml makes of the tool's
+          # printed links, and it catches the failure that actually happens: a moved file.
+          urls=$(cat ansible/README.md ansible/docs/specification-summary.md \
+            | grep -oE 'https://(github\.com|www\.nuget\.org)/[^ )>"]+' \
+            | sed 's/[.,]*$//' \
+            | sed 's/#.*$//' \
+            | sort -u)
+          test -n "$urls"
+          for url in $urls; do
+            echo "checking $url"
+            curl -fsSL --retry 3 --retry-delay 2 -o /dev/null "$url"
+          done
+          echo "every link in the shipped documents resolves"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: collection
+          path: ${{ runner.temp }}/build/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # The credential lives in this environment and nowhere else. Anything the environment's
+    # protection rules require -- a reviewer, a wait -- gates the publication and not the build.
+    environment: ansible-galaxy
+    permissions:
+      contents: write  # create the GitHub release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install ansible-core
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: collection
+          path: dist
+
+      - name: Restate what is being published
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#ansible-v}"
+          namespace=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['namespace'])")
+          name=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['name'])")
+
+          tarball=$(find dist -name '*.tar.gz')
+          if [ "$(printf '%s\n' "$tarball" | wc -l)" -ne 1 ]; then
+            echo "::error::expected exactly one tarball in the artifact, found: $tarball"
+            exit 1
+          fi
+          {
+            echo "version=$tag"
+            echo "collection=${namespace}.${name}"
+            echo "tarball=$tarball"
+          } >> "$GITHUB_ENV"
+          sha256sum "$tarball"
+
+      - name: Publish to Galaxy
+        env:
+          GALAXY_TOKEN: ${{ secrets.ANSIBLE_GALAXY_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # An undefined secret expands to the empty string rather than to an error, and an empty
+          # --api-key is a request Galaxy answers with a failure that reads like a server problem.
+          # This is the same trap release.yml fell into once with a NuGet key.
+          if [ -z "${GALAXY_TOKEN:-}" ]; then
+            echo "::error::ANSIBLE_GALAXY_API_TOKEN is empty or unset in the ansible-galaxy environment; nothing was published."
+            exit 1
+          fi
+
+          # Without --no-wait this returns only when Galaxy has finished importing, and it exits
+          # nonzero if the import failed. That matters: the upload succeeding and the import
+          # failing are different outcomes, and only the second one leaves nothing usable.
+          ansible-galaxy collection publish "$tarball" --api-key "$GALAXY_TOKEN"
+
+      - name: Galaxy must serve what was published
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The publish step reports what the client was told. This asks the registry, through the
+          # same path a consumer uses, which is the only evidence that the release exists for
+          # anyone but us. Indexing is not instant, so it is asked a few times before it is
+          # believed absent.
+          for attempt in 1 2 3 4 5 6; do
+            if ansible-galaxy collection install "${collection}:==${version}" \
+                 -p "$RUNNER_TEMP/verify" --force >/dev/null 2>&1; then
+              ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/verify" \
+                ansible-doc -t filter "${collection}.render" >/dev/null
+              echo "Galaxy serves ${collection} ${version} and its filter resolves."
+              exit 0
+            fi
+            echo "attempt $attempt: not servable yet, waiting"
+            sleep 20
+          done
+          echo "::error::${collection} ${version} was published but is not installable from Galaxy."
+          exit 1
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Written from the repository rather than from a changelog: the collection's version
+          # stream is its own, and inventing a section in the tool's CHANGELOG.md would tie two
+          # release cadences together that this workflow exists to keep apart.
+          {
+            echo "The \`${collection}\` Ansible collection, version ${version}."
+            echo
+            echo '```sh'
+            echo "ansible-galaxy collection install ${collection}"
+            echo '```'
+            echo
+            echo "This collection renders Ansible data through the namespace2xml transformer. It"
+            echo "runs on the controller; target nodes need neither .NET nor the tool."
+            echo
+            echo "- [Usage](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/ansible/README.md), including the four fidelity limits of the data-to-profile mapping."
+            echo "- [The contract in brief](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/ansible/docs/specification-summary.md), which ships inside the collection."
+            echo "- [The normative specification](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/specification.md)."
+            echo "- [Report a problem](https://github.com/${GITHUB_REPOSITORY}/issues/new/choose) — select the **Ansible filter** component."
+            echo
+            echo "The filter requires a namespace2xml 3.x build, which reports a \`contract-bundle\`."
+            echo "It refuses a 2.x tool rather than rendering against an older contract. The 3.0"
+            echo "line is still on preview, so the flag is not optional:"
+            echo
+            echo '```sh'
+            echo "dotnet tool install --global --prerelease namespace2xml"
+            echo '```'
+          } > "$RUNNER_TEMP/notes.md"
+
+          prerelease=""
+          case "$version" in *-*) prerelease="--prerelease";; esac
+          gh release create "$GITHUB_REF_NAME" "$tarball" \
+            --title "${collection} ${version}" \
+            --notes-file "$RUNNER_TEMP/notes.md" $prerelease

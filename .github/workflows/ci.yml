@@ -374,6 +374,13 @@ jobs:
           # A fixture that git silently drops produces a corpus which passes locally and asserts
           # less in CI. The inherited Visual Studio template ignored bin/, Release/, *.log and
           # *.cache, all of which are ordinary names inside a configuration-transformer fixture.
+          #
+          # ansible/ is deliberately not listed. This command reports files that are untracked
+          # *and present in the working tree*, and on a fresh checkout a plugin git never took is
+          # on the contributor's machine rather than on the runner -- so the check could never go
+          # red for the collection, and under C7 a gate that cannot fail is not evidence. The
+          # equivalent question for the collection is whether the built artifact contains every
+          # plugin, which the ansible workflow answers against a real tarball.
           hidden="$(git ls-files --others --ignored --exclude-standard -- conformance spec tools spikes)"
           if [ -n "$hidden" ]; then
             echo "::error::these paths exist but are gitignored, so they would never be committed:"

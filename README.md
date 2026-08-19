@@ -30,6 +30,19 @@ The specification is the contract; the implementation is an attempt to satisfy i
 dotnet tool install --global namespace2xml --prerelease
 ```
 
+`--prerelease` is required while the 3.0 line is in preview; without it NuGet resolves 2.4.0, which
+takes the same arguments under the previous contract.
+
+To use it from Ansible, add the collection. The filter evaluates on the controller, which is where
+the tool is needed; target nodes need neither .NET nor the tool:
+
+```
+ansible-galaxy collection install stop_cran.namespace2xml
+```
+
+See [ansible/README.md](ansible/README.md) for arguments, memoization and the fidelity limits of the
+data-to-profile mapping.
+
 ## Basic usage
 
 ```
@@ -167,6 +180,9 @@ This tool is designed to be used by programs, and to be **argued with** by them.
 - **The specification ships inside the package**, so an agent can read the contract offline.
 - **Symbols and source link** are published alongside every release, so a stack trace resolves to
   the exact source that produced it.
+- **An Ansible filter** wraps all of the above for playbook authors, and keeps the guarantees:
+  diagnostics reach the caller unchanged, and a binary that reports no `contract-bundle` is refused
+  rather than used. `ansible-doc -t filter stop_cran.namespace2xml.render` is its argument reference.
 
 Start at [AGENTS.md](AGENTS.md). The machine-readable index is [llms.txt](llms.txt).
 
@@ -187,6 +203,7 @@ Start at [AGENTS.md](AGENTS.md). The machine-readable index is [llms.txt](llms.t
 | [docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md) | Every intentional behaviour change from 2.4.0. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | The change protocol and the feedback forms. |
 | [KNOWN-LIMITS.md](KNOWN-LIMITS.md) | What is deliberately not covered yet. |
+| [ansible/README.md](ansible/README.md) | The `stop_cran.namespace2xml` Ansible collection: the `render` filter, its arguments, and its fidelity limits. |
 | [AGENTS.md](AGENTS.md) | Entry point for automated agents. |
 
 ---
@@ -205,7 +222,8 @@ Before filing, ask one question: **what would have to change so this never surpr
 | The tool cannot express this at all | [Feature request](../../issues/new?template=feature_request.yml) |
 
 Always include the `contract-bundle` revision from `--version`. A report against an unknown contract
-revision cannot be acted on.
+revision cannot be acted on. Set the **Component** field to say which surface you were using — the
+CLI or the Ansible filter — and for the filter add `ansible --version` and the collection version.
 
 Full guidance, including the report form and the rules for agent-authored reports, is in
 [CONTRIBUTING.md](CONTRIBUTING.md#4-the-feedback-channel-binding).

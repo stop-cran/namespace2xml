@@ -18,6 +18,22 @@ body:
         Some things are deliberately out of scope: this tool has no programming language in it, and
         it is not going to acquire one.
 
+  - type: dropdown
+    id: component
+    attributes:
+      label: Where would this live?
+      description: |
+        A change to the tool is a change to the contract: normative text, then fixtures, then
+        implementation. A change confined to the Ansible filter — a new argument, a different
+        default — is a much smaller decision that does not touch the specification at all. If you
+        are not sure, say so; guessing wrong here costs nothing.
+      options:
+        - The tool and its specification
+        - The Ansible filter — `stop_cran.namespace2xml.render`
+        - Not sure
+    validations:
+      required: true
+
   - type: textarea
     id: problem
     attributes:

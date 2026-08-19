@@ -16,6 +16,19 @@ body:
         You do **not** need to know the right answer to file this. Saying "the contract does not
         determine this" is a complete and useful report.
 
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which surface exposed the ambiguity. The contract is the same either way; this only helps triage.
+      options:
+        - CLI — the `namespace2xml` .NET tool
+        - Ansible filter — `stop_cran.namespace2xml.render`
+        - Reading the specification alone
+        - Not sure
+    validations:
+      required: true
+
   - type: input
     id: version
     attributes:

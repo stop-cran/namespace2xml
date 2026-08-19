@@ -1,0 +1,189 @@
+---
+# Integration coverage for stop_cran.namespace2xml.render.
+#
+# The unit tests under tests/unit prove the encoder half of the filter: they take hand-authored
+# profile text straight from the specification and assert that flatten() produces exactly it. They
+# stub the binary out entirely, so they can run anywhere, but they can only ever prove that the
+# filter says what the specification says to say.
+#
+# This target proves the other half. It runs the real transformer, from a real controller, through
+# the real filter, and asserts the resulting *documents*. Those expectations are authored from
+# docs/specification.md -- Section 16.1 for the format set, Section 16.3 for `root`, and the
+# Section 16 output-option defaults, which fix `Declaration` and `Indent` at two ASCII spaces per
+# nesting level -- and not captured from a tool run. Capturing them would make this file agree
+# with whatever the tool currently does, which is the one thing it must not do.
+#
+# The first case is the README's headline example, verbatim. Documentation that no gate reads
+# rots; asserting it here means the example on the collection's front page cannot silently stop
+# being true.
+
+- name: Render the README's headline example
+  ansible.builtin.set_fact:
+    xml_out: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') }}"
+  vars:
+    logback:
+      appender:
+        name: STDOUT
+        encoder:
+          pattern: "%d{HH:mm:ss} %-5level %msg%n"
+      root:
+        level: info
+
+- name: The rendered document is the one the README shows
+  ansible.builtin.assert:
+    that:
+      - xml_out == expected_xml
+    fail_msg: |
+      Rendered XML did not match the specification-authored expectation.
+      --- expected ---
+      {{ expected_xml }}
+      --- actual ---
+      {{ xml_out }}
+    success_msg: XML output matches the README example.
+  vars:
+    expected_xml: |
+      <?xml version="1.0" encoding="utf-8"?>
+      <configuration>
+        <appender>
+          <name>STDOUT</name>
+          <encoder>
+            <pattern>%d{HH:mm:ss} %-5level %msg%n</pattern>
+          </encoder>
+        </appender>
+        <root>
+          <level>info</level>
+        </root>
+      </configuration>
+
+# Section 18 gives the profile a single payload type -- text -- and leaves it to each output format
+# to decide how a scalar is spelled. JSON therefore infers: "3" is written as the number 3. That is
+# a real fidelity limit rather than a bug, it is documented in the README, and it is asserted here
+# so that the README and the tool cannot drift apart.
+
+- name: Render a mapping to JSON
+  ansible.builtin.set_fact:
+    json_out: "{{ {'version': '3', 'name': 'demo'} | stop_cran.namespace2xml.render('json') }}"
+
+- name: An unquoted-looking scalar is inferred as a JSON number
+  ansible.builtin.assert:
+    that:
+      - (json_out | from_json).version == 3
+      - (json_out | from_json).version is not string
+      - (json_out | from_json).name == 'demo'
+    fail_msg: "JSON type inference changed. Actual: {{ json_out }}"
+
+# ...and the documented way back. The trap this pins is that a scheme rule's pattern must match the
+# value's *full* profile path -- the selector plus every key -- so `cfg.version.type` is right here
+# and `cfg.*.version.type` would silently match nothing. Section 15.2 makes that non-silent by
+# emitting WARN009, which the filter forwards to the operator; this case proves the rule that does
+# match actually takes effect.
+
+- name: Force a string with an explicit scheme
+  ansible.builtin.set_fact:
+    typed_out: "{{ {'version': '3'} | stop_cran.namespace2xml.render('json', scheme=scheme_text) }}"
+  vars:
+    scheme_text: |
+      cfg.output=json
+      cfg.version.type=string
+
+- name: The explicit type rule wins over inference
+  ansible.builtin.assert:
+    that:
+      - (typed_out | from_json).version == '3'
+      - (typed_out | from_json).version is string
+    fail_msg: "Explicit type=string did not take effect. Actual: {{ typed_out }}"
+
+# The addressing gap, asserted as a refusal rather than described in prose. A profile name is a
+# name, so there is no way to reach an XML attribute, comment or CDATA node through this filter;
+# Section 11.2 rejects the '@' spelling outright. Issue #103 tracks closing the gap. Until it is
+# closed, an author who tries the obvious thing must get a diagnostic, not a document with a
+# surprising element in it.
+
+- name: Attempt to address an XML attribute
+  ansible.builtin.set_fact:
+    attr_out: "{{ {'node': {'@id': 'x'}} | stop_cran.namespace2xml.render('xml', root='r') }}"
+  register: attr_result
+  ignore_errors: true
+
+- name: An attribute address is refused with XML002, not silently rendered
+  ansible.builtin.assert:
+    that:
+      - attr_result is failed
+      - "'XML002' in attr_result.msg"
+    fail_msg: >-
+      Expected an XML002 refusal for an '@' name.
+      Result: {{ attr_result.msg | default(attr_out | default('<rendered>')) }}
+
+# Memoization must be an optimisation and nothing else. If a cached render could differ from an
+# uncached one the cache would be a correctness feature, and every debugging session would start by
+# wondering whether the cache was lying.
+
+- name: Render the same data with memoization disabled
+  ansible.builtin.set_fact:
+    uncached_out: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration', memoize=false) }}"
+  vars:
+    logback:
+      appender:
+        name: STDOUT
+        encoder:
+          pattern: "%d{HH:mm:ss} %-5level %msg%n"
+      root:
+        level: info
+
+- name: Bypassing the cache changes nothing but the process count
+  ansible.builtin.assert:
+    that:
+      - uncached_out == xml_out
+    fail_msg: A memoized render and an unmemoized render of the same data disagreed.
+
+# The filter returns text and writes nothing, so idempotence belongs to `copy`. That is the whole
+# argument for not making this a module, and it is worth proving rather than asserting: a filter
+# that was not deterministic would show up here as a second run reporting changed=true.
+#
+# `memoize=false` is what makes that true. The default cache is keyed on the marshalled input, the
+# scheme, the format and the tool identity, all four of which are identical to the render above, and
+# the cache is a module global living for the whole ansible-playbook process. With memoization left
+# on, the second render would be served from that dict without spawning the tool at all, and this
+# block would assert the determinism of a dictionary lookup.
+
+- name: Create a scratch directory
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: n2x
+  register: scratch
+
+- name: Write the rendered document
+  ansible.builtin.copy:
+    content: "{{ xml_out }}"
+    dest: "{{ scratch.path }}/logback.xml"
+    mode: "0644"
+  register: first_write
+
+- name: Write it again from a fresh render
+  ansible.builtin.copy:
+    content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration', memoize=false) }}"
+    dest: "{{ scratch.path }}/logback.xml"
+    mode: "0644"
+  register: second_write
+  vars:
+    logback:
+      appender:
+        name: STDOUT
+        encoder:
+          pattern: "%d{HH:mm:ss} %-5level %msg%n"
+      root:
+        level: info
+
+- name: The second run is a no-op
+  ansible.builtin.assert:
+    that:
+      - first_write is changed
+      - second_write is not changed
+    fail_msg: >-
+      Re-rendering unchanged data produced a different document, so `copy` reported a change.
+      Rendering is not deterministic.
+
+- name: Remove the scratch directory
+  ansible.builtin.file:
+    path: "{{ scratch.path }}"
+    state: absent

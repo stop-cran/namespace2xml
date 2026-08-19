@@ -27,6 +27,17 @@ public class PackagedDocumentationTests
         ["docs/migration-2.x-to-3.0.md"] =
             "300 KB describing the version this one replaces: the least useful document to carry " +
             "offline and by some distance the most expensive",
+        ["ansible/README.md"] =
+            "documentation for a different artefact — the stop_cran.namespace2xml collection " +
+            "ships through Galaxy carrying its own copy, and a .NET tool's package is not where " +
+            "anyone looks for it",
+        ["ansible/docs/specification-summary.md"] =
+            "the collection's abridgement of the contract, carried inside the collection tarball " +
+            "for readers who hold that and not this; this package already carries " +
+            "docs/specification.md unabridged, which is the better document to reach for here",
+        ["ansible/plugins/filter/render.py"] =
+            "the collection's source rather than a document, rendered for its own readers by " +
+            "ansible-doc from the copy Galaxy serves",
     };
 
     private static readonly Regex RelativeLink = new(
