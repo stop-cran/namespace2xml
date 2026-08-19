@@ -400,7 +400,7 @@ def tool_identity(tool=None):
 
     for line in completed.stdout.splitlines():
         if ":" in line:
-            key, _, value = line.partition(":")
+            key, value = line.split(":", 1)
             fields[key.strip()] = value.strip()
 
     identity = "%s|%s" % (
@@ -624,9 +624,11 @@ def _run_and_read(executable, input_path, scheme_path, output_dir):
 
     _warn(completed.stderr or "")
 
+    # "dummy", not "_": ansible-test's pylint profile lists "_" in bad-names, so the
+    # conventional Python throwaway fails collection sanity.
     produced = sorted(
         os.path.join(base, name)
-        for base, _, names in os.walk(output_dir)
+        for base, dummy, names in os.walk(output_dir)
         for name in names)
 
     if len(produced) != 1:
