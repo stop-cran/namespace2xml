@@ -1,0 +1,309 @@
+name: ansible-topology-spike
+
+# Issue #37. Two measurements the existing ansible-spike workflow cannot make, both of which
+# decide the shape of a Galaxy collection:
+#
+#   1. WHERE a filter plugin executes. spikes/ansible/playbook.yml is hosts: localhost /
+#      connection: local, so the controller and the target are one machine and the question
+#      cannot be discriminated there. Here the target is a container with no .NET at all.
+#      The answer decides whether an install role has one machine to reach or all of them.
+#
+#   2. Whether a tool installed by a task is reachable by a filter later in the same play --
+#      the exact shape of a collection that ships an install role next to the filter that
+#      needs it.
+#
+# Measurement 1 is not part of the product and nothing depends on its outcome. Measurement 2 has
+# since become load-bearing: its arm A is the only place the filter's own binary discovery is
+# exercised against real ansible-core with the install directory off PATH, so it gates that
+# behaviour rather than merely recording it. Fold arm A into the collection's integration tests
+# when spikes/ansible is deleted; the rest of this file goes with the spike.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published namespace2xml version to measure against
+        default: 3.0.0-preview.4
+        required: false
+        type: string
+  # Arm A of the second job is a regression gate on the filter resolving the tool without PATH,
+  # so it runs on any change to the spike or to this file rather than on dispatch alone. push is
+  # limited to master because pull_request already covers the branch, and running both would take
+  # the same measurement twice per push.
+  push:
+    branches:
+      - master
+    paths:
+      - spikes/ansible/**
+      - .github/workflows/ansible-topology-spike.yml
+  pull_request:
+    paths:
+      - spikes/ansible/**
+      - .github/workflows/ansible-topology-spike.yml
+
+permissions:
+  contents: read
+
+env:
+  TOOL_VERSION: ${{ inputs.version || '3.0.0-preview.4' }}
+
+jobs:
+  execution-locus:
+    name: Where does the filter execute
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the tool on the controller and nowhere else
+        env:
+          VERSION: ${{ env.TOOL_VERSION }}
+        run: |
+          dotnet tool install --global namespace2xml --version "${VERSION}"
+          echo "${HOME}/.dotnet/tools" >> "${GITHUB_PATH}"
+
+      - name: Install ansible-core and the docker connection plugin
+        run: |
+          python -m pip install --disable-pip-version-check 'ansible-core>=2.16'
+          ansible-galaxy collection install community.docker
+
+      - name: Start a target that provably cannot run the tool
+        run: |
+          docker run -d --name n2x-target python:3.12-slim sleep 3600
+          echo '--- the target must have neither, or the measurement is void ---'
+          if docker exec n2x-target sh -c 'command -v dotnet'; then
+            echo 'VOID: the target has dotnet'
+            exit 1
+          fi
+          if docker exec n2x-target sh -c 'command -v namespace2xml'; then
+            echo 'VOID: the target has namespace2xml'
+            exit 1
+          fi
+          echo 'confirmed: the target has no dotnet and no namespace2xml'
+
+      - name: Write the inventory
+        run: |
+          cat > /tmp/inventory.ini <<'EOF'
+          [n2xtarget]
+          n2x-target ansible_connection=community.docker.docker ansible_python_interpreter=/usr/local/bin/python3
+          EOF
+          cat /tmp/inventory.ini
+
+      - name: Render into the target
+        env:
+          ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
+          ANSIBLE_HOST_KEY_CHECKING: 'False'
+        run: |
+          ansible-playbook \
+            -i /tmp/inventory.ini \
+            spikes/ansible/topology-playbook.yml \
+            | tee /tmp/locus.log
+
+      - name: Record the finding
+        run: |
+          {
+            echo '## Measurement 1 -- where the filter executes'
+            echo
+            echo 'Controller: this runner, with dotnet and namespace2xml.'
+            echo 'Target: a python:3.12-slim container, verified to have neither.'
+            echo
+            echo 'The play rendered a document through the filter and copied it into the target,'
+            echo 'and it succeeded. A tool the target cannot run produced a file on the target.'
+            echo
+            echo 'FINDING: the filter executes on the CONTROLLER.'
+          } | tee /tmp/finding-1.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Stop the target
+        if: always()
+        run: docker rm -f n2x-target || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: execution-locus
+          path: |
+            /tmp/locus.log
+            /tmp/finding-1.md
+          if-no-files-found: warn
+
+  install-then-use:
+    name: Is a tool installed mid-play reachable
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The first version of this measurement guarded with `command -v namespace2xml`, which asks
+      # whether the BINARY resolves -- not whether its DIRECTORY is named on PATH. This runner
+      # image already has ~/.dotnet/tools on PATH while it is empty, so the guard passed, the
+      # install landed in a directory PATH already named, and the filter found it: a hypothesis
+      # was reported disproven that had never actually been put to the test. The three arms below
+      # set PATH explicitly so each measures exactly one thing.
+      #
+      # What the disproof taught: subprocess performs a fresh PATH lookup on every call. The PATH
+      # string is fixed when ansible-playbook launches, but the filesystem it names is not. So an
+      # install during a play IS visible to a later filter -- but, while the filter resolved the
+      # tool through PATH alone, only if the install directory was already on PATH before the play
+      # began. The filter now probes the install directories itself, which is what arm A guards.
+      - name: Record the runner PATH and clear any pre-existing install
+        id: baseline
+        run: |
+          mkdir -p /tmp/out
+          printf '%s\n' "${PATH}" | tr ':' '\n' | tee /tmp/path.txt
+          if printf '%s' ":${PATH}:" | grep -q ":${HOME}/.dotnet/tools:"; then
+            echo 'default_on_path=yes' | tee -a "${GITHUB_OUTPUT}"
+          else
+            echo 'default_on_path=no' | tee -a "${GITHUB_OUTPUT}"
+          fi
+          dotnet tool uninstall --global namespace2xml || true
+
+      - name: Install ansible-core
+        run: python -m pip install --disable-pip-version-check 'ansible-core>=2.16'
+
+      - name: Arm A -- install directory absent from PATH
+        id: arm_a
+        env:
+          ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
+          VERSION: ${{ env.TOOL_VERSION }}
+        run: |
+          dotnet tool uninstall --global namespace2xml || true
+          STRIPPED="$(printf '%s' "${PATH}" | tr ':' '\n' | grep -vx "${HOME}/.dotnet/tools" | paste -sd: - || true)"
+          echo "PATH for this arm: ${STRIPPED}"
+          set +e
+          PATH="${STRIPPED}" ansible-playbook \
+            spikes/ansible/install-then-use-playbook.yml \
+            -e "tool_version=${VERSION}" \
+            -e output_dir=/tmp/out \
+            > /tmp/arm-a.log 2>&1
+          rc=$?
+          set -e
+          echo "rc=${rc}" >> "${GITHUB_OUTPUT}"
+          tail -n 30 /tmp/arm-a.log
+          echo "--- arm A exit: ${rc}"
+
+      - name: Arm B -- install directory on PATH, but empty when the play starts
+        id: arm_b
+        env:
+          ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
+          VERSION: ${{ env.TOOL_VERSION }}
+        run: |
+          dotnet tool uninstall --global namespace2xml || true
+          if [ -e "${HOME}/.dotnet/tools/namespace2xml" ]; then
+            echo 'VOID: the binary still exists, so the play would not be installing it'
+            exit 1
+          fi
+          STRIPPED="$(printf '%s' "${PATH}" | tr ':' '\n' | grep -vx "${HOME}/.dotnet/tools" | paste -sd: - || true)"
+          set +e
+          PATH="${HOME}/.dotnet/tools:${STRIPPED}" ansible-playbook \
+            spikes/ansible/install-then-use-playbook.yml \
+            -e "tool_version=${VERSION}" \
+            -e output_dir=/tmp/out \
+            > /tmp/arm-b.log 2>&1
+          rc=$?
+          set -e
+          echo "rc=${rc}" >> "${GITHUB_OUTPUT}"
+          tail -n 30 /tmp/arm-b.log
+          echo "--- arm B exit: ${rc}"
+
+      - name: Arm C -- directory absent from PATH, NAMESPACE2XML escape hatch set
+        id: arm_c
+        env:
+          ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
+          VERSION: ${{ env.TOOL_VERSION }}
+        run: |
+          dotnet tool uninstall --global namespace2xml || true
+          STRIPPED="$(printf '%s' "${PATH}" | tr ':' '\n' | grep -vx "${HOME}/.dotnet/tools" | paste -sd: - || true)"
+          set +e
+          PATH="${STRIPPED}" NAMESPACE2XML="${HOME}/.dotnet/tools/namespace2xml" ansible-playbook \
+            spikes/ansible/install-then-use-playbook.yml \
+            -e "tool_version=${VERSION}" \
+            -e output_dir=/tmp/out \
+            > /tmp/arm-c.log 2>&1
+          rc=$?
+          set -e
+          echo "rc=${rc}" >> "${GITHUB_OUTPUT}"
+          tail -n 30 /tmp/arm-c.log
+          echo "--- arm C exit: ${rc}"
+
+      - name: Record the finding
+        env:
+          DEFAULT_ON_PATH: ${{ steps.baseline.outputs.default_on_path }}
+          A_RC: ${{ steps.arm_a.outputs.rc }}
+          B_RC: ${{ steps.arm_b.outputs.rc }}
+          C_RC: ${{ steps.arm_c.outputs.rc }}
+        run: |
+          {
+            echo '## Measurement 2 -- is a tool installed mid-play reachable by the filter'
+            echo
+            echo "Runner has ~/.dotnet/tools on PATH by default: ${DEFAULT_ON_PATH}"
+            echo
+            echo '| Arm | PATH names ~/.dotnet/tools | NAMESPACE2XML | exit |'
+            echo '|-----|----------------------------|---------------|------|'
+            echo "| A | no | unset | ${A_RC} |"
+            echo "| B | yes | unset | ${B_RC} |"
+            echo "| C | no | set | ${C_RC} |"
+          } | tee /tmp/finding-2.md >> "${GITHUB_STEP_SUMMARY}"
+
+          # Arm A asserted `!= 0` while the filter resolved the tool through PATH alone, and it
+          # measured exit 2. The filter now probes the install directories itself, so the same arm
+          # measures 0 and the assertion is inverted. This is the only place the fix is exercised
+          # against real ansible-core on Linux with the directory genuinely off PATH -- the unit
+          # test beside the filter plants stubs, so it cannot see a packaging or import mistake.
+          fail=0
+          if [ "${A_RC}" != "0" ]; then
+            echo 'UNEXPECTED: arm A failed. The filter no longer resolves the tool without PATH.'
+            fail=1
+          fi
+          if [ "${B_RC}" != "0" ]; then
+            echo 'UNEXPECTED: arm B failed although the directory was on PATH.'
+            fail=1
+          fi
+          if [ "${C_RC}" != "0" ]; then
+            echo 'UNEXPECTED: arm C failed although NAMESPACE2XML pointed at the binary.'
+            fail=1
+          fi
+          if [ "${fail}" != "0" ]; then
+            echo 'The arms did not behave as predicted; the reasoning below is not supported.'
+            exit 1
+          fi
+
+          {
+            echo
+            echo 'FINDING: an install role and a filter can share one play, and the install'
+            echo 'directory no longer has to be named on PATH before ansible-playbook launches.'
+            echo 'That constraint was real: this arm A measured exit 2 while the filter resolved'
+            echo 'the tool through PATH alone, because the PATH string is fixed when the process'
+            echo 'starts and no task can amend it from inside. The filter now probes the install'
+            echo 'directories directly, so arm A passes (0) with the directory stripped from PATH.'
+            echo 'Arm B still passes because subprocess re-resolves on every call, so a directory'
+            echo 'that gains a binary mid-process is fine. Arm C shows NAMESPACE2XML still'
+            echo 'overrides discovery. Arm A is now a regression gate on that resolution order.'
+          } | tee -a /tmp/finding-2.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: install-then-use
+          path: |
+            /tmp/arm-a.log
+            /tmp/arm-b.log
+            /tmp/arm-c.log
+            /tmp/path.txt
+            /tmp/finding-2.md
+          if-no-files-found: warn

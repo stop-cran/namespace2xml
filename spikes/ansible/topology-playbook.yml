@@ -1,0 +1,63 @@
+---
+# Issue #37. Measures WHERE a filter plugin executes.
+#
+# spikes/ansible/playbook.yml cannot answer this. It is hosts: localhost / connection: local, so
+# the controller and the target are the same machine and every reading of the question agrees --
+# a filter that ran on the controller and a filter that ran on the target are indistinguishable
+# there. This play targets a container that provably has neither .NET nor namespace2xml.
+#
+# If the file lands, the filter ran on the controller, and a collection's install role has one
+# machine to reach rather than every managed node. If it fails, the opposite, and the dependency
+# story is much heavier.
+- name: Render into a target that cannot run the tool
+  hosts: n2xtarget
+  gather_facts: false
+
+  vars:
+    logback_config:
+      appender:
+        name: STDOUT
+        class: ch.qos.logback.core.ConsoleAppender
+      root:
+        level: INFO
+
+  tasks:
+    # raw needs no Python and no facts, so this runs before anything could have installed
+    # something. A measurement whose control is taken after the fact is not a control.
+    - name: Probe the target for the tool it must not have
+      ansible.builtin.raw: command -v dotnet || command -v namespace2xml || echo ABSENT
+      register: probe
+      changed_when: false
+
+    - name: Void the measurement if the target could have run the tool itself
+      ansible.builtin.assert:
+        that:
+          - "'ABSENT' in probe.stdout"
+        fail_msg: >-
+          The target can reach dotnet or namespace2xml, so this play measures nothing at all:
+          a filter running on either machine would have succeeded.
+        success_msg: the target has neither dotnet nor namespace2xml
+
+    - name: Render through the filter and copy the result into the target
+      ansible.builtin.copy:
+        content: "{{ logback_config | namespace2xml_render('xml', root='configuration') }}"
+        dest: /tmp/logback.xml
+        mode: "0644"
+
+    - name: Read back what actually landed on the target
+      ansible.builtin.slurp:
+        src: /tmp/logback.xml
+      register: landed
+
+    - name: Show it
+      ansible.builtin.debug:
+        msg: "{{ (landed.content | b64decode).split('\n') }}"
+
+    - name: The rendered document must be the one the filter was asked for
+      ansible.builtin.assert:
+        that:
+          - "'<configuration>' in (landed.content | b64decode)"
+          - "'ch.qos.logback.core.ConsoleAppender' in (landed.content | b64decode)"
+        success_msg: >-
+          A document rendered by a tool the target does not have is on the target, so the filter
+          executed on the controller.

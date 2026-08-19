@@ -1,0 +1,58 @@
+---
+# Issue #37. Measures whether a tool installed by a task is reachable by a filter later in the
+# same play -- exactly the shape proposed for a collection that ships an install role alongside
+# the filter that needs it.
+#
+# The hypothesis under test is that it is NOT reachable, for a reason that has nothing to do with
+# Ansible: a filter is evaluated by Jinja inside the already-running ansible-playbook process, and
+# subprocess resolves a bare command name against the PATH that process inherited when it was
+# launched. A task is a child process. A child cannot alter its parent's environment. So an
+# install that lands somewhere not already on PATH is invisible to the filter no matter how
+# correct the role is.
+#
+# This play is run twice by the workflow: once with ~/.dotnet/tools off PATH (expected to fail at
+# the last task) and once with the escape hatch set (expected to pass). The pair is the finding.
+- name: Install the tool, then use it in the same play
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    sample_config:
+      appender:
+        name: STDOUT
+      root:
+        level: INFO
+
+  tasks:
+    - name: Install the tool the way an install role would
+      ansible.builtin.command:
+        cmd: dotnet tool install --global namespace2xml --version {{ tool_version }}
+      register: install
+      changed_when: install.rc == 0
+      failed_when:
+        - install.rc != 0
+        - "'already installed' not in install.stdout"
+        - "'already installed' not in install.stderr"
+
+    - name: Confirm the tool really is on disk, so a failure below is about PATH and not install
+      ansible.builtin.stat:
+        path: "{{ ansible_env.HOME }}/.dotnet/tools/namespace2xml"
+      register: on_disk
+
+    - name: Void the measurement if the install did not land
+      ansible.builtin.assert:
+        that:
+          - on_disk.stat.exists
+        fail_msg: >-
+          The tool is not at ~/.dotnet/tools/namespace2xml, so a failure below would be an install
+          failure rather than the PATH finding this play exists to measure.
+        success_msg: the tool is on disk and executable
+
+    # The step under measurement. Everything above only establishes that a failure here can have
+    # exactly one cause.
+    - name: Use the filter in the same play that installed the tool
+      ansible.builtin.copy:
+        content: "{{ sample_config | namespace2xml_render('json') }}"
+        dest: "{{ output_dir }}/installed-then-used.json"
+        mode: "0644"
