@@ -12,6 +12,10 @@ dual-model review demonstrated three bypasses: a second trigger such as pull_req
 workflow_dispatch sits at a different indent and was never seen; a .yaml extension was not scanned
 at all; and an unmatched glob made the gate exit 0 having scanned nothing. Parsing the document and
 allowlisting the trigger set is the only form of this check that answers the actual question.
+
+The remaining way to defeat it is to publish to a registry it has never heard of, since a workflow
+matching no pattern is reported as clean. That is why PATTERNS is extended whenever the project
+gains a second shipped artifact, rather than only when a rule is found to be wrong.
 """
 
 from __future__ import annotations
@@ -29,7 +33,23 @@ except ImportError:
 # NuGet/login is here because acquiring a publishing credential is the act worth noticing: under
 # trusted publishing there is no stored key to grep for, and a workflow that exchanges an OIDC
 # token for one is a publishing workflow whether or not it has yet reached the push.
-PATTERNS = ("nuget" ".org", "NUGET" "_API_KEY", "dotnet nuget " "push", "NuGet/" "login")
+#
+# The Galaxy patterns are the same rule applied to the second registry. The collection under
+# ansible/ ships to galaxy.ansible.com under the same trusted name, and Galaxy is strictly less
+# forgiving than NuGet: a published collection version cannot be yanked, unlisted or replaced, so
+# an unreviewed push is permanent. Galaxy also has no trusted-publishing exchange, only an
+# account-wide non-expiring token, which makes the tag restriction the containment rather than a
+# defence in depth. A gate that only knew the NuGet spellings would have passed such a workflow
+# without comment, having recognised nothing in it.
+PATTERNS = (
+    "nuget" ".org",
+    "NUGET" "_API_KEY",
+    "dotnet nuget " "push",
+    "NuGet/" "login",
+    "galaxy.ansible" ".com",
+    "ANSIBLE_GALAXY" "_API_TOKEN",
+    "ansible-galaxy collection " "publish",
+)
 
 
 def triggers(document: object) -> object:

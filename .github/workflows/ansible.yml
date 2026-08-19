@@ -1,0 +1,274 @@
+name: ansible
+
+# The Galaxy collection under ansible/ is a second shipped artifact with a second toolchain, and
+# almost none of it can be exercised on a maintainer's Windows workstation: ansible-test refuses to
+# run there at all, and `ansible.utils.display` -- which the filter imports to surface the tool's
+# WARN diagnostics -- cannot even be imported without fcntl. That makes this workflow the only
+# place several of the collection's gates exist, so it is written to fail loudly rather than to be
+# convenient, and each job is separated so that a failure is named on the summary page instead of
+# being buried in a combined log.
+
+on:
+  push:
+    branches: [master, v3]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ansible-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  # ansible-test insists on being run from inside an ansible_collections tree whose directory names
+  # are the namespace and collection name. The repository cannot be laid out that way -- the
+  # collection is one directory in a .NET repository -- so every job copies it into place first.
+  COLLECTION_TREE: ansible_collections/stop_cran/namespace2xml
+
+jobs:
+  # ansible-test sanity is what Galaxy and the wider ecosystem judge a collection by, and its most
+  # valuable test here is the documentation one: it parses the plugin's DOCUMENTATION, EXAMPLES and
+  # RETURN blocks and fails if an option is undocumented, misspelled, or has a type the code does
+  # not agree with. Those blocks are the collection's entire discoverability story -- `ansible-doc
+  # -t filter stop_cran.namespace2xml.render` is how an operator, and an agent, finds out what the
+  # filter takes -- so an unparsed docstring is a shipped defect, not a lint nit.
+  sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install ansible-core
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
+          ansible --version
+
+      # A gate that measures nothing passes. The collection is copied rather than symlinked because
+      # ansible-test resolves the collection's identity from the real path of its parent
+      # directories, and the file count is asserted so that a copy which silently moved no plugin
+      # cannot be reported as a clean sanity run.
+      - name: Stage the collection
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/$COLLECTION_TREE"
+          mkdir -p "$(dirname "$dest")"
+          cp -a ansible "$dest"
+          plugins=$(find "$dest/plugins" -name '*.py' | wc -l)
+          if [ "$plugins" -lt 1 ]; then
+            echo "Staged collection has no plugins; the sanity run would prove nothing." >&2
+            exit 1
+          fi
+          test -f "$dest/galaxy.yml"
+          test -f "$dest/meta/runtime.yml"
+
+      # --venv rather than --docker: the sanity tests each want a different, pinned set of
+      # requirements, and letting ansible-test build those venvs is both lighter than pulling its
+      # container image and closer to how a contributor would run this locally.
+      - name: ansible-test sanity
+        shell: bash
+        working-directory: ${{ runner.temp }}/ansible_collections/stop_cran/namespace2xml
+        run: |
+          set -euo pipefail
+          ansible-test sanity --venv --python 3.13 --color -v
+
+  # The unit tests are the specification-side half of a two-sided oracle: they hold hand-authored
+  # profile text from docs/specification.md against what the encoder produces, with the binary
+  # stubbed out entirely. Their expectations must never be regenerated from the code they test.
+  units:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install ansible-core
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
+
+      # ansible-test units reports success when it collects nothing at all, so the three modules are
+      # named here. Adding a fourth is meant to fail this line: an unlisted test file is a test file
+      # nobody notices has stopped running.
+      - name: Stage the collection
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/$COLLECTION_TREE"
+          mkdir -p "$(dirname "$dest")"
+          cp -a ansible "$dest"
+          mapfile -t modules < <(find "$dest/tests/unit" -name 'test_*.py' | sort)
+          if [ "${#modules[@]}" -ne 3 ]; then
+            printf 'Expected 3 unit test modules, found %d:\n' "${#modules[@]}" >&2
+            printf '  %s\n' "${modules[@]}" >&2
+            exit 1
+          fi
+
+      - name: ansible-test units
+        shell: bash
+        working-directory: ${{ runner.temp }}/ansible_collections/stop_cran/namespace2xml
+        run: |
+          set -euo pipefail
+          ansible-test units --venv --python 3.13 --color -v
+
+  # meta/runtime.yml claims requires_ansible '>=2.14'. A claim in a metadata file that no gate reads
+  # is a guess, and 2.14 is not an arbitrary floor: it is the first release whose ansible-doc can
+  # read a filter plugin's inline DOCUMENTATION at all, which is the whole reason the collection
+  # documents itself the way it does. This job holds the claim to its two load-bearing parts -- the
+  # docs render, and the plugin behaves -- on the floor and on three releases above it.
+  #
+  # It runs plain pytest rather than `ansible-test units` on purpose. ansible-test's own machinery
+  # changed substantially across this range, and a failure there would say something about
+  # ansible-test rather than about the filter.
+  compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ansible: '2.14'
+            python: '3.11'
+          - ansible: '2.16'
+            python: '3.12'
+          - ansible: '2.19'
+            python: '3.13'
+          - ansible: '2.21'
+            python: '3.13'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install ansible-core ${{ matrix.ansible }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check \
+            "ansible-core~=${{ matrix.ansible }}.0" pytest
+          # pip is free to resolve something other than what the matrix asked for -- a yanked
+          # release, a conflicting pin -- and a compatibility matrix that quietly tested one version
+          # four times would look identical to a green one.
+          installed=$(python -c 'import ansible.release as r; print(r.__version__)')
+          echo "Resolved ansible-core $installed"
+          case "$installed" in
+            ${{ matrix.ansible }}.*) ;;
+            *) echo "Expected ansible-core ${{ matrix.ansible }}.x, got $installed" >&2; exit 1 ;;
+          esac
+
+      - name: Stage the collection
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/$COLLECTION_TREE"
+          mkdir -p "$(dirname "$dest")"
+          cp -a ansible "$dest"
+
+      # The precise claim behind the version floor: this release can find the filter by its fully
+      # qualified name and render its documentation. Grepping for an option name rather than merely
+      # checking the exit code, because ansible-doc has historically been willing to print an empty
+      # skeleton for a plugin whose docstring it could not parse.
+      - name: ansible-doc reads the filter's documentation
+        shell: bash
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          doc=$(ansible-doc -t filter stop_cran.namespace2xml.render)
+          printf '%s\n' "$doc"
+          for expected in memoize selector delimiter workdir; do
+            if ! printf '%s' "$doc" | grep -q "$expected"; then
+              echo "ansible-doc output does not mention the '$expected' option." >&2
+              exit 1
+            fi
+          done
+
+      - name: The unit tests pass against this ansible-core
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest ansible/tests/unit -q
+
+  # Everything above stubs the transformer out. This job is the only place the real binary, the real
+  # filter and a real controller meet, and it asserts documents rather than mechanics: the
+  # expectations in the integration target are authored from docs/specification.md, so a tool change
+  # that alters output has to argue with the specification here rather than be absorbed.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install ansible-core
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
+
+      # The tool comes from this repository, packed and installed the way a user installs it, rather
+      # than from the published package on the public feed. A collection tested against the last
+      # release would go green on a commit that broke the very output it renders.
+      - name: Pack and install the transformer as a global tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python -c "import xml.etree.ElementTree as ET; print(ET.parse('Directory.Build.props').findtext('.//Version').strip())")
+          echo "Declared version: $version"
+          pack="$RUNNER_TEMP/pack"
+          dotnet pack src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj -c Release -o "$pack"
+          dotnet tool install --global --add-source "$pack" --version "$version" namespace2xml
+          "$HOME/.dotnet/tools/namespace2xml" --version
+
+      - name: Stage the collection
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/$COLLECTION_TREE"
+          mkdir -p "$(dirname "$dest")"
+          cp -a ansible "$dest"
+          test -f "$dest/tests/integration/targets/render/tasks/main.yml"
+
+      # Arm one: the ordinary case, with the tool on PATH.
+      - name: Integration suite, tool on PATH
+        shell: bash
+        working-directory: ${{ runner.temp }}/ansible_collections/stop_cran/namespace2xml
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.dotnet/tools:$PATH"
+          command -v namespace2xml
+          ansible-test integration --local --python 3.13 --color -v render
+
+      # Arm two, and the reason the filter has a dotnet global-tools fallback at all. `dotnet tool
+      # install --global` writes to ~/.dotnet/tools whether or not the login shell puts that on
+      # PATH, and a filter runs inside ansible-playbook, whose environment was fixed before the play
+      # began -- so a play that installs the tool in one task and templates with it in a later one
+      # sees exactly this environment. Only the tools directory is removed, so a failure here is
+      # about the fallback rather than about a stripped-down PATH breaking ansible-test itself.
+      - name: Integration suite, tool deliberately off PATH
+        shell: bash
+        working-directory: ${{ runner.temp }}/ansible_collections/stop_cran/namespace2xml
+        run: |
+          set -euo pipefail
+          PATH=$(python -c "import os; print(os.pathsep.join(p for p in os.environ['PATH'].split(os.pathsep) if '.dotnet/tools' not in p))")
+          export PATH
+          if command -v namespace2xml; then
+            echo "namespace2xml is still on PATH; this arm would prove nothing." >&2
+            exit 1
+          fi
+          ansible-test integration --local --python 3.13 --color -v render
