@@ -301,7 +301,12 @@ jobs:
             echo "- [Report a problem](https://github.com/${GITHUB_REPOSITORY}/issues/new/choose) — select the **Ansible filter** component."
             echo
             echo "The filter requires a namespace2xml 3.x build, which reports a \`contract-bundle\`."
-            echo "It refuses a 2.x tool rather than rendering against an older contract."
+            echo "It refuses a 2.x tool rather than rendering against an older contract. The 3.0"
+            echo "line is still on preview, so the flag is not optional:"
+            echo
+            echo '```sh'
+            echo "dotnet tool install --global --prerelease namespace2xml"
+            echo '```'
           } > "$RUNNER_TEMP/notes.md"
 
           prerelease=""

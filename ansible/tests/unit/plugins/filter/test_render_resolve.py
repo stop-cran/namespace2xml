@@ -177,6 +177,25 @@ def test_a_tool_that_is_nowhere_fails_with_an_actionable_message(sandbox, monkey
         n2x._resolve(None)
 
 
+def test_the_install_advice_asks_for_a_prerelease(sandbox, monkeypatch):
+    # The install command this message hands out has to be the one that produces a tool the
+    # filter will accept. Plain 'dotnet tool install --global namespace2xml' resolves the highest
+    # stable version, which is 2.4.0, which _identify() then rejects for having no
+    # contract-bundle -- so the advice would cost the reader a second round trip to learn
+    # something this message already knew. Pinned because the flag stops being necessary the day
+    # 3.0 goes stable, and that is a deliberate edit rather than a silent drift.
+    monkeypatch.setenv("PATH", "")
+
+    with pytest.raises(n2x.Namespace2XmlError) as caught:
+        n2x._resolve(None)
+
+    # Asserted against the command and not merely against the word '--prerelease' appearing
+    # somewhere: the message also explains why the flag is needed, so a substring check for the
+    # flag alone passes even when the command handed out is the wrong one. This assertion has to
+    # fail when the copyable part is wrong, which is the only part a reader runs.
+    assert "dotnet tool install --global --prerelease namespace2xml" in str(caught.value)
+
+
 def test_every_success_path_returns_an_absolute_path(sandbox, monkeypatch):
     # The identity cache is keyed on the resolved path, so two spellings of one binary must not
     # become two entries and two --version spawns.

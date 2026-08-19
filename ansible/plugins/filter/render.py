@@ -735,10 +735,16 @@ def _resolve(tool):
         if found:
             return os.path.abspath(found)
 
+    # '--prerelease' is load-bearing while 3.0 is on preview. Without it dotnet resolves the
+    # highest stable version, which is 2.4.0 -- the build _identify() refuses for having no
+    # contract-bundle. Omitting the flag here would send the reader round the loop twice: install,
+    # get told the tool is a 2.x build, come back. Say it once, in the message that sends them.
     raise Namespace2XmlError(
         "namespace2xml was not found on PATH or in the dotnet global tools directory. "
-        "Install it with 'dotnet tool install --global namespace2xml', or set $NAMESPACE2XML "
-        "or the filter's 'tool' argument to the binary's path.")
+        "Install it with 'dotnet tool install --global --prerelease namespace2xml', or set "
+        "$NAMESPACE2XML or the filter's 'tool' argument to the binary's path. '--prerelease' is "
+        "required while the 3.0 line is on preview: without it dotnet installs the 2.x tool, "
+        "which this filter refuses.")
 
 
 def render(
