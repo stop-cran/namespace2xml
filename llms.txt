@@ -42,6 +42,7 @@ explicitly where the specification does not settle a question.
 ## Integrations
 
 - [ansible/README.md](ansible/README.md): the `stop_cran.namespace2xml` Ansible collection — a controller-side Jinja filter that renders Ansible data through this tool. Requirements, arguments, memoization, and the four fidelity limits of the data-to-profile mapping.
+- [ansible/docs/specification-summary.md](ansible/docs/specification-summary.md): the contract in brief, and the only copy of it that ships inside the collection. Read this instead of `docs/specification.md` when you need the rules without the 300 KB. Its normative claims are blockquotes checked verbatim against the specification by `tools/check-specification-quotations.ps1`, so it cannot drift; where it and the specification disagree, the specification wins.
 - [ansible/plugins/filter/render.py](ansible/plugins/filter/render.py): the filter itself. Its `DOCUMENTATION` block is what `ansible-doc -t filter stop_cran.namespace2xml.render` prints, and is the authoritative argument reference.
 - The collection is a separate artefact with its own version and its own compatibility promise. `v3.*` tags release the .NET tool; `ansible-v*` tags release the collection. The collection pins no tool version, but refuses a binary that reports no `contract-bundle`.
 - The filter evaluates on the controller. Target nodes need neither .NET nor the tool.

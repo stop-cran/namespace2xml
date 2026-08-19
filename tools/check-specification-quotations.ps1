@@ -145,7 +145,10 @@ try {
         ForEach-Object { 'conformance/{0}/legacy.md' -f $_.Name } |
         Where-Object { Test-Path $_ }
     $files += @('KNOWN-LIMITS.md', 'CONTRIBUTING.md', 'AGENTS.md', 'README.md',
-        '.github/copilot-instructions.md') | Where-Object { Test-Path $_ }
+        '.github/copilot-instructions.md',
+        # The collection ships this one to consumers who may never see the repository, which makes
+        # it the copy of the contract most able to drift unnoticed and the one most worth checking.
+        'ansible/docs/specification-summary.md') | Where-Object { Test-Path $_ }
 
     # See the description: the inline form is only separable from paraphrase where the exemptions
     # can be reviewed one by one.

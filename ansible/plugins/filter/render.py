@@ -122,6 +122,13 @@ notes:
     render and are shown through Ansible's display; errors carry the tool's text and the
     address to report it to. Every code is listed in the diagnostic registry linked below.
 seealso:
+  - name: Contract summary, shipped in this collection
+    description: >-
+      The rules that decide what this filter does to your data, quoted verbatim from the
+      specification and checked against it in CI. It is installed alongside this plugin at
+      C(docs/specification-summary.md) inside the collection, so it is readable with no network
+      access. Start here; the full specification is 300 KB.
+    link: https://github.com/stop-cran/namespace2xml/blob/master/ansible/docs/specification-summary.md
   - name: namespace2xml specification
     description: The normative contract this filter encodes against.
     link: https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md
