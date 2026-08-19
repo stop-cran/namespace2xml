@@ -39,6 +39,13 @@ explicitly where the specification does not settle a question.
 - [docs/format-xml.md](docs/format-xml.md): XML input and output — typed components, attributes, CDATA, comments, namespaces.
 - [docs/format-ini.md](docs/format-ini.md): INI output only — the two-level `PortableIni1` projection and its escapes.
 
+## Integrations
+
+- [ansible/README.md](ansible/README.md): the `stop_cran.namespace2xml` Ansible collection — a controller-side Jinja filter that renders Ansible data through this tool. Requirements, arguments, memoization, and the four fidelity limits of the data-to-profile mapping.
+- [ansible/plugins/filter/render.py](ansible/plugins/filter/render.py): the filter itself. Its `DOCUMENTATION` block is what `ansible-doc -t filter stop_cran.namespace2xml.render` prints, and is the authoritative argument reference.
+- The collection is a separate artefact with its own version and its own compatibility promise. `v3.*` tags release the .NET tool; `ansible-v*` tags release the collection. The collection pins no tool version, but refuses a binary that reports no `contract-bundle`.
+- The filter evaluates on the controller. Target nodes need neither .NET nor the tool.
+
 ## Verification
 
 - [conformance/](conformance/): the portable conformance corpus, which is the independent oracle. Layout is specification Appendix C.
@@ -54,4 +61,5 @@ explicitly where the specification does not settle a question.
 
 - Issue forms: https://github.com/stop-cran/namespace2xml/issues/new/choose
 - Route by asking what would have to change so this never surprises anyone again: the code (bug), the specification (ambiguity), the docs (usage gap), or the feature set (request).
-- Always include the `contract-bundle` revision from `--version`.
+- Set the `Component` field to say which surface you were using: the CLI or the Ansible filter. If a playbook was in the loop it is the filter, even when the message came from the tool underneath.
+- Always include the `contract-bundle` revision from `--version`. For the Ansible filter, add `ansible --version` and the collection version.

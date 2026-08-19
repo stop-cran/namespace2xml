@@ -54,9 +54,17 @@ The filter evaluates on the **controller**, where templating happens. Target nod
 .NET nor the tool.
 
 ```bash
-dotnet tool install --global namespace2xml
+dotnet tool install --global namespace2xml --prerelease
 ansible-galaxy collection install stop_cran.namespace2xml
 ```
+
+`--prerelease` is not optional today. The 3.0 line is still on `3.0.0-preview`, and without that
+flag NuGet resolves the newest *stable* version, which is 2.4.0. That build accepts the same
+arguments and the same scheme spellings, so nothing would look wrong — it would simply render
+under the previous contract. The filter therefore reads `--version` and **refuses** any binary
+that does not report a `contract-bundle`, rather than proceeding and producing a document whose
+rules you did not choose. When 3.0.0 is tagged stable the flag becomes unnecessary and this
+paragraph goes away.
 
 The filter finds the binary at `$NAMESPACE2XML`, then on `PATH`, then in the dotnet global-tools
 directory. That last step is not redundant: `dotnet tool install --global` writes to
@@ -129,7 +137,7 @@ release. Read this section before adopting the filter for a format where any of 
 ### 1. Types are inferred from value text
 
 Payload types come from how a value is spelled, not from its Python type
-([§18](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md)). The
+([§18](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#18-scalar-inference)). The
 string `"true"` and the boolean `true` produce the same record, as do `"3"` and `3`. A version
 number written `version: "3"` renders as the integer `3`.
 
@@ -150,7 +158,7 @@ check the result rather than assuming the rule applied.
 ### 2. Integer keys make their parent a sequence
 
 A name part that is a canonical decimal integer makes its parent a sequence
-([§8.7](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md)). This is
+([§8.7](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#87-numeric-paths-and-ordered-sequences)). This is
 what lets lists round-trip, and it applies to *any* mapping whose keys happen to look like
 indices:
 
@@ -185,8 +193,10 @@ forms XML needs are exactly the three the encoder escapes away.
 | `<x>text</x>` mixed with children | key `#text` → `\#text` | element named `\#text` |
 | `<ns:local>` | key `Q{urn}local` → `\Q{urn\}local` | element named literally |
 
-A `@id` key produces a **blocking `XML002` error naming §11.2**, not a silently wrong document.
-That is the intended behaviour for v1.0.0: the filter refuses rather than guesses.
+A `@id` key produces a **blocking `XML002` error** naming
+[§11.2](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#112-supported-xml-subset),
+not a silently wrong document. That is the intended behaviour for v1.0.0: the filter refuses
+rather than guesses.
 
 So this collection renders **element-only XML**. If your target format needs attributes, render
 the element structure here and post-process, or use the CLI directly with a hand-written profile.
@@ -208,6 +218,61 @@ asserts only that the code still does what it did, which is the one thing that n
 integration tests then run the real tool over that same hand-authored profile and compare its
 output against what the filter produced from the data — so the two sides can only agree if both
 match the specification.
+
+## Found a problem?
+
+Good — that is what the preview is for, and the project is built to absorb it.
+
+Every diagnostic this filter surfaces carries a **stable code** and a **specification anchor**
+naming the clause it enforces, so a disagreement can be reported precisely rather than described.
+The codes are listed at
+[docs/diagnostics.md](https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md).
+The filter passes the tool's diagnostics through unchanged — it never rewrites or summarises them.
+
+Before filing, ask one question: **what would have to change so this never surprises anyone
+again?** The answer picks the form:
+
+| Answer | File this |
+|---|---|
+| The filter or the tool should have matched the specification | [Bug report](https://github.com/stop-cran/namespace2xml/issues/new?template=bug_report.yml) |
+| The specification does not say, or says two things | [Specification ambiguity](https://github.com/stop-cran/namespace2xml/issues/new?template=spec_ambiguity.yml) |
+| Both are right; I could not find out how to do this from the docs | [Usage gap](https://github.com/stop-cran/namespace2xml/issues/new?template=usage_gap.yml) |
+| Neither the filter nor the tool can express this at all | [Feature request](https://github.com/stop-cran/namespace2xml/issues/new?template=feature_request.yml) |
+
+Set the **Component** field to `Ansible filter` so it reaches the right place.
+
+### What a report needs
+
+A report that cannot be reproduced cannot be acted on. Collect these four before filing — the
+whole point is that whoever picks it up should not have to ask you anything:
+
+```bash
+ansible-galaxy collection list stop_cran.namespace2xml   # collection version
+ansible --version                                        # ansible-core and the Python it runs on
+namespace2xml --version                                  # ALL of it, especially contract-bundle
+```
+
+1. **The `contract-bundle` revision** from `namespace2xml --version`. A report against an unknown
+   contract revision cannot be acted on, because the specification it was judged against is
+   unknown. `--version` also prints the exact `specification:` and `report:` URLs for the build
+   that ran, which is more reliable than any link written here.
+2. **The collection version and `ansible --version`.**
+3. **A minimal play that reproduces it** — the smallest `vars` block and the exact filter call.
+   Inline data, not a reference to your inventory.
+4. **What you expected and what you got**, and *which clause of the specification* says you were
+   right. If you cannot find one, that is a specification ambiguity, not a bug — file it as one.
+
+If the tool itself is what disagrees with you, reproduce it without Ansible in the loop. Rendering
+the same data with `fmt='namespace'` gives you profile text you can save and pass to
+`namespace2xml` directly, and a report against the CLI is easier to act on than one wrapped in a
+playbook.
+
+Agent-authored reports are welcome and are held to the same standard as any other: state what was
+verified by running it and what was only inferred, and never file a claim you have not reproduced.
+The full protocol, including the report form and flood control, is in
+[CONTRIBUTING.md](https://github.com/stop-cran/namespace2xml/blob/master/CONTRIBUTING.md#4-the-feedback-channel-binding).
+A fix PR is welcome too, and it does not have to be complete — a failing test that encodes the
+disagreement is a contribution on its own.
 
 ## Licence
 

@@ -14,11 +14,30 @@ body:
         If you eventually worked it out, please file this anyway and say how. The gap was real even
         though you closed it.
 
-  - type: input
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which surface you were using when the answer went missing.
+      options:
+        - CLI — the `namespace2xml` .NET tool
+        - Ansible filter — `stop_cran.namespace2xml.render`
+        - Documentation only
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
     id: version
     attributes:
-      label: Version
-      placeholder: "contract-bundle: r37+2d644be6926e"
+      label: Versions
+      description: |
+        The `contract-bundle` line from `namespace2xml --version`. For the Ansible filter, add
+        `ansible --version` and the collection version.
+      placeholder: |
+        contract-bundle: r37+2d644be6926e
+        stop_cran.namespace2xml 1.0.0
+      render: text
     validations:
       required: true
 
@@ -62,6 +81,8 @@ body:
         - README
         - docs/usage-methodology.md
         - docs/specification.md
+        - "`ansible-doc -t filter stop_cran.namespace2xml.render`"
+        - The collection README on Galaxy
         - A diagnostic message, at the moment it goes wrong
         - Somewhere else — see body
     validations:

@@ -55,6 +55,7 @@ Concretely, this means:
 | `tests/Namespace2Xml.UnitTests/` | Unit tests, including the contract drift gates. |
 | `tests/Namespace2Xml.Conformance/` | The corpus harness and its self-tests. |
 | `tools/` | Generators for the derived contract artifacts. Run them; do not bypass them. |
+| `ansible/` | The `stop_cran.namespace2xml` Ansible collection. Python, released separately under `ansible-v*` tags. Not part of the .NET solution. |
 | `spikes/` | Time-boxed investigations. Not shipped, not built by the solution. |
 
 ## Build and test
@@ -94,6 +95,25 @@ last published preview has the old behaviour and nothing else tells them so.
 See `.github/copilot-instructions.md` for the mechanical traps in this repository — several of them
 fail in ways that point at the wrong file.
 
+### The Ansible collection
+
+`ansible/` is a separate artefact with its own toolchain. `dotnet test` does not touch it and it
+does not build with the solution.
+
+```
+python -m pytest ansible/tests/unit -q
+```
+
+The `ansible` workflow additionally runs `ansible-test sanity`, builds the Galaxy tarball and
+asserts its contents, runs the unit tests under four ansible-core versions, and runs an integration
+target against a locally packed build of the tool. None of that can run on Windows: `ansible-doc`,
+`ansible-test` and `ansible-playbook` all call `os.get_blocking`, which fails on a Windows handle.
+The unit tests are the whole of what you can check locally.
+
+The collection's argument reference is the `DOCUMENTATION` block in
+`ansible/plugins/filter/render.py`; it is what `ansible-doc` prints, and it is checked by
+`ansible-test sanity`. Change the arguments and change that block in the same commit.
+
 ## Machine-readable output
 
 Run the tool with `--diagnostics-format json` to receive the entire diagnostic stream on standard
@@ -114,6 +134,10 @@ never surprises anyone again?*
 - The specification does not say, says two things, or says something surprising → **specification ambiguity**
 - Both are right and you could not find out how to do the thing → **usage gap**, often the most valuable report
 - The tool cannot express this at all → **feature request**
+
+Set the `Component` field so the report reaches the right surface: the CLI, or the Ansible filter.
+If a playbook was in the loop it is the filter, even when the message came from the tool underneath
+— the filter owns how the tool is invoked, and that is where a fix would land.
 
 Draft the report, show it to your human, and let them approve it before filing. Do not file
 automatically. Mark every claim `verified-in-session` or `proposed-but-untested`; do not present
