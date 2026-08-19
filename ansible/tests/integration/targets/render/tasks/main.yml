@@ -139,6 +139,12 @@
 # The filter returns text and writes nothing, so idempotence belongs to `copy`. That is the whole
 # argument for not making this a module, and it is worth proving rather than asserting: a filter
 # that was not deterministic would show up here as a second run reporting changed=true.
+#
+# `memoize=false` is what makes that true. The default cache is keyed on the marshalled input, the
+# scheme, the format and the tool identity, all four of which are identical to the render above, and
+# the cache is a module global living for the whole ansible-playbook process. With memoization left
+# on, the second render would be served from that dict without spawning the tool at all, and this
+# block would assert the determinism of a dictionary lookup.
 
 - name: Create a scratch directory
   ansible.builtin.tempfile:
@@ -155,7 +161,7 @@
 
 - name: Write it again from a fresh render
   ansible.builtin.copy:
-    content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') }}"
+    content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration', memoize=false) }}"
     dest: "{{ scratch.path }}/logback.xml"
     mode: "0644"
   register: second_write

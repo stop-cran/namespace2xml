@@ -375,17 +375,19 @@ jobs:
           # less in CI. The inherited Visual Studio template ignored bin/, Release/, *.log and
           # *.cache, all of which are ordinary names inside a configuration-transformer fixture.
           #
-          # ansible/ is in scope for the same reason with a sharper edge: the collection is
-          # assembled by copying that directory, so a plugin or test module git never took is not a
-          # weaker suite but a broken published artifact, and `ansible-galaxy collection build`
-          # would report success while producing it.
-          hidden="$(git ls-files --others --ignored --exclude-standard -- conformance spec tools spikes ansible)"
+          # ansible/ is deliberately not listed. This command reports files that are untracked
+          # *and present in the working tree*, and on a fresh checkout a plugin git never took is
+          # on the contributor's machine rather than on the runner -- so the check could never go
+          # red for the collection, and under C7 a gate that cannot fail is not evidence. The
+          # equivalent question for the collection is whether the built artifact contains every
+          # plugin, which the ansible workflow answers against a real tarball.
+          hidden="$(git ls-files --others --ignored --exclude-standard -- conformance spec tools spikes)"
           if [ -n "$hidden" ]; then
             echo "::error::these paths exist but are gitignored, so they would never be committed:"
             echo "$hidden"
             exit 1
           fi
-          echo "every path under conformance, spec, tools, spikes and ansible is committable"
+          echo "every path under conformance, spec, tools and spikes is committable"
 
       - name: KNOWN-LIMITS.md must not cite closed issues as live work
         shell: bash

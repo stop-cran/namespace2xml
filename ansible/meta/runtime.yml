@@ -1,12 +1,18 @@
-### The floor is a code floor, and CI does not reach all of it.
+### The floor is a code floor, and CI reaches it.
 #
 # 2.14 is where `ansible-doc` learned to read a `DOCUMENTATION` block written inline in a
 # filter plugin's own `.py` file, which is the newest Ansible feature this collection uses.
 # Nothing here needs anything later.
 #
-# CI exercises stable-2.18 upwards, because that is the oldest ansible-core branch still
-# maintained and therefore the oldest one `ansible-test` can be run against without pinning an
-# EOL controller Python. So compatibility with 2.14 through 2.17 is `proposed-but-untested`:
-# it follows from what the code uses, not from a green run. Raise this floor rather than
-# widening the matrix if that ever stops being an acceptable trade.
+# The `compatibility` job installs ansible-core 2.14, 2.16, 2.19 and 2.21 in turn, asserts pip
+# actually resolved the version asked for, then on each one resolves this collection's filter by
+# its fully qualified name through `ansible-doc` and runs the unit tests. So the floor is
+# `verified-in-session` rather than argued from what the code uses.
+#
+# Read the scope of that precisely. It proves documentation resolution through the real
+# collection loader, and it proves the plugin's own logic, on every version listed. It does not
+# prove the filter being reached through a playbook's Jinja environment on the older ones: the
+# unit tests import the plugin by path and stub the binary out, and only the newest version gets
+# an `integration` run. Raise this floor rather than widening the matrix if that trade ever stops
+# being acceptable.
 requires_ansible: '>=2.14'

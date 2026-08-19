@@ -47,6 +47,8 @@ options:
       - XML has exactly one document element, so this is required whenever the selected view
         has more than one top-level member. It is not guessed, because the element name is a
         fact about the target document rather than about the data.
+      - Mutually exclusive with O(scheme). It is read only while synthesizing a scheme, so
+        supplying both is refused rather than silently ignored.
     type: str
   selector:
     description:
@@ -59,10 +61,18 @@ options:
       - Explicit scheme text, used instead of the minimal scheme the filter would synthesize.
       - Needed for anything the synthesized scheme does not cover, such as C(type),
         C(substitute) or C(hidden) rules. The selector it declares must equal O(selector).
+      - O(root) and O(delimiter) are refused alongside it, because they are read only while
+        synthesizing a scheme and would otherwise be discarded without a word. Declare them in
+        the scheme instead.
+      - O(fmt) is still required, and is cross-checked against the C(output) the scheme
+        declares. A disagreement is an error rather than an override, because the scheme wins
+        and the argument would otherwise be a value the caller was compelled to supply and the
+        filter then ignored.
     type: str
   delimiter:
     description:
       - The section 16.4 output delimiter, for the flat formats.
+      - Mutually exclusive with O(scheme), for the reason given there.
     type: str
   tool:
     description:
@@ -88,8 +98,13 @@ options:
         C(noexec), small, or not shared with the tool.
     type: path
 requirements:
-  - The C(namespace2xml) .NET tool, version 3.0 or later, on the controller. Install it with
-    C(dotnet tool install --global namespace2xml).
+  - The C(namespace2xml) .NET tool, version 3.0 or later, on the controller.
+  - 3.0 is in preview at the time of writing and the newest stable release is 2.4.0, so a plain
+    C(dotnet tool install --global namespace2xml) installs a 2.x build. Ask for the preview
+    explicitly with C(dotnet tool install --global --prerelease namespace2xml).
+  - The filter refuses a pre-3.0 binary rather than rendering through it. A 2.x build accepts
+    the same arguments and the same scheme spellings, so it would otherwise exit successfully
+    and return a document rendered under the older contract, with nothing to say so.
 notes:
   - Payload types are inferred from value text (section 18), so the string V("true") and the
     boolean V(true) produce the same record, as do V("3") and V(3). A C(type) scheme rule is
@@ -103,10 +118,31 @@ notes:
     Every key is escaped so that it reads back as itself, so a C(@name) key becomes a literal
     element named C(\@name), which is not an C(NCName) and is reported as a blocking C(XML002)
     rather than silently producing a wrong document. See the collection README.
+  - Diagnostics are the tool's own and reach you unchanged. Warnings arrive on a successful
+    render and are shown through Ansible's display; errors carry the tool's text and the
+    address to report it to. Every code is listed in the diagnostic registry linked below.
 seealso:
   - name: namespace2xml specification
     description: The normative contract this filter encodes against.
     link: https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md
+  - name: Diagnostic code registry
+    description: >-
+      Every code the tool emits, what it means, and the specification clause it enforces. A
+      code arriving from this filter, such as C(XML002) or C(WARN009), is looked up here.
+    link: https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md
+  - name: Reporting a problem
+    description: >-
+      The report form, the four destinations a report can take, and the rules for
+      agent-authored reports. Read this before filing.
+    link: https://github.com/stop-cran/namespace2xml/blob/master/CONTRIBUTING.md#4-the-feedback-channel-binding
+  - name: Issue tracker
+    description: >-
+      The four issue forms. Select the component "Ansible filter" for a fault reached through
+      this plugin.
+    link: https://github.com/stop-cran/namespace2xml/issues/new/choose
+  - name: Guide for automated agents
+    description: Read order, repository map, and the rules an agent follows when reporting here.
+    link: https://github.com/stop-cran/namespace2xml/blob/master/AGENTS.md
   - name: namespace2xml on NuGet
     description: The transformer this filter runs.
     link: https://www.nuget.org/packages/namespace2xml
@@ -175,6 +211,10 @@ import unicodedata
 __all__ = ["render", "flatten", "encode_name_part", "encode_value", "tool_identity"]
 
 DEFAULT_SELECTOR = "cfg"
+
+# Section 16.1. A filter plugin's `choices:` documentation is not enforced at runtime, so this
+# list is the only thing standing between a mistyped format and a scheme directive built from it.
+FORMATS = ("xml", "json", "yaml", "ini", "namespace", "quotednamespace")
 
 _NAME_SHORT_ESCAPES = frozenset(".*=#!$@}")
 _VALUE_CONTAINER_SENTINELS = {"{}": "\\{}", "[]": "\\[]"}
@@ -352,6 +392,30 @@ def _walk(node, path, records):
     records.append(name + "=" + encode_scalar(node))
 
 
+def _reject_record_breaks(name, value):
+    """Refuse a line break in a value interpolated raw into the generated scheme.
+
+    A scheme is line-oriented, so a break does not corrupt the directive it sits in -- it ends
+    it and starts another. Section 15.2 then lets the later directive override the earlier one,
+    which is what makes this worth a guard rather than a note: a newline in ``root`` can append
+    a second ``output`` declaration to a scheme built for XML, and the tool exits 0 having
+    written exactly what the appended line asked for. The caller receives a well-formed document
+    in the wrong format and no diagnostic at all.
+
+    This applies only where escaping is not available. A Section 8.3 value is encoded on the way
+    in, and ``\\n`` inside one is an interpreted escape rather than a record break, so an encoded
+    argument is already safe and refusing it would remove a capability for nothing. ``root`` is
+    the argument that cannot be encoded: Section 8.2 makes it carry typed component markers and
+    its own backslash escapes, so encoding would rewrite what the caller wrote. Refusing is what
+    is left, and it costs nothing real -- no document element name contains a line break.
+    """
+    if "\n" in value or "\r" in value:
+        raise Namespace2XmlError(
+            "'%s' contains a line break. The scheme is line-oriented, so the text after the "
+            "break would be read as a further scheme directive rather than as part of the "
+            "value. Remove it, or write the scheme yourself and pass it as 'scheme'." % name)
+
+
 def synthesize_scheme(fmt, selector=DEFAULT_SELECTOR, root=None, delimiter=None):
     """Build the minimal scheme a render needs.
 
@@ -359,16 +423,164 @@ def synthesize_scheme(fmt, selector=DEFAULT_SELECTOR, root=None, delimiter=None)
     selected view has more than one top-level member, because XML has one document element; the
     caller supplies it rather than the filter guessing, because the element name is a fact about
     the target document and not about the data.
+
+    The three interpolated arguments are guarded differently because the specification gives
+    them different kinds, and a single blanket treatment would be wrong for two of them.
+    ``fmt`` is one of the six Section 16.1 formats, so it is checked against that list.
+    ``delimiter`` is an ordinary Section 8.3 value and is encoded as one, which also gives a tab
+    delimiter its ``\\t`` spelling. ``root`` is neither: Section 8.2 makes it carry typed XML
+    component markers and its own backslash escapes, so value-encoding it would silently rewrite
+    what the caller wrote -- ``\\@id`` would become ``\\\\@id`` and stop naming an escaped
+    literal. It is therefore left verbatim and merely refused if it could break the record.
     """
+    if fmt not in FORMATS:
+        raise Namespace2XmlError(
+            "'%s' is not one of the section 16.1 output formats. Use one of: %s."
+            % (fmt, ", ".join(FORMATS)))
+
     lines = ["%s.output=%s" % (encode_name_part(selector), fmt)]
 
     if root is not None:
+        root = str(root)
+        _reject_record_breaks("root", root)
         lines.append("%s.root=%s" % (encode_name_part(selector), root))
 
     if delimiter is not None:
-        lines.append("%s.delimiter=%s" % (encode_name_part(selector), delimiter))
+        delimiter = str(delimiter)
+        lines.append(
+            "%s.delimiter=%s" % (encode_name_part(selector), encode_value(delimiter)))
 
     return "".join(line + "\n" for line in lines)
+
+
+def _split_unescaped(text, separator):
+    """Split on a separator that a preceding backslash protects, per Section 8.2."""
+    parts = []
+    current = []
+    index = 0
+
+    while index < len(text):
+        char = text[index]
+
+        if char == "\\" and index + 1 < len(text):
+            current.append(char)
+            current.append(text[index + 1])
+            index += 2
+            continue
+
+        if char == separator:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+
+        index += 1
+
+    parts.append("".join(current))
+
+    return parts
+
+
+def _declared_outputs(scheme_text):
+    """The set of formats an explicit scheme declares, for cross-checking against ``fmt``.
+
+    This reads deliberately little. Section 8 record kinds are honoured -- an unescaped leading
+    ``#`` is a comment and an unescaped leading ``!`` is a mask, so neither declares anything --
+    and a name is split on unescaped dots so that a rule ending in a literal ``\\.output`` part
+    is not mistaken for one. Everything past that is left alone: the point is to catch a plain
+    disagreement, not to re-implement Section 15.2 matching here. When nothing is recognised the
+    caller stays silent and lets the tool speak for itself.
+    """
+    outputs = set()
+
+    for line in scheme_text.splitlines():
+        stripped = line.strip(" \t")
+
+        if not stripped or stripped[0] in "#!":
+            continue
+
+        pieces = _split_unescaped(stripped, "=")
+
+        if len(pieces) < 2:
+            continue
+
+        name_parts = _split_unescaped(pieces[0], ".")
+
+        if name_parts[-1].strip() == "output":
+            outputs.add("=".join(pieces[1:]).strip())
+
+    return outputs
+
+
+def _refuse_swallowed_arguments(scheme_text, fmt, root, delimiter):
+    """Refuse arguments that an explicit scheme would silently discard.
+
+    ``root`` and ``delimiter`` are read only while synthesizing a scheme. Passed alongside one,
+    they reach nothing -- and the render then succeeds, returning a document that ignored them.
+    That is the failure this collection exists to avoid, so it is made loud.
+
+    ``fmt`` is worse, because it is a required positional: before this check the API compelled
+    every custom-scheme caller to name a format and then ignored the answer. Cross-checking it
+    against the scheme's own declaration turns that compelled value into the one thing it can
+    usefully be.
+    """
+    swallowed = [name for name, value in (("root", root), ("delimiter", delimiter))
+                 if value is not None]
+
+    if swallowed:
+        raise Namespace2XmlError(
+            "%s cannot be combined with an explicit 'scheme'. Those arguments are read only "
+            "while synthesizing a scheme, so here they would be discarded and the render would "
+            "succeed having ignored them. Declare them in the scheme instead, as "
+            "'<selector>.root=...' and '<selector>.delimiter=...'."
+            % " and ".join("'%s'" % name for name in swallowed))
+
+    declared = _declared_outputs(scheme_text)
+
+    if declared and fmt not in declared:
+        raise Namespace2XmlError(
+            "the scheme declares output %s, but the filter was asked for '%s'. The format "
+            "argument is not applied on top of an explicit scheme, so one of the two is a "
+            "mistake rather than a refinement of the other; make them agree."
+            % (" and ".join(sorted("'%s'" % value for value in declared)), fmt))
+
+
+def _identity_key(executable):
+    """Identify the binary by what it is, not only by where it is.
+
+    ``dotnet tool update --global`` rewrites the shim in place, at the same path. A path-keyed
+    cache would go on serving the pre-upgrade identity for the life of the ``ansible-playbook``
+    process, and because that identity is a component of the render key, pre-upgrade *output*
+    with it. The README promises the render cache cannot survive a tool upgrade, and that
+    promise is only kept if this key moves when the file does.
+    """
+    try:
+        info = os.stat(executable)
+    except OSError:
+        return None
+
+    return (executable, info.st_mtime_ns, info.st_size)
+
+
+def _support_hint(executable):
+    """The report address the binary itself publishes.
+
+    ``--version`` emits a ``report:`` URL, so attaching it here points at the tracker belonging
+    to the build that actually ran rather than at a link frozen into this file when it was
+    written. A failure therefore carries its own way out, which is the whole point: the reader
+    of the message is often an agent, and it has no other way to discover where this goes.
+    """
+    key = _identity_key(executable)
+    entry = _IDENTITY_CACHE.get(key) if key is not None else None
+    report = entry[1].get("report") if entry else None
+
+    if not report:
+        return ""
+
+    return (
+        "\n\nIf this is a defect rather than a mistake in the data, report it at %s. Quote this "
+        "message verbatim and include the collection version, the output of 'ansible "
+        "--version', and the tool's full '--version' output." % report)
 
 
 def tool_identity(tool=None):
@@ -380,14 +592,17 @@ def tool_identity(tool=None):
     differently.
     """
     executable = _resolve(tool)
+    key = _identity_key(executable)
 
-    if executable in _IDENTITY_CACHE:
-        return _IDENTITY_CACHE[executable]
+    if key is not None and key in _IDENTITY_CACHE:
+        return _IDENTITY_CACHE[key][0]
 
     completed = subprocess.run(
         [executable, "--version"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
@@ -400,14 +615,29 @@ def tool_identity(tool=None):
 
     for line in completed.stdout.splitlines():
         if ":" in line:
-            key, value = line.split(":", 1)
-            fields[key.strip()] = value.strip()
+            name, value = line.split(":", 1)
+            fields[name.strip()] = value.strip()
+
+    # A missing contract-bundle is the signal that this is a pre-3.0 binary, and it has to be
+    # refused rather than recorded as "unknown". A 2.x build accepts the same -i/-s/-o arguments
+    # and the same root and output scheme spellings, so it does not fail: it exits 0 and returns
+    # a document rendered under 2.x escaping, type inference and XML rules. Every claim this
+    # collection makes about its output is a claim about 3.x behaviour, so silently rendering
+    # through 2.x would make the documentation untrue with nothing anywhere to say so.
+    if "contract-bundle" not in fields:
+        raise Namespace2XmlError(
+            "'%s' does not look like a namespace2xml 3.x build: its '--version' output declares "
+            "no 'contract-bundle', which every 3.x build emits. A 2.x binary takes the same "
+            "arguments and scheme spellings, so it would render silently under the older "
+            "contract instead of failing. Install a 3.x build with 'dotnet tool install "
+            "--global --prerelease namespace2xml'." % executable)
 
     identity = "%s|%s" % (
         fields.get("version", completed.stdout.strip()),
-        fields.get("contract-bundle", "unknown"))
+        fields["contract-bundle"])
 
-    _IDENTITY_CACHE[executable] = identity
+    if key is not None:
+        _IDENTITY_CACHE[key] = (identity, fields)
 
     return identity
 
@@ -534,6 +764,10 @@ def render(
     :returns: the rendered text.
     """
     profile = flatten(config, selector)
+
+    if scheme is not None:
+        _refuse_swallowed_arguments(scheme, fmt, root, delimiter)
+
     scheme_text = scheme if scheme is not None else synthesize_scheme(
         fmt, selector, root, delimiter)
     identity = tool_identity(tool)
@@ -608,10 +842,17 @@ def _warn(text):
 
 def _run_and_read(executable, input_path, scheme_path, output_dir):
     """Spawn the tool over prepared files and read the single output back."""
+    # The pipes are decoded as UTF-8 explicitly. `text=True` alone decodes with the locale
+    # encoding and `errors='strict'`, and the tool's diagnostics carry the section sign (U+00A7)
+    # in every specification citation -- so on a controller whose locale resolves to ASCII the
+    # decode raises inside subprocess.run, before the returncode is ever examined. A
+    # UnicodeDecodeError traceback would then replace the diagnostic exactly when there is one.
     completed = subprocess.run(
         [executable, "-i", input_path, "-s", scheme_path, "-o", output_dir],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
@@ -619,8 +860,9 @@ def _run_and_read(executable, input_path, scheme_path, output_dir):
         # The diagnostic text is the whole value of a non-zero exit here: hiding a failure's own
         # explanation turns a precise contract error into "the filter did not work".
         raise Namespace2XmlError(
-            "'%s' exited %d\n%s"
-            % (executable, completed.returncode, (completed.stderr or "").strip()))
+            "'%s' exited %d\n%s%s"
+            % (executable, completed.returncode, (completed.stderr or "").strip(),
+               _support_hint(executable)))
 
     _warn(completed.stderr or "")
 
@@ -633,8 +875,9 @@ def _run_and_read(executable, input_path, scheme_path, output_dir):
 
     if len(produced) != 1:
         raise Namespace2XmlError(
-            "expected exactly one output file, got %d: %s"
-            % (len(produced), ", ".join(os.path.basename(path) for path in produced)))
+            "expected exactly one output file, got %d: %s%s"
+            % (len(produced), ", ".join(os.path.basename(path) for path in produced),
+               _support_hint(executable)))
 
     with open(produced[0], "r", encoding="utf-8", newline="") as handle:
         return handle.read()

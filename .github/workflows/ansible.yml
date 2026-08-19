@@ -81,6 +81,83 @@ jobs:
           set -euo pipefail
           ansible-test sanity --venv --python 3.13 --color -v
 
+  # `ansible-galaxy collection build` reports success for any tree it can read, including one whose
+  # build_ignore has quietly swallowed a plugin, and the tarball -- not the repository -- is the
+  # whole of what a Galaxy consumer ever receives. Ten files reach them; everything else in this
+  # repository, including the specification, CONTRIBUTING and the issue forms, does not. So the
+  # artifact's contents are asserted here against what git tracks, and the assertion names the
+  # missing file rather than failing on a count.
+  #
+  # This is also the gate the release workflow depends on: publishing to Galaxy cannot be undone,
+  # and a version number cannot be reused, so a defect found after the push costs a version.
+  artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install ansible-core
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
+
+      - name: Build the collection
+        shell: bash
+        run: |
+          set -euo pipefail
+          ansible-galaxy collection build ansible --output-path "$RUNNER_TEMP/build" -vv
+
+      - name: Every tracked file reaches the tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball=$(find "$RUNNER_TEMP/build" -name '*.tar.gz')
+          if [ "$(printf '%s\n' "$tarball" | wc -l)" -ne 1 ]; then
+            echo "::error::expected exactly one built tarball, found: $tarball"
+            exit 1
+          fi
+          echo "Built $(basename "$tarball")"
+
+          tar -tzf "$tarball" | sed 's#^\./##' | sort -u > "$RUNNER_TEMP/shipped.txt"
+          # galaxy.yml is consumed rather than shipped: the build turns it into MANIFEST.json.
+          git ls-files -- ansible \
+            | sed 's#^ansible/##' \
+            | grep -vx 'galaxy.yml' \
+            | sort -u > "$RUNNER_TEMP/tracked.txt"
+
+          missing=$(comm -23 "$RUNNER_TEMP/tracked.txt" "$RUNNER_TEMP/shipped.txt")
+          if [ -n "$missing" ]; then
+            echo "::error::these files are tracked under ansible/ but absent from the built collection:"
+            printf '%s\n' "$missing"
+            echo "Check build_ignore in ansible/galaxy.yml."
+            exit 1
+          fi
+
+          # The two generated files are what makes the tarball a collection rather than an archive.
+          for generated in MANIFEST.json FILES.json; do
+            if ! grep -qxF "$generated" "$RUNNER_TEMP/shipped.txt"; then
+              echo "::error::the built collection has no $generated"
+              exit 1
+            fi
+          done
+          echo "all $(wc -l < "$RUNNER_TEMP/tracked.txt") tracked files are present, plus MANIFEST.json and FILES.json"
+
+      - name: The tarball installs and its filter resolves
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Installing from the artifact rather than from the source tree is the point: this is the
+          # only step that exercises what a consumer actually runs, including whether meta/runtime.yml
+          # survives the round trip well enough for the collection loader to accept it.
+          tarball=$(find "$RUNNER_TEMP/build" -name '*.tar.gz')
+          ansible-galaxy collection install "$tarball" -p "$RUNNER_TEMP/installed" --force
+          ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
+            ansible-doc -t filter stop_cran.namespace2xml.render >/dev/null
+          echo "the installed collection resolves stop_cran.namespace2xml.render"
+
   # The unit tests are the specification-side half of a two-sided oracle: they hold hand-authored
   # profile text from docs/specification.md against what the encoder produces, with the binary
   # stubbed out entirely. Their expectations must never be regenerated from the code they test.
@@ -98,8 +175,8 @@ jobs:
           set -euo pipefail
           python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
 
-      # ansible-test units reports success when it collects nothing at all, so the three modules are
-      # named here. Adding a fourth is meant to fail this line: an unlisted test file is a test file
+      # ansible-test units reports success when it collects nothing at all, so the four modules are
+      # named here. Adding a fifth is meant to fail this line: an unlisted test file is a test file
       # nobody notices has stopped running.
       - name: Stage the collection
         shell: bash
@@ -109,8 +186,8 @@ jobs:
           mkdir -p "$(dirname "$dest")"
           cp -a ansible "$dest"
           mapfile -t modules < <(find "$dest/tests/unit" -name 'test_*.py' | sort)
-          if [ "${#modules[@]}" -ne 3 ]; then
-            printf 'Expected 3 unit test modules, found %d:\n' "${#modules[@]}" >&2
+          if [ "${#modules[@]}" -ne 4 ]; then
+            printf 'Expected 4 unit test modules, found %d:\n' "${#modules[@]}" >&2
             printf '  %s\n' "${modules[@]}" >&2
             exit 1
           fi
@@ -232,7 +309,13 @@ jobs:
           echo "Declared version: $version"
           pack="$RUNNER_TEMP/pack"
           dotnet pack src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj -c Release -o "$pack"
-          dotnet tool install --global --add-source "$pack" --version "$version" namespace2xml
+          # --source, not --add-source. --add-source *adds* a feed alongside the configured
+          # ones, leaving the public feed in the running; this exact version is published there,
+          # so resolution could satisfy itself from the last release while the job reported that
+          # it had installed the checkout. The subsequent --version check cannot tell them apart,
+          # because they deliberately share a version and a contract revision. --source replaces
+          # the source list outright, so the only place the package can come from is the pack.
+          dotnet tool install --global --source "$pack" --version "$version" namespace2xml
           "$HOME/.dotnet/tools/namespace2xml" --version
 
       - name: Stage the collection
