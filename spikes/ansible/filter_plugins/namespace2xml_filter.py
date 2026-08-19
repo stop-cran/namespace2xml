@@ -13,9 +13,10 @@ ownership and SELinux context, and has for a decade.
         content: "{{ logback_config | namespace2xml_render('xml', root='configuration') }}"
         dest: /opt/app/logback.xml
 
-Nothing here imports Ansible. The module is importable and callable on any platform with Python and
-the tool on PATH, so the encoder and the marshalling can be exercised where an Ansible controller
-cannot run. ``FilterModule`` at the bottom is a thin wrapper that Ansible discovers.
+Nothing here requires Ansible. The module is importable and callable on any platform with Python,
+so the encoder and the marshalling can be exercised where an Ansible controller cannot run; the one
+import of Ansible is optional and only decides which base class the error type gets.
+``FilterModule`` at the bottom is a thin wrapper that Ansible discovers.
 
 The encoding rules are read from the specification, not from the tool's output:
 
@@ -52,8 +53,20 @@ _IDENTITY_CACHE: dict = {}
 _RENDER_CACHE: dict = {}
 
 
-class Namespace2XmlError(Exception):
-    """A prototype-level failure: bad input data, or a tool run that did not succeed."""
+try:  # pragma: no cover -- exercised by whichever of the two environments is running
+    from ansible.errors import AnsibleFilterError as _FilterErrorBase
+except ImportError:
+    _FilterErrorBase = Exception
+
+
+class Namespace2XmlError(_FilterErrorBase):
+    """A failure: bad input data, a tool that could not be found, or a run that did not succeed.
+
+    Derived from ``AnsibleFilterError`` when Ansible is importable, so a play reports a failed
+    template as a filter error with the message attached rather than as a traceback from an
+    unrecognised exception type -- and from ``Exception`` otherwise, so the module stays usable
+    and testable with no Ansible installed.
+    """
 
 
 def _needs_hex(char):
@@ -258,11 +271,96 @@ def tool_identity(tool=None):
     return identity
 
 
-def _resolve(tool):
-    if tool:
-        return tool
+def _executable_names():
+    """The file names ``dotnet tool install --global`` produces on this platform."""
+    if os.name == "nt":
+        return ("namespace2xml.exe", "namespace2xml.cmd", "namespace2xml.bat", "namespace2xml")
 
-    return os.environ.get("NAMESPACE2XML", "namespace2xml")
+    return ("namespace2xml",)
+
+
+def _runnable(path):
+    """Whether a path names a file this process could execute."""
+    return os.path.isfile(path) and os.access(path, os.X_OK)
+
+
+def _search(directory):
+    """The first runnable candidate in a directory, or ``None``."""
+    if not directory or not os.path.isdir(directory):
+        return None
+
+    for name in _executable_names():
+        candidate = os.path.join(directory, name)
+
+        if _runnable(candidate):
+            return candidate
+
+    return None
+
+
+def _given(value, source):
+    """Resolve something the caller supplied, which is authoritative: it resolves or it fails."""
+    if os.sep in value or (os.altsep and os.altsep in value):
+        if _runnable(value):
+            return os.path.abspath(value)
+
+        raise Namespace2XmlError(
+            "%s names '%s', which is not an executable file." % (source, value))
+
+    found = shutil.which(value)
+
+    if found:
+        return os.path.abspath(found)
+
+    raise Namespace2XmlError(
+        "%s names '%s', which was not found on PATH." % (source, value))
+
+
+def _tool_directories():
+    """Where ``dotnet tool install --global`` puts binaries, most specific first.
+
+    ``PATH`` is not enough. The install writes to this directory whether or not the login shell
+    happens to name it, and a filter runs inside ``ansible-playbook``, whose environment was fixed
+    before the play began -- so a tool installed by an earlier task in the same play is invisible
+    to ``PATH`` no matter what that task did to it.
+    """
+    directories = [os.environ.get("DOTNET_TOOLS_PATH")]
+
+    for base in (os.environ.get("DOTNET_CLI_HOME"),
+                 os.environ.get("USERPROFILE") if os.name == "nt" else None,
+                 os.environ.get("HOME"),
+                 os.path.expanduser("~")):
+        if base:
+            directories.append(os.path.join(base, ".dotnet", "tools"))
+
+    return directories
+
+
+def _resolve(tool):
+    """Find the tool binary, or say precisely what to do about its absence."""
+    if tool:
+        return _given(tool, "the 'tool' argument")
+
+    override = os.environ.get("NAMESPACE2XML")
+
+    if override:
+        return _given(override, "$NAMESPACE2XML")
+
+    found = shutil.which("namespace2xml")
+
+    if found:
+        return os.path.abspath(found)
+
+    for directory in _tool_directories():
+        found = _search(directory)
+
+        if found:
+            return os.path.abspath(found)
+
+    raise Namespace2XmlError(
+        "namespace2xml was not found on PATH or in the dotnet global tools directory. "
+        "Install it with 'dotnet tool install --global namespace2xml', or set $NAMESPACE2XML "
+        "or the filter's 'tool' argument to the binary's path.")
 
 
 def render(
@@ -286,7 +384,8 @@ def render(
     :param root: the Section 16.3 root, which XML needs for a multi-member view.
     :param selector: the top-level name the data is written under.
     :param delimiter: the Section 16.4 output delimiter, for the flat formats.
-    :param tool: path to the binary; defaults to ``$NAMESPACE2XML`` then ``namespace2xml``.
+    :param tool: path to the binary. Defaults to ``$NAMESPACE2XML``, then ``PATH``, then the
+        dotnet global-tools directory. An explicit value must resolve: it is never fallen back on.
     :param memoize: reuse a previous identical render. The key is the whole marshalled input plus
         the tool's contract identity, so it cannot survive a tool or contract change.
     :param workdir: parent directory for the temporary marshalling directory.
