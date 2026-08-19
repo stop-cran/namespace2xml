@@ -45,18 +45,19 @@ jobs:
           set -euo pipefail
           # `ansible-v1.0.0` -> `1.0.0`.
           tag="${GITHUB_REF_NAME#ansible-v}"
-          declared=$(python -c "import yaml,sys; print(yaml.safe_load(open('ansible/galaxy.yml'))['version'])")
+          declared=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['version'])")
+          namespace=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['namespace'])")
+          name=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['name'])")
           if [ "$tag" != "$declared" ]; then
             echo "::error::tag $GITHUB_REF_NAME does not name version $declared in ansible/galaxy.yml"
             exit 1
           fi
-          echo "version=$declared" >> "$GITHUB_ENV"
-
-          namespace=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['namespace'])")
-          name=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['name'])")
-          echo "collection=${namespace}.${name}" >> "$GITHUB_ENV"
-          echo "namespace=$namespace" >> "$GITHUB_ENV"
-          echo "name=$name" >> "$GITHUB_ENV"
+          {
+            echo "version=$declared"
+            echo "namespace=$namespace"
+            echo "name=$name"
+            echo "collection=${namespace}.${name}"
+          } >> "$GITHUB_ENV"
 
       - name: This version must not already exist on Galaxy
         shell: bash
@@ -222,17 +223,19 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#ansible-v}"
-          echo "version=$tag" >> "$GITHUB_ENV"
           namespace=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['namespace'])")
           name=$(python -c "import yaml; print(yaml.safe_load(open('ansible/galaxy.yml'))['name'])")
-          echo "collection=${namespace}.${name}" >> "$GITHUB_ENV"
 
           tarball=$(find dist -name '*.tar.gz')
           if [ "$(printf '%s\n' "$tarball" | wc -l)" -ne 1 ]; then
             echo "::error::expected exactly one tarball in the artifact, found: $tarball"
             exit 1
           fi
-          echo "tarball=$tarball" >> "$GITHUB_ENV"
+          {
+            echo "version=$tag"
+            echo "collection=${namespace}.${name}"
+            echo "tarball=$tarball"
+          } >> "$GITHUB_ENV"
           sha256sum "$tarball"
 
       - name: Publish to Galaxy
