@@ -1,0 +1,12 @@
+### The floor is a code floor, and CI does not reach all of it.
+#
+# 2.14 is where `ansible-doc` learned to read a `DOCUMENTATION` block written inline in a
+# filter plugin's own `.py` file, which is the newest Ansible feature this collection uses.
+# Nothing here needs anything later.
+#
+# CI exercises stable-2.18 upwards, because that is the oldest ansible-core branch still
+# maintained and therefore the oldest one `ansible-test` can be run against without pinning an
+# EOL controller Python. So compatibility with 2.14 through 2.17 is `proposed-but-untested`:
+# it follows from what the code uses, not from a green run. Raise this floor rather than
+# widening the matrix if that ever stops being an acceptable trade.
+requires_ansible: '>=2.14'

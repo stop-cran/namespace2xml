@@ -1,0 +1,200 @@
+"""How the filter finds the tool binary.
+
+Every candidate here is a stub this test plants, so nothing needs a real installation and the
+whole file runs anywhere Python does.
+
+The case that matters is ``test_the_dotnet_global_tools_directory_is_searched``. ``dotnet tool
+install --global`` writes to ``~/.dotnet/tools`` whether or not the login shell names that
+directory on ``PATH``, and a filter runs inside ``ansible-playbook``, whose environment was
+fixed before the play began. A filter that can only find the tool through ``PATH`` therefore
+fails on a host where the tool is installed and working, and fails again when a play installs
+the tool in one task and templates with it in a later one. Both were measured against real
+Ansible before this code existed; see ``.github/workflows/ansible-topology-spike.yml``.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import os
+import pathlib
+import stat
+
+import pytest
+
+try:
+    from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as n2x
+except ImportError:  # a checkout that is not inside an ansible_collections tree
+    _PATH = pathlib.Path(__file__).resolve().parents[4] / "plugins" / "filter" / "render.py"
+    _SPEC = importlib.util.spec_from_file_location("n2x_render", _PATH)
+    n2x = importlib.util.module_from_spec(_SPEC)
+    _SPEC.loader.exec_module(n2x)
+
+
+WINDOWS = os.name == "nt"
+BINARY = "namespace2xml.exe" if WINDOWS else "namespace2xml"
+HOME_VARIABLE = "USERPROFILE" if WINDOWS else "HOME"
+
+# Every variable the resolver is allowed to read. Each test starts from all of them unset, so a
+# value leaking in from the developer's own shell cannot make a test pass.
+CONSULTED = (
+    "NAMESPACE2XML",
+    "PATH",
+    "HOME",
+    "USERPROFILE",
+    "DOTNET_CLI_HOME",
+    "DOTNET_TOOLS_PATH",
+)
+
+
+def plant(directory, name=BINARY):
+    """Create an executable stub and return its path."""
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, name)
+
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("" if WINDOWS else "#!/bin/sh\nexit 0\n")
+
+    os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    return path
+
+
+def same(actual, expected):
+    """Compare two paths as the platform's filesystem would.
+
+    ``shutil.which`` on Windows appends the ``PATHEXT`` entry as that variable spells it, so a
+    correct answer can come back as ``namespace2xml.EXE``. Comparing byte for byte would fail a
+    test about resolution over a difference in case no caller can observe.
+    """
+    return os.path.normcase(actual) == os.path.normcase(expected)
+
+
+@pytest.fixture(name="sandbox")
+def _sandbox(monkeypatch, tmp_path):
+    """Unset everything the resolver reads, including the one thing ``os.environ`` cannot."""
+    for name in CONSULTED:
+        monkeypatch.delenv(name, raising=False)
+
+    # On Windows ``expanduser('~')`` falls back to the registry when HOME and USERPROFILE are
+    # both unset, so a developer with the tool genuinely installed would see a "found nothing"
+    # test pass for the wrong reason -- it would have found the real binary. Substituting the
+    # function is the only way to hold the last fallback out of scope.
+    nowhere = tmp_path / "no-home"
+    nowhere.mkdir()
+    monkeypatch.setattr(os.path, "expanduser", lambda path: str(nowhere))
+
+    return tmp_path
+
+
+def test_an_explicit_absolute_path_is_used_as_given(sandbox, monkeypatch):
+    planted = plant(str(sandbox / "explicit"))
+    monkeypatch.setenv("PATH", "")
+
+    assert n2x._resolve(planted) == planted
+
+
+def test_an_explicit_bare_name_is_resolved_on_path(sandbox, monkeypatch):
+    planted = plant(str(sandbox / "explicit"))
+    monkeypatch.setenv("PATH", str(sandbox / "explicit"))
+
+    assert same(n2x._resolve(BINARY), planted)
+
+
+def test_an_explicit_argument_that_resolves_to_nothing_fails(sandbox, monkeypatch):
+    monkeypatch.setenv("PATH", "")
+
+    with pytest.raises(n2x.Namespace2XmlError, match="absent"):
+        n2x._resolve(str(sandbox / "absent" / BINARY))
+
+
+def test_the_environment_variable_outranks_path(sandbox, monkeypatch):
+    chosen = plant(str(sandbox / "chosen"))
+    ignored = str(sandbox / "ignored")
+    plant(ignored)
+    monkeypatch.setenv("NAMESPACE2XML", chosen)
+    monkeypatch.setenv("PATH", ignored)
+
+    assert n2x._resolve(None) == chosen
+
+
+def test_an_environment_variable_pointing_nowhere_fails_by_name(sandbox, monkeypatch):
+    # It does not fall back. A caller-supplied value that silently loses to a lucky PATH hit
+    # turns a typo into a different binary running than the one that was named.
+    ignored = str(sandbox / "ignored")
+    plant(ignored)
+    monkeypatch.setenv("NAMESPACE2XML", str(sandbox / "nowhere" / BINARY))
+    monkeypatch.setenv("PATH", ignored)
+
+    with pytest.raises(n2x.Namespace2XmlError, match="NAMESPACE2XML"):
+        n2x._resolve(None)
+
+
+def test_a_directory_on_path_is_searched(sandbox, monkeypatch):
+    directory = str(sandbox / "on-path")
+    planted = plant(directory)
+    monkeypatch.setenv("PATH", directory)
+
+    assert same(n2x._resolve(None), planted)
+
+
+def test_the_dotnet_global_tools_directory_is_searched(sandbox, monkeypatch):
+    home = str(sandbox / "home")
+    planted = plant(os.path.join(home, ".dotnet", "tools"))
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setenv(HOME_VARIABLE, home)
+
+    assert same(n2x._resolve(None), planted)
+
+
+def test_dotnet_cli_home_outranks_the_home_directory(sandbox, monkeypatch):
+    home = str(sandbox / "home")
+    plant(os.path.join(home, ".dotnet", "tools"))
+    cli_home = str(sandbox / "cli-home")
+    relocated = plant(os.path.join(cli_home, ".dotnet", "tools"))
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setenv(HOME_VARIABLE, home)
+    monkeypatch.setenv("DOTNET_CLI_HOME", cli_home)
+
+    assert same(n2x._resolve(None), relocated)
+
+
+def test_dotnet_tools_path_outranks_everything_discovered(sandbox, monkeypatch):
+    home = str(sandbox / "home")
+    plant(os.path.join(home, ".dotnet", "tools"))
+    explicit = str(sandbox / "explicit-tools")
+    planted = plant(explicit)
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setenv(HOME_VARIABLE, home)
+    monkeypatch.setenv("DOTNET_TOOLS_PATH", explicit)
+
+    assert same(n2x._resolve(None), planted)
+
+
+def test_a_tool_that_is_nowhere_fails_with_an_actionable_message(sandbox, monkeypatch):
+    monkeypatch.setenv("PATH", "")
+
+    with pytest.raises(n2x.Namespace2XmlError, match="dotnet tool install"):
+        n2x._resolve(None)
+
+
+def test_every_success_path_returns_an_absolute_path(sandbox, monkeypatch):
+    # The identity cache is keyed on the resolved path, so two spellings of one binary must not
+    # become two entries and two --version spawns.
+    directory = str(sandbox / "on-path")
+    plant(directory)
+    monkeypatch.setenv("PATH", directory)
+    monkeypatch.chdir(sandbox)
+
+    assert os.path.isabs(n2x._resolve(None))
+
+
+def test_the_error_derives_from_ansibles_filter_error():
+    """A failed template must be reported as a filter error, not as an unknown exception.
+
+    Asserted directly rather than by injecting a stand-in ``ansible.errors``: this test runs
+    under ``ansible-test units``, where ansible-core is by definition importable, so the real
+    class relationship is what gets checked.
+    """
+    from ansible.errors import AnsibleFilterError
+
+    assert issubclass(n2x.Namespace2XmlError, AnsibleFilterError)

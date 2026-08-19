@@ -1,0 +1,45 @@
+### The Ansible collection's version is independent of the tool's.
+#
+# namespace2xml the .NET tool is at 3.x. This collection is at 1.0.0 because it is a new
+# artefact with its own compatibility promise: it pins no tool version, so the two version
+# streams answer different questions and are released under different tags -- `v3.*` for the
+# tool, `ansible-v*` for this collection.
+namespace: stop_cran
+name: namespace2xml
+version: 1.0.0
+readme: README.md
+
+authors:
+  - stop-cran <stop-cran@list.ru>
+
+description: >-
+  Render Ansible data structures as XML, JSON, YAML, INI or namespace text through the
+  namespace2xml transformer, encoding against its normative specification.
+
+license:
+  - Apache-2.0
+
+tags:
+  - configuration
+  - xml
+  - json
+  - yaml
+  - ini
+  - templating
+  - tools
+
+# No collection depends on this one and this one depends on no collection. The transformer it
+# drives is a .NET tool, which Galaxy has no way to express as a dependency -- the filter
+# resolves it at call time and says what to install if it is missing.
+dependencies: {}
+
+repository: https://github.com/stop-cran/namespace2xml
+documentation: https://github.com/stop-cran/namespace2xml/blob/master/ansible/README.md
+homepage: https://github.com/stop-cran/namespace2xml
+issues: https://github.com/stop-cran/namespace2xml/issues
+
+build_ignore:
+  # ansible-test writes here. It is generated, sometimes large, and never useful to a consumer.
+  - tests/output
+  - '*.pyc'
+  - __pycache__
