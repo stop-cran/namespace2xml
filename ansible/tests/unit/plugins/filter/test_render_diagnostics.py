@@ -151,3 +151,97 @@ def test_a_run_producing_no_single_output_is_a_failure(monkeypatch, tmp_path):
 
     with pytest.raises(filt.Namespace2XmlError, match="exactly one output file"):
         filt._run_and_read("stand-in", "input.txt", "scheme.txt", str(output))
+
+
+# --- Section 15.2: is the document being returned the format that was asked for? ----------------
+#
+# The scheme's own precedence decides the format, and a set of the formats it mentions cannot
+# express precedence. So the question is put to the tool: render again with the caller's format
+# appended as a final declaration -- which section 15.2 makes authoritative -- and compare. Same
+# result, same format. Different result, the caller was about to be handed something else. See
+# issue #111.
+
+def _stand_in_run(name, payload, probe_name=None, probe_payload=None, probe_fails=False):
+    """A ``run_tool`` that writes a named file into whichever ``-o`` directory it is handed.
+
+    The second call is the probe, so it can be given a different answer -- or a failure -- to
+    stand for a scheme whose precedence lands somewhere other than the caller asked.
+    """
+    calls = []
+
+    def run_tool(executable, argv):
+        calls.append(list(argv))
+        target = pathlib.Path(argv[argv.index("-o") + 1])
+
+        if len(calls) > 1:
+            if probe_fails:
+                raise n2x.Namespace2XmlError("error TYPE001 \u00a719.5: the probe's own problem")
+
+            target.joinpath(probe_name or name).write_text(
+                probe_payload if probe_payload is not None else payload, encoding="utf-8")
+            return ""
+
+        target.joinpath(name).write_text(payload, encoding="utf-8")
+        return ""
+
+    return run_tool, calls
+
+
+def _confirm(monkeypatch, tmp_path, run_tool):
+    """Run the caller's render and then the probe, the way ``_marshal_and_run`` does."""
+    monkeypatch.setattr(n2x, "run_tool", run_tool)
+    monkeypatch.setattr(n2x, "support_hint", lambda executable: "")
+    output = tmp_path / "out"
+    output.mkdir()
+
+    filt._run_and_read("stand-in", "input.txt", "scheme.txt", str(output))
+    filt._confirm_the_format_asked_for("stand-in", "input.txt", "scheme.txt", str(output),
+                                       str(tmp_path), "cfg.output=xml\n", "xml")
+
+
+def test_a_render_that_already_produces_the_format_asked_for_is_left_alone(monkeypatch,
+                                                                           tmp_path):
+    """Appending a declaration that agrees changes nothing, so the results match and nothing is
+    said. This is the whole reason the probe is sound: a redundant declaration is a no-op."""
+    run_tool, calls = _stand_in_run("cfg.xml", "<cfg/>")
+
+    _confirm(monkeypatch, tmp_path, run_tool)
+
+    assert len(calls) == 2
+    assert calls[1].count("-s") == 2, "the probe scheme must be passed after the caller's own"
+
+
+def test_a_render_whose_precedence_answers_another_format_is_refused(monkeypatch, tmp_path):
+    """The defect in #111. The scheme mentions XML, so the old membership check accepted the
+    call, and section 15.2 then let a later declaration write JSON instead. Exit code zero, a
+    well-formed document, and the wrong format in the caller's hands."""
+    run_tool, dummy = _stand_in_run("cfg.json", "{}", probe_name="cfg.xml",
+                                    probe_payload="<cfg/>")
+
+    with pytest.raises(filt.Namespace2XmlError, match="does not produce 'xml'"):
+        _confirm(monkeypatch, tmp_path, run_tool)
+
+
+def test_a_format_difference_hiding_behind_one_file_name_is_still_caught(monkeypatch, tmp_path):
+    """A scheme may declare 'filename: app.conf' and keep that name whichever format it renders,
+    so comparing names -- or extensions -- would see two identical runs. Only the bytes differ,
+    and the bytes are what is compared."""
+    run_tool, dummy = _stand_in_run("app.conf", "a = 1\n", probe_name="app.conf",
+                                    probe_payload="<cfg a=\"1\"/>")
+
+    with pytest.raises(filt.Namespace2XmlError, match="does not produce 'xml'"):
+        _confirm(monkeypatch, tmp_path, run_tool)
+
+
+def test_a_probe_that_fails_is_a_disagreement_and_its_diagnostic_is_not_relayed(monkeypatch,
+                                                                                tmp_path):
+    """Asking for the format outright and having that fail is evidence about the format: a
+    declaration that agreed could not have broken a render that already agreed with it. But the
+    failure belongs to a render nobody wrote, so its own diagnostic must not be quoted back --
+    that would send the reader off to fix a scheme they never saw."""
+    run_tool, dummy = _stand_in_run("cfg.json", "{}", probe_fails=True)
+
+    with pytest.raises(filt.Namespace2XmlError, match="does not produce 'xml'") as raised:
+        _confirm(monkeypatch, tmp_path, run_tool)
+
+    assert "TYPE001" not in str(raised.value)

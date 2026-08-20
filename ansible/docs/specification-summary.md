@@ -121,9 +121,11 @@ break in `root`, validates `fmt` against the list above, and encodes `delimiter`
 scheme yourself from untrusted data, you own that problem.
 
 `root` and `delimiter` are refused alongside `scheme`, because they are read only while
-synthesizing one. `fmt` stays required and is cross-checked against the format the scheme itself
-declares, so a mismatch is reported rather than quietly ignored. See the plugin documentation for
-the exact argument rules.
+synthesizing one. `fmt` stays required and is checked against the format the scheme really
+produces, so a mismatch is reported rather than quietly ignored. Where §15.2 precedence decides
+that — several `output` declarations, or one written as a `${...}` reference — the check costs a
+second render, because only the tool implements §15.2. See the plugin documentation for the exact
+argument rules.
 
 ## 8. Diagnostics and failure
 

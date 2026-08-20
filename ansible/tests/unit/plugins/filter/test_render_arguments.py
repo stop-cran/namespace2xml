@@ -575,4 +575,76 @@ def test_supplying_both_scheme_spellings_is_refused():
     """They are one argument with two spellings, so both together leaves the render ambiguous."""
     with pytest.raises(filt.Namespace2XmlError, match="two spellings"):
         filt.render({"k": "v"}, "xml", scheme="cfg.output=xml\n",
-                   scheme_yaml={"cfg": {"output": "xml"}})
+                    scheme_yaml={"cfg": {"output": "xml"}})
+
+
+# --- Which schemes have to be put to the tool, and which answer themselves ----------------------
+#
+# Reading a scheme for its formats can say what it mentions; only section 15.2 says which of them
+# wins, and only the tool implements 15.2. So the reading here narrows to what it can settle and
+# hands the rest to `_format_probe`, whose cost is a second render. These fix where that line
+# falls -- both that the expensive case is reached and that the ordinary one is not. See #111.
+
+def test_a_lone_literal_declaration_settles_itself_and_costs_no_second_render():
+    """Nothing follows it, so nothing can displace it: the comparison above is already the whole
+    answer. This is the shape almost every caller writes, and it must stay free."""
+    assert filt._format_probe("cfg.output=xml\n", "xml", "cfg") is None
+
+
+def test_competing_declarations_are_put_to_the_tool():
+    """Both are 'declared', and a set cannot say which one section 15.2 lets win. The wildcard
+    here is last, so it wins, and the render would have been JSON -- exactly the #111 report."""
+    assert filt._format_probe("cfg.output=xml\n*.output=json\n", "xml", "cfg") == \
+        "cfg.output=xml\n"
+
+
+def test_a_declaration_that_is_a_reference_is_put_to_the_tool_even_when_it_stands_alone():
+    """Section 15.1 resolves references inside the tool. Unresolved text names no format at all,
+    so reading it can neither accept nor refuse -- it can only ask."""
+    assert filt._format_probe("cfg.filename=xml\ncfg.output=${cfg.filename}\n", "xml", "cfg") \
+        == "cfg.output=xml\n"
+
+
+def test_an_escaped_marker_is_literal_text_and_does_not_buy_a_second_render():
+    r"""``\${`` stands for itself, so there is nothing for the tool to resolve and nothing to
+    ask about."""
+    assert filt._format_probe("cfg.output=\\${xml}\n", "xml", "cfg") is None
+
+
+def test_the_probe_addresses_the_subtree_the_render_selected():
+    """A probe aimed anywhere else would compare two renders that differ for a reason other than
+    format, and report a disagreement that is not one. The selector is escaped for the same
+    reason every other name part is."""
+    assert filt._format_probe("a.b.output=xml\na.b.output=json\n", "json", "a.b") == \
+        "a\\.b.output=json\n"
+
+
+def test_a_mapping_scheme_reaches_the_tool_the_same_way():
+    """A mapping is encoded to JSON before it is written, so a line cannot be appended to it. The
+    probe is a second '--scheme' path instead, which works whatever the first one is spelled in."""
+    scheme = {"cfg": {"output": "xml"}, "*": {"output": "json"}}
+
+    assert filt._format_probe(scheme, "xml", "cfg") == "cfg.output=xml\n"
+
+
+def test_a_reference_stands_the_cheap_comparison_down_rather_than_failing_it():
+    """The mirror of the #111 defect: comparing unresolved text against the format asked for
+    refuses a scheme the tool would have rendered exactly as requested."""
+    filt._refuse_swallowed_arguments(
+        "cfg.filename=xml\ncfg.output=${cfg.filename}\n", "json", None, None)
+
+
+def test_a_format_named_nowhere_in_the_scheme_is_still_refused_without_running_anything():
+    """Precedence cannot promote a format that is not written down, so this stays settled by
+    reading -- and stays the fast answer to the typo that prompted the check originally."""
+    with pytest.raises(filt.Namespace2XmlError, match="declares output"):
+        filt._refuse_swallowed_arguments("cfg.output=json\n*.output=ini\n", "xml", None, None)
+
+
+def test_a_probe_is_refused_for_a_format_outside_section_16_1():
+    """With a reference present the cheap comparison stands down, so this is the only thing left
+    holding an unrecognised format. Writing it into the probe unchecked would put the caller's
+    typo in a scheme the tool never sees the author of, and report the resulting failure as a
+    format disagreement."""
+    with pytest.raises(filt.Namespace2XmlError, match="section 16.1 output formats"):
+        filt._format_probe("cfg.output=${cfg.filename}\n", "toml", "cfg")
