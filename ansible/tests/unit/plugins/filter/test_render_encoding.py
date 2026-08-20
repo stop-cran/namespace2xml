@@ -343,7 +343,8 @@ class _Spy:
         self.scheme_text = None
         self.scheme_name = None
 
-    def __call__(self, profile, scheme_text, scheme_name, executable, workdir):
+    def __call__(self, profile, scheme_text, scheme_name, executable, workdir, probe=None,
+                 fmt=None):
         self.calls += 1
         self.profile = profile
         self.scheme_text = scheme_text

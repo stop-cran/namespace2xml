@@ -94,12 +94,17 @@ options:
       - O(root) and O(delimiter) are refused alongside it, because they are read only while
         synthesizing a scheme and would otherwise be discarded without a word. Declare them in
         the scheme instead.
-      - O(fmt) is still required, and is cross-checked against the C(output) the scheme
-        declares. A disagreement is an error rather than an override, because the scheme wins
-        and the argument would otherwise be a value the caller was compelled to supply and the
-        filter then ignored. Names and formats are compared case-insensitively and a
-        comma-separated C(output) is read as the set it declares, following sections 15 and
-        16.1.
+      - O(fmt) is still required, and is checked against what the scheme really produces. A
+        disagreement is an error rather than an override, because the scheme wins and the
+        argument would otherwise be a value the caller was compelled to supply and the filter
+        then ignored. Names and formats are compared case-insensitively and a comma-separated
+        C(output) is read as the set it declares, following sections 15 and 16.1.
+      - Where the scheme carries several C(output) declarations, or one written as a section
+        15.1 C(${...}) reference, which of them applies is a precedence question that only the
+        tool can answer. The filter therefore renders a second time with C(<selector>.output)
+        set to O(fmt) - section 15.2 gives that last declaration precedence - and compares the
+        two results. This costs one extra invocation of the tool, and only for schemes of that
+        shape; a single literal C(output) is settled without it.
       - A filter returns one document, so a scheme that produces a set of files - several
         formats in one C(output) declaration, or several C(filename) targets - has no single
         result to hand back and the render fails. Use the C(stop_cran.namespace2xml.render)
@@ -129,7 +134,7 @@ options:
         one-document limit described under O(scheme) applies to such a declaration here too.
       - Quote a wildcard selector - bare C(*) is a YAML alias indicator. Quote anything YAML
         would read as a number, since C(3.10) arrives as C(3.1).
-      - Carries the same refusals and the same O(fmt) cross-check as O(scheme). Passed to the
+      - Carries the same refusals and the same O(fmt) check as O(scheme). Passed to the
         tool as a JSON document, which section 15 accepts alongside YAML.
     type: dict
     version_added: 2.1.0
@@ -831,16 +836,22 @@ def _output_formats(declaration):
     return set(part.strip().lower() for part in declaration.split(",") if part.strip())
 
 
-def _declared_outputs(scheme):
-    """The set of formats an explicit scheme declares, for cross-checking against ``fmt``.
+def _output_declarations(scheme):
+    """Every ``output`` declaration an explicit scheme makes, in source order, still unparsed.
+
+    Source order is the whole point. Section 15.2 gives the last matching declaration precedence
+    with no specificity ranking, so the *set* of formats a scheme mentions cannot say which one
+    of them wins -- and a check built on that set accepts a call whose answer will be a different
+    format than the one asked for. The values come back exactly as written, because whether one
+    is a literal or a Section 15.1 reference decides whether this file may read it at all.
 
     Accepts either form of scheme. A mapping is walked for keys named ``output``; text is read
     deliberately little. Section 8 record kinds are honoured -- an unescaped leading ``#`` is a
     comment and an unescaped leading ``!`` is a mask, so neither declares anything -- and a name
     is split on unescaped dots so that a rule ending in a literal ``\\.output`` part is not
-    mistaken for one. Everything past that is left alone: the point is to catch a plain
-    disagreement, not to re-implement Section 15.2 matching here. When nothing is recognised the
-    caller stays silent and lets the tool speak for itself.
+    mistaken for one. Everything past that is left alone: the point is to find the declarations,
+    not to re-implement Section 15.2 matching here. When nothing is recognised the caller stays
+    silent and lets the tool speak for itself.
 
     A scheme that is neither a mapping nor text is not this function's to judge. It abstains so
     that :func:`encode_scheme_mapping` reaches the argument and refuses it by name -- "a mapping
@@ -849,12 +860,12 @@ def _declared_outputs(scheme):
     ordinary playbook variable can arrive in any shape.
     """
     if isinstance(scheme, dict):
-        return _declared_outputs_in_mapping(scheme)
+        return _output_declarations_in_mapping(scheme)
 
     if not isinstance(scheme, str):
-        return set()
+        return []
 
-    outputs = set()
+    declarations = []
 
     for line in scheme.splitlines():
         stripped = line.strip(" \t")
@@ -870,34 +881,46 @@ def _declared_outputs(scheme):
         name_parts = _split_unescaped(pieces[0], ".")
 
         if name_parts[-1].strip().lower() == "output":
-            outputs |= _output_formats("=".join(pieces[1:]))
+            declarations.append("=".join(pieces[1:]))
+
+    return declarations
+
+
+def _declared_outputs(scheme):
+    """Every format an explicit scheme names anywhere, without regard to which one wins."""
+    outputs = set()
+
+    for declaration in _output_declarations(scheme):
+        outputs |= _output_formats(declaration)
 
     return outputs
 
 
-def _declared_outputs_in_mapping(mapping, seen=None):
+def _output_declarations_in_mapping(mapping, seen=None):
     """Walk a mapping scheme for ``output`` directives, wherever they are nested.
 
     The mapping form carries the path in its nesting, so there is no name to split: a key
-    literally named ``output`` whose value is a scalar is the directive, at any depth.
+    literally named ``output`` whose value is a scalar is the directive, at any depth. Mapping
+    order is source order, because :func:`encode_scheme_mapping` writes the members out in the
+    order they were given, so the declarations come back in the order Section 15.2 resolves them.
     """
-    outputs = set()
+    declarations = []
     seen = seen if seen is not None else set()
 
     if id(mapping) in seen:
-        return outputs
+        return declarations
 
     seen.add(id(mapping))
 
     for key, value in mapping.items():
         if isinstance(value, dict):
-            outputs |= _declared_outputs_in_mapping(value, seen)
+            declarations += _output_declarations_in_mapping(value, seen)
         elif (isinstance(key, str) and key.strip().lower() == "output"
               and value is not None and not isinstance(value, (list, tuple))):
-            outputs |= _output_formats(
+            declarations.append(
                 ("true" if value else "false") if isinstance(value, bool) else str(value))
 
-    return outputs
+    return declarations
 
 
 def _declare_hint(scheme, swallowed):
@@ -912,6 +935,30 @@ def _declare_hint(scheme, swallowed):
     return " and ".join("'<selector>.%s=...'" % name for name in swallowed)
 
 
+def _has_reference(declaration):
+    """Whether a declaration contains an unescaped Section 15.1 reference.
+
+    ``\\${`` is an escaped dollar-brace and stands for itself, so counting the backslashes in
+    front matters: an odd run escapes the marker and an even run leaves it live.
+    """
+    index = declaration.find("${")
+
+    while index != -1:
+        backslashes = 0
+        behind = index - 1
+
+        while behind >= 0 and declaration[behind] == "\\":
+            backslashes += 1
+            behind -= 1
+
+        if backslashes % 2 == 0:
+            return True
+
+        index = declaration.find("${", index + 2)
+
+    return False
+
+
 def _refuse_swallowed_arguments(scheme, fmt, root, delimiter):
     """Refuse arguments that an explicit scheme would silently discard.
 
@@ -920,9 +967,19 @@ def _refuse_swallowed_arguments(scheme, fmt, root, delimiter):
     That is the failure this collection exists to avoid, so it is made loud.
 
     ``fmt`` is worse, because it is a required positional: before this check the API compelled
-    every custom-scheme caller to name a format and then ignored the answer. Cross-checking it
-    against the scheme's own declaration turns that compelled value into the one thing it can
-    usefully be.
+    every custom-scheme caller to name a format and then ignored the answer.
+
+    What is refused here is only what can be settled without running anything: a scheme that
+    never names ``fmt`` at all cannot produce it, whichever declaration wins. Whether a scheme
+    that *does* name it will actually produce it is a Section 15.2 precedence question, and this
+    file does not answer those -- :func:`_format_probe` puts it to the tool instead. The two
+    together are what the format argument is worth; this half alone was the defect in #111,
+    because membership of the set of mentioned formats was being reported as agreement.
+
+    A declaration carrying a reference is not read at all. Section 15.1 resolves those inside the
+    tool, so comparing the unresolved text would refuse a scheme whose ``output`` is perfectly
+    valid -- the mirror of the same defect, and the reason the guard below stands down entirely
+    when one is present.
     """
     swallowed = [name for name, value in (("root", root), ("delimiter", delimiter))
                  if value is not None]
@@ -935,7 +992,15 @@ def _refuse_swallowed_arguments(scheme, fmt, root, delimiter):
             % (" and ".join("'%s'" % name for name in swallowed),
                _declare_hint(scheme, swallowed)))
 
-    declared = _declared_outputs(scheme)
+    declarations = _output_declarations(scheme)
+
+    if any(_has_reference(declaration) for declaration in declarations):
+        return
+
+    declared = set()
+
+    for declaration in declarations:
+        declared |= _output_formats(declaration)
 
     if declared and fmt.strip().lower() not in declared:
         raise Namespace2XmlError(
@@ -943,6 +1008,37 @@ def _refuse_swallowed_arguments(scheme, fmt, root, delimiter):
             "argument is not applied on top of an explicit scheme, so one of the two is a "
             "mistake rather than a refinement of the other; make them agree."
             % (" and ".join(sorted("'%s'" % value for value in declared)), fmt))
+
+
+def _format_probe(scheme, fmt, selector):
+    """The scheme that asks the tool outright for ``fmt``, or ``None`` when nothing need be asked.
+
+    Section 15.2 gives the last matching declaration precedence, and ``--scheme`` takes ordered
+    paths, so a one-line scheme file passed after the caller's own overrides whatever it said.
+    Rendering twice and comparing the results therefore answers "would this scheme have produced
+    what was asked for" without a second implementation of Section 15.2 living here -- the tool
+    resolves the precedence both times. That matters more than it sounds: #107 was one duplicate
+    of specification logic drifting from the original, and this would have been another.
+
+    Most renders never pay for it. A single literal declaration cannot be displaced by anything
+    -- there is nothing after it -- so the cheap comparison above is already conclusive and this
+    returns ``None``. What is left is exactly the two shapes that comparison gets wrong: several
+    declarations competing, where the set says one thing and precedence says another, and a
+    reference, which only the tool can resolve.
+    """
+    declarations = _output_declarations(scheme)
+
+    if len(declarations) < 2 and not any(_has_reference(item) for item in declarations):
+        return None
+
+    wanted = fmt.strip().lower()
+
+    if wanted not in FORMATS:
+        raise Namespace2XmlError(
+            "'%s' is not one of the section 16.1 output formats. Use one of: %s."
+            % (fmt, ", ".join(FORMATS)))
+
+    return "%s.output=%s\n" % (encode_name_part(selector), wanted)
 
 
 def render(
@@ -1007,9 +1103,11 @@ def _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool, m
             "leaves it ambiguous which the render should use. Keep the one you mean.")
 
     explicit = scheme if scheme is not None else scheme_yaml
+    probe = None
 
     if explicit is not None:
         _refuse_swallowed_arguments(explicit, fmt, root, delimiter)
+        probe = _format_probe(explicit, fmt, selector)
 
     if scheme_yaml is not None:
         # Section 15 picks the parser from the extension, so this has to reach the tool under a
@@ -1030,7 +1128,8 @@ def _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool, m
         if key in _RENDER_CACHE:
             return _RENDER_CACHE[key]
 
-    text = _marshal_and_run(profile, scheme_text, scheme_name, n2x.resolve(tool), workdir)
+    text = _marshal_and_run(profile, scheme_text, scheme_name, n2x.resolve(tool), workdir,
+                            probe, fmt)
 
     if key is not None:
         _RENDER_CACHE[key] = text
@@ -1050,7 +1149,8 @@ def _cache_key(profile, scheme_text, scheme_name, fmt, identity):
     return digest.hexdigest()
 
 
-def _marshal_and_run(profile, scheme_text, scheme_name, executable, workdir):
+def _marshal_and_run(profile, scheme_text, scheme_name, executable, workdir, probe=None,
+                     fmt=None):
     """Write the inputs, run the tool, read the single output back, and clean up.
 
     A filter has data in memory and the CLI is file-in, directory-out, so every call pays a
@@ -1067,9 +1167,81 @@ def _marshal_and_run(profile, scheme_text, scheme_name, executable, workdir):
         _write(scheme_path, scheme_text)
         os.mkdir(output_dir)
 
-        return _run_and_read(executable, input_path, scheme_path, output_dir)
+        text = _run_and_read(executable, input_path, scheme_path, output_dir)
+
+        if probe is not None:
+            _confirm_the_format_asked_for(executable, input_path, scheme_path, output_dir,
+                                          directory, probe, fmt)
+
+        return text
     finally:
         shutil.rmtree(directory, ignore_errors=True)
+
+
+def _fingerprint(output_dir):
+    """What a run produced, as sorted ``(path below the output directory, content digest)``.
+
+    Names alone would not do. A scheme is free to declare ``filename: app.conf`` for an INI
+    output, and the same declaration keeps that name when the format changes underneath it, so
+    two renders that differ in nothing but format can produce identical file names. The digest
+    is what notices.
+    """
+    prints = []
+
+    for base, dummy, names in os.walk(output_dir):
+        for name in names:
+            path = os.path.join(base, name)
+
+            with open(path, "rb") as handle:
+                prints.append((os.path.relpath(path, output_dir).replace(os.sep, "/"),
+                               hashlib.sha256(handle.read()).hexdigest()))
+
+    return sorted(prints)
+
+
+def _confirm_the_format_asked_for(executable, input_path, scheme_path, output_dir, directory,
+                                  probe, fmt):
+    """Refuse a render whose format is not the one the caller asked for.
+
+    The scheme already ran; this runs it again with ``probe`` appended, which by Section 15.2
+    is the same render with the caller's format forced to win. Identical results mean the format
+    was already the caller's and there is nothing to report. Different results mean a later
+    ``output`` declaration displaced the one the caller had in mind, and the document about to be
+    returned is in some other format -- an answer rather than an error, which is why nothing else
+    catches it.
+
+    A failure of the second run counts as a difference, not as an error to pass on. A redundant
+    declaration cannot break a render that already agreed with it, so the failure is evidence
+    about the format; but it describes a render nobody asked for, and surfacing its diagnostic
+    would send the reader to fix a scheme that is not the one they wrote.
+    """
+    probe_path = os.path.join(directory, "probe.scheme.txt")
+    probe_dir = os.path.join(directory, "probe-out")
+
+    _write(probe_path, probe)
+    os.mkdir(probe_dir)
+
+    try:
+        # The tool's own diagnostics are deliberately dropped: `_warn` already surfaced the ones
+        # belonging to the caller's render, and repeating them for a render invented here would
+        # double every warning the scheme legitimately raises.
+        n2x.run_tool(executable, ["-i", input_path, "-s", scheme_path, "-s", probe_path,
+                                  "-o", probe_dir])
+        asked_for = _fingerprint(probe_dir)
+    except _SharedError:
+        asked_for = None
+
+    if asked_for == _fingerprint(output_dir):
+        return
+
+    raise Namespace2XmlError(
+        "the scheme does not produce '%s' here. The filter rendered it a second time with "
+        "'%s' appended -- section 15.2 gives the last matching declaration precedence, so that "
+        "is the render that was asked for -- and the two did not match. A later 'output' "
+        "declaration is displacing the one meant to apply, and the document this would have "
+        "returned is in a different format. Make the last declaration that matches the "
+        "rendered subtree name '%s', or ask for the format that scheme really produces.%s"
+        % (fmt, probe.strip(), fmt, n2x.support_hint(executable)))
 
 
 def _warn(text):
