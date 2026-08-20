@@ -11,7 +11,7 @@
 # whose output the module compares wrongly would show up here as a second run reporting changed,
 # and nowhere else.
 #
-# Expectations are authored from docs/specification.md -- Section 3 for determinism, Section 11.7
+# Expectations are authored from docs/specification.md -- Section 24 for determinism, Section 11.7
 # for NormalizeFormattingWhitespace, Section 16.8 for unqualified input options, Section 16.10 for
 # the append high-water rule -- and not captured from a tool run.
 #
@@ -123,7 +123,7 @@
           tool_identity must carry both the version and the contract-bundle revision, separated
           by '|'. Got: {{ first.tool_identity }}
 
-    # The whole point of a module rather than a shell task. Section 3 makes the tool's output
+    # The whole point of a module rather than a shell task. Section 24 makes the tool's output
     # byte-identical for identical inputs, and the module turns that into idempotence by
     # comparing. A second run must be a no-op.
     - name: Render again from the same pristine template
@@ -239,6 +239,197 @@
         fail_msg: >-
           Expected a refusal naming the filter as the way to render nested data.
           Result: {{ structured.msg | default('the render succeeded') }}
+
+    # Section 8.3 gives a value a lexer. A value carrying a backslash is data, and if the module
+    # hands it over unescaped the tool reads '\t' as a tab -- so an operator writing a Windows
+    # path gets a configuration file containing control characters and no error at all. This is
+    # asserted against the real binary because that is the only thing that proves the encoding is
+    # the true inverse of the tool's decoder rather than merely self-consistent.
+    #
+    # The value is carried in a variable rather than written inline in the assertion. A Jinja
+    # string literal processes backslash escapes exactly as Python's does, so an inline
+    # 'C:\temp\new' in the `that:` expression would compare against a tab and a newline and pass
+    # for the wrong reason. An unadorned YAML scalar is never templated, so this one is literal.
+    - name: Name the awkward value once, literally
+      ansible.builtin.set_fact:
+        awkward: 'C:\temp\new ${JAVA_HOME} *'
+
+    - name: Render a value that is entirely made of section 8.3 syntax
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
+        variables:
+          configuration.root.@level: "{{ awkward }}"
+        dest: "{{ scratch.path }}/escaped"
+      register: escaping
+
+    - name: Read what the escaped value became
+      ansible.builtin.slurp:
+        src: "{{ scratch.path }}/escaped/logback.xml"
+      register: escaped_file
+
+    - name: The value survived the round trip exactly as it was written
+      ansible.builtin.assert:
+        that:
+          - escaping is changed
+          - awkward in (escaped_file.content | b64decode)
+        fail_msg: >-
+          The value was not delivered verbatim. Unescaped, '\t' becomes a tab and '${JAVA_HOME}'
+          becomes a section 8.4 reference that fails the render.
+          Got: {{ escaped_file.content | b64decode }}
+
+    # Section 21.1 requires publication through no-follow, handle-relative operations with
+    # symbolic-link containment. The attack is concrete: anyone who can write inside 'dest'
+    # replaces an output file with a link to a file they cannot write, and the next run under
+    # become writes through it for them. Only a real filesystem can prove this one.
+    - name: Create the directory the link will be planted in
+      ansible.builtin.file:
+        path: "{{ scratch.path }}/linked"
+        state: directory
+        mode: "0755"
+
+    - name: Write the file the link will point at
+      ansible.builtin.copy:
+        content: "do not overwrite me\n"
+        dest: "{{ scratch.path }}/offlimits"
+        mode: "0644"
+
+    - name: Plant a symbolic link where the next render will publish
+      ansible.builtin.file:
+        src: "{{ scratch.path }}/offlimits"
+        dest: "{{ scratch.path }}/linked/logback.xml"
+        state: link
+
+    - name: Render into the directory holding the planted link
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
+        dest: "{{ scratch.path }}/linked"
+      register: through_link
+
+    - name: Read the file the link pointed at
+      ansible.builtin.slurp:
+        src: "{{ scratch.path }}/offlimits"
+      register: offlimits
+
+    - name: Read what was published in the link's place
+      ansible.builtin.slurp:
+        src: "{{ scratch.path }}/linked/logback.xml"
+      register: published
+
+    - name: The link was replaced rather than followed
+      ansible.builtin.assert:
+        that:
+          - through_link is changed
+          - (offlimits.content | b64decode) == "do not overwrite me\n"
+          - "'<configuration' in (published.content | b64decode)"
+        fail_msg: >-
+          The render wrote through a symbolic link, which is the arbitrary-write primitive
+          section 21.1 exists to close.
+          The target now holds: {{ offlimits.content | b64decode }}
+
+    # Section 16's output directives name paths, not just filenames, so the first render into a
+    # tree that does not exist yet is the ordinary case rather than an edge one.
+    - name: Render into a destination whose subdirectories do not exist
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=nested/deeper/logback.xml
+          configuration.root=configuration
+        dest: "{{ scratch.path }}/tree"
+        mode: "0640"
+      register: nested
+
+    - name: Inspect the nested file
+      ansible.builtin.stat:
+        path: "{{ scratch.path }}/tree/nested/deeper/logback.xml"
+      register: nested_stat
+
+    - name: The tree was created and the requested mode applied
+      ansible.builtin.assert:
+        that:
+          - nested is changed
+          - nested_stat.stat.exists
+          - nested_stat.stat.mode == '0640'
+        fail_msg: >-
+          A nested output path was not published correctly.
+          Result: {{ nested_stat.stat | default('no such file') }}
+
+    # check_mode: full is a claim about every difference the task can converge, not only about
+    # content. A mode-only difference that reports 'ok' under --check and 'changed' on the real
+    # run is exactly the surprise --check exists to prevent.
+    - name: Preview a mode-only change
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=nested/deeper/logback.xml
+          configuration.root=configuration
+        dest: "{{ scratch.path }}/tree"
+        mode: "0600"
+      register: mode_preview
+      check_mode: true
+
+    - name: Inspect the file check mode was not allowed to touch
+      ansible.builtin.stat:
+        path: "{{ scratch.path }}/tree/nested/deeper/logback.xml"
+      register: mode_stat
+
+    - name: A mode-only difference is reported under check mode and not applied
+      ansible.builtin.assert:
+        that:
+          - mode_preview is changed
+          - mode_preview.changed_files == []
+          - mode_stat.stat.mode == '0640'
+        fail_msg: >-
+          check_mode: full promises the dry run agrees with the real one. Content was converged,
+          so changed_files must be empty, but the mode differed, so the task must still report
+          changed. Got changed={{ mode_preview.changed }}, mode={{ mode_stat.stat.mode }}.
+
+    # An existing non-directory output root is PATH001 under section 21.1, not something to
+    # replace. The operator's file has to survive, and the message has to say why.
+    - name: Attempt a render whose output root is an existing file
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
+        dest: "{{ scratch.path }}/offlimits"
+      register: root_is_file
+      ignore_errors: true
+
+    - name: Read the file that was named as an output root
+      ansible.builtin.slurp:
+        src: "{{ scratch.path }}/offlimits"
+      register: after_root
+
+    - name: A file named as an output root is refused, not replaced
+      ansible.builtin.assert:
+        that:
+          - root_is_file is failed
+          - "'21.1' in root_is_file.msg"
+          - (after_root.content | b64decode) == "do not overwrite me\n"
+        fail_msg: >-
+          Expected a refusal citing section 21.1.
+          Result: {{ root_is_file.msg | default('the render succeeded') }}
 
   always:
     - name: Remove the scratch directory

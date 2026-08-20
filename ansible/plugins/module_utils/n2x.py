@@ -1,17 +1,24 @@
 # Copyright (c) 2026 stop-cran
 # Apache License 2.0 (see LICENSE)
 
-"""Finding the namespace2xml binary, proving what it is, and running it.
+"""Finding the namespace2xml binary, proving what it is, running it, and encoding a value.
 
 This is the half of the collection that is the same wherever the work happens. The filter runs
-on the controller and the module runs on the target node, but both have to answer the same three
+on the controller and the module runs on the target node, but both have to answer the same
 questions before they can do anything useful: where is the binary, is it a build whose contract
-this collection actually documents, and what did it say when it ran.
+this collection actually documents, what did it say when it ran, and how is a value written so
+the tool reads it as data.
 
-Keeping one answer to each is not tidiness. The refusal below -- that a binary without a
-``contract-bundle`` is a pre-3.0 build and must not be rendered through -- is the single
-load-bearing safety property of this collection, and a second copy of it is a copy that can
-drift out of agreement with the first while both still pass their own tests.
+The node-side plugins import this module. The controller-side filter, for now, does not: it is
+a single self-contained file loaded by ansible-core's filter machinery under a different Python,
+and it carries its own copies of the same answers. That duplication is deliberate and temporary
+-- see issue #107 -- and it is not left to good intentions: a unit test compares the two
+encoders over an adversarial corpus and fails the build if they ever stop agreeing.
+
+Keeping one answer to each of these is not tidiness. The refusal below -- that a binary without
+a ``contract-bundle`` is a pre-3.0 build and must not be rendered through -- is the single
+load-bearing safety property of this collection, and a copy of it is a copy that can drift out
+of agreement with the original while both still pass their own tests.
 """
 
 from __future__ import annotations
@@ -22,6 +29,7 @@ import subprocess
 
 __all__ = [
     "Namespace2XmlError",
+    "encode_value",
     "resolve",
     "tool_identity",
     "support_hint",
@@ -41,6 +49,56 @@ class Namespace2XmlError(Exception):
 
 
 _IDENTITY_CACHE: dict = {}
+
+_VALUE_CONTAINER_SENTINELS = {"{}": "\\{}", "[]": "\\[]"}
+
+
+def encode_value(text):
+    """Encode a scalar as a section 8.3 interpreted value.
+
+    A namespace-profile value is not literal text. Section 8.3 gives it a lexer -- ``\\\\``
+    emits a backslash, ``\\n`` a line feed, ``\\t`` a tab, ``\\*`` a literal asterisk, ``\\${``
+    a literal reference opener -- and section 8.4 makes every unescaped ``${`` the start of a
+    reference that must resolve, on pain of a blocking ``REFERENCE001``/``REFERENCE002``.
+
+    So a value that arrives as data has to be encoded through the inverse of that lexer before
+    it is handed over. Without this, an operator writing the Windows path ``C:\\temp\\new`` gets
+    ``C:`` followed by a tab and a line feed, and one writing ``${JAVA_HOME}/bin`` -- meaning
+    the literal text, for some other program to resolve later -- gets a failed task.
+
+    One pass, because escaping in stages re-escapes what an earlier stage produced. A value that
+    is exactly ``{}`` or ``[]`` is escaped whole: unescaped, those two are the empty-container
+    sentinels rather than strings.
+    """
+    if text in _VALUE_CONTAINER_SENTINELS:
+        return _VALUE_CONTAINER_SENTINELS[text]
+
+    out = []
+    index = 0
+    length = len(text)
+
+    while index < length:
+        char = text[index]
+
+        if char == "\\":
+            out.append("\\\\")
+        elif char == "*":
+            out.append("\\*")
+        elif char == "$" and index + 1 < length and text[index + 1] == "{":
+            out.append("\\${")
+            index += 1
+        elif char == "\n":
+            out.append("\\n")
+        elif char == "\r":
+            out.append("\\r")
+        elif char == "\t":
+            out.append("\\t")
+        else:
+            out.append(char)
+
+        index += 1
+
+    return "".join(out)
 
 
 def _executable_names():

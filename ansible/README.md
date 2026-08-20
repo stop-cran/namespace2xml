@@ -214,9 +214,15 @@ ansible-doc -t module stop_cran.namespace2xml.render
 
 The module renders into a scratch directory and compares every produced file against `dest`
 **byte for byte**, writing only the ones that differ. That is exact rather than heuristic because
-[§3](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md) makes the
+[§24](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md) makes the
 tool's output deterministic for identical inputs. `check_mode` and `--diff` fall out of the same
 comparison, so a dry run reports precisely what a real run would do.
+
+Publication follows [§21.1](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md):
+each file is written through a handle-relative, no-follow open and renamed into place, so a
+symbolic link planted under `dest` is replaced rather than followed, and a write is never seen
+half-finished. The module therefore targets POSIX nodes, and refuses to publish on a platform
+that cannot provide those primitives rather than writing without containment.
 
 Files already under `dest` that a render does not produce are left alone. The module never
 deletes.

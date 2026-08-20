@@ -93,6 +93,60 @@ jobs:
           python -m pip install --quiet --disable-pip-version-check pytest
           python -m pytest ansible/tests/unit -q
 
+      # Sanity and integration are repeated here rather than trusted from the pull-request
+      # workflow. That workflow runs on pull requests and on master/v3; a tag can name any
+      # commit, including one that never met either trigger. A Galaxy version is permanent, so
+      # the gates have to run on the bytes being published rather than on a commit that
+      # resembles them. This is the same reasoning that repeats the tarball-contents assertion.
+      - name: Stage the collection for ansible-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/ansible_collections/${namespace}/${name}"
+          mkdir -p "$(dirname "$dest")"
+          cp -a ansible "$dest"
+          plugins=$(find "$dest/plugins" -name '*.py' | wc -l)
+          if [ "$plugins" -lt 1 ]; then
+            echo "::error::the staged collection has no plugins; these gates would prove nothing"
+            exit 1
+          fi
+          test -f "$dest/tests/integration/targets/render/tasks/main.yml"
+          test -f "$dest/tests/integration/targets/render_module/tasks/main.yml"
+          echo "STAGED=$dest" >> "$GITHUB_ENV"
+
+      - name: ansible-test sanity must pass on the code being released
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STAGED"
+          ansible-test sanity --venv --python 3.13 --color -v
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # The module publishes files on a node. Releasing it without ever having run it against
+      # the real binary is releasing an untested writer, and the module is the half of this
+      # collection that can damage something.
+      - name: Pack and install the transformer as a global tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          toolversion=$(python -c "import xml.etree.ElementTree as ET; print(ET.parse('Directory.Build.props').findtext('.//Version').strip())")
+          pack="$RUNNER_TEMP/pack"
+          dotnet pack src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj -c Release -o "$pack"
+          dotnet tool install --global --source "$pack" --version "$toolversion" namespace2xml
+          "$HOME/.dotnet/tools/namespace2xml" --version
+
+      - name: The integration suite must pass against the real binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.dotnet/tools:$PATH"
+          command -v namespace2xml
+          cd "$STAGED"
+          ansible-test integration --local --python 3.13 --color -v render render_module
+
       - name: Build the collection
         shell: bash
         run: |

@@ -19,7 +19,7 @@ description:
     the deployed application, and the filter when the inputs are play variables.
   - Idempotence is decided by comparison, not estimated. The render goes to a scratch directory
     and every produced file is compared byte for byte against the destination; only files that
-    actually differ are written. Section 3 of the specification makes the tool's output
+    actually differ are written. Section 24 of the specification makes the tool's output
     deterministic, which is what makes that comparison exact rather than a heuristic.
   - The module refuses a render whose output would overwrite one of its own C(src) files. See
     the C(src) option for why that is a refusal rather than a warning.
@@ -84,10 +84,11 @@ options:
     description:
       - Path to the C(namespace2xml) binary on the managed node, or a bare name to resolve on
         C(PATH).
-      - When omitted the module searches C(PATH), then C($NAMESPACE2XML), then the dotnet
-        global tools directory. That last step matters more here than on the controller,
-        because a module runs in a non-interactive shell that never sourced the profile
-        C(dotnet tool install) asked the operator to re-source.
+      - When omitted the module searches C($NAMESPACE2XML), then C(PATH), then the dotnet
+        global tools directory. The environment variable comes first so an operator can pin a
+        specific build without editing the play; the dotnet directory comes last and matters
+        more here than on the controller, because a module runs in a non-interactive shell
+        that never sourced the profile C(dotnet tool install) asked the operator to re-source.
       - A binary whose C(--version) declares no C(contract-bundle) is refused. That is the
         signal for a pre-3.0 build, which accepts these very arguments and would render
         silently under the older contract instead of failing.
@@ -209,8 +210,11 @@ files:
   sample: ["/etc/app/generated/logback.xml"]
 changed_files:
   description:
-    - The subset of I(files) whose content differed from what was already on the node, and
-      which were therefore written. Empty on a converged run.
+    - The subset of I(files) whose content differed from what was already on the node. Those
+      files were written, except under C(check_mode), where they are the files that would have
+      been written. Empty on a converged run.
+    - A file appears here only for a content difference. A file whose mode or ownership changed
+      is reported through the task's C(changed) status, not through this list.
   returned: success
   type: list
   elements: str
@@ -277,9 +281,6 @@ def main():
 
             schemes.append(inline)
 
-        if not module.check_mode and not os.path.isdir(dest):
-            os.makedirs(dest)
-
         result = render(
             src=module.params["src"],
             schemes=schemes,
@@ -288,25 +289,38 @@ def main():
             variables=module.params["variables"],
             tool=module.params["tool"],
             check_mode=module.check_mode,
+            diff_mode=module._diff,
+            unsafe_writes=module.params["unsafe_writes"],
         )
     except Namespace2XmlError as error:
         module.fail_json(msg=str(error))
+    except OSError as error:
+        # A bare OSError would reach the operator as a Python traceback with no indication of
+        # which file it was about. It can also arrive after some files have already been
+        # published, so the message says that rather than leaving the node's state a guess.
+        module.fail_json(
+            msg="failed while publishing under '%s': %s. Some files may already have been "
+                "written; re-run the task to converge the rest." % (dest, error))
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 
     if result["diagnostics"]:
         module.warn(result["diagnostics"])
 
-    if not module.check_mode:
-        # Every produced file, not only the ones whose content differed. A file whose content
-        # is already converged can still have the wrong mode or owner, and leaving it that way
-        # would make the task's idempotence depend on which run first created the file.
-        file_args = module.load_file_common_arguments(module.params)
+    # Every produced file, not only the ones whose content differed. A file whose content is
+    # already converged can still have the wrong mode or owner, and leaving it that way would
+    # make the task's idempotence depend on which run first created the file.
+    #
+    # This runs in check mode too. Skipping it there is what makes a mode-only difference
+    # report changed=false under --check and changed=true on the real run, which contradicts
+    # the check_mode: full claim above. Ansible's own setters are check-mode aware: they
+    # compare and report without touching the file, and they tolerate a path that does not
+    # exist yet -- which is every file of a first render.
+    file_args = module.load_file_common_arguments(module.params)
 
-        for path in result["files"]:
-            file_args["path"] = path
-            result["changed"] = module.set_fs_attributes_if_different(
-                file_args, result["changed"])
+    for path in result["files"]:
+        file_args["path"] = path
+        result["changed"] = module.set_fs_attributes_if_different(file_args, result["changed"])
 
     module.exit_json(**result)
 
