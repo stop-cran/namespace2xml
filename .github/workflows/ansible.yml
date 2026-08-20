@@ -311,6 +311,13 @@ jobs:
       # qualified name and render its documentation. Grepping for an option name rather than merely
       # checking the exit code, because ansible-doc has historically been willing to print an empty
       # skeleton for a plugin whose docstring it could not parse.
+      #
+      # The search is a here-string rather than `printf ... | grep -q` because that pipeline is a
+      # race, not a test. `grep -q` exits at the first match, so once the document outgrows the
+      # 64 KiB pipe buffer printf is still writing when the reader goes away, takes EPIPE, and
+      # `pipefail` reports the whole pipeline as failed -- turning a match into a failure. It went
+      # unnoticed while ansible-doc's output stayed small and first bit on the 2.21 leg, whose
+      # module page is the longest. A here-string has no reader to lose.
       - name: ansible-doc reads both plugins' documentation
         shell: bash
         env:
@@ -319,8 +326,8 @@ jobs:
           set -euo pipefail
           doc=$(ansible-doc -t filter stop_cran.namespace2xml.render)
           printf '%s\n' "$doc"
-          for expected in memoize selector delimiter workdir; do
-            if ! printf '%s' "$doc" | grep -q "$expected"; then
+          for expected in memoize selector delimiter workdir scheme_yaml convention; do
+            if ! grep -qF -- "$expected" <<<"$doc"; then
               echo "ansible-doc output does not mention the filter's '$expected' option." >&2
               exit 1
             fi
@@ -328,8 +335,8 @@ jobs:
 
           doc=$(ansible-doc -t module stop_cran.namespace2xml.render)
           printf '%s\n' "$doc"
-          for expected in scheme_text variables dest src; do
-            if ! printf '%s' "$doc" | grep -q "$expected"; then
+          for expected in scheme_text scheme_yaml variables dest src; do
+            if ! grep -qF -- "$expected" <<<"$doc"; then
               echo "ansible-doc output does not mention the module's '$expected' option." >&2
               exit 1
             fi
