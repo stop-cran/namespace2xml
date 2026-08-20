@@ -201,6 +201,50 @@ public sealed class SecureDirectoryTests
             .ShouldBe((0x100000, 0x100));
     }
 
+    /// <summary>
+    /// Every architecture the runtime can report has had its flags checked against that
+    /// architecture's kernel header.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The table above is keyed by an enum the runtime owns, not one this repository controls, so
+    /// a future .NET can add a member that falls into the asm-generic branch by default and takes
+    /// no test with it. That silent default is exactly how the arm64 defect shipped. Most new
+    /// Linux architectures do take asm-generic -- riscv64 and loongarch64 both did -- but arm,
+    /// arm64 and powerpc did not, and guessing wrong means that processor publishes nothing at
+    /// all. This fails when the enum grows, so the value is chosen by someone who read that
+    /// architecture's <c>uapi/asm/fcntl.h</c> rather than inherited by whoever bumped the SDK.
+    /// </para>
+    /// <para>
+    /// <see cref="Architecture.Wasm"/> is listed as considered but carries no flag expectation: a
+    /// WebAssembly host is not Windows, Linux or macOS, so
+    /// <see cref="SecureRootFactory.SupportsSecureContainment"/> refuses it before any POSIX open.
+    /// </para>
+    /// </remarks>
+    [Test]
+    public void EveryArchitectureTheRuntimeKnowsHasBeenChecked()
+    {
+        var considered = new[]
+        {
+            Architecture.X86,
+            Architecture.X64,
+            Architecture.S390x,
+            Architecture.LoongArch64,
+            Architecture.RiscV64,
+            Architecture.Arm,
+            Architecture.Armv6,
+            Architecture.Arm64,
+            Architecture.Ppc64le,
+            Architecture.Wasm,
+        };
+
+        Enum.GetValues<Architecture>()
+            .Except(considered)
+            .ShouldBeEmpty(
+                "a new Architecture must have its O_DIRECTORY and O_NOFOLLOW read from that "
+                + "architecture's uapi/asm/fcntl.h before Section 21.1 can trust the default.");
+    }
+
     private static string NewScratchDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), $"n2x-secure-{Guid.NewGuid():N}");

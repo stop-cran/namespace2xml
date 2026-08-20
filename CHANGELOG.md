@@ -137,7 +137,11 @@ independently.
   `publication-invariants` now runs on `ubuntu-24.04-arm` too, where the existing
   `SecureDirectoryTests` fail outright without the fix, and the per-architecture mapping is a pure
   function gated over the nine architectures .NET names for Linux, proven red against the values it
-  replaces.
+  replaces. Each expectation is the kernel header's, read per architecture rather than captured
+  from a host: x86, s390x, riscv64 and loongarch64 define no `fcntl.h` of their own and inherit
+  the generic values. A further test fails when the runtime's `Architecture` enum grows, so a
+  processor added by a future SDK cannot inherit the generic numbers without someone checking
+  them.
 
 - **YAML output no longer under-quotes by the difference between this tool's reader and its
   readers'.** Found in session by an exploratory round against independent parsers, with no inbound
