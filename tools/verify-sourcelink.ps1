@@ -58,6 +58,24 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Resolve the curl *executable*, not whatever "curl" happens to name. On Windows PowerShell "curl"
+# is an alias for Invoke-WebRequest, which is why the call sites used to say "curl.exe" outright;
+# on Linux and macOS there is no such file and the release job died before it fetched anything.
+# -CommandType Application skips aliases and functions, so asking for both names in order is safe
+# on every host: Windows finds curl.exe, everything else falls through to curl.
+function Resolve-CurlExecutable {
+    foreach ($name in @('curl.exe', 'curl')) {
+        $found = Get-Command -Name $name -CommandType Application -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($found) { return $found.Source }
+    }
+
+    throw 'curl was not found on PATH. This script needs it to fetch source documents and to read ' +
+          'the HTTP status of each fetch without treating a 404 as a failure to answer.'
+}
+
+$curl = Resolve-CurlExecutable
+
 # Portable PDB custom debug information kinds, from the portable PDB specification.
 $sourceLinkKind = [Guid] 'CC110556-A091-4D38-9FEC-25AB9A351A6A'
 $embeddedKind = [Guid] '0E8A571B-6926-466E-B4AD-8AB04611F5FE'
@@ -89,7 +107,7 @@ function Get-Document {
 
     $status = '000'
     for ($attempt = 1; $attempt -le 5; $attempt++) {
-        $status = curl.exe -sS @authorization -o $Path -w '%{http_code}' $Url
+        $status = & $curl -sS @authorization -o $Path -w '%{http_code}' $Url
         if ($transient -notcontains $status) { return $status }
         Start-Sleep -Seconds ([Math]::Pow(2, $attempt))
     }
@@ -107,7 +125,7 @@ try {
         $url = "$SymbolSource/$PackageId.$Version.snupkg"
         $archive = Join-Path $work 'symbols.zip'
         Write-Host "Downloading $url"
-        curl.exe -sS --fail -o $archive $url
+        & $curl -sS --fail -o $archive $url
         if ($LASTEXITCODE -ne 0) { throw "Could not download the symbol package for $PackageId $Version." }
     }
 

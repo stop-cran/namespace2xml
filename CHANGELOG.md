@@ -41,6 +41,12 @@ independently.
   This discharges the M9 requirement that symbols and SourceLink be *verified* end to end rather
   than assumed. [#36](https://github.com/stop-cran/namespace2xml/issues/36).
 
+  The check runs on every push, on Linux and on Windows, not only at release. That is not
+  belt-and-braces: it first ran on Linux *at* release and died on `curl.exe`, a filename that exists
+  only on Windows, because its one measurement had been taken by hand on a Windows machine. The gate
+  fired before anything was pushed to nuget.org, which is exactly where it was designed to fail — but
+  a release gate that only ever runs at release is one no push can keep honest.
+
 - **The INI dialect now names a parser it is verified against.** `docs/format-ini.md` previously
   answered §19.6's compatibility question with "it names none", which the section permits. Measuring
   the dialect against Python's `configparser` showed that answer was costing more than it saved:

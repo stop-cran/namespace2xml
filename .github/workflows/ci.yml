@@ -111,6 +111,39 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File tools/verify-tool-install.ps1
 
+  # The release workflow proves the published symbols can actually reach their source. That check
+  # lived only there, so no per-push job ever ran it -- and the first time it executed on Linux it
+  # died on `curl.exe`, a filename that exists only on Windows, with the tag already cut. The
+  # argument the tool-install job makes above applies here unchanged: an assertion the release
+  # depends on should fail on a push, where the fix is a commit, rather than at tag time, where
+  # the only remaining move is a retag.
+  #
+  # Pull requests are excluded rather than weakened. Checkout builds a merge commit that was never
+  # pushed, so every SourceLink URL would answer 404 and this job would accuse a package that is
+  # perfectly good -- the same reasoning that makes the script retry a 429 instead of reporting it.
+  sourcelink:
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Pack with symbols
+        run: dotnet pack src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj -c Release -o artifacts
+      - name: The symbols must reach their source, not merely exist
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $package = Get-ChildItem artifacts -Filter '*.snupkg' | Select-Object -First 1
+          if (-not $package) { throw 'dotnet pack produced no symbol package.' }
+          pwsh -NoProfile -File tools/verify-sourcelink.ps1 -SymbolPackage $package.FullName
+
   # Section 24 requires byte-identical output for identical inputs. A tool that only claims
   # determinism is not determinate; this job measures it.
   determinism:
