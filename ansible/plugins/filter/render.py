@@ -41,6 +41,36 @@ options:
       - ini
       - namespace
       - quotednamespace
+  convention:
+    description:
+      - How a mapping key in O(_input) is read.
+      - V(escaped), the default, reads a key as data. Every section 8.2 and 11.4 marker in it is
+        escaped, so any key at all round-trips as the name it spells and no key can address an
+        attribute, a namespace or a content node.
+      - V(xmltodict) reads the four markers section 11.4 defines, in the spelling the ecosystem
+        already uses for XML-shaped mappings - C(xmltodict), C(community.general.to_xml) and the
+        badgerfish style all write attributes this way. C(@x) is an attribute, C(Q{uri}x) is an
+        element in a namespace, C(@Q{uri}x) is a namespaced attribute, C(#0) and C(#1) are
+        content nodes, and C(#text) is an element's own text.
+      - Escaping is not lost under V(xmltodict), only moved. A name part that really does begin
+        with C(@), C(#) or C(Q) is written with a backslash before it - C(\@x) is the one name
+        part C(@x). A leading backslash escapes itself the same way, so C(\\@x) is the name
+        C(\@x) and nothing has become unwritable. This is the same move O(scheme_yaml) makes for
+        a literal dot, and the same one section 8 makes for C(*).
+      - Under V(xmltodict), C(#text) is refused beside child-element or content keys. Section
+        11.4 puts an element's own text at the element's path only while it has no child
+        elements; once it has any, the element is mixed and every content node takes an ordered
+        part. A mapping does not record where the text stood, so write C(#0) and C(#1)
+        explicitly for mixed content.
+      - The dots inside C(Q{...}) belong to the URI and need no escaping, matching O(scheme_yaml).
+        A literal C(}) or backslash inside the URI is written C(\}) or C(\\), as section 11.4
+        spells it.
+    type: str
+    default: escaped
+    choices:
+      - escaped
+      - xmltodict
+    version_added: 2.2.0
   root:
     description:
       - The section 16.3 root, which names the XML document element.
@@ -234,6 +264,20 @@ EXAMPLES = r"""
       cfg.output=ini
       cfg.*.version.type=string
 
+- name: Render an XML-shaped mapping, with attributes and a namespace
+  ansible.builtin.copy:
+    content: "{{ doc | stop_cran.namespace2xml.render('xml', root='beans', convention='xmltodict') }}"
+    dest: /opt/app/beans.xml
+    mode: "0644"
+  vars:
+    doc:
+      bean:
+        '@id': dataSource
+        '@class': com.example.Pool
+        'Q{urn:example.com/spring}property':
+          '@name': url
+          '#text': jdbc:postgresql://db/app
+
 - name: Render with a tool built somewhere the default search would not find
   ansible.builtin.debug:
     msg: "{{ data | stop_cran.namespace2xml.render('yaml', tool='/opt/n2x/namespace2xml') }}"
@@ -265,13 +309,29 @@ from ..module_utils.n2x import (
     encode_value,
 )
 
-__all__ = ["render", "flatten", "encode_name_part", "encode_value", "encode_scheme_mapping"]
+__all__ = ["render", "flatten", "encode_name_part", "encode_xml_name_part", "encode_value",
+           "encode_scheme_mapping"]
 
 DEFAULT_SELECTOR = "cfg"
 
 # Section 16.1. A filter plugin's `choices:` documentation is not enforced at runtime, so this
 # list is the only thing standing between a mistyped format and a scheme directive built from it.
 FORMATS = ("xml", "json", "yaml", "ini", "namespace", "quotednamespace")
+
+CONVENTIONS = ("escaped", "xmltodict")
+DEFAULT_CONVENTION = "escaped"
+
+_XMLTODICT = "xmltodict"
+_XML_TEXT_KEY = "#text"
+
+# A leading backslash is consumed before any of these. The three markers are section 11.4's;
+# the backslash is itself, which is what keeps the encoding total -- without it a key that
+# genuinely starts with a backslash and a marker would have no spelling, and the objection
+# raised against this whole approach in issue #103 was that it trades one class of
+# unrepresentable data for another.
+_XML_ESCAPABLE = frozenset("@#Q\\")
+
+_DIGITS = frozenset("0123456789")
 
 _NAME_SHORT_ESCAPES = frozenset(".*=#!$@}")
 _FORCED_HEX = frozenset("\u0085\u2028\u2029")
@@ -350,6 +410,206 @@ def encode_name_part(part):
     return "".join(out)
 
 
+def _qname_span(name):
+    """Index just past the ``}`` that closes a leading ``Q{``, or ``None`` if nothing closes it.
+
+    Section 11.4: "the first unescaped ``}`` closes the URI; a literal ``}`` inside the URI is
+    written as ``\\}``". A backslash inside the URI therefore consumes the character after it,
+    which is what stops ``Q{a\\}b}c`` from ending at the brace the author escaped.
+    """
+    if not name.startswith("Q{"):
+        return None
+
+    index = 2
+
+    while index < len(name):
+        if name[index] == "\\":
+            index += 2
+        elif name[index] == "}":
+            return index + 1
+        else:
+            index += 1
+
+    return None
+
+
+def _checked_uri(uri, part):
+    """Return a namespace URI unchanged, refusing an escape section 11.4 does not define.
+
+    The URI is passed through rather than escaped. Inside ``Q{...}`` section 11.4 suspends
+    ordinary name escaping and defines exactly two sequences -- ``\\}`` for a literal closing
+    brace and ``\\\\`` for a literal backslash -- so the text between the braces is already in
+    the tool's own spelling and re-escaping it would change the URI rather than preserve it.
+    That also means the two characters that would otherwise be unwritable stay writable.
+
+    The cost of passing through is that a stray backslash reaches the tool, where section 11.4
+    makes it "a blocking parse error". Checking here turns that into a message naming the key,
+    which the tool cannot do: it sees a synthesized profile in a temporary directory and reports
+    a path the caller never wrote.
+    """
+    index = 0
+
+    while index < len(uri):
+        if uri[index] != "\\":
+            index += 1
+            continue
+
+        following = uri[index + 1] if index + 1 < len(uri) else ""
+
+        if following not in ("}", "\\"):
+            raise Namespace2XmlError(
+                "The key '%s' has a backslash inside its 'Q{...}' namespace URI that starts no "
+                "escape section 11.4 defines. Only '\\}' for a literal closing brace and '\\\\' "
+                "for a literal backslash are escapes there; anything else is a blocking parse "
+                "error. Write '\\\\' if a single backslash is part of the URI." % part)
+
+        index += 2
+
+    return uri
+
+
+def _encode_qualified(name, part):
+    """Encode a possibly namespace-qualified XML name -- ``Q{uri}local``, or a bare local name.
+
+    Section 11.4 spells a namespace-qualified name ``Q{namespace-uri}local-name`` and gives the
+    two halves different rules: the URI is one atomic lexer context where "delimiter, wildcard,
+    reference, and ordinary name-escape recognition is suspended", while "the following local
+    name uses ordinary name escaping". Encoding both alike would corrupt one of them -- escaping
+    the dots in ``urn:example.com`` breaks the URI, and leaving a dot unescaped in the local
+    name splits one name into two.
+    """
+    if not name.startswith("Q{"):
+        return encode_name_part(name)
+
+    span = _qname_span(name)
+
+    if span is None:
+        raise Namespace2XmlError(
+            "The key '%s' opens a 'Q{' namespace marker and never closes it. Section 11.4 ends "
+            "the URI at the first unescaped '}', and section 8 makes marker recognition "
+            "committing, so the tool refuses this with PARSE001 rather than reading it as an "
+            "ordinary name. Close the brace, or write '\\%s' if a name that merely begins with "
+            "'Q' is what you meant." % (part, part))
+
+    return ("Q{" + _checked_uri(name[2:span - 1], part) + "}"
+            + encode_name_part(name[span:]))
+
+
+def _canonical_index(text):
+    """Whether ``text`` is a decimal integer written the one way section 8.7 counts as canonical."""
+    if not text or not all(char in _DIGITS for char in text):
+        return False
+
+    return text == "0" or text[0] != "0"
+
+
+def encode_xml_name_part(part):
+    """Encode one mapping key under the ``xmltodict`` convention, where XML markers are live.
+
+    The default encoding is total: section 11.4's three markers are escaped in every position,
+    so any key reads back as itself and none of them can address anything. That is the right
+    default and it is also why an attribute, a namespaced element and a content token are
+    unreachable from a plain mapping -- issue #103. This encoding trades totality for reach in
+    the way the ecosystem already spells it, so a mapping written for ``xmltodict``, for
+    ``community.general.to_xml`` or by hand in the badgerfish style means here what it means
+    there.
+
+    Four keys are read rather than escaped, each mapping to a section 11.4 canonical spelling:
+
+    - ``@x`` and ``@Q{uri}x`` are attributes, "an attribute is prefixed with ``@``";
+    - ``Q{uri}x`` is an element in a namespace;
+    - ``#0``, ``#1`` and so on are content tokens, "every content node uses an ordered part";
+    - ``#text`` is the element's own text, which :func:`_walk` resolves because section 11.4
+      places that scalar at the *element* path rather than at a part of its own.
+
+    Totality is not lost, only moved: a key whose name really does start with one of the three
+    markers is written with a backslash before it, ``\\@x``, exactly as section 8 spells a
+    literal in the namespace form and as ``scheme_yaml`` already spells a literal dot. A leading
+    backslash escapes itself the same way, ``\\\\@x`` for the name ``\\@x``, so every key still
+    has exactly one spelling and nothing has become unwritable. A scheme key and an input key
+    have been two different languages since ``*`` -- a wildcard in one, an escaped literal in
+    the other -- and this follows that line.
+
+    A ``#`` key that is neither ``#text`` nor a canonical index is refused rather than escaped.
+    Escaping it would be the silent wrong answer this convention exists to remove: the author
+    wrote a marker, and a name part is not what they meant.
+    """
+    if part == "":
+        raise Namespace2XmlError("an empty name part is a parse error (section 8.2)")
+
+    if len(part) > 1 and part[0] == "\\" and part[1] in _XML_ESCAPABLE:
+        return encode_name_part(part[1:])
+
+    if part.startswith("@"):
+        if part == "@":
+            raise Namespace2XmlError(
+                "The key '@' names an attribute with no name. Section 11.4 spells an attribute "
+                "'@x', so write the attribute's name after the '@', or '\\@' for a name part "
+                "that is a single literal at-sign.")
+
+        return "@" + _encode_qualified(part[1:], part)
+
+    if part.startswith("Q{"):
+        return _encode_qualified(part, part)
+
+    if part.startswith("#"):
+        if _canonical_index(part[1:]):
+            return part
+
+        raise Namespace2XmlError(
+            "The key '%s' starts with '#', which section 11.4 reserves for content. A content "
+            "token is '#' and a canonical index -- '#0', '#1' -- and '#text' is an element's "
+            "own text. Neither fits '%s'. Write '\\%s' for a name part that literally starts "
+            "with '#'." % (part, part, part))
+
+    return encode_name_part(part)
+
+
+def _competes_with_text(key):
+    """Whether a sibling key occupies a position among its element's content.
+
+    Section 11.4 gives every content node of a mixed element an ordered part, so text standing
+    beside child elements needs to say *where* it stands. Attributes do not compete: they are
+    not content, and section 11.4 has attribute and child-element names never colliding.
+    """
+    if len(key) > 1 and key[0] == "\\" and key[1] in _XML_ESCAPABLE:
+        return True
+
+    return not key.startswith("@")
+
+
+def _reject_positionless_text(node, name):
+    """Refuse ``#text`` beside content, where section 11.4 needs a position the mapping lacks.
+
+    ``#text`` works because of a rule with a precondition: section 11.4 exposes a run of text as
+    the scalar at the element path only for "an element with no child elements and exactly one
+    non-comment text or CDATA node", and says outright that such a run "is not addressable as
+    ``#n``". Where the element also has child elements it is mixed, "every content node uses its
+    ``#n`` wrapper", and the scalar moves off the element path.
+
+    A mapping cannot say which ``#n``. It carries one ``#text`` for what may have been several
+    runs, and its key order records the order the author typed rather than the order the text
+    and the elements stood in. Choosing an index would be inventing a document, and the wrong
+    guess is not loud -- it renders, exits 0, and puts the text on the wrong side of a child.
+    So this refuses and names the spelling that does carry the position.
+    """
+    competing = sorted(str(key) for key in node
+                       if str(key) != _XML_TEXT_KEY and _competes_with_text(str(key)))
+
+    if not competing:
+        return
+
+    raise Namespace2XmlError(
+        "'%s' has '#text' beside %s, which makes it mixed content, and mixed content needs to "
+        "say where the text stands. Section 11.4 gives an element's own text the element's path "
+        "only when it has no child elements; once it does, every content node takes an ordered "
+        "part and the text is one of them. A mapping does not record that order, so guessing "
+        "one would render successfully with the text on the wrong side of a child. Write the "
+        "content tokens instead -- '#0' for the text, '#1' for what follows it -- or move the "
+        "text into its own element."
+        % (name, ", ".join("'" + key + "'" for key in competing)))
+
+
 def encode_scalar(value):
     """Encode a leaf as namespace value text.
 
@@ -377,28 +637,70 @@ def encode_scalar(value):
     return encode_value(value if isinstance(value, str) else str(value))
 
 
-def flatten(config, selector=DEFAULT_SELECTOR):
+def flatten(config, selector=DEFAULT_SELECTOR, convention=DEFAULT_CONVENTION):
     """Flatten a dictionary into a namespace profile rooted at ``selector``.
 
     An empty mapping or sequence becomes the section 8.3 sentinel rather than disappearing,
     which is the difference between an emitted ``<empty />`` and no element at all.
+
+    ``convention`` chooses how a mapping key is read. Under ``escaped``, the default, a key is
+    data and every section 11.4 marker in it is escaped, so the profile says exactly what the
+    mapping said. Under ``xmltodict`` the markers are live -- see :func:`encode_xml_name_part`.
+    ``selector`` is escaped as an ordinary name part either way: it is an argument naming where
+    the data hangs, not data, and it has to match the selector the scheme declares.
     """
+    _check_convention(convention)
+
     records = []
-    _walk(config, [encode_name_part(selector)], records)
+    _walk(config, [encode_name_part(selector)], records, convention)
 
     return "".join(record + "\n" for record in records)
 
 
-def _walk(node, path, records):
+def _check_convention(convention):
+    if convention in CONVENTIONS:
+        return
+
+    raise Namespace2XmlError(
+        "'%s' is not a key convention this filter knows. Use %s. The list is closed on purpose: "
+        "a convention decides whether '@id' is an attribute or a name part, so an unrecognized "
+        "one has to fail rather than fall back to a default and render something the caller did "
+        "not ask for."
+        % (convention, " or ".join("'" + name + "'" for name in CONVENTIONS)))
+
+
+def _walk(node, path, records, convention=DEFAULT_CONVENTION):
     name = ".".join(path)
+    encode = encode_xml_name_part if convention == _XMLTODICT else encode_name_part
 
     if isinstance(node, dict):
         if not node:
             records.append(name + "={}")
             return
 
+        text_keys = ([key for key in node if str(key) == _XML_TEXT_KEY]
+                     if convention == _XMLTODICT else [])
+
+        if text_keys:
+            _reject_positionless_text(node, name)
+
         for key, value in node.items():
-            _walk(value, path + [encode_name_part(str(key))], records)
+            if key in text_keys:
+                # Section 11.4 puts an only-child text run at the element's own path, where it
+                # "is not addressable as #n", so this emits the parent's record rather than
+                # descending. The refusal above has already established there is no child to
+                # order it against.
+                if isinstance(value, (dict, list, tuple)):
+                    raise Namespace2XmlError(
+                        "'%s' gives '#text' a %s. Section 11.4 makes an element's own text one "
+                        "run of characters standing at the element's path, so it holds a scalar "
+                        "-- there is no path left underneath it for members to hang from."
+                        % (name, "mapping" if isinstance(value, dict) else "sequence"))
+
+                records.append(name + "=" + encode_scalar(value))
+                continue
+
+            _walk(value, path + [encode(str(key))], records, convention)
 
         return
 
@@ -411,7 +713,7 @@ def _walk(node, path, records):
             # Section 8.7: a canonical decimal integer part makes the parent a sequence.
             # str(int) has no leading zero, and a leading zero would disable inference for the
             # whole parent.
-            _walk(value, path + [str(index)], records)
+            _walk(value, path + [str(index)], records, convention)
 
         return
 
@@ -650,6 +952,7 @@ def render(
     tool=None,
     memoize=True,
     workdir=None,
+    convention=DEFAULT_CONVENTION,
 ):
     """Render a dictionary as configuration text in ``fmt``.
 
@@ -669,6 +972,10 @@ def render(
     :param memoize: reuse a previous identical render. The key is the whole marshalled input
         plus the tool's contract identity, so it cannot survive a tool or contract change.
     :param workdir: parent directory for the temporary marshalling directory.
+    :param convention: how a mapping key is read -- ``escaped``, the default, where every
+        section 11.4 marker in a key is escaped and the key means itself, or ``xmltodict``,
+        where ``@x``, ``Q{uri}x``, ``#n`` and ``#text`` address an attribute, a namespaced
+        element, a content node and an element's own text.
     :returns: the rendered text.
     """
     # This is the collection's one filter, so it is the one place a refusal from the shared
@@ -678,7 +985,7 @@ def render(
     # missing binary reading as a failed task rather than as a bug in this collection.
     try:
         return _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool,
-                       memoize, workdir)
+                       memoize, workdir, convention)
     except Namespace2XmlError:
         raise
     except _SharedError as error:
@@ -686,9 +993,9 @@ def render(
 
 
 def _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool, memoize,
-            workdir):
+            workdir, convention):
     """Do the work of :func:`render`, raising either error class."""
-    profile = flatten(config, selector)
+    profile = flatten(config, selector, convention)
 
     if scheme is not None and scheme_yaml is not None:
         raise Namespace2XmlError(

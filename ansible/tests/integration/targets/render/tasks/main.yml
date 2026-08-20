@@ -94,10 +94,9 @@
     fail_msg: "Explicit type=string did not take effect. Actual: {{ typed_out }}"
 
 # The addressing gap, asserted as a refusal rather than described in prose. A profile name is a
-# name, so there is no way to reach an XML attribute, comment or CDATA node through this filter;
-# Section 11.2 rejects the '@' spelling outright. Issue #103 tracks closing the gap. Until it is
-# closed, an author who tries the obvious thing must get a diagnostic, not a document with a
-# surprising element in it.
+# name, so under the default convention there is no way to reach an XML attribute, comment or CDATA
+# node through this filter; Section 11.2 rejects the '@' spelling outright. An author who tries the
+# obvious thing must get a diagnostic, not a document with a surprising element in it.
 
 - name: Attempt to address an XML attribute
   ansible.builtin.set_fact:
@@ -113,6 +112,42 @@
     fail_msg: >-
       Expected an XML002 refusal for an '@' name.
       Result: {{ attr_result.msg | default(attr_out | default('<rendered>')) }}
+
+# ...and the way through it, asserted against the real tool rather than against the encoder. The
+# unit tests fix the profile text the filter emits, hand-authored from Section 11.4. These fix what
+# the tool then makes of that text, so the two can only agree if the filter's reading of 11.4 and
+# the tool's implementation of it are the same reading.
+
+- name: Address an attribute and an element's own text with the xmltodict convention
+  ansible.builtin.set_fact:
+    xmltodict_out: >-
+      {{ {'bean': {'@id': 'ds', '#text': 'hello'}}
+         | stop_cran.namespace2xml.render('xml', root='beans', convention='xmltodict') }}
+
+- name: The markers became addressing rather than element names
+  ansible.builtin.assert:
+    that:
+      - "'id=\"ds\"' in xmltodict_out"
+      - "'>hello<' in xmltodict_out"
+      - "'@' not in xmltodict_out"
+      - "'text' not in xmltodict_out"
+    fail_msg: "Rendered: {{ xmltodict_out }}"
+
+# Ordering is the part a mapping cannot carry on its own, which is why Section 11.4 makes every
+# content node of a mixed element take a numbered part. Asserting the concatenation rather than the
+# three pieces separately is the point: the pieces would pass even if the run came out reversed.
+
+- name: Order mixed content with the xmltodict convention
+  ansible.builtin.set_fact:
+    mixed_out: >-
+      {{ {'a': {'#0': 'before', '#1': {'b': 'child'}, '#2': 'after'}}
+         | stop_cran.namespace2xml.render('xml', root='r', convention='xmltodict') }}
+
+- name: The content nodes came out in the order their parts named
+  ansible.builtin.assert:
+    that:
+      - "'before<b>child</b>after' in mixed_out"
+    fail_msg: "Rendered: {{ mixed_out }}"
 
 # Memoization must be an optimisation and nothing else. If a cached render could differ from an
 # uncached one the cache would be a correctness feature, and every debugging session would start by

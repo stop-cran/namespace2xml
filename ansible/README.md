@@ -128,6 +128,7 @@ the rendered text against what is on the node.
 | `scheme` | explicit scheme text, for anything the synthesized minimal scheme does not cover |
 | `scheme_yaml` | the same scheme written as a YAML mapping instead of text. Mutually exclusive with `scheme` |
 | `selector` | the top-level name the data is written under. Default `cfg` |
+| `convention` | how mapping keys are read: `escaped` (default) or `xmltodict`, which reads `@`, `Q{…}` and `#` as XML addressing |
 | `delimiter` | output delimiter, for the flat formats |
 | `tool` | path to the binary. Authoritative — a value given here resolves or the filter fails |
 | `memoize` | reuse an identical earlier render in the same run. Default `true` |
@@ -303,13 +304,14 @@ somewhere else.
 ### `variables` reaches XML attributes
 
 `variables` keys are namespace paths handed to the tool exactly as written, with no escaping in
-the way. That is what makes `configuration.root.@level` mean the attribute — the addressing the
-filter cannot express (see [limit 4](#4-xml-attributes-content-tokens-and-qualified-names-cannot-be-addressed)
-below, which is a limit of the *filter*, not of the tool).
+the way. That is what makes `configuration.root.@level` mean the attribute — the same addressing
+the filter reaches through
+[`convention: xmltodict`](#4-xml-addressing-is-opt-in-and-only-one-convention-at-a-time), but here
+with no convention to select because a module argument is already a path rather than a data key.
 
 Values may be strings, numbers or booleans. A mapping or list is refused: synthesizing namespace
-paths from nested data is the filter's job, and doing it here would reintroduce the escaping that
-makes `@` unreachable.
+paths from nested data is the filter's job, and doing it here would put a key-encoding convention
+in the way of an argument whose whole purpose is that there is none.
 
 ### Reading and rewriting XML
 
@@ -333,7 +335,7 @@ needs `root=configuration` to write the single document element back out.
 
 These are limits of the **filter**, and specifically of the step that turns an Ansible data
 structure into profile text. The module has none of them: its inputs are already namespace or
-document files, so nothing is being synthesized from a mapping. All four are inherent to
+document files, so nothing is being synthesized from a mapping. The first three are inherent to
 representing a data structure as namespace records; none is a defect to be fixed in a patch
 release. Read this section before adopting the filter for a format where any of them matters.
 
@@ -384,38 +386,60 @@ explicitly if you need bytes in output:
 blob: "{{ raw | b64encode }}"
 ```
 
-### 4. XML attributes, content tokens and qualified names cannot be addressed
+### 4. XML addressing is opt-in, and only one convention at a time
 
 **This is the significant one.** The encoder is *total* — every key has an escaped spelling, so
-every key reads back as itself. That guarantee is what costs the addressing: the three name
-forms XML needs are exactly the three the encoder escapes away.
+every key reads back as itself. That guarantee is what costs the addressing: the three name forms
+XML needs are exactly the three the encoder escapes away. So by default the filter renders
+element-only XML, and a `@id` key produces a **blocking `XML002` error** naming
+[§11.2](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#112-supported-xml-subset)
+rather than a silently wrong document.
 
-| You want | You get | Result |
+Pass `convention: xmltodict` to read the markers instead of escaping them
+([§11.4](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#114-canonical-xml-addressing)).
+The spelling is the one the ecosystem already uses — `xmltodict`, `community.general.to_xml` and
+the badgerfish style all write attributes this way:
+
+| You want | Key | Renders |
 |---|---|---|
-| `<node id="1">` | key `@id` → `\@id` | element named `\@id`, rejected as not an `NCName` |
-| `<x>text</x>` mixed with children | key `#text` → `\#text` | element named `\#text` |
-| `<ns:local>` | key `Q{urn}local` → `\Q{urn\}local` | element named literally |
+| `<bean id="ds">` | `@id` | the attribute |
+| `<bean n1:scope="x">` | `@Q{urn:p}scope` | the qualified attribute |
+| `<b xmlns="urn:p">` | `Q{urn:p}b` | the qualified element |
+| `<bean id="ds">text</bean>` | `#text` beside `@id` | the element's own text |
+| `before<b/>after` | `#0`, `#1`, `#2` | mixed content, in that order |
 
-A `@id` key produces a **blocking `XML002` error** naming
-[§11.2](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#112-supported-xml-subset),
-not a silently wrong document. That is the intended behaviour: the filter refuses rather than
-guesses.
+```yaml
+- ansible.builtin.copy:
+    content: "{{ doc | stop_cran.namespace2xml.render('xml', root='beans', convention='xmltodict') }}"
+    dest: /opt/app/beans.xml
+  vars:
+    doc:
+      bean:
+        '@id': dataSource
+        '#text': jdbc:postgresql://db/app
+```
 
-So the **filter** renders element-only XML. Two ways round it, in order of preference:
+Nothing you wrote before this existed changes: `escaped` is the default and encodes exactly as it
+always did. **Both conventions are total** — under `xmltodict` a name that really does begin with a
+marker takes a backslash, `\@x` for the name `@x`, and the backslash escapes itself, `\\@x` for the
+name `\@x`. A scheme key and an input key have been two different languages since `*`; this follows
+that line.
 
-- Use the [`render` module](#the-render-module) with `variables`. Its keys are namespace paths
-  passed through verbatim, so `configuration.root.@level: DEBUG` addresses the attribute
-  directly. This is the supported answer whenever the base document is a file.
-- Render the element structure with the filter and post-process, or drive the CLI with a
-  hand-written profile.
+Two things it does not do:
 
-Making the *filter's* addressing convention selectable is tracked as
-[issue #103](https://github.com/stop-cran/namespace2xml/issues/103) and would arrive as a new
-argument, so nothing you write today would break.
+- **`#text` beside child elements is refused.** §11.4 puts an element's own text at the element's
+  path only while it has no child elements; once it has one the element is mixed and every content
+  node takes an ordered part. A mapping does not record where the text stood, so write `#0` and
+  `#1` explicitly rather than have the filter guess and render successfully with the text on the
+  wrong side of a child.
+- **Only one convention per call.** It applies to the whole input, not per subtree.
+
+When the base document is a file on the node, the [`render` module](#the-render-module) with
+`variables` remains the more direct answer — its keys are namespace paths passed through verbatim.
 
 ## Versioning
 
-This collection is at 2.1.0 while the tool is at 3.x. They are separate artefacts with separate
+This collection is at 2.2.0 while the tool is at 3.x. They are separate artefacts with separate
 compatibility promises: the collection pins no tool version, and the two are released under
 different tags — `v3.*` for the tool, `ansible-v*` for this collection.
 
@@ -424,6 +448,9 @@ different tags — `v3.*` for the tool, `ansible-v*` for this collection.
 you must install is the kind a major version exists to revise. Nothing about the filter changed.
 
 2.1.0 added `scheme_yaml` to both plugins. Additive: every 2.0.0 playbook renders identically.
+
+2.2.0 added the filter's `convention` argument. Additive: the default is the encoding 2.1.0 used,
+so every 2.1.0 playbook renders identically.
 
 ## How this is tested
 
