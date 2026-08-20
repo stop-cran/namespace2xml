@@ -454,6 +454,48 @@ def test_an_escaped_marker_is_an_ordinary_part_and_its_dots_are_not_uri_text():
         n2x.encode_scheme_mapping({"cfg": {"\\Q{urn:e.g}n": {"type": "ignore"}}})
 
 
+# --- Section 9.1: a backslash before anything but a dot is not an escape ------------------------
+
+@pytest.mark.parametrize(
+    "key",
+    ["C:\\dir", "a\\b", "\\\\@x", "a\\\\b"],
+    ids=["windows-path", "mid-key", "escaped-escape-then-marker", "doubled"],
+)
+def test_a_backslash_that_escapes_nothing_reaches_the_tool_unchanged(key):
+    """Section 9.1: "Elsewhere in the key, and before any other character, a backslash
+    contributes itself and consumes nothing, so a key such as C:\\dir needs no escaping". Only
+    '\\.' is decoded here, and only a leading backslash suppresses a marker.
+
+    Rewriting any other backslash would corrupt a name this converter is only meant to carry,
+    and the section 9.1 rules that do apply are the tool's to apply, not this converter's to
+    anticipate.
+    """
+    document = json.loads(n2x.encode_scheme_mapping({"cfg": {key: {"type": "ignore"}}}))
+
+    assert list(document["cfg"]) == [key]
+
+
+# --- A scheme of the wrong shape is refused by name, not by accident ----------------------------
+
+@pytest.mark.parametrize(
+    "scheme",
+    [[], 3, True, 3.5, ["cfg.output=xml"], [{"cfg": {"output": "xml"}}]],
+    ids=["empty-list", "int", "bool", "float", "list-of-text", "list-of-mappings"],
+)
+def test_a_scheme_that_is_neither_a_mapping_nor_text_is_refused_by_name(scheme):
+    """The O(fmt) cross-check runs before the converter, and it used to read anything that was
+    not a mapping as text and call splitlines() on it. A playbook variable arrives in whatever
+    shape the playbook gave it -- documented argument types are not runtime validation -- so a
+    list reached that call and the author met an AttributeError from inside the plugin instead
+    of the sentence the converter had ready for exactly this mistake.
+
+    The cross-check abstains on a shape it cannot read, which lets that sentence be the one the
+    author sees.
+    """
+    with pytest.raises(n2x.Namespace2XmlError, match="must be a mapping"):
+        n2x.render({"k": "v"}, "xml", scheme_yaml=scheme)
+
+
 def test_a_bare_dot_key_is_refused_rather_than_read_as_an_empty_path():
     with pytest.raises(n2x.Namespace2XmlError):
         n2x.encode_scheme_mapping({"cfg": {".": "xml"}})

@@ -835,9 +835,18 @@ def _declared_outputs(scheme):
     mistaken for one. Everything past that is left alone: the point is to catch a plain
     disagreement, not to re-implement Section 15.2 matching here. When nothing is recognised the
     caller stays silent and lets the tool speak for itself.
+
+    A scheme that is neither a mapping nor text is not this function's to judge. It abstains so
+    that :func:`encode_scheme_mapping` reaches the argument and refuses it by name -- "a mapping
+    scheme must be a mapping, not a list" -- rather than the caller meeting an ``AttributeError``
+    raised here on the way past. Documented argument types are not runtime validation, so an
+    ordinary playbook variable can arrive in any shape.
     """
     if isinstance(scheme, dict):
         return _declared_outputs_in_mapping(scheme)
+
+    if not isinstance(scheme, str):
+        return set()
 
     outputs = set()
 

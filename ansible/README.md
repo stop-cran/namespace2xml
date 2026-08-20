@@ -213,8 +213,10 @@ scheme key is a *selector*, an input key is *data*. `*` already shows this — i
 is a wildcard, in an input key it is escaped to a literal `\*` and matches nothing else. A dot
 follows the same line. In an **input** mapping, `{'a.b': 'hello'}` is the one name `a.b`, passed
 through as data with no ceremony. In a **scheme** mapping the bare form is refused and `'a\.b'`
-selects that same name, because here a mistake is silent rather than loud. A name containing a
-literal backslash is not expressible in a scheme key; nothing has needed one.
+selects that same name, because here a mistake is silent rather than loud. A backslash before
+anything other than a dot is not an escape at all: Section 9.1 says it "contributes itself and
+consumes nothing, so a key such as `C:\dir` needs no escaping". Only a leading one is special,
+where `\` suppresses a marker — write `\\@x` for a name that begins with a literal `\@`.
 
 ### Memoization
 
