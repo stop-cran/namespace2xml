@@ -144,8 +144,8 @@ seealso:
     link: https://github.com/stop-cran/namespace2xml/blob/master/CONTRIBUTING.md#4-the-feedback-channel-binding
   - name: Issue tracker
     description: >-
-      The four issue forms. Select the component "Ansible filter" for a fault reached through
-      this plugin.
+      The four issue forms. Select the component "Ansible collection" for a fault reached
+      through this plugin.
     link: https://github.com/stop-cran/namespace2xml/issues/new/choose
   - name: Guide for automated agents
     description: Read order, repository map, and the rules an agent follows when reporting here.
@@ -153,6 +153,12 @@ seealso:
   - name: namespace2xml on NuGet
     description: The transformer this filter runs.
     link: https://www.nuget.org/packages/namespace2xml
+  - module: stop_cran.namespace2xml.render
+    description: >-
+      The node-side module of the same name. It runs the tool on the managed node over input
+      files that are already there, so the node's own files decide the node's state. Use it
+      instead of this filter when the truth lives in files on the node rather than in play
+      variables.
   - module: ansible.builtin.copy
 """
 

@@ -1,18 +1,19 @@
 ### The floor is a code floor, and CI reaches it.
 #
 # 2.14 is where `ansible-doc` learned to read a `DOCUMENTATION` block written inline in a
-# filter plugin's own `.py` file, which is the newest Ansible feature this collection uses.
+# filter plugin's own `.py` file, and it is also where the `attributes:` documentation key the
+# `render` module uses arrived. Those are the newest Ansible features this collection uses.
 # Nothing here needs anything later.
 #
 # The `compatibility` job installs ansible-core 2.14, 2.16, 2.19 and 2.21 in turn, asserts pip
-# actually resolved the version asked for, then on each one resolves this collection's filter by
-# its fully qualified name through `ansible-doc` and runs the unit tests. So the floor is
-# `verified-in-session` rather than argued from what the code uses.
+# actually resolved the version asked for, then on each one resolves both of this collection's
+# plugins by their fully qualified names through `ansible-doc` and runs the unit tests. So the
+# floor is `verified-in-session` rather than argued from what the code uses.
 #
 # Read the scope of that precisely. It proves documentation resolution through the real
-# collection loader, and it proves the plugin's own logic, on every version listed. It does not
-# prove the filter being reached through a playbook's Jinja environment on the older ones: the
-# unit tests import the plugin by path and stub the binary out, and only the newest version gets
-# an `integration` run. Raise this floor rather than widening the matrix if that trade ever stops
-# being acceptable.
+# collection loader, and it proves the plugins' own logic, on every version listed. It does not
+# prove the filter being reached through a playbook's Jinja environment, or the module being
+# shipped to a node and executed there, on the older ones: the unit tests import by path and stub
+# the binary out, and only the newest version gets an `integration` run. Raise this floor rather
+# than widening the matrix if that trade ever stops being acceptable.
 requires_ansible: '>=2.14'

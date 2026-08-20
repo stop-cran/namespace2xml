@@ -12,6 +12,13 @@ drift from the clause it came from. Prose outside the blockquotes is summary and
 Read this if you are deciding what the filter will do to your data. Read
 [`README.md`](../README.md) if you are deciding how to call it.
 
+The collection ships two plugins, and this page is about the filter unless it says otherwise.
+Sections 1, 2, 6, 7 and 9 describe the tool and apply to both. Sections 3, 4, 5 and 8 describe the
+mapping from Ansible data to profile text, which is the filter's work alone — the `render` module
+sends the node's own files to the tool and never synthesizes a profile from your variables. What
+the module adds on top of all this is idempotence, and the one rule that follows from it is in
+[`README.md`](../README.md#the-render-module): a file the module reads is never a file it writes.
+
 ---
 
 ## 1. What the tool guarantees
@@ -24,11 +31,13 @@ version:
 
 That is what makes the filter safe to call from a template that also feeds a `copy` task: the same
 variables render to the same bytes, so `changed` means your data changed, not that the renderer
-felt different today.
+felt different today. It is also what the module's idempotence rests on — it renders to a scratch
+directory and compares bytes, so a run that reports no change has measured one rather than assumed
+it.
 
-The filter checks it is talking to a build that makes this promise. It reads `--version`, requires
-a `contract-bundle` field, and refuses a tool that does not report one — that field is how a 3.x
-build identifies the specification revision it implements, and a 2.x build does not have it.
+Both plugins check they are talking to a build that makes this promise. They read `--version`,
+require a `contract-bundle` field, and refuse a tool that does not report one — that field is how a
+3.x build identifies the specification revision it implements, and a 2.x build does not have it.
 
 ## 2. The pipeline in one paragraph
 
@@ -36,7 +45,9 @@ Your Ansible data is flattened into **namespace profile** text — one `name=val
 with `.` separating the parts of a qualified name. A **scheme** then says what to do with those
 names: which output format, which document root, which parts are attributes. The tool reads both
 and writes the rendered document. The filter generates the profile and, unless you supply your own
-scheme, the scheme too; it then returns the rendered text as a string.
+scheme, the scheme too; it then returns the rendered text as a string. The module skips the first
+half of that: your files on the node *are* the input, you write the scheme, and the rendered
+documents are written to a directory rather than returned.
 
 ## 3. What the filter does to your data
 
@@ -129,13 +140,17 @@ part that does not change between releases and the part worth searching for. Loo
 which gives each code its meaning and the specification section that defines it.
 
 When the tool fails, the filter raises `AnsibleFilterError` with the tool's own stderr attached,
-plus a line pointing at the issue tracker of the exact build that ran. Read the code first: it is
-usually a precise statement about your data.
+plus a line pointing at the issue tracker of the exact build that ran. The module fails the task
+with the same text, and reports the identity of the binary it ran in `tool_identity` even on
+success, so the node that misbehaved can be named. Read the code first: it is usually a precise
+statement about your data.
 
 ## 9. Fidelity limits
 
-Four things to know before you trust the output. [`README.md`](../README.md) has the detail and the
-workarounds for each; this is the index.
+Four things to know before you trust the filter's output. [`README.md`](../README.md) has the detail
+and the workarounds for each; this is the index. They are all consequences of turning Ansible data
+into profile text, so none of them applies to the module, which sends your files to the tool as
+they are.
 
 1. **Types are inferred from value text** — section 4 above. A string that looks like a number
    becomes one unless a `type` directive says otherwise.
@@ -144,10 +159,12 @@ workarounds for each; this is the index.
 3. **Binary data is refused.** A value that is not expressible as a profile scalar is an error
    rather than a silent coercion.
 4. **XML attributes, content tokens and qualified names cannot be addressed** from plain Ansible
-   data. They need a hand-written scheme; the synthesised one cannot express them.
+   data. They need a hand-written scheme; the synthesised one cannot express them. The module's
+   `variables` option is the way round this when the document is on the node, because it passes
+   names to the tool verbatim.
    ([issue #103](https://github.com/stop-cran/namespace2xml/issues/103))
 
-Rendering is also one-way: this collection does not read XML back into variables.
+Rendering is also one-way: neither plugin reads a rendered document back into variables.
 
 ## 10. Where everything is
 
@@ -170,11 +187,12 @@ next to the installed plugin, under
 ## 11. Found a problem?
 
 Open an issue at <https://github.com/stop-cran/namespace2xml/issues/new/choose> and pick the
-**Ansible filter** component. Route it by what is actually wrong:
+**Ansible collection** component. Route it by what is actually wrong:
 
 | Symptom | Where it belongs |
 |---|---|
-| The filter misbehaves, or its arguments do | Bug report, component *Ansible filter* |
+| The filter misbehaves, or its arguments do | Bug report, component *Ansible collection* |
+| The module misbehaves — wrong `changed`, a refusal you disagree with, a file it should not have touched | Bug report, component *Ansible collection* |
 | The rendered document is wrong for the input | Bug report, component *CLI* — reproduce it with `fmt='namespace'` first |
 | The documentation did not answer your question | Usage gap |
 | You need a behaviour that is not specified | Feature request — say whether it is a specification amendment |
@@ -187,8 +205,12 @@ ansible-galaxy collection list stop_cran.namespace2xml
 namespace2xml --version
 ```
 
-A report is actionable when it carries the input data, the exact filter call, what you expected,
-what you got, and the diagnostic code if there was one. If you are an AI agent, say so in the
-issue, and quote the specification section you believe was violated rather than asserting the
+For the module, run the last of those on the managed node rather than on the controller — the
+task's `tool_identity` return value tells you which binary actually ran, and that is the one to
+report.
+
+A report is actionable when it carries the input data, the exact filter call or task, what you
+expected, what you got, and the diagnostic code if there was one. If you are an AI agent, say so in
+the issue, and quote the specification section you believe was violated rather than asserting the
 behaviour is wrong — the specification is the thing being appealed to, and pointing at the clause
 is what makes a report cheap to act on.

@@ -105,14 +105,21 @@ python -m pytest ansible/tests/unit -q
 ```
 
 The `ansible` workflow additionally runs `ansible-test sanity`, builds the Galaxy tarball and
-asserts its contents, runs the unit tests under four ansible-core versions, and runs an integration
-target against a locally packed build of the tool. None of that can run on Windows: `ansible-doc`,
-`ansible-test` and `ansible-playbook` all call `os.get_blocking`, which fails on a Windows handle.
-The unit tests are the whole of what you can check locally.
+asserts its contents, runs the unit tests under four ansible-core versions, and runs two
+integration targets against a locally packed build of the tool. None of that can run on Windows:
+`ansible-doc`, `ansible-test` and `ansible-playbook` all call `os.get_blocking`, which fails on a
+Windows handle. The unit tests are the whole of what you can check locally.
 
-The collection's argument reference is the `DOCUMENTATION` block in
-`ansible/plugins/filter/render.py`; it is what `ansible-doc` prints, and it is checked by
-`ansible-test sanity`. Change the arguments and change that block in the same commit.
+The collection ships two plugins that share the name `render` and almost nothing else. The filter
+in `ansible/plugins/filter/render.py` flattens play variables into profile text and renders on the
+controller. The module in `ansible/plugins/modules/render.py` runs on a managed node over files
+that are already there, and writes rendered documents to a directory on that node; its logic lives
+in `ansible/plugins/module_utils/`, because `AnsibleModule` itself cannot be imported on Windows
+and the testable part must be.
+
+Each plugin's argument reference is its own `DOCUMENTATION` block; that is what `ansible-doc`
+prints, and it is checked by `ansible-test sanity`. Change the arguments and change that block in
+the same commit.
 
 ## Machine-readable output
 
@@ -135,9 +142,9 @@ never surprises anyone again?*
 - Both are right and you could not find out how to do the thing → **usage gap**, often the most valuable report
 - The tool cannot express this at all → **feature request**
 
-Set the `Component` field so the report reaches the right surface: the CLI, or the Ansible filter.
-If a playbook was in the loop it is the filter, even when the message came from the tool underneath
-— the filter owns how the tool is invoked, and that is where a fix would land.
+Set the `Component` field so the report reaches the right surface: the CLI, or the Ansible
+collection. If a playbook was in the loop it is the collection, even when the message came from the
+tool underneath — the plugin owns how the tool is invoked, and that is where a fix would land.
 
 Draft the report, show it to your human, and let them approve it before filing. Do not file
 automatically. Mark every claim `verified-in-session` or `proposed-but-untested`; do not present

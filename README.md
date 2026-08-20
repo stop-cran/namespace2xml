@@ -182,9 +182,12 @@ This tool is designed to be used by programs, and to be **argued with** by them.
 - **The specification ships inside the package**, so an agent can read the contract offline.
 - **Symbols and source link** are published alongside every release, so a stack trace resolves to
   the exact source that produced it.
-- **An Ansible filter** wraps all of the above for playbook authors, and keeps the guarantees:
+- **An Ansible collection** wraps all of the above for playbook authors, and keeps the guarantees:
   diagnostics reach the caller unchanged, and a binary that reports no `contract-bundle` is refused
-  rather than used. `ansible-doc -t filter stop_cran.namespace2xml.render` is its argument reference.
+  rather than used. `stop_cran.namespace2xml` ships two plugins — a `render` filter that renders
+  play variables on the controller, and a `render` module that renders a managed node's own files
+  in place, idempotently. `ansible-doc -t filter` and `-t module` on
+  `stop_cran.namespace2xml.render` are their argument references.
 
 Start at [AGENTS.md](AGENTS.md). The machine-readable index is [llms.txt](llms.txt).
 
@@ -205,7 +208,7 @@ Start at [AGENTS.md](AGENTS.md). The machine-readable index is [llms.txt](llms.t
 | [docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md) | Every intentional behaviour change from 2.4.0. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | The change protocol and the feedback forms. |
 | [KNOWN-LIMITS.md](KNOWN-LIMITS.md) | What is deliberately not covered yet. |
-| [ansible/README.md](ansible/README.md) | The `stop_cran.namespace2xml` Ansible collection: the `render` filter, its arguments, and its fidelity limits. |
+| [ansible/README.md](ansible/README.md) | The `stop_cran.namespace2xml` Ansible collection: the `render` filter and the `render` module, which one to pick, their arguments, and the filter's fidelity limits. |
 | [AGENTS.md](AGENTS.md) | Entry point for automated agents. |
 
 ---
@@ -225,7 +228,8 @@ Before filing, ask one question: **what would have to change so this never surpr
 
 Always include the `contract-bundle` revision from `--version`. A report against an unknown contract
 revision cannot be acted on. Set the **Component** field to say which surface you were using — the
-CLI or the Ansible filter — and for the filter add `ansible --version` and the collection version.
+CLI or the Ansible collection — and for the collection add `ansible --version` and the collection
+version.
 
 Full guidance, including the report form and the rules for agent-authored reports, is in
 [CONTRIBUTING.md](CONTRIBUTING.md#4-the-feedback-channel-binding).

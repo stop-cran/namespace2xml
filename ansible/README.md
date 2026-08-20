@@ -1,7 +1,8 @@
 # `stop_cran.namespace2xml`
 
-Render Ansible data structures as XML, JSON, YAML, INI or namespace text, through the
-[`namespace2xml`](https://github.com/stop-cran/namespace2xml) transformer.
+Render configuration as XML, JSON, YAML, INI or namespace text through the
+[`namespace2xml`](https://github.com/stop-cran/namespace2xml) transformer — either from data held
+in play variables, on the controller, or from a managed node's own files, on the node.
 
 ```yaml
 - name: Render a logback configuration and place it on the target
@@ -34,6 +35,21 @@ Render Ansible data structures as XML, JSON, YAML, INI or namespace text, throug
 </configuration>
 ```
 
+## Two plugins, two topologies
+
+| | `render` filter | [`render` module](#the-render-module) |
+|---|---|---|
+| Runs on | the controller | the managed node |
+| Transforms | data held in play variables | files already on the node |
+| Produces | text, for `copy` to place | files under `dest`, converged in place |
+| Needs on the node | nothing | .NET and the tool |
+
+Pick by where the truth lives. When the configuration is assembled from play variables, the
+filter renders it on the controller and `ansible.builtin.copy` places it. When the node ships
+its own input files — a template inside the deployed application, a package default, a fragment
+written by another role — the module runs the tool *there*, so each node's own files decide that
+node's state and nothing has to be fetched back to the controller to be transformed.
+
 ## Why this exists
 
 Ansible can already write XML, in the sense that Jinja can concatenate strings. What it cannot do
@@ -54,33 +70,47 @@ short version first.
 | | |
 |---|---|
 | ansible-core | `>=2.14` |
-| Controller | the [`namespace2xml`](https://www.nuget.org/packages/namespace2xml) .NET tool, 3.0 or later |
-| Target nodes | nothing |
+| Controller | the [`namespace2xml`](https://www.nuget.org/packages/namespace2xml) .NET tool, 3.0 or later — for the **filter** |
+| Managed nodes | the same tool, plus a .NET SDK to install it — for the **module** only |
 
-The filter evaluates on the **controller**, where templating happens. Target nodes need neither
-.NET nor the tool.
+The **filter** evaluates on the controller, where templating happens; a play that uses only the
+filter needs neither .NET nor the tool on its target nodes. The **module** is the other way
+round. It runs the tool on each node it targets, because its inputs are that node's own files,
+so the tool has to be installed there.
 
 ```bash
+# controller, for the filter
 dotnet tool install --global namespace2xml --prerelease
 ansible-galaxy collection install stop_cran.namespace2xml
+```
+
+```yaml
+# each managed node, for the module
+- name: Install the transformer on the node
+  ansible.builtin.command:
+    cmd: dotnet tool install --global namespace2xml --prerelease
+    creates: ~/.dotnet/tools/namespace2xml
 ```
 
 `--prerelease` is not optional today. The 3.0 line is still on `3.0.0-preview`, and without that
 flag NuGet resolves the newest *stable* version, which is 2.4.0. That build accepts the same
 arguments and the same scheme spellings, so nothing would look wrong — it would simply render
-under the previous contract. The filter therefore reads `--version` and **refuses** any binary
+under the previous contract. Both plugins therefore read `--version` and **refuse** any binary
 that does not report a `contract-bundle`, rather than proceeding and producing a document whose
 rules you did not choose. When 3.0.0 is tagged stable the flag becomes unnecessary and this
 paragraph goes away.
 
-The filter finds the binary at `$NAMESPACE2XML`, then on `PATH`, then in the dotnet global-tools
-directory. That last step is not redundant: `dotnet tool install --global` writes to
-`~/.dotnet/tools` whether or not your login shell puts it on `PATH`, and a filter runs inside
-`ansible-playbook`, whose environment was fixed before the play began. A filter that only
-consulted `PATH` would fail on a host where the tool is installed and working — and fail again
-when a play installs the tool in one task and templates with it in a later one.
+Both plugins find the binary at `$NAMESPACE2XML`, then on `PATH`, then in the dotnet global-tools
+directory. That last step is not redundant, and it is load-bearing for a different reason on each
+side. `dotnet tool install --global` writes to `~/.dotnet/tools` whether or not your login shell
+puts it on `PATH`, and a filter runs inside `ansible-playbook`, whose environment was fixed
+before the play began — so a filter that only consulted `PATH` would fail on a host where the
+tool is installed and working, and fail again when a play installs the tool in one task and
+templates with it in a later one. For the module the same lookup is not an edge case but the
+ordinary outcome: a module runs in a non-interactive shell that never sourced the profile
+`dotnet tool install` asked the operator to re-source.
 
-## Usage
+## The `render` filter
 
 ### Pair it with `copy`, not with `content` alone
 
@@ -135,9 +165,114 @@ entire marshalled input *and* the tool's version and contract revision, so the c
 survive a tool upgrade or a contract change. Pass `memoize=false` to force every call to spawn
 the tool.
 
+## The `render` module
+
+The filter's inputs are play variables. The module's inputs are **files on the node**, which is
+the topology the tool was built for: an application ships a pristine template, the play states
+the handful of things that differ on this host, and the node renders its own configuration.
+
+```yaml
+- name: Raise the logback root level on each node
+  stop_cran.namespace2xml.render:
+    src:
+      - /opt/app/templates/logback.xml
+    scheme_text: |
+      xmlinputoptions=NormalizeFormattingWhitespace
+      configuration.output=xml
+      configuration.filename=logback.xml
+      configuration.root=configuration
+    variables:
+      configuration.root.@level: DEBUG
+    dest: /opt/app/conf
+    mode: "0644"
+```
+
+`/opt/app/templates/logback.xml` goes in untouched and `/opt/app/conf/logback.xml` comes out with
+`<root level="DEBUG">` and everything else — appenders, encoders, patterns — exactly as it was.
+
+### Arguments
+
+| | |
+|---|---|
+| `src` | *(required)* ordered input file paths **on the node**, one `-i` each |
+| `scheme` | ordered scheme file paths on the node, one `-s` each |
+| `scheme_text` | scheme directives written inline in the playbook, applied *after* every `scheme` file |
+| `variables` | namespace entries applied after all inputs, one `-v name=value` each. Keys are passed **verbatim** |
+| `dest` | *(required)* the output root directory, passed as `-o` |
+| `tool` | path to the binary on the node |
+
+Plus the standard file arguments — `mode`, `owner`, `group`, `seuser` and the rest — applied to
+every produced file.
+
+Both plugins are called `render`, so name the type when you ask for the documentation:
+
+```bash
+ansible-doc -t module stop_cran.namespace2xml.render
+```
+
+### Idempotence is measured, not estimated
+
+The module renders into a scratch directory and compares every produced file against `dest`
+**byte for byte**, writing only the ones that differ. That is exact rather than heuristic because
+[§24](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md) makes the
+tool's output deterministic for identical inputs. `check_mode` and `--diff` fall out of the same
+comparison, so a dry run reports precisely what a real run would do.
+
+Publication follows [§21.1](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md):
+each file is written through a handle-relative, no-follow open and renamed into place, so a
+symbolic link planted under `dest` is replaced rather than followed, and a write is never seen
+half-finished. The module therefore targets POSIX nodes, and refuses to publish on a platform
+that cannot provide those primitives rather than writing without containment.
+
+Files already under `dest` that a render does not produce are left alone. The module never
+deletes.
+
+### A source file is never a destination file
+
+The module **refuses** a render whose output would land on one of its own `src` paths. This is a
+hard error, not a warning, and the reason is worth stating because the alternative failure is
+invisible:
+[§16.10](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md) defines
+`merge=append` as rebasing each later sequence contribution onto fresh ordering values above the
+current high-water mark. A run that reads back its own output therefore appends to what it just
+appended — `["STDOUT"]`, then `["STDOUT", "FILE"]`, then `["STDOUT", "FILE", "FILE"]` — growing
+by one copy per run and reporting `changed` forever. Keep the input pristine and send the output
+somewhere else.
+
+### `variables` reaches XML attributes
+
+`variables` keys are namespace paths handed to the tool exactly as written, with no escaping in
+the way. That is what makes `configuration.root.@level` mean the attribute — the addressing the
+filter cannot express (see [limit 4](#4-xml-attributes-content-tokens-and-qualified-names-cannot-be-addressed)
+below, which is a limit of the *filter*, not of the tool).
+
+Values may be strings, numbers or booleans. A mapping or list is refused: synthesizing namespace
+paths from nested data is the filter's job, and doing it here would reintroduce the escaping that
+makes `@` unreachable.
+
+### Reading and rewriting XML
+
+Round-tripping XML in the same format normally needs `xmlinputoptions=NormalizeFormattingWhitespace`.
+Three things about it are easy to get wrong and each fails loudly:
+
+- Without it, indentation between elements is parsed as content and the run is refused with
+  `TYPE001`.
+- It must be written **unqualified**. Input parsing happens before any output instance exists, so
+  a selector-qualified input option such as `configuration.xmlinputoptions=…` is a blocking
+  `SCHEME001` under
+  [§16.8](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md).
+- Enabling it emits `WARN007`, recording that the same-format round-trip guarantee is weakened.
+  The module passes that warning through rather than suppressing it.
+
+One more thing has no diagnostic to teach it: **an XML input's top-level namespace name is its
+document element**. An overlay for `<configuration>` is rooted at `configuration`, and the scheme
+needs `root=configuration` to write the single document element back out.
+
 ## Fidelity limits
 
-The mapping from Ansible data to profile text is lossy in four places. All four are inherent to
+These are limits of the **filter**, and specifically of the step that turns an Ansible data
+structure into profile text. The module has none of them: its inputs are already namespace or
+document files, so nothing is being synthesized from a mapping. All four are inherent to
 representing a data structure as namespace records; none is a defect to be fixed in a patch
 release. Read this section before adopting the filter for a format where any of them matters.
 
@@ -202,20 +337,30 @@ forms XML needs are exactly the three the encoder escapes away.
 
 A `@id` key produces a **blocking `XML002` error** naming
 [§11.2](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#112-supported-xml-subset),
-not a silently wrong document. That is the intended behaviour for v1.0.0: the filter refuses
-rather than guesses.
+not a silently wrong document. That is the intended behaviour: the filter refuses rather than
+guesses.
 
-So this collection renders **element-only XML**. If your target format needs attributes, render
-the element structure here and post-process, or use the CLI directly with a hand-written profile.
-Making the addressing convention selectable is tracked as
+So the **filter** renders element-only XML. Two ways round it, in order of preference:
+
+- Use the [`render` module](#the-render-module) with `variables`. Its keys are namespace paths
+  passed through verbatim, so `configuration.root.@level: DEBUG` addresses the attribute
+  directly. This is the supported answer whenever the base document is a file.
+- Render the element structure with the filter and post-process, or drive the CLI with a
+  hand-written profile.
+
+Making the *filter's* addressing convention selectable is tracked as
 [issue #103](https://github.com/stop-cran/namespace2xml/issues/103) and would arrive as a new
 argument, so nothing you write today would break.
 
 ## Versioning
 
-This collection is at 1.0.0 while the tool is at 3.x. They are separate artefacts with separate
+This collection is at 2.0.0 while the tool is at 3.x. They are separate artefacts with separate
 compatibility promises: the collection pins no tool version, and the two are released under
 different tags — `v3.*` for the tool, `ansible-v*` for this collection.
+
+2.0.0 rather than 1.1.0 because 1.0.0 documented, as a requirement, that target nodes need neither
+.NET nor the tool. The module makes that false for any play that uses it, and a promise about what
+you must install is the kind a major version exists to revise. Nothing about the filter changed.
 
 ## How this is tested
 
@@ -226,27 +371,33 @@ integration tests then run the real tool over that same hand-authored profile an
 output against what the filter produced from the data — so the two sides can only agree if both
 match the specification.
 
+The module is held to the claim that matters for a module rather than for a template: that a second
+run changes nothing. Its integration target renders, asserts the document, renders again and
+requires `not changed` — so a tool that stopped being deterministic, or a comparison that stopped
+being a byte comparison, fails there and nowhere else.
+
 ## Found a problem?
 
 Good — that is what the preview is for, and the project is built to absorb it.
 
-Every diagnostic this filter surfaces carries a **stable code** and a **specification anchor**
+Every diagnostic these plugins surface carries a **stable code** and a **specification anchor**
 naming the clause it enforces, so a disagreement can be reported precisely rather than described.
 The codes are listed at
 [docs/diagnostics.md](https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md).
-The filter passes the tool's diagnostics through unchanged — it never rewrites or summarises them.
+Both plugins pass the tool's diagnostics through unchanged — neither rewrites or summarises them.
 
 Before filing, ask one question: **what would have to change so this never surprises anyone
 again?** The answer picks the form:
 
 | Answer | File this |
 |---|---|
-| The filter or the tool should have matched the specification | [Bug report](https://github.com/stop-cran/namespace2xml/issues/new?template=bug_report.yml) |
+| A plugin or the tool should have matched the specification | [Bug report](https://github.com/stop-cran/namespace2xml/issues/new?template=bug_report.yml) |
 | The specification does not say, or says two things | [Specification ambiguity](https://github.com/stop-cran/namespace2xml/issues/new?template=spec_ambiguity.yml) |
 | Both are right; I could not find out how to do this from the docs | [Usage gap](https://github.com/stop-cran/namespace2xml/issues/new?template=usage_gap.yml) |
-| Neither the filter nor the tool can express this at all | [Feature request](https://github.com/stop-cran/namespace2xml/issues/new?template=feature_request.yml) |
+| Neither a plugin nor the tool can express this at all | [Feature request](https://github.com/stop-cran/namespace2xml/issues/new?template=feature_request.yml) |
 
-Set the **Component** field to `Ansible filter` so it reaches the right place.
+Set the **Component** field to `Ansible collection` so it reaches the right place, and say which
+plugin was in the loop — they are both called `render`, and the fix lands in different files.
 
 ### What a report needs
 

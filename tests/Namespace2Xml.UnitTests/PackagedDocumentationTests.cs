@@ -38,6 +38,9 @@ public class PackagedDocumentationTests
         ["ansible/plugins/filter/render.py"] =
             "the collection's source rather than a document, rendered for its own readers by " +
             "ansible-doc from the copy Galaxy serves",
+        ["ansible/plugins/modules/render.py"] =
+            "the collection's source rather than a document, rendered for its own readers by " +
+            "ansible-doc from the copy Galaxy serves",
     };
 
     private static readonly Regex RelativeLink = new(

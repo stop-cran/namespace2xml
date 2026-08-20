@@ -24,12 +24,12 @@ body:
       label: Where would this live?
       description: |
         A change to the tool is a change to the contract: normative text, then fixtures, then
-        implementation. A change confined to the Ansible filter — a new argument, a different
+        implementation. A change confined to the Ansible collection — a new argument, a different
         default — is a much smaller decision that does not touch the specification at all. If you
         are not sure, say so; guessing wrong here costs nothing.
       options:
         - The tool and its specification
-        - The Ansible filter — `stop_cran.namespace2xml.render`
+        - The Ansible collection — `stop_cran.namespace2xml` (the `render` filter or module)
         - Not sure
     validations:
       required: true
