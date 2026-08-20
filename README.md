@@ -1,6 +1,7 @@
 # namespace2xml
 
 [![NuGet](https://img.shields.io/nuget/v/namespace2xml.svg)](https://www.nuget.org/packages/namespace2xml)
+[![Ansible Galaxy](https://img.shields.io/ansible/collection/v/stop_cran/namespace2xml?label=galaxy)](https://galaxy.ansible.com/ui/repo/published/stop_cran/namespace2xml/)
 [![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 
 A deterministic configuration transformer. It reads ordered namespace profiles and structured
@@ -33,8 +34,9 @@ dotnet tool install --global namespace2xml --prerelease
 `--prerelease` is required while the 3.0 line is in preview; without it NuGet resolves 2.4.0, which
 takes the same arguments under the previous contract.
 
-To use it from Ansible, add the collection. The filter evaluates on the controller, which is where
-the tool is needed; target nodes need neither .NET nor the tool:
+To use it from Ansible, add the [`stop_cran.namespace2xml`](https://galaxy.ansible.com/ui/repo/published/stop_cran/namespace2xml/)
+collection. The filter evaluates on the controller, which is where the tool is needed; target nodes
+need neither .NET nor the tool:
 
 ```
 ansible-galaxy collection install stop_cran.namespace2xml
