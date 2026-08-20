@@ -9,11 +9,10 @@ questions before they can do anything useful: where is the binary, is it a build
 this collection actually documents, what did it say when it ran, and how is a value written so
 the tool reads it as data.
 
-The node-side plugins import this module. The controller-side filter, for now, does not: it is
-a single self-contained file loaded by ansible-core's filter machinery under a different Python,
-and it carries its own copies of the same answers. That duplication is deliberate and temporary
--- see issue #107 -- and it is not left to good intentions: a unit test compares the two
-encoders over an adversarial corpus and fails the build if they ever stop agreeing.
+The node-side plugins import this module, and so does the controller-side filter: a collection
+plugin is a real package, so the filter can reach ``module_utils`` by relative import and does.
+It was believed otherwise until issue #107, and the filter carried its own copies of every
+answer below; those copies are gone.
 
 Keeping one answer to each of these is not tidiness. The refusal below -- that a binary without
 a ``contract-bundle`` is a pre-3.0 build and must not be rendered through -- is the single

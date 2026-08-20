@@ -251,13 +251,22 @@ import hashlib
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import unicodedata
 
-__all__ = ["render", "flatten", "encode_name_part", "encode_value", "encode_scheme_mapping",
-           "tool_identity"]
+# A collection plugin is a real package, so the controller-side filter can reach the same
+# module_utils the node-side module uses. Everything shared -- the section 8.3 encoder, the
+# scheme-mapping encoder, binary discovery, the contract-bundle gate and the runner -- lives
+# there now and is imported rather than copied. See issue #107.
+from ..module_utils import n2x
+from ..module_utils.n2x import (
+    Namespace2XmlError as _SharedError,
+    encode_scheme_mapping,
+    encode_value,
+)
+
+__all__ = ["render", "flatten", "encode_name_part", "encode_value", "encode_scheme_mapping"]
 
 DEFAULT_SELECTOR = "cfg"
 
@@ -266,12 +275,9 @@ DEFAULT_SELECTOR = "cfg"
 FORMATS = ("xml", "json", "yaml", "ini", "namespace", "quotednamespace")
 
 _NAME_SHORT_ESCAPES = frozenset(".*=#!$@}")
-_VALUE_CONTAINER_SENTINELS = {"{}": "\\{}", "[]": "\\[]"}
 _FORCED_HEX = frozenset("\u0085\u2028\u2029")
 
-_IDENTITY_CACHE: dict = {}
 _RENDER_CACHE: dict = {}
-_RESOLVE_CACHE: dict = {}
 
 
 try:  # pragma: no cover -- exercised by whichever of the two environments is running
@@ -280,7 +286,14 @@ except ImportError:
     # Ansible is always importable where this plugin is loaded. The fallback exists so the
     # encoder can be exercised on a machine with no controller installed, which is where the
     # specification-side half of the oracle is cheapest to run.
-    _FilterErrorBase = Exception
+    #
+    # It has to derive from the shared error rather than be `Exception`: the shared error is
+    # itself an `Exception`, so naming `Exception` as the first base of the class below would
+    # put a superclass ahead of its own subclass and no consistent method resolution order
+    # exists. That is an import-time TypeError -- the filter would not load at all on precisely
+    # the machines this fallback is for.
+    class _FilterErrorBase(_SharedError):  # type: ignore[no-redef]
+        """Stand-in for ``AnsibleFilterError`` where no controller is installed."""
 
 try:  # pragma: no cover -- as above
     from ansible.utils.display import Display
@@ -290,11 +303,13 @@ except ImportError:
     _DISPLAY = None
 
 
-class Namespace2XmlError(_FilterErrorBase):  # type: ignore[valid-type, misc]
+class Namespace2XmlError(_FilterErrorBase, _SharedError):  # type: ignore[valid-type, misc]
     """A failure: bad input data, a tool that could not be found, or a run that did not succeed.
 
     Derived from ``AnsibleFilterError`` so a play reports a failed template as a filter error
-    with the message attached rather than as a traceback from an unrecognised exception type.
+    with the message attached rather than as a traceback from an unrecognised exception type,
+    and from the shared error so that the one ``except`` clause in :func:`render` covers both
+    this module's refusals and those raised by the shared code it now calls.
     """
 
 
@@ -332,44 +347,6 @@ def encode_name_part(part):
             out.append("\\u{%X}" % ord(char))
         else:
             out.append(char)
-
-    return "".join(out)
-
-
-def encode_value(text):
-    """Encode a scalar as a section 8.3 interpreted value.
-
-    One pass, because escaping in stages re-escapes what an earlier stage produced. A value that
-    is exactly ``{}`` or ``[]`` is escaped whole: unescaped, those two are the empty-container
-    sentinels rather than strings.
-    """
-    if text in _VALUE_CONTAINER_SENTINELS:
-        return _VALUE_CONTAINER_SENTINELS[text]
-
-    out = []
-    index = 0
-    length = len(text)
-
-    while index < length:
-        char = text[index]
-
-        if char == "\\":
-            out.append("\\\\")
-        elif char == "*":
-            out.append("\\*")
-        elif char == "$" and index + 1 < length and text[index + 1] == "{":
-            out.append("\\${")
-            index += 1
-        elif char == "\n":
-            out.append("\\n")
-        elif char == "\r":
-            out.append("\\r")
-        elif char == "\t":
-            out.append("\\t")
-        else:
-            out.append(char)
-
-        index += 1
 
     return "".join(out)
 
@@ -503,283 +480,6 @@ def synthesize_scheme(fmt, selector=DEFAULT_SELECTOR, root=None, delimiter=None)
     return "".join(line + "\n" for line in lines)
 
 
-# Deliberately duplicated from plugins/module_utils/n2x.py, which a filter may not import:
-# module_utils ships to the node and the controller half must stand alone. The unit suite
-# holds the two copies to the same behaviour rather than trusting that they stay aligned.
-_SCHEME_BOOLEANS = {True: "true", False: "false"}
-_SCHEME_LITERAL_DOT = "\\."
-
-
-def encode_scheme_mapping(mapping):
-    """Render a playbook mapping as a Section 15 scheme document.
-
-    A scheme written as a mapping is not the same shape as one written as text. In the text
-    form a dot separates name parts; in the mapping form the *nesting* carries the path, so a
-    key containing a dot is one name part with a dot inside it -- Section 9 says a native key
-    is one component, and the delimiter "loses its meaning there, because a key is one part
-    rather than a path". The tool echoes such a key back as ``configuration\\u{2E}output``.
-    Where that lands as a directive name it is rejected; where it lands as a *selector* it
-    draws only ``WARN009`` and the render succeeds with the directive inert. That second case
-    -- a wrong answer with a zero exit code -- is what this function exists to catch at the
-    plugin boundary, with a message that names both fixes.
-
-    The document is emitted as JSON, not YAML. Section 15 accepts ``.json``, ``.yaml`` and
-    ``.yml`` alike, JSON is a subset of YAML, and ``json`` is in the standard library. A node
-    already needs .NET and the tool; emitting YAML would add PyYAML to that list to buy
-    nothing.
-
-    Key order is preserved, and must be. Section 15.2 gives scheme directives source order
-    only: a later matching directive overrides an earlier one, and pattern specificity does
-    not alter precedence. Sorting the keys would silently change what the scheme means.
-    """
-    if not isinstance(mapping, dict):
-        raise Namespace2XmlError(
-            "A mapping scheme must be a mapping, not %s." % _scheme_kind(mapping))
-
-    if not mapping:
-        raise Namespace2XmlError(
-            "A mapping scheme is empty. Section 15 wants at least one directive; omit the "
-            "argument entirely if no inline scheme is intended.")
-
-    return json.dumps(
-        _scheme_branch(mapping, ()), indent=2, ensure_ascii=False, sort_keys=False) + "\n"
-
-
-def _scheme_kind(value):
-    """Name a value's type the way an author would recognize it from their playbook."""
-    if value is None:
-        return "an empty value"
-
-    return {
-        bool: "a boolean", int: "a number", float: "a number",
-        str: "a string", list: "a list", tuple: "a list", dict: "a mapping",
-    }.get(type(value), "a %s" % type(value).__name__)
-
-
-def _scheme_where(path):
-    """Locate a key for an error message.
-
-    Bracketed rather than dotted on purpose: in this form a dot is a literal character in a
-    name, so a dotted location would illustrate the very confusion being reported.
-    """
-    return "".join("[%s]" % part for part in path) or "the top level"
-
-
-def _scheme_branch(node, path):
-    """Validate and normalize one mapping level, preserving author order."""
-    branch = {}
-
-    for key, value in node.items():
-        if not isinstance(key, str):
-            raise Namespace2XmlError(
-                "The key %r under %s is %s. Quote it: a scheme path is made of names, and "
-                "YAML reads an unquoted %s as a value rather than a name."
-                % (key, _scheme_where(path), _scheme_kind(key), key))
-
-        if not key:
-            raise Namespace2XmlError(
-                "A key under %s is empty. Section 15 has no empty name part."
-                % _scheme_where(path))
-
-        if "." in key or _SCHEME_LITERAL_DOT in key:
-            name = _scheme_name_part(key, path)
-        else:
-            name = key
-
-        here = path + (key,)
-
-        if isinstance(value, dict):
-            if not value:
-                raise Namespace2XmlError(
-                    "The mapping at %s is empty, so it declares nothing. Give it a directive "
-                    "or drop it." % _scheme_where(here))
-
-            branch[name] = _scheme_branch(value, here)
-        else:
-            branch[name] = _scheme_leaf(value, here)
-
-    return branch
-
-
-def _scheme_qname_span(key):
-    """Measure a leading ``Q{...}`` marker, whose dots are URI text rather than separators.
-
-    Section 8 lists ``Q{uri}x`` among the markers a native mapping key carries, and Section
-    11.4 settles what a dot inside one means: "dots inside ``Q{...}`` are part of the URI and
-    do not split the qualified path". Refusing such a key would reject a name the tool accepts
-    as written, and offering to nest it would be worse than useless -- Section 8 also makes
-    marker recognition committing, so ``Q{urn:example`` is ``PARSE001`` rather than an ordinary
-    part, and an author who took that advice would land on a blocking error.
-
-    The marker is recognized at the start of a part only, optionally after the ``@`` that marks
-    an attribute (Section 11.4's ``@Q{urn:p}x``). The first unescaped ``}`` closes the URI;
-    ``\\}`` does not. An unterminated marker spans the rest of the key and is passed through
-    for the tool to reject as ``PARSE001``, a loud refusal downstream being exactly not the
-    silent wrong answer this converter exists to prevent.
-    """
-    start = 1 if key.startswith("@") else 0
-
-    if not key.startswith("Q{", start):
-        return 0
-
-    index = start + 2
-
-    while index < len(key):
-        if key[index] == "\\":
-            index += 2
-        elif key[index] == "}":
-            return index + 1
-        else:
-            index += 1
-
-    return len(key)
-
-
-def _scheme_name_part(key, path):
-    """Resolve one mapping key to the name part it denotes, or refuse it.
-
-    Section 9 settles what a native key means: a JSON or YAML mapping key is one component,
-    and only the delimiter and ``\\u{HEX}`` lose their meaning there, "because a key is one
-    part rather than a path". A dotted key is therefore a name with a dot inside it, which is
-    almost never what an author reaching for ``a.b:`` intends.
-
-    YAML quoting cannot carry the distinction. ``a.b``, ``'a.b'`` and ``"a.b"`` all load to
-    the same string and the quote style is discarded by the parser, so there is no signal to
-    read. The escape is carried in the text instead, spelled as Section 8 spells it in the
-    namespace form: ``\\.`` is one literal dot. Note that YAML's own double-quoted style
-    rejects ``"a\\.b"`` as an unknown escape -- write it plain or single-quoted.
-
-    A dot inside a leading ``Q{...}`` marker is neither a separator nor an ambiguity: Section
-    11.4 makes it URI text. Those dots pass through unrefused and unescaped, as measured by
-    :func:`_scheme_qname_span`.
-    """
-    span = _scheme_qname_span(key)
-    out = []
-    index = 0
-
-    while index < len(key):
-        if key.startswith(_SCHEME_LITERAL_DOT, index):
-            out.append(".")
-            index += 2
-            continue
-
-        if key[index] == "." and index >= span:
-            raise Namespace2XmlError(
-                "The key '%s' under %s contains a dot. In a mapping scheme the nesting "
-                "carries the path, so a dot here separates nothing -- Section 9 makes a "
-                "native key one name part -- and as a selector it would match nothing "
-                "(WARN009) rather than fail. Nest the parts instead -- '%s' -- or write "
-                "'%s' if one name containing a literal dot is what you meant."
-                % (key, _scheme_where(path), _scheme_nesting_hint(key),
-                   _scheme_escape_dots(key)))
-
-        out.append(key[index])
-        index += 1
-
-    return "".join(out)
-
-
-def _scheme_escape_dots(key):
-    """Show the literal-dot spelling of a key, escaping only its unescaped dots.
-
-    Dots inside a leading ``Q{...}`` marker are left alone: Section 11.4 already reads them as
-    URI text, so escaping them would change the URI rather than preserve it.
-    """
-    span = _scheme_qname_span(key)
-    out = []
-    index = 0
-
-    while index < len(key):
-        if key.startswith(_SCHEME_LITERAL_DOT, index):
-            out.append(_SCHEME_LITERAL_DOT)
-            index += 2
-        elif key[index] == "." and index >= span:
-            out.append(_SCHEME_LITERAL_DOT)
-            index += 1
-        else:
-            out.append(key[index])
-            index += 1
-
-    return "".join(out)
-
-
-def _scheme_nesting_hint(key):
-    """Show the nested spelling of a dotted key, for the error that rejects it.
-
-    Splits on unescaped dots outside any leading ``Q{...}`` marker only. An already-escaped dot
-    stays inside its part *and stays escaped*: the hint is text the author is meant to paste
-    back, so decoding the escape here would print a spelling this converter then refuses.
-    """
-    span = _scheme_qname_span(key)
-    parts = []
-    current = []
-    index = 0
-
-    while index < len(key):
-        if key.startswith(_SCHEME_LITERAL_DOT, index):
-            current.append(_SCHEME_LITERAL_DOT)
-            index += 2
-        elif key[index] == "." and index >= span:
-            parts.append("".join(current))
-            current = []
-            index += 1
-        else:
-            current.append(key[index])
-            index += 1
-
-    parts.append("".join(current))
-
-    return " -> ".join(part for part in parts if part)
-
-
-def _scheme_leaf(value, path):
-    """Validate and stringify one directive value."""
-    if value is None:
-        raise Namespace2XmlError(
-            "The directive at %s has no value. Section 15 wants a nonempty scalar, and a "
-            "YAML key written with nothing after the colon parses as an empty value."
-            % _scheme_where(path))
-
-    if isinstance(value, (list, tuple)):
-        raise Namespace2XmlError(
-            "The directive at %s is a list, and Section 15 wants a nonempty scalar. A "
-            "directive that takes several values is spelled as one comma-separated scalar: "
-            "%s." % (_scheme_where(path), _scheme_comma_hint(value)))
-
-    if isinstance(value, bool):
-        return _SCHEME_BOOLEANS[value]
-
-    if isinstance(value, float):
-        raise Namespace2XmlError(
-            "The directive at %s is %r, which YAML read as a number -- so a value written "
-            "as 3.10 arrives as 3.1. Quote it to keep what you wrote."
-            % (_scheme_where(path), value))
-
-    if isinstance(value, int):
-        return str(value)
-
-    if not isinstance(value, str):
-        raise Namespace2XmlError(
-            "The directive at %s is %s. Section 15 wants a nonempty scalar."
-            % (_scheme_where(path), _scheme_kind(value)))
-
-    if not value:
-        raise Namespace2XmlError(
-            "The directive at %s is empty. Section 15 wants a nonempty scalar."
-            % _scheme_where(path))
-
-    return value
-
-
-def _scheme_comma_hint(values):
-    """Show the comma-scalar spelling of a list, for the error that rejects it."""
-    joined = ",".join(
-        _SCHEME_BOOLEANS[item] if isinstance(item, bool) else str(item)
-        for item in values if item is not None)
-
-    return "'%s'" % joined if joined else "one scalar naming every value"
-
-
 def _split_unescaped(text, separator):
     """Split on a separator that a preceding backslash protects, per Section 8.2."""
     parts = []
@@ -890,7 +590,7 @@ def _declared_outputs_in_mapping(mapping, seen=None):
         elif (isinstance(key, str) and key.strip().lower() == "output"
               and value is not None and not isinstance(value, (list, tuple))):
             outputs |= _output_formats(
-                _SCHEME_BOOLEANS[value] if isinstance(value, bool) else str(value))
+                ("true" if value else "false") if isinstance(value, bool) else str(value))
 
     return outputs
 
@@ -940,234 +640,6 @@ def _refuse_swallowed_arguments(scheme, fmt, root, delimiter):
             % (" and ".join(sorted("'%s'" % value for value in declared)), fmt))
 
 
-def _identity_key(executable):
-    """Identify the binary by what it is, not only by where it is.
-
-    ``dotnet tool update --global`` rewrites the shim in place, at the same path. A path-keyed
-    cache would go on serving the pre-upgrade identity for the life of the ``ansible-playbook``
-    process, and because that identity is a component of the render key, pre-upgrade *output*
-    with it. The README promises the render cache cannot survive a tool upgrade, and that
-    promise is only kept if this key moves when the file does.
-    """
-    try:
-        info = os.stat(executable)
-    except OSError:
-        return None
-
-    return (executable, info.st_mtime_ns, info.st_size)
-
-
-def _support_hint(executable):
-    """The report address the binary itself publishes.
-
-    ``--version`` emits a ``report:`` URL, so attaching it here points at the tracker belonging
-    to the build that actually ran rather than at a link frozen into this file when it was
-    written. A failure therefore carries its own way out, which is the whole point: the reader
-    of the message is often an agent, and it has no other way to discover where this goes.
-    """
-    key = _identity_key(executable)
-    entry = _IDENTITY_CACHE.get(key) if key is not None else None
-    report = entry[1].get("report") if entry else None
-
-    if not report:
-        return ""
-
-    return (
-        "\n\nIf this is a defect rather than a mistake in the data, report it at %s. Quote this "
-        "message verbatim and include the collection version, the output of 'ansible "
-        "--version', and the tool's full '--version' output." % report)
-
-
-def tool_identity(tool=None):
-    """The contract identity of the binary that will do the work.
-
-    Both halves matter to a cache key. The package version says which build, and the
-    ``contract-bundle`` revision says which contract that build was compiled against -- two
-    builds of one version against different bundle revisions may legitimately render
-    differently.
-    """
-    executable = _resolve(tool)
-    key = _identity_key(executable)
-
-    if key is not None and key in _IDENTITY_CACHE:
-        return _IDENTITY_CACHE[key][0]
-
-    completed = subprocess.run(
-        [executable, "--version"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-
-    if completed.returncode != 0:
-        raise Namespace2XmlError(
-            "'%s --version' exited %d: %s"
-            % (executable, completed.returncode, (completed.stderr or "").strip()))
-
-    fields = {}
-
-    for line in completed.stdout.splitlines():
-        if ":" in line:
-            name, value = line.split(":", 1)
-            fields[name.strip()] = value.strip()
-
-    # A missing contract-bundle is the signal that this is a pre-3.0 binary, and it has to be
-    # refused rather than recorded as "unknown". A 2.x build accepts the same -i/-s/-o arguments
-    # and the same root and output scheme spellings, so it does not fail: it exits 0 and returns
-    # a document rendered under 2.x escaping, type inference and XML rules. Every claim this
-    # collection makes about its output is a claim about 3.x behaviour, so silently rendering
-    # through 2.x would make the documentation untrue with nothing anywhere to say so.
-    if "contract-bundle" not in fields:
-        raise Namespace2XmlError(
-            "'%s' does not look like a namespace2xml 3.x build: its '--version' output declares "
-            "no 'contract-bundle', which every 3.x build emits. A 2.x binary takes the same "
-            "arguments and scheme spellings, so it would render silently under the older "
-            "contract instead of failing. Install a 3.x build with 'dotnet tool install "
-            "--global --prerelease namespace2xml'." % executable)
-
-    identity = "%s|%s" % (
-        fields.get("version", completed.stdout.strip()),
-        fields["contract-bundle"])
-
-    if key is not None:
-        _IDENTITY_CACHE[key] = (identity, fields)
-
-    return identity
-
-
-def _executable_names():
-    """The file names ``dotnet tool install --global`` produces on this platform."""
-    if os.name == "nt":
-        return ("namespace2xml.exe", "namespace2xml.cmd", "namespace2xml.bat", "namespace2xml")
-
-    return ("namespace2xml",)
-
-
-def _runnable(path):
-    """Whether a path names a file this process could execute."""
-    return os.path.isfile(path) and os.access(path, os.X_OK)
-
-
-def _search(directory):
-    """The first runnable candidate in a directory, or ``None``."""
-    if not directory or not os.path.isdir(directory):
-        return None
-
-    for name in _executable_names():
-        candidate = os.path.join(directory, name)
-
-        if _runnable(candidate):
-            return candidate
-
-    return None
-
-
-def _given(value, source):
-    """Resolve something the caller supplied, which is authoritative: it resolves or it fails."""
-    if os.sep in value or (os.altsep and os.altsep in value):
-        if _runnable(value):
-            return os.path.abspath(value)
-
-        raise Namespace2XmlError(
-            "%s names '%s', which is not an executable file." % (source, value))
-
-    found = shutil.which(value)
-
-    if found:
-        return os.path.abspath(found)
-
-    raise Namespace2XmlError(
-        "%s names '%s', which was not found on PATH." % (source, value))
-
-
-def _tool_directories():
-    """Where ``dotnet tool install --global`` puts binaries, most specific first.
-
-    ``PATH`` is not enough. The install writes to this directory whether or not the login shell
-    happens to name it, and a filter runs inside ``ansible-playbook``, whose environment was
-    fixed before the play began -- so a tool installed by an earlier task in the same play is
-    invisible to ``PATH`` no matter what that task did to it.
-    """
-    directories = [os.environ.get("DOTNET_TOOLS_PATH")]
-
-    for base in (os.environ.get("DOTNET_CLI_HOME"),
-                 os.environ.get("USERPROFILE") if os.name == "nt" else None,
-                 os.environ.get("HOME"),
-                 os.path.expanduser("~")):
-        if base:
-            directories.append(os.path.join(base, ".dotnet", "tools"))
-
-    return directories
-
-
-def _resolve(tool):
-    """Find the tool binary, memoizing the search but never the failure to find one.
-
-    The search is expensive and `render` asks for it twice per call -- once through
-    `tool_identity`, which resolves before it consults its own cache, and once for the run
-    itself. `shutil.which` walks every `PATH` entry against every `PATHEXT`, which measured
-    7.3 ms against 0.15 ms for a path that needs no searching, so an uncached resolver put
-    ~14.6 ms into every render to locate a file that had not moved -- roughly four times what
-    all the temporary-file marshalling costs (#112).
-
-    Two things this must not do.
-
-    It must not remember a failure. `_tool_directories` explains that a tool installed by an
-    earlier task in the same play is invisible to the `PATH` this process started with, so a
-    lookup that misses now is expected to succeed later; caching the miss would break exactly
-    the case that function exists to serve.
-
-    It must not hand back a path that has stopped being runnable. A hit is revalidated before
-    it is trusted, which costs a fraction of the search it replaces and means a tool moved or
-    removed mid-play falls through to a fresh lookup rather than to a stale answer.
-    """
-    key = (tool, os.environ.get("NAMESPACE2XML"), os.environ.get("PATH"))
-    cached = _RESOLVE_CACHE.get(key)
-
-    if cached is not None and _runnable(cached):
-        return cached
-
-    found = _search_for_tool(tool)
-    _RESOLVE_CACHE[key] = found
-
-    return found
-
-
-def _search_for_tool(tool):
-    """Find the tool binary, or say precisely what to do about its absence."""
-    if tool:
-        return _given(tool, "the 'tool' argument")
-
-    override = os.environ.get("NAMESPACE2XML")
-
-    if override:
-        return _given(override, "$NAMESPACE2XML")
-
-    found = shutil.which("namespace2xml")
-
-    if found:
-        return os.path.abspath(found)
-
-    for directory in _tool_directories():
-        found = _search(directory)
-
-        if found:
-            return os.path.abspath(found)
-
-    # '--prerelease' is load-bearing while 3.0 is on preview. Without it dotnet resolves the
-    # highest stable version, which is 2.4.0 -- the build _identify() refuses for having no
-    # contract-bundle. Omitting the flag here would send the reader round the loop twice: install,
-    # get told the tool is a 2.x build, come back. Say it once, in the message that sends them.
-    raise Namespace2XmlError(
-        "namespace2xml was not found on PATH or in the dotnet global tools directory. "
-        "Install it with 'dotnet tool install --global --prerelease namespace2xml', or set "
-        "$NAMESPACE2XML or the filter's 'tool' argument to the binary's path. '--prerelease' is "
-        "required while the 3.0 line is on preview: without it dotnet installs the 2.x tool, "
-        "which this filter refuses.")
-
-
 def render(
     config,
     fmt,
@@ -1200,6 +672,23 @@ def render(
     :param workdir: parent directory for the temporary marshalling directory.
     :returns: the rendered text.
     """
+    # This is the collection's one filter, so it is the one place a refusal from the shared
+    # code can reach a play. module_utils cannot import ansible -- it ships to the node -- so
+    # its errors are not `AnsibleFilterError` and would surface as an unrecognised exception
+    # type with a traceback instead of a message. Restating them here, once, is what keeps a
+    # missing binary reading as a failed task rather than as a bug in this collection.
+    try:
+        return _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool,
+                       memoize, workdir)
+    except Namespace2XmlError:
+        raise
+    except _SharedError as error:
+        raise Namespace2XmlError(str(error)) from error
+
+
+def _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool, memoize,
+            workdir):
+    """Do the work of :func:`render`, raising either error class."""
     profile = flatten(config, selector)
 
     if scheme is not None and scheme_yaml is not None:
@@ -1222,7 +711,7 @@ def render(
         scheme_text, scheme_name = synthesize_scheme(
             fmt, selector, root, delimiter), "scheme.txt"
 
-    identity = tool_identity(tool)
+    identity = n2x.tool_identity(tool)
     key = None
 
     if memoize:
@@ -1231,7 +720,7 @@ def render(
         if key in _RENDER_CACHE:
             return _RENDER_CACHE[key]
 
-    text = _marshal_and_run(profile, scheme_text, scheme_name, _resolve(tool), workdir)
+    text = _marshal_and_run(profile, scheme_text, scheme_name, n2x.resolve(tool), workdir)
 
     if key is not None:
         _RENDER_CACHE[key] = text
@@ -1296,29 +785,11 @@ def _warn(text):
 
 def _run_and_read(executable, input_path, scheme_path, output_dir):
     """Spawn the tool over prepared files and read the single output back."""
-    # The pipes are decoded as UTF-8 explicitly. `text=True` alone decodes with the locale
-    # encoding and `errors='strict'`, and the tool's diagnostics carry the section sign (U+00A7)
-    # in every specification citation -- so on a controller whose locale resolves to ASCII the
-    # decode raises inside subprocess.run, before the returncode is ever examined. A
-    # UnicodeDecodeError traceback would then replace the diagnostic exactly when there is one.
-    completed = subprocess.run(
-        [executable, "-i", input_path, "-s", scheme_path, "-o", output_dir],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-
-    if completed.returncode != 0:
-        # The diagnostic text is the whole value of a non-zero exit here: hiding a failure's own
-        # explanation turns a precise contract error into "the filter did not work".
-        raise Namespace2XmlError(
-            "'%s' exited %d\n%s%s"
-            % (executable, completed.returncode, (completed.stderr or "").strip(),
-               _support_hint(executable)))
-
-    _warn(completed.stderr or "")
+    # `run_tool` raises on a non-zero exit with the tool's own diagnostics folded into the
+    # message, and returns stderr on success so a diagnostic about a rule that matched nothing
+    # is not swallowed. Both halves of that are the shared behaviour; only the reading back of
+    # a single file below is the filter's own.
+    _warn(n2x.run_tool(executable, ["-i", input_path, "-s", scheme_path, "-o", output_dir]))
 
     # "dummy", not "_": ansible-test's pylint profile lists "_" in bad-names, so the
     # conventional Python throwaway fails collection sanity.
@@ -1341,7 +812,7 @@ def _run_and_read(executable, input_path, scheme_path, output_dir):
             "every produced file to the node.%s"
             % (len(produced),
                (": " + ", ".join(os.path.basename(path) for path in produced)) if produced else "",
-               _support_hint(executable)))
+               n2x.support_hint(executable)))
 
     with open(produced[0], "r", encoding="utf-8", newline="") as handle:
         return handle.read()

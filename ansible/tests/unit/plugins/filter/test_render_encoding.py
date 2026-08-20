@@ -16,8 +16,13 @@ import sys
 
 import pytest
 
+# `n2x` is the filter under test; `shared` is the module_utils the filter now calls into.
+# Discovery, the contract-bundle gate and the section 8.3 encoder live in `shared`, so a test
+# that stands in for one of those patches it there -- patching the filter would leave the code
+# under test calling the real thing.
 try:
     from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as n2x
+    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x as shared
 except ImportError:  # a checkout that is not inside an ansible_collections tree
     # Through `plugins` -- an implicit namespace package -- rather than by path: the filter
     # reaches module_utils by relative import, and a relative import needs a package. Loading
@@ -28,6 +33,22 @@ except ImportError:  # a checkout that is not inside an ansible_collections tree
         sys.path.insert(0, str(_ANSIBLE))
 
     from plugins.filter import render as n2x  # type: ignore[no-redef]
+    from plugins.module_utils import n2x as shared  # type: ignore[no-redef]
+
+
+def test_the_filter_shares_the_encoders_rather_than_carrying_its_own():
+    """One object, not two that agree today.
+
+    These encoders were duplicated for as long as a filter was believed unable to import its
+    collection's ``module_utils``, and the duplication was policed by comparing the two copies
+    -- first by corpus, then by source text, after the corpus twice failed to notice a value
+    that was wrong in both. Identity retires both gates: there is nothing left to drift.
+
+    Asserted with ``is`` on purpose. Equality of behaviour is what a reintroduced copy would
+    also satisfy on the day it was written, which is exactly when the comparison is useless.
+    """
+    assert n2x.encode_value is shared.encode_value
+    assert n2x.encode_scheme_mapping is shared.encode_scheme_mapping
 
 
 # (id, data, hand-authored profile). The profile column is the thing under test.
@@ -176,8 +197,8 @@ class _Spy:
 @pytest.fixture(name="spy")
 def _spy(monkeypatch):
     spy = _Spy()
-    monkeypatch.setattr(n2x, "tool_identity", lambda tool=None: "3.0.0|deadbeef")
-    monkeypatch.setattr(n2x, "_resolve", lambda tool: "/stand-in/namespace2xml")
+    monkeypatch.setattr(shared, "tool_identity", lambda tool=None: "3.0.0|deadbeef")
+    monkeypatch.setattr(shared, "resolve", lambda tool: "/stand-in/namespace2xml")
     monkeypatch.setattr(n2x, "_marshal_and_run", spy)
     monkeypatch.setattr(n2x, "_RENDER_CACHE", {})
 
@@ -198,7 +219,7 @@ def test_memoize_false_spawns_the_tool_every_time(spy):
 
 def test_the_memo_is_keyed_on_the_contract_identity_not_only_the_data(spy, monkeypatch):
     n2x.render({"k": "v"}, "json")
-    monkeypatch.setattr(n2x, "tool_identity", lambda tool=None: "3.0.1|cafebabe")
+    monkeypatch.setattr(shared, "tool_identity", lambda tool=None: "3.0.1|cafebabe")
     n2x.render({"k": "v"}, "json")
     assert spy.calls == 2
 

@@ -33,7 +33,6 @@ import sys
 import pytest
 
 _ANSIBLE = pathlib.Path(__file__).resolve().parents[4]
-_PLUGINS = _ANSIBLE / "plugins"
 
 try:
     from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import (
@@ -49,24 +48,6 @@ except ImportError:  # a checkout that is not inside an ansible_collections tree
         sys.path.insert(0, str(_ANSIBLE))
 
     from plugins.module_utils import n2x, render_node  # type: ignore[no-redef]
-
-
-def _filter_encode_value(value):
-    """The controller-side filter's own encoder, loaded the way the filter tests load it.
-
-    Importing it lazily keeps this file's other tests runnable where ansible-core is not
-    importable, which is every Windows checkout.
-    """
-    try:
-        from ansible_collections.stop_cran.namespace2xml.plugins.filter import (  # noqa: E501
-            render as filter_render)
-    except ImportError:
-        if str(_ANSIBLE) not in sys.path:
-            sys.path.insert(0, str(_ANSIBLE))
-
-        from plugins.filter import render as filter_render
-
-    return filter_render.encode_value(value)
 
 
 def write(path, text):
@@ -189,20 +170,6 @@ def test_a_name_is_not_escaped_even_though_its_value_is():
     assert render_node.encode_variable("a.b", "${x}") == "a.b=\\${x}"
     assert render_node.encode_variable(
         "configuration.root.@level", "DEBUG") == "configuration.root.@level=DEBUG"
-
-
-def test_the_module_and_the_filter_escape_a_value_the_same_way():
-    # The two encoders are separate copies -- the filter runs on the controller under a
-    # different Python -- so nothing but a test keeps them in step. A divergence here means the
-    # same playbook value renders differently depending on which plugin the play used.
-    corpus = [
-        "plain", "C:\\temp\\new", "${JAVA_HOME}", "a=b", "a.b", "a,b", "a;b", "a#b",
-        " pad ", "{}", "[]", "a{b}c", "line\nbreak", "tab\there", "", "\\", "*", "$",
-        "$notabrace", "\\${already}", "{}x", "x{}",
-    ]
-
-    for value in corpus:
-        assert n2x.encode_value(value) == _filter_encode_value(value), value
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
@@ -659,129 +626,6 @@ def test_returned_paths_are_absolute_even_when_dest_was_not(tmp_path, tool):
 
     assert all(os.path.isabs(path) for path in result["files"])
     assert all(os.path.isabs(path) for path in result["changed_files"])
-
-
-def _filter_encode_scheme_mapping(mapping):
-    """The controller-side filter's own copy of the mapping-scheme converter."""
-    try:
-        from ansible_collections.stop_cran.namespace2xml.plugins.filter import (  # noqa: E501
-            render as filter_render)
-    except ImportError:
-        if str(_ANSIBLE) not in sys.path:
-            sys.path.insert(0, str(_ANSIBLE))
-
-        from plugins.filter import render as filter_render
-
-    return filter_render.encode_scheme_mapping(mapping)
-
-
-def test_the_two_mapping_scheme_converters_agree():
-    """The node copy and the controller copy must not drift.
-
-    A filter cannot import module_utils, so this converter exists twice on purpose. The hazard
-    of a deliberate duplicate is that one copy is fixed and the other is not, and the symptom is
-    a playbook whose scheme means one thing through the module and another through the filter.
-    """
-    accepted = [
-        {"cfg": {"output": "xml"}},
-        {"cfg": {"output": "xml", "root": "configuration", "filename": "a.xml"}},
-        {"xmlinputoptions": "NormalizeFormattingWhitespace", "cfg": {"output": "json"}},
-        {"cfg": {"appender": {"*": {"name": {"type": "ignore"}}, "a": {"type": "element"}}}},
-        {"cfg": {"output": "xml,json"}},
-        {"cfg": {"hidden": True, "port": 8080}},
-        {"cfg": {"name": "a=b"}},
-        {"cfg": {"name": "line\nbreak"}},
-        {"cfg": {"name": "\u00e9\u4e2d"}},
-        {"cfg": {"a": {"b": {"c": {"d": {"output": "ini"}}}}}},
-        {"cfg": {"a\\.b": {"output": "xml"}}},
-        {"a\\.b": {"output": "xml"}},
-        {"cfg": {"a\\.b\\.c": {"type": "element"}}},
-        {"cfg": {"Q{urn:example.com}name": {"type": "element"}}},
-        {"cfg": {"@Q{urn:p.q}x": {"type": "attribute"}}},
-        {"cfg": {"Q{urn:x\\}y.z}n": {"type": "element"}}},
-        {"cfg": {"Q{urn:x": {"type": "element"}}},
-        {"cfg": {"OUTPUT": " XML "}},
-    ]
-
-    for mapping in accepted:
-        assert n2x.encode_scheme_mapping(mapping) == _filter_encode_scheme_mapping(mapping), mapping
-
-    refused = [
-        {}, [], "cfg.output=xml", None,
-        {"cfg.output": "xml"},
-        {"cfg": {"a\\.b.c": {"type": "element"}}},
-        {"cfg": {"Q{urn:e.g}a.b": {"type": "element"}}},
-        {"cfg": {"\\Q{urn:e.g}n": {"type": "element"}}},
-        {"cfg": {".": "xml"}},
-        {"cfg": {"output": ["xml", "json"]}},
-        {"cfg": {"output": None}},
-        {"cfg": {"output": ""}},
-        {"cfg": {"filename": 3.10}},
-        {"cfg": {}},
-        {"": "xml"},
-        {3: "xml"},
-        {"cfg": {"output": {"nested": []}}},
-    ]
-
-    for mapping in refused:
-        node_message = None
-        filter_message = None
-
-        try:
-            n2x.encode_scheme_mapping(mapping)
-        except n2x.Namespace2XmlError as error:
-            node_message = str(error)
-
-        try:
-            _filter_encode_scheme_mapping(mapping)
-        except Exception as error:  # the filter's error derives from AnsibleFilterError
-            filter_message = str(error)
-
-        assert node_message is not None, mapping
-        assert node_message == filter_message, mapping
-
-
-def test_the_two_mapping_scheme_converters_are_identical_as_source():
-    """Compare the copies as text, not only by what they answer.
-
-    The corpus above can only see a difference that changes one of its own answers. That is a
-    real blind spot and it has already been exploited twice: an independent review found the
-    nesting hint printing a spelling this converter then refuses, and the escaping helper
-    escaping dots inside a Q{...} URI. Both were wrong in *both* copies, so the corpus agreed
-    with itself and reported nothing.
-
-    Comparing the source closes the half of the gap that is mechanical -- a fix applied to one
-    copy and not the other -- without waiting for someone to think of the corpus entry that
-    would have caught it. The other half, a value wrong in both, is what the specification-
-    authored expectations in the filter's own suite are for.
-
-    Compared function by function rather than as whole files, since each module carries its own
-    imports, docstring and unshared helpers.
-    """
-    import ast
-    import difflib
-
-    shared = ["_scheme_qname_span", "_scheme_name_part", "_scheme_escape_dots",
-              "_scheme_nesting_hint", "_scheme_branch", "_scheme_where",
-              "encode_scheme_mapping"]
-
-    def functions(path):
-        text = path.read_text(encoding="utf-8")
-        return {node.name: ast.get_source_segment(text, node)
-                for node in ast.parse(text).body if isinstance(node, ast.FunctionDef)}
-
-    node = functions(_PLUGINS / "module_utils" / "n2x.py")
-    controller = functions(_PLUGINS / "filter" / "render.py")
-
-    for name in shared:
-        assert name in node, "%s is missing from the node-side copy" % name
-        assert name in controller, "%s is missing from the controller-side copy" % name
-
-        if node[name] != controller[name]:
-            drift = "\n".join(difflib.unified_diff(
-                node[name].splitlines(), controller[name].splitlines(),
-                "module_utils/n2x.py", "filter/render.py", lineterm=""))
-            raise AssertionError("%s has drifted between the two copies:\n%s" % (name, drift))
 
 
 # --- Issue #112: the node copy memoizes the search too ------------------------------------------

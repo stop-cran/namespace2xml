@@ -17,8 +17,13 @@ import sys
 
 import pytest
 
+# `n2x` is the filter under test; `shared` is the module_utils the filter now calls into.
+# Discovery, the contract-bundle gate and the section 8.3 encoder live in `shared`, so a test
+# that stands in for one of those patches it there -- patching the filter would leave the code
+# under test calling the real thing.
 try:
     from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as n2x
+    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x as shared
 except ImportError:  # a checkout that is not inside an ansible_collections tree
     # Through `plugins` -- an implicit namespace package -- rather than by path: the filter
     # reaches module_utils by relative import, and a relative import needs a package. Loading
@@ -29,14 +34,15 @@ except ImportError:  # a checkout that is not inside an ansible_collections tree
         sys.path.insert(0, str(_ANSIBLE))
 
     from plugins.filter import render as n2x  # type: ignore[no-redef]
+    from plugins.module_utils import n2x as shared  # type: ignore[no-redef]
 
 
 @pytest.fixture(autouse=True)
 def _clean_identity_cache():
     """The identity cache is a module global, so a test that fills it would leak into the next."""
-    n2x._IDENTITY_CACHE.clear()
+    shared._IDENTITY_CACHE.clear()
     yield
-    n2x._IDENTITY_CACHE.clear()
+    shared._IDENTITY_CACHE.clear()
 
 
 # --- Section 16.1: the format is an enumeration, not free text ----------------------------------
@@ -241,8 +247,8 @@ def _stub_version(monkeypatch, executable, texts):
         calls.append(argv)
         return _Version(texts[min(len(calls) - 1, len(texts) - 1)])
 
-    monkeypatch.setattr(n2x, "_resolve", lambda tool: str(executable))
-    monkeypatch.setattr(n2x.subprocess, "run", run)
+    monkeypatch.setattr(shared, "resolve", lambda tool: str(executable))
+    monkeypatch.setattr(shared.subprocess, "run", run)
 
     return calls
 
@@ -255,8 +261,8 @@ def test_the_identity_is_cached_for_an_unchanged_binary(monkeypatch, tmp_path):
     binary.write_text("first", encoding="utf-8")
     calls = _stub_version(monkeypatch, binary, [IDENTITY % ("3.0.0", "r99+aaaa")])
 
-    assert n2x.tool_identity() == "3.0.0|r99+aaaa"
-    assert n2x.tool_identity() == "3.0.0|r99+aaaa"
+    assert shared.tool_identity() == "3.0.0|r99+aaaa"
+    assert shared.tool_identity() == "3.0.0|r99+aaaa"
     assert len(calls) == 1
 
 
@@ -273,11 +279,11 @@ def test_upgrading_the_binary_in_place_invalidates_the_identity(monkeypatch, tmp
         monkeypatch, binary,
         [IDENTITY % ("3.0.0", "r99+aaaa"), IDENTITY % ("3.1.0", "r100+bbbb")])
 
-    assert n2x.tool_identity() == "3.0.0|r99+aaaa"
+    assert shared.tool_identity() == "3.0.0|r99+aaaa"
 
     binary.write_text("second and longer", encoding="utf-8")
 
-    assert n2x.tool_identity() == "3.1.0|r100+bbbb"
+    assert shared.tool_identity() == "3.1.0|r100+bbbb"
     assert len(calls) == 2
 
 
@@ -292,8 +298,8 @@ def test_a_binary_without_a_contract_bundle_is_refused(monkeypatch, tmp_path):
     binary.write_text("two-point-x", encoding="utf-8")
     _stub_version(monkeypatch, binary, ["namespace2xml 2.4.0\n"])
 
-    with pytest.raises(n2x.Namespace2XmlError, match="--prerelease"):
-        n2x.tool_identity()
+    with pytest.raises(shared.Namespace2XmlError, match="--prerelease"):
+        shared.tool_identity()
 
 
 def test_a_failure_points_at_the_report_address_the_binary_publishes(monkeypatch, tmp_path):
@@ -308,14 +314,14 @@ def test_a_failure_points_at_the_report_address_the_binary_publishes(monkeypatch
         monkeypatch, binary,
         [IDENTITY % ("3.0.0", "r99+aaaa") + "report: https://example.invalid/issues\n"])
 
-    n2x.tool_identity()
+    shared.tool_identity()
 
-    assert "https://example.invalid/issues" in n2x._support_hint(str(binary))
-    assert "verbatim" in n2x._support_hint(str(binary))
+    assert "https://example.invalid/issues" in shared.support_hint(str(binary))
+    assert "verbatim" in shared.support_hint(str(binary))
 
 
 def test_an_unknown_binary_contributes_no_hint_rather_than_a_broken_one(monkeypatch):
-    assert n2x._support_hint("no-such-executable-anywhere") == ""
+    assert shared.support_hint("no-such-executable-anywhere") == ""
 
 
 # --- Section 15: the mapping spelling of a scheme -----------------------------------------------
@@ -351,13 +357,13 @@ def test_a_dotted_key_in_a_mapping_scheme_is_refused_with_the_nested_spelling():
     back with the dot escaped as \\u{2E}, and where the key is a selector rather than a
     directive name the render *succeeds* with only WARN009 and the directive inert.
     """
-    with pytest.raises(n2x.Namespace2XmlError, match="cfg -> output"):
+    with pytest.raises(shared.Namespace2XmlError, match="cfg -> output"):
         n2x.encode_scheme_mapping({"cfg.output": "xml"})
 
 
 def test_the_dotted_key_refusal_offers_both_the_nesting_and_the_escape():
     """An author reaching for 'a.b:' means one of exactly two things. Name both."""
-    with pytest.raises(n2x.Namespace2XmlError) as failure:
+    with pytest.raises(shared.Namespace2XmlError) as failure:
         n2x.encode_scheme_mapping({"cfg.output": "xml"})
 
     message = str(failure.value)
@@ -388,7 +394,7 @@ def test_an_escaped_dot_is_not_confused_with_a_separator_in_the_same_key():
     what it proposes cannot drift apart: that is the check, and the wording is only how it is
     read.
     """
-    with pytest.raises(n2x.Namespace2XmlError) as failure:
+    with pytest.raises(shared.Namespace2XmlError) as failure:
         n2x.encode_scheme_mapping({"a\\.b.c": {"output": "xml"}})
 
     message = str(failure.value)
@@ -430,7 +436,7 @@ def test_a_dot_after_the_closing_brace_is_ambiguous_like_any_other():
     text, so a dot in it separates nothing and is refused as everywhere else. The hint has to
     describe that split without also splitting the URI it left behind.
     """
-    with pytest.raises(n2x.Namespace2XmlError) as failure:
+    with pytest.raises(shared.Namespace2XmlError) as failure:
         n2x.encode_scheme_mapping({"cfg": {"Q{urn:e.g}a.b": {"type": "ignore"}}})
 
     message = str(failure.value)
@@ -455,7 +461,7 @@ def test_an_escaped_marker_is_an_ordinary_part_and_its_dots_are_not_uri_text():
     """Section 8: an escaped marker is literal, so '\\Q{...}' is an ordinary part and the dot
     rule applies to it in full. Treating the escape as a marker would carry the exception into
     a key that never asked for it."""
-    with pytest.raises(n2x.Namespace2XmlError, match="contains a dot"):
+    with pytest.raises(shared.Namespace2XmlError, match="contains a dot"):
         n2x.encode_scheme_mapping({"cfg": {"\\Q{urn:e.g}n": {"type": "ignore"}}})
 
 
@@ -502,7 +508,7 @@ def test_a_scheme_that_is_neither_a_mapping_nor_text_is_refused_by_name(scheme):
 
 
 def test_a_bare_dot_key_is_refused_rather_than_read_as_an_empty_path():
-    with pytest.raises(n2x.Namespace2XmlError):
+    with pytest.raises(shared.Namespace2XmlError):
         n2x.encode_scheme_mapping({"cfg": {".": "xml"}})
 
 
@@ -515,13 +521,13 @@ def test_a_backslash_that_does_not_precede_a_dot_survives_unchanged():
 
 def test_a_list_directive_value_is_refused_naming_the_comma_spelling():
     """Section 15 wants a nonempty scalar, and YAML invites a list for a multi-valued directive."""
-    with pytest.raises(n2x.Namespace2XmlError, match="'xml,json'"):
+    with pytest.raises(shared.Namespace2XmlError, match="'xml,json'"):
         n2x.encode_scheme_mapping({"cfg": {"output": ["xml", "json"]}})
 
 
 def test_a_directive_written_with_no_value_is_refused():
     """A YAML key with nothing after the colon is null, which section 15 has no scalar for."""
-    with pytest.raises(n2x.Namespace2XmlError, match="no value"):
+    with pytest.raises(shared.Namespace2XmlError, match="no value"):
         n2x.encode_scheme_mapping({"cfg": {"output": None}})
 
 
@@ -531,7 +537,7 @@ def test_a_number_shaped_directive_value_is_refused_rather_than_silently_shorten
     Stringifying it would put a value in the scheme that the author did not write, which is the
     quiet-wrong-answer failure this suite exists to catch.
     """
-    with pytest.raises(n2x.Namespace2XmlError, match="Quote it"):
+    with pytest.raises(shared.Namespace2XmlError, match="Quote it"):
         n2x.encode_scheme_mapping({"cfg": {"filename": 3.10}})
 
 
