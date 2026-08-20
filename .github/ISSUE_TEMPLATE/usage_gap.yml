@@ -21,7 +21,7 @@ body:
       description: Which surface you were using when the answer went missing.
       options:
         - CLI — the `namespace2xml` .NET tool
-        - Ansible filter — `stop_cran.namespace2xml.render`
+        - Ansible collection — `stop_cran.namespace2xml` (the `render` filter or module)
         - Documentation only
         - Not sure
     validations:
@@ -32,11 +32,11 @@ body:
     attributes:
       label: Versions
       description: |
-        The `contract-bundle` line from `namespace2xml --version`. For the Ansible filter, add
+        The `contract-bundle` line from `namespace2xml --version`. For the Ansible collection, add
         `ansible --version` and the collection version.
       placeholder: |
         contract-bundle: r37+2d644be6926e
-        stop_cran.namespace2xml 1.0.0
+        stop_cran.namespace2xml 2.0.0
       render: text
     validations:
       required: true

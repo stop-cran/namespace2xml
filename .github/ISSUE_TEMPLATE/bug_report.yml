@@ -23,12 +23,12 @@ body:
     attributes:
       label: Component
       description: |
-        Which surface you were using. If a playbook was in the loop it is the Ansible filter, even
-        when the message came from the tool underneath — the filter owns how the tool is invoked
-        and is where the fix would land.
+        Which surface you were using. If a playbook was in the loop it is the Ansible collection,
+        even when the message came from the tool underneath — the plugin owns how the tool is
+        invoked and is where the fix would land.
       options:
         - CLI — the `namespace2xml` .NET tool
-        - Ansible filter — `stop_cran.namespace2xml.render`
+        - Ansible collection — `stop_cran.namespace2xml` (the `render` filter or module)
         - Documentation only
         - Not sure
     validations:
@@ -43,12 +43,14 @@ body:
         contract revision cannot be acted on, because the specification it was judged against is
         unknown.
 
-        For the Ansible filter, add `ansible --version` and the collection version from
-        `ansible-galaxy collection list stop_cran.namespace2xml`.
+        For the Ansible collection, add `ansible --version` and the collection version from
+        `ansible-galaxy collection list stop_cran.namespace2xml`. For the `render` module, the
+        `contract-bundle` that matters is the managed node's, which the task returns as
+        `tool_identity`.
       placeholder: |
         contract-bundle: r37+2d644be6926e
         ansible [core 2.16.14]
-        stop_cran.namespace2xml 1.0.0
+        stop_cran.namespace2xml 2.0.0
       render: text
     validations:
       required: true
@@ -92,8 +94,9 @@ body:
         layout (specification Appendix C), open a pull request instead — it is worth far more than
         an issue.
 
-        For the Ansible filter, the smallest play that shows it: the `vars` inline rather than a
-        reference to your inventory, and the exact filter call.
+        For the Ansible collection, the smallest play that shows it: for the filter, the `vars`
+        inline rather than a reference to your inventory, and the exact filter call; for the
+        module, the task, the scheme, and the input file as it is on the node.
       render: text
     validations:
       required: true

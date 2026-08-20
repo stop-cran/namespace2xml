@@ -1,0 +1,241 @@
+---
+# Integration coverage for the stop_cran.namespace2xml.render *module*.
+#
+# The unit tests under tests/unit/plugins/module_utils prove the logic around the tool: argument
+# order, the refusal to overwrite an input, byte comparison, check mode and diff. They stub the
+# binary out, so they can run anywhere, but they can only prove that the module does the right
+# thing with whatever the tool returns.
+#
+# This target proves the rest, and it is the half that matters most for a module: that a real
+# render against a real binary *converges*. A transformer that is deterministic in principle but
+# whose output the module compares wrongly would show up here as a second run reporting changed,
+# and nowhere else.
+#
+# Expectations are authored from docs/specification.md -- Section 3 for determinism, Section 11.7
+# for NormalizeFormattingWhitespace, Section 16.8 for unqualified input options, Section 16.10 for
+# the append high-water rule -- and not captured from a tool run.
+#
+# The first case is the collection README's module example, verbatim, so the example on the front
+# page cannot silently stop being true.
+
+- name: Create a scratch directory
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: n2xmod
+  register: scratch
+
+- name: Fail the target loudly rather than skipping if the scratch directory is missing
+  ansible.builtin.assert:
+    that:
+      - scratch.path is defined
+
+- block:
+    - name: Stage a pristine template the render never writes to
+      ansible.builtin.copy:
+        dest: "{{ scratch.path }}/template/logback.xml"
+        mode: "0644"
+        content: |
+          <configuration>
+            <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+              <encoder>
+                <pattern>%-5level %logger - %msg%n</pattern>
+              </encoder>
+            </appender>
+            <root level="INFO">
+              <appender-ref ref="STDOUT" />
+            </root>
+          </configuration>
+
+    # xmlinputoptions is unqualified on purpose. Section 16.8 makes a selector-qualified input
+    # option a blocking SCHEME001, because input parsing precedes every output instance -- so
+    # writing `configuration.xmlinputoptions=...` here would fail the target rather than change
+    # the document, which is the behaviour worth pinning.
+    - name: Render the README's module example
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
+        variables:
+          configuration.root.@level: DEBUG
+        dest: "{{ scratch.path }}/conf"
+        mode: "0644"
+      register: first
+
+    - name: Read back what the node now has
+      ansible.builtin.slurp:
+        src: "{{ scratch.path }}/conf/logback.xml"
+      register: rendered
+
+    # The overlay changes one attribute. Everything else -- the appender, its class, the encoder,
+    # the pattern's '%' and '-' -- has to survive unchanged, because a round trip that quietly
+    # rewrote the parts nobody asked about would be far worse than one that failed.
+    - name: The single addressed attribute changed and nothing else did
+      ansible.builtin.assert:
+        that:
+          - first is changed
+          - rendered.content | b64decode == expected_xml
+        fail_msg: |
+          Rendered XML did not match the specification-authored expectation.
+          --- expected ---
+          {{ expected_xml }}
+          --- actual ---
+          {{ rendered.content | b64decode }}
+        success_msg: The node-side render produced the document the README shows.
+      vars:
+        expected_xml: |
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+              <encoder>
+                <pattern>%-5level %logger - %msg%n</pattern>
+              </encoder>
+            </appender>
+            <root level="DEBUG">
+              <appender-ref ref="STDOUT" />
+            </root>
+          </configuration>
+
+    # Section 11.7 says enabling NormalizeFormattingWhitespace weakens the same-format round-trip
+    # guarantee, and the tool records that as WARN007. The module forwards diagnostics rather than
+    # swallowing them, and an operator who is told nothing about a weakened guarantee has no way
+    # to discover it.
+    - name: The weakened round-trip guarantee was reported, not suppressed
+      ansible.builtin.assert:
+        that:
+          - "'WARN007' in first.diagnostics"
+        fail_msg: "Expected WARN007 in diagnostics. Got: {{ first.diagnostics }}"
+
+    - name: The identity of the binary that ran is reported
+      ansible.builtin.assert:
+        that:
+          - first.tool_identity is search('\\|')
+        fail_msg: >-
+          tool_identity must carry both the version and the contract-bundle revision, separated
+          by '|'. Got: {{ first.tool_identity }}
+
+    # The whole point of a module rather than a shell task. Section 3 makes the tool's output
+    # byte-identical for identical inputs, and the module turns that into idempotence by
+    # comparing. A second run must be a no-op.
+    - name: Render again from the same pristine template
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
+        variables:
+          configuration.root.@level: DEBUG
+        dest: "{{ scratch.path }}/conf"
+        mode: "0644"
+      register: second
+
+    - name: The second run is a no-op
+      ansible.builtin.assert:
+        that:
+          - second is not changed
+          - second.changed_files == []
+          - second.files == first.files
+        fail_msg: >-
+          Re-rendering identical inputs reported a change, so either the tool is not
+          deterministic or the module is not comparing content.
+
+    - name: Change the overlay under check mode
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
+        variables:
+          configuration.root.@level: TRACE
+        dest: "{{ scratch.path }}/conf"
+      register: preview
+      check_mode: true
+
+    - name: Read the file check mode was not allowed to touch
+      ansible.builtin.slurp:
+        src: "{{ scratch.path }}/conf/logback.xml"
+      register: after_preview
+
+    - name: Check mode reported the change without making it
+      ansible.builtin.assert:
+        that:
+          - preview is changed
+          - "'DEBUG' in (after_preview.content | b64decode)"
+          - "'TRACE' not in (after_preview.content | b64decode)"
+        fail_msg: Check mode wrote to the node.
+
+    # Section 16.10 defines merge=append as rebasing a later sequence contribution above the
+    # current high-water mark, so a render that reads back its own output grows a sequence by one
+    # copy per run -- silently, and for as long as the play keeps running. The module refuses the
+    # arrangement outright, and the refusal has to name the reason: an operator told only "no"
+    # will work around it.
+    - name: Attempt a render whose output would land on its own input
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/conf/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
+        dest: "{{ scratch.path }}/conf"
+      register: overwrite
+      ignore_errors: true
+
+    - name: Read the input the refusal protected
+      ansible.builtin.slurp:
+        src: "{{ scratch.path }}/conf/logback.xml"
+      register: after_refusal
+
+    - name: Writing over an input is refused, and the input is intact
+      ansible.builtin.assert:
+        that:
+          - overwrite is failed
+          - "'16.10' in overwrite.msg"
+          - (after_refusal.content | b64decode) == (rendered.content | b64decode)
+        fail_msg: >-
+          Expected a refusal citing section 16.10.
+          Result: {{ overwrite.msg | default('the render succeeded') }}
+
+    # A structured value cannot become a namespace path without synthesizing names, which is the
+    # filter's job and carries the filter's escaping. Accepting one here would make '@' unreachable
+    # in exactly the option that exists to reach it.
+    - name: Attempt a structured variable value
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
+        variables:
+          configuration.root:
+            level: DEBUG
+        dest: "{{ scratch.path }}/conf"
+      register: structured
+      ignore_errors: true
+
+    - name: A mapping value is refused and the message points at the filter
+      ansible.builtin.assert:
+        that:
+          - structured is failed
+          - "'filter' in structured.msg"
+        fail_msg: >-
+          Expected a refusal naming the filter as the way to render nested data.
+          Result: {{ structured.msg | default('the render succeeded') }}
+
+  always:
+    - name: Remove the scratch directory
+      ansible.builtin.file:
+        path: "{{ scratch.path }}"
+        state: absent

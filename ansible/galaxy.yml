@@ -1,20 +1,26 @@
 ### The Ansible collection's version is independent of the tool's.
 #
-# namespace2xml the .NET tool is at 3.x. This collection is at 1.0.0 because it is a new
+# namespace2xml the .NET tool is at 3.x. This collection is at 2.0.0 because it is a separate
 # artefact with its own compatibility promise: it pins no tool version, so the two version
 # streams answer different questions and are released under different tags -- `v3.*` for the
 # tool, `ansible-v*` for this collection.
+#
+# 2.0.0 rather than 1.1.0 because the 1.0.0 documentation stated, as a requirement, that target
+# nodes need neither .NET nor the tool. Adding the `render` module makes that false for any play
+# that uses it, and a promise about what a consumer must install is exactly the kind a major
+# version exists to revise. Nothing in the filter's interface changed.
 namespace: stop_cran
 name: namespace2xml
-version: 1.0.0
+version: 2.0.0
 readme: README.md
 
 authors:
   - stop-cran <stop-cran@list.ru>
 
 description: >-
-  Render Ansible data structures as XML, JSON, YAML, INI or namespace text through the
-  namespace2xml transformer, encoding against its normative specification.
+  Render configuration as XML, JSON, YAML, INI or namespace text through the namespace2xml
+  transformer: a controller-side filter for data held in play variables, and a module that
+  renders a managed node's own files in place.
 
 license:
   - Apache-2.0
@@ -29,8 +35,8 @@ tags:
   - tools
 
 # No collection depends on this one and this one depends on no collection. The transformer it
-# drives is a .NET tool, which Galaxy has no way to express as a dependency -- the filter
-# resolves it at call time and says what to install if it is missing.
+# drives is a .NET tool, which Galaxy has no way to express as a dependency -- both plugins
+# resolve it at call time and say what to install if it is missing.
 dependencies: {}
 
 repository: https://github.com/stop-cran/namespace2xml

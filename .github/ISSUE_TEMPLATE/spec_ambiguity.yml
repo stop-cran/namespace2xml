@@ -23,7 +23,7 @@ body:
       description: Which surface exposed the ambiguity. The contract is the same either way; this only helps triage.
       options:
         - CLI — the `namespace2xml` .NET tool
-        - Ansible filter — `stop_cran.namespace2xml.render`
+        - Ansible collection — `stop_cran.namespace2xml` (the `render` filter or module)
         - Reading the specification alone
         - Not sure
     validations:

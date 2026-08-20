@@ -139,7 +139,7 @@ jobs:
           done
           echo "all $(wc -l < "$RUNNER_TEMP/tracked.txt") tracked files are present, plus MANIFEST.json and FILES.json"
 
-      - name: The tarball installs, its filter resolves, and its documentation ships with it
+      - name: The tarball installs, both plugins resolve, and its documentation ships with it
         shell: bash
         run: |
           set -euo pipefail
@@ -149,6 +149,11 @@ jobs:
           root="$RUNNER_TEMP/installed/ansible_collections/${namespace}/${name}"
           ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
             ansible-doc -t filter "${collection}.render" >/dev/null
+          # The module carries module_utils the filter does not. A module_utils file that the
+          # build left behind imports perfectly from the source tree and fails only from an
+          # installed tarball, which is the last place anyone would look after a release.
+          ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
+            ansible-doc -t module "${collection}.render" >/dev/null
 
           # The collection is the only copy of the contract some consumers will ever hold: the
           # specification is 300 KB and stays in the repository. If these two are not installed
@@ -159,7 +164,7 @@ jobs:
               exit 1
             fi
           done
-          echo "the installed collection resolves ${collection}.render and ships both documents"
+          echo "the installed collection resolves both ${collection}.render plugins and ships both documents"
 
       - name: Every link in the shipped documents must resolve
         shell: bash
@@ -270,7 +275,9 @@ jobs:
                  -p "$RUNNER_TEMP/verify" --force >/dev/null 2>&1; then
               ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/verify" \
                 ansible-doc -t filter "${collection}.render" >/dev/null
-              echo "Galaxy serves ${collection} ${version} and its filter resolves."
+              ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/verify" \
+                ansible-doc -t module "${collection}.render" >/dev/null
+              echo "Galaxy serves ${collection} ${version} and both of its plugins resolve."
               exit 0
             fi
             echo "attempt $attempt: not servable yet, waiting"
@@ -295,16 +302,18 @@ jobs:
             echo "ansible-galaxy collection install ${collection}"
             echo '```'
             echo
-            echo "This collection renders Ansible data through the namespace2xml transformer. It"
-            echo "runs on the controller; target nodes need neither .NET nor the tool."
+            echo "This collection renders Ansible data through the namespace2xml transformer, in"
+            echo "either of two topologies. The \`render\` filter runs on the controller and needs"
+            echo "nothing on the target nodes. The \`render\` module runs on a node, against files"
+            echo "that already live there, and needs the transformer installed on that node."
             echo
-            echo "- [Usage](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/ansible/README.md), including the four fidelity limits of the data-to-profile mapping."
+            echo "- [Usage](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/ansible/README.md), including which plugin to pick and the four fidelity limits of the filter's data-to-profile mapping."
             echo "- [The contract in brief](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/ansible/docs/specification-summary.md), which ships inside the collection."
             echo "- [The normative specification](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/specification.md)."
-            echo "- [Report a problem](https://github.com/${GITHUB_REPOSITORY}/issues/new/choose) — select the **Ansible filter** component."
+            echo "- [Report a problem](https://github.com/${GITHUB_REPOSITORY}/issues/new/choose) — select the **Ansible collection** component."
             echo
-            echo "The filter requires a namespace2xml 3.x build, which reports a \`contract-bundle\`."
-            echo "It refuses a 2.x tool rather than rendering against an older contract. The 3.0"
+            echo "Both plugins require a namespace2xml 3.x build, which reports a \`contract-bundle\`."
+            echo "They refuse a 2.x tool rather than rendering against an older contract. The 3.0"
             echo "line is still on preview, so the flag is not optional:"
             echo
             echo '```sh'

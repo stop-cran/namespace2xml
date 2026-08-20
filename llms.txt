@@ -41,11 +41,12 @@ explicitly where the specification does not settle a question.
 
 ## Integrations
 
-- [ansible/README.md](ansible/README.md): the `stop_cran.namespace2xml` Ansible collection — a controller-side Jinja filter that renders Ansible data through this tool. Requirements, arguments, memoization, and the four fidelity limits of the data-to-profile mapping.
+- [ansible/README.md](ansible/README.md): the `stop_cran.namespace2xml` Ansible collection — two plugins over this tool. Which one to pick, requirements, arguments, memoization, and the four fidelity limits of the filter's data-to-profile mapping.
 - [ansible/docs/specification-summary.md](ansible/docs/specification-summary.md): the contract in brief, and the only copy of it that ships inside the collection. Read this instead of `docs/specification.md` when you need the rules without the 300 KB. Its normative claims are blockquotes checked verbatim against the specification by `tools/check-specification-quotations.ps1`, so it cannot drift; where it and the specification disagree, the specification wins.
-- [ansible/plugins/filter/render.py](ansible/plugins/filter/render.py): the filter itself. Its `DOCUMENTATION` block is what `ansible-doc -t filter stop_cran.namespace2xml.render` prints, and is the authoritative argument reference.
+- [ansible/plugins/filter/render.py](ansible/plugins/filter/render.py): the `render` filter. Renders play variables on the controller and returns a string. Its `DOCUMENTATION` block is what `ansible-doc -t filter stop_cran.namespace2xml.render` prints, and is the authoritative argument reference.
+- [ansible/plugins/modules/render.py](ansible/plugins/modules/render.py): the `render` module. Runs on a managed node, over files that already live there, and writes rendered documents to a directory on that node — idempotently, by comparing bytes. `ansible-doc -t module stop_cran.namespace2xml.render` prints its arguments.
 - The collection is a separate artefact with its own version and its own compatibility promise. `v3.*` tags release the .NET tool; `ansible-v*` tags release the collection. The collection pins no tool version, but refuses a binary that reports no `contract-bundle`.
-- The filter evaluates on the controller. Target nodes need neither .NET nor the tool.
+- Pick by where the truth lives. If the configuration is in your play's variables, use the filter: it evaluates on the controller and target nodes need neither .NET nor the tool. If each node's own file is the input and determines that node's state, use the module: it needs the tool installed on the node, and no file it reads is ever a file it writes.
 
 ## Verification
 
@@ -62,5 +63,5 @@ explicitly where the specification does not settle a question.
 
 - Issue forms: https://github.com/stop-cran/namespace2xml/issues/new/choose
 - Route by asking what would have to change so this never surprises anyone again: the code (bug), the specification (ambiguity), the docs (usage gap), or the feature set (request).
-- Set the `Component` field to say which surface you were using: the CLI or the Ansible filter. If a playbook was in the loop it is the filter, even when the message came from the tool underneath.
-- Always include the `contract-bundle` revision from `--version`. For the Ansible filter, add `ansible --version` and the collection version.
+- Set the `Component` field to say which surface you were using: the CLI or the Ansible collection. If a playbook was in the loop it is the collection, even when the message came from the tool underneath.
+- Always include the `contract-bundle` revision from `--version`. For the Ansible collection, add `ansible --version` and the collection version; for the `render` module the revision that matters is the managed node's, returned by the task as `tool_identity`.

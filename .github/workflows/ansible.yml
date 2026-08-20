@@ -145,7 +145,7 @@ jobs:
           done
           echo "all $(wc -l < "$RUNNER_TEMP/tracked.txt") tracked files are present, plus MANIFEST.json and FILES.json"
 
-      - name: The tarball installs and its filter resolves
+      - name: The tarball installs and both plugins resolve
         shell: bash
         run: |
           set -euo pipefail
@@ -156,7 +156,12 @@ jobs:
           ansible-galaxy collection install "$tarball" -p "$RUNNER_TEMP/installed" --force
           ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
             ansible-doc -t filter stop_cran.namespace2xml.render >/dev/null
-          echo "the installed collection resolves stop_cran.namespace2xml.render"
+          # The module ships module_utils that the filter does not, and a module_utils file left
+          # out of build_ignore's blast radius would import fine from the source tree and fail only
+          # here. That is the failure this line exists to catch.
+          ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
+            ansible-doc -t module stop_cran.namespace2xml.render >/dev/null
+          echo "the installed collection resolves both stop_cran.namespace2xml.render plugins"
 
   # The unit tests are the specification-side half of a two-sided oracle: they hold hand-authored
   # profile text from docs/specification.md against what the encoder produces, with the binary
@@ -175,8 +180,8 @@ jobs:
           set -euo pipefail
           python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
 
-      # ansible-test units reports success when it collects nothing at all, so the four modules are
-      # named here. Adding a fifth is meant to fail this line: an unlisted test file is a test file
+      # ansible-test units reports success when it collects nothing at all, so the five modules are
+      # named here. Adding a sixth is meant to fail this line: an unlisted test file is a test file
       # nobody notices has stopped running.
       - name: Stage the collection
         shell: bash
@@ -186,8 +191,8 @@ jobs:
           mkdir -p "$(dirname "$dest")"
           cp -a ansible "$dest"
           mapfile -t modules < <(find "$dest/tests/unit" -name 'test_*.py' | sort)
-          if [ "${#modules[@]}" -ne 4 ]; then
-            printf 'Expected 4 unit test modules, found %d:\n' "${#modules[@]}" >&2
+          if [ "${#modules[@]}" -ne 5 ]; then
+            printf 'Expected 5 unit test modules, found %d:\n' "${#modules[@]}" >&2
             printf '  %s\n' "${modules[@]}" >&2
             exit 1
           fi
@@ -252,11 +257,11 @@ jobs:
           mkdir -p "$(dirname "$dest")"
           cp -a ansible "$dest"
 
-      # The precise claim behind the version floor: this release can find the filter by its fully
+      # The precise claim behind the version floor: this release can find each plugin by its fully
       # qualified name and render its documentation. Grepping for an option name rather than merely
       # checking the exit code, because ansible-doc has historically been willing to print an empty
       # skeleton for a plugin whose docstring it could not parse.
-      - name: ansible-doc reads the filter's documentation
+      - name: ansible-doc reads both plugins' documentation
         shell: bash
         env:
           ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}
@@ -266,7 +271,16 @@ jobs:
           printf '%s\n' "$doc"
           for expected in memoize selector delimiter workdir; do
             if ! printf '%s' "$doc" | grep -q "$expected"; then
-              echo "ansible-doc output does not mention the '$expected' option." >&2
+              echo "ansible-doc output does not mention the filter's '$expected' option." >&2
+              exit 1
+            fi
+          done
+
+          doc=$(ansible-doc -t module stop_cran.namespace2xml.render)
+          printf '%s\n' "$doc"
+          for expected in scheme_text variables dest src; do
+            if ! printf '%s' "$doc" | grep -q "$expected"; then
+              echo "ansible-doc output does not mention the module's '$expected' option." >&2
               exit 1
             fi
           done
@@ -326,6 +340,7 @@ jobs:
           mkdir -p "$(dirname "$dest")"
           cp -a ansible "$dest"
           test -f "$dest/tests/integration/targets/render/tasks/main.yml"
+          test -f "$dest/tests/integration/targets/render_module/tasks/main.yml"
 
       # Arm one: the ordinary case, with the tool on PATH.
       - name: Integration suite, tool on PATH
@@ -335,14 +350,17 @@ jobs:
           set -euo pipefail
           export PATH="$HOME/.dotnet/tools:$PATH"
           command -v namespace2xml
-          ansible-test integration --local --python 3.13 --color -v render
+          ansible-test integration --local --python 3.13 --color -v render render_module
 
-      # Arm two, and the reason the filter has a dotnet global-tools fallback at all. `dotnet tool
+      # Arm two, and the reason both plugins have a dotnet global-tools fallback at all. `dotnet tool
       # install --global` writes to ~/.dotnet/tools whether or not the login shell puts that on
       # PATH, and a filter runs inside ansible-playbook, whose environment was fixed before the play
       # began -- so a play that installs the tool in one task and templates with it in a later one
-      # sees exactly this environment. Only the tools directory is removed, so a failure here is
-      # about the fallback rather than about a stripped-down PATH breaking ansible-test itself.
+      # sees exactly this environment. The module has the same problem for a different reason: the
+      # play that installs the tool on a node and the task that runs it are two SSH sessions, and
+      # the second one's PATH is whatever the node's login shell says it is. Only the tools
+      # directory is removed, so a failure here is about the fallback rather than about a
+      # stripped-down PATH breaking ansible-test itself.
       - name: Integration suite, tool deliberately off PATH
         shell: bash
         working-directory: ${{ runner.temp }}/ansible_collections/stop_cran/namespace2xml
@@ -354,4 +372,4 @@ jobs:
             echo "namespace2xml is still on PATH; this arm would prove nothing." >&2
             exit 1
           fi
-          ansible-test integration --local --python 3.13 --color -v render
+          ansible-test integration --local --python 3.13 --color -v render render_module
