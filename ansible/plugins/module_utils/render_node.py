@@ -44,8 +44,8 @@ __all__ = [
     "encode_variable",
     "discover",
     "guard_sources",
-    "open_confined",
     "plan",
+    "prepare_dest",
     "publish",
     "render",
 ]
