@@ -32,7 +32,7 @@ DOC_BLOCK = re.compile(
 
 
 def _plugin_sources():
-    for directory, _, names in os.walk(PLUGIN_ROOT):
+    for directory, _unused_dirs, names in os.walk(PLUGIN_ROOT):
         if "__pycache__" in directory:
             continue
 

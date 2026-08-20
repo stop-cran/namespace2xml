@@ -249,11 +249,11 @@
 - name: Render an input whose name part contains a literal dot
   ansible.builtin.set_fact:
     literal_dot: >-
-      {{ {'configuration': {'a.b': 'hello', 'plain': 'world'}}
+      {{ {'a.b': 'hello', 'plain': 'world'}
          | stop_cran.namespace2xml.render(
              'xml',
-             scheme_yaml={'configuration': {'output': 'xml', 'root': 'configuration',
-                                            'a\.b': {'type': 'attribute'}}}) }}
+             scheme_yaml={'cfg': {'output': 'xml', 'root': 'configuration',
+                                  'a\.b': {'type': 'attribute'}}}) }}
 
 - name: The escaped key selected the literal-dot name rather than matching nothing
   ansible.builtin.assert:
