@@ -81,7 +81,7 @@ $sourceLinkKind = [Guid] 'CC110556-A091-4D38-9FEC-25AB9A351A6A'
 $embeddedKind = [Guid] '0E8A571B-6926-466E-B4AD-8AB04611F5FE'
 $sha256Algorithm = [Guid] '8829D00F-11B8-4213-878B-770E8597AC16'
 
-if (-not $Version) {
+if (-not $Version -and -not $SymbolPackage) {
     $newest = (git tag --list 'v3.*' --sort=-creatordate | Select-Object -First 1)
     if (-not $newest) { throw 'No v3.* tag found, and no -Version was given.' }
     $Version = $newest.Substring(1)
