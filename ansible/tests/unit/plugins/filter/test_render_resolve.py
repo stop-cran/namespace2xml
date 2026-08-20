@@ -21,13 +21,13 @@ import sys
 
 import pytest
 
-# `n2x` is the filter under test; `shared` is the module_utils the filter now calls into.
-# Discovery, the contract-bundle gate and the section 8.3 encoder live in `shared`, so a test
-# that stands in for one of those patches it there -- patching the filter would leave the code
-# under test calling the real thing.
+# `filt` is the filter under test; `n2x` is the module_utils it calls into, named for the
+# file it is. Discovery, the contract-bundle gate and the section 8.3 encoder live in `n2x`,
+# so a test that stands in for one of those patches it there -- patching the filter would
+# leave the code under test calling the real thing.
 try:
-    from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as n2x
-    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x as shared
+    from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as filt
+    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x
 except ImportError:  # a checkout that is not inside an ansible_collections tree
     # Through `plugins` -- an implicit namespace package -- rather than by path: the filter
     # reaches module_utils by relative import, and a relative import needs a package. Loading
@@ -37,8 +37,8 @@ except ImportError:  # a checkout that is not inside an ansible_collections tree
     if str(_ANSIBLE) not in sys.path:
         sys.path.insert(0, str(_ANSIBLE))
 
-    from plugins.filter import render as n2x  # type: ignore[no-redef]
-    from plugins.module_utils import n2x as shared  # type: ignore[no-redef]
+    from plugins.filter import render as filt  # type: ignore[no-redef]
+    from plugins.module_utils import n2x  # type: ignore[no-redef]
 
 
 WINDOWS = os.name == "nt"
@@ -106,30 +106,30 @@ def _clean_resolve_cache():
     stale entry therefore fails revalidation -- but passing for that reason is an accident, and
     an accident that would stop holding the moment a test reused a directory.
     """
-    shared._RESOLVE_CACHE.clear()
+    n2x._RESOLVE_CACHE.clear()
     yield
-    shared._RESOLVE_CACHE.clear()
+    n2x._RESOLVE_CACHE.clear()
 
 
 def test_an_explicit_absolute_path_is_used_as_given(sandbox, monkeypatch):
     planted = plant(str(sandbox / "explicit"))
     monkeypatch.setenv("PATH", "")
 
-    assert shared.resolve(planted) == planted
+    assert n2x.resolve(planted) == planted
 
 
 def test_an_explicit_bare_name_is_resolved_on_path(sandbox, monkeypatch):
     planted = plant(str(sandbox / "explicit"))
     monkeypatch.setenv("PATH", str(sandbox / "explicit"))
 
-    assert same(shared.resolve(BINARY), planted)
+    assert same(n2x.resolve(BINARY), planted)
 
 
 def test_an_explicit_argument_that_resolves_to_nothing_fails(sandbox, monkeypatch):
     monkeypatch.setenv("PATH", "")
 
-    with pytest.raises(shared.Namespace2XmlError, match="absent"):
-        shared.resolve(str(sandbox / "absent" / BINARY))
+    with pytest.raises(n2x.Namespace2XmlError, match="absent"):
+        n2x.resolve(str(sandbox / "absent" / BINARY))
 
 
 def test_the_environment_variable_outranks_path(sandbox, monkeypatch):
@@ -139,7 +139,7 @@ def test_the_environment_variable_outranks_path(sandbox, monkeypatch):
     monkeypatch.setenv("NAMESPACE2XML", chosen)
     monkeypatch.setenv("PATH", ignored)
 
-    assert shared.resolve(None) == chosen
+    assert n2x.resolve(None) == chosen
 
 
 def test_an_environment_variable_pointing_nowhere_fails_by_name(sandbox, monkeypatch):
@@ -150,8 +150,8 @@ def test_an_environment_variable_pointing_nowhere_fails_by_name(sandbox, monkeyp
     monkeypatch.setenv("NAMESPACE2XML", str(sandbox / "nowhere" / BINARY))
     monkeypatch.setenv("PATH", ignored)
 
-    with pytest.raises(shared.Namespace2XmlError, match="NAMESPACE2XML"):
-        shared.resolve(None)
+    with pytest.raises(n2x.Namespace2XmlError, match="NAMESPACE2XML"):
+        n2x.resolve(None)
 
 
 def test_a_directory_on_path_is_searched(sandbox, monkeypatch):
@@ -159,7 +159,7 @@ def test_a_directory_on_path_is_searched(sandbox, monkeypatch):
     planted = plant(directory)
     monkeypatch.setenv("PATH", directory)
 
-    assert same(shared.resolve(None), planted)
+    assert same(n2x.resolve(None), planted)
 
 
 def test_the_dotnet_global_tools_directory_is_searched(sandbox, monkeypatch):
@@ -168,7 +168,7 @@ def test_the_dotnet_global_tools_directory_is_searched(sandbox, monkeypatch):
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv(HOME_VARIABLE, home)
 
-    assert same(shared.resolve(None), planted)
+    assert same(n2x.resolve(None), planted)
 
 
 def test_dotnet_cli_home_outranks_the_home_directory(sandbox, monkeypatch):
@@ -180,7 +180,7 @@ def test_dotnet_cli_home_outranks_the_home_directory(sandbox, monkeypatch):
     monkeypatch.setenv(HOME_VARIABLE, home)
     monkeypatch.setenv("DOTNET_CLI_HOME", cli_home)
 
-    assert same(shared.resolve(None), relocated)
+    assert same(n2x.resolve(None), relocated)
 
 
 def test_dotnet_tools_path_outranks_everything_discovered(sandbox, monkeypatch):
@@ -192,14 +192,14 @@ def test_dotnet_tools_path_outranks_everything_discovered(sandbox, monkeypatch):
     monkeypatch.setenv(HOME_VARIABLE, home)
     monkeypatch.setenv("DOTNET_TOOLS_PATH", explicit)
 
-    assert same(shared.resolve(None), planted)
+    assert same(n2x.resolve(None), planted)
 
 
 def test_a_tool_that_is_nowhere_fails_with_an_actionable_message(sandbox, monkeypatch):
     monkeypatch.setenv("PATH", "")
 
-    with pytest.raises(shared.Namespace2XmlError, match="dotnet tool install"):
-        shared.resolve(None)
+    with pytest.raises(n2x.Namespace2XmlError, match="dotnet tool install"):
+        n2x.resolve(None)
 
 
 def test_the_install_advice_asks_for_a_prerelease(sandbox, monkeypatch):
@@ -211,8 +211,8 @@ def test_the_install_advice_asks_for_a_prerelease(sandbox, monkeypatch):
     # 3.0 goes stable, and that is a deliberate edit rather than a silent drift.
     monkeypatch.setenv("PATH", "")
 
-    with pytest.raises(shared.Namespace2XmlError) as caught:
-        shared.resolve(None)
+    with pytest.raises(n2x.Namespace2XmlError) as caught:
+        n2x.resolve(None)
 
     # Asserted against the command and not merely against the word '--prerelease' appearing
     # somewhere: the message also explains why the flag is needed, so a substring check for the
@@ -229,7 +229,7 @@ def test_every_success_path_returns_an_absolute_path(sandbox, monkeypatch):
     monkeypatch.setenv("PATH", directory)
     monkeypatch.chdir(sandbox)
 
-    assert os.path.isabs(shared.resolve(None))
+    assert os.path.isabs(n2x.resolve(None))
 
 
 def test_a_second_resolution_does_not_search_again(sandbox, monkeypatch):
@@ -246,16 +246,16 @@ def test_a_second_resolution_does_not_search_again(sandbox, monkeypatch):
     monkeypatch.setenv("PATH", directory)
 
     searched = []
-    uncached = shared._search_for_tool
+    uncached = n2x._search_for_tool
 
     def counting(tool):
         searched.append(tool)
         return uncached(tool)
 
-    monkeypatch.setattr(shared, "_search_for_tool", counting)
+    monkeypatch.setattr(n2x, "_search_for_tool", counting)
 
-    assert same(shared.resolve(None), planted)
-    assert same(shared.resolve(None), planted)
+    assert same(n2x.resolve(None), planted)
+    assert same(n2x.resolve(None), planted)
     assert len(searched) == 1
 
 
@@ -270,12 +270,12 @@ def test_a_failure_is_not_remembered(sandbox, monkeypatch):
     os.makedirs(directory, exist_ok=True)
     monkeypatch.setenv("PATH", directory)
 
-    with pytest.raises(shared.Namespace2XmlError, match="dotnet tool install"):
-        shared.resolve(None)
+    with pytest.raises(n2x.Namespace2XmlError, match="dotnet tool install"):
+        n2x.resolve(None)
 
     planted = plant(directory)
 
-    assert same(shared.resolve(None), planted)
+    assert same(n2x.resolve(None), planted)
 
 
 def test_a_remembered_path_that_stops_being_runnable_is_searched_for_again(sandbox, monkeypatch):
@@ -286,12 +286,12 @@ def test_a_remembered_path_that_stops_being_runnable_is_searched_for_again(sandb
     os.makedirs(second, exist_ok=True)
     monkeypatch.setenv("PATH", os.pathsep.join((first, second)))
 
-    assert same(shared.resolve(None), planted)
+    assert same(n2x.resolve(None), planted)
 
     os.remove(planted)
     relocated = plant(second)
 
-    assert same(shared.resolve(None), relocated)
+    assert same(n2x.resolve(None), relocated)
 
 
 def test_a_changed_path_is_answered_afresh(sandbox, monkeypatch):
@@ -303,11 +303,11 @@ def test_a_changed_path_is_answered_afresh(sandbox, monkeypatch):
 
     monkeypatch.setenv("PATH", first)
 
-    assert same(shared.resolve(None), planted)
+    assert same(n2x.resolve(None), planted)
 
     monkeypatch.setenv("PATH", second)
 
-    assert same(shared.resolve(None), relocated)
+    assert same(n2x.resolve(None), relocated)
 
 
 def test_the_error_derives_from_ansibles_filter_error():
@@ -319,7 +319,7 @@ def test_the_error_derives_from_ansibles_filter_error():
     """
     from ansible.errors import AnsibleFilterError
 
-    assert issubclass(n2x.Namespace2XmlError, AnsibleFilterError)
+    assert issubclass(filt.Namespace2XmlError, AnsibleFilterError)
 
 
 def test_the_no_controller_fallback_can_still_be_combined_with_the_shared_error():
@@ -339,11 +339,11 @@ def test_the_no_controller_fallback_can_still_be_combined_with_the_shared_error(
     # "...consistent method resolution\norder (MRO) for bases...", so the full phrase is not
     # present as written on every interpreter the collection supports.
     with pytest.raises(TypeError, match="consistent method resolution"):
-        type("Broken", (Exception, shared.Namespace2XmlError), {})
+        type("Broken", (Exception, n2x.Namespace2XmlError), {})
 
-    base = n2x._FilterErrorBase
+    base = filt._FilterErrorBase
 
-    assert not (issubclass(shared.Namespace2XmlError, base)
-                and base is not shared.Namespace2XmlError), (
+    assert not (issubclass(n2x.Namespace2XmlError, base)
+                and base is not n2x.Namespace2XmlError), (
         "%s is above the shared error, so the two cannot be combined into one class"
         % base.__name__)

@@ -17,13 +17,13 @@ import sys
 
 import pytest
 
-# `n2x` is the filter under test; `shared` is the module_utils the filter now calls into.
-# Discovery, the contract-bundle gate and the section 8.3 encoder live in `shared`, so a test
-# that stands in for one of those patches it there -- patching the filter would leave the code
-# under test calling the real thing.
+# `filt` is the filter under test; `n2x` is the module_utils it calls into, named for the
+# file it is. Discovery, the contract-bundle gate and the section 8.3 encoder live in `n2x`,
+# so a test that stands in for one of those patches it there -- patching the filter would
+# leave the code under test calling the real thing.
 try:
-    from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as n2x
-    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x as shared
+    from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as filt
+    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x
 except ImportError:  # a checkout that is not inside an ansible_collections tree
     # Through `plugins` -- an implicit namespace package -- rather than by path: the filter
     # reaches module_utils by relative import, and a relative import needs a package. Loading
@@ -33,23 +33,23 @@ except ImportError:  # a checkout that is not inside an ansible_collections tree
     if str(_ANSIBLE) not in sys.path:
         sys.path.insert(0, str(_ANSIBLE))
 
-    from plugins.filter import render as n2x  # type: ignore[no-redef]
-    from plugins.module_utils import n2x as shared  # type: ignore[no-redef]
+    from plugins.filter import render as filt  # type: ignore[no-redef]
+    from plugins.module_utils import n2x  # type: ignore[no-redef]
 
 
 @pytest.fixture(autouse=True)
 def _clean_identity_cache():
     """The identity cache is a module global, so a test that fills it would leak into the next."""
-    shared._IDENTITY_CACHE.clear()
+    n2x._IDENTITY_CACHE.clear()
     yield
-    shared._IDENTITY_CACHE.clear()
+    n2x._IDENTITY_CACHE.clear()
 
 
 # --- Section 16.1: the format is an enumeration, not free text ----------------------------------
 
 def test_every_section_16_1_format_is_accepted():
     for fmt in ("xml", "json", "yaml", "ini", "namespace", "quotednamespace"):
-        assert n2x.synthesize_scheme(fmt) == "cfg.output=%s\n" % fmt
+        assert filt.synthesize_scheme(fmt) == "cfg.output=%s\n" % fmt
 
 
 def test_a_format_outside_section_16_1_is_refused():
@@ -58,8 +58,8 @@ def test_a_format_outside_section_16_1_is_refused():
     The value of catching it here is the message: the filter can name the six formats, whereas
     the tool can only report that a scheme rule matched nothing.
     """
-    with pytest.raises(n2x.Namespace2XmlError, match="section 16.1"):
-        n2x.synthesize_scheme("Xml")
+    with pytest.raises(filt.Namespace2XmlError, match="section 16.1"):
+        filt.synthesize_scheme("Xml")
 
 
 # --- Section 15.2: an injected record silently overrides the one above it -----------------------
@@ -73,8 +73,8 @@ def test_a_line_break_in_root_is_refused(break_char):
     """
     injected = "configuration%scfg.output=json" % break_char
 
-    with pytest.raises(n2x.Namespace2XmlError, match="line break"):
-        n2x.synthesize_scheme("xml", root=injected)
+    with pytest.raises(filt.Namespace2XmlError, match="line break"):
+        filt.synthesize_scheme("xml", root=injected)
 
 
 def test_a_root_is_otherwise_left_exactly_as_written():
@@ -85,7 +85,7 @@ def test_a_root_is_otherwise_left_exactly_as_written():
     a literal backslash followed by an escape, so the root is interpolated verbatim and only
     checked for the one thing that cannot be expressed.
     """
-    assert n2x.synthesize_scheme("xml", root="\\@id") == "cfg.output=xml\ncfg.root=\\@id\n"
+    assert filt.synthesize_scheme("xml", root="\\@id") == "cfg.output=xml\ncfg.root=\\@id\n"
 
 
 def test_a_line_break_in_the_delimiter_is_encoded_rather_than_refused():
@@ -94,14 +94,14 @@ def test_a_line_break_in_the_delimiter_is_encoded_rather_than_refused():
     Section 19.1 spells a line feed inside an interpreted value '\\n', which is two characters and
     therefore cannot end the record.
     """
-    scheme = n2x.synthesize_scheme("ini", delimiter="\n")
+    scheme = filt.synthesize_scheme("ini", delimiter="\n")
 
     assert scheme == "cfg.output=ini\ncfg.delimiter=\\n\n"
     assert scheme.count("\n") == 2
 
 
 def test_a_tab_delimiter_takes_its_section_19_1_spelling():
-    assert n2x.synthesize_scheme("ini", delimiter="\t") == "cfg.output=ini\ncfg.delimiter=\\t\n"
+    assert filt.synthesize_scheme("ini", delimiter="\t") == "cfg.output=ini\ncfg.delimiter=\\t\n"
 
 
 # --- Arguments an explicit scheme would swallow -------------------------------------------------
@@ -119,8 +119,8 @@ def test_a_synthesis_only_argument_alongside_an_explicit_scheme_is_refused(argum
     arguments = {"root": None, "delimiter": None}
     arguments[argument] = value
 
-    with pytest.raises(n2x.Namespace2XmlError, match="explicit 'scheme'"):
-        n2x._refuse_swallowed_arguments("cfg.output=xml\n", "xml", **arguments)
+    with pytest.raises(filt.Namespace2XmlError, match="explicit 'scheme'"):
+        filt._refuse_swallowed_arguments("cfg.output=xml\n", "xml", **arguments)
 
 
 def test_a_scheme_declaring_a_different_output_than_the_format_asked_for_is_refused():
@@ -129,17 +129,17 @@ def test_a_scheme_declaring_a_different_output_than_the_format_asked_for_is_refu
     Before this check that answer was collected and thrown away. Cross-checking is what makes the
     compelled argument mean something.
     """
-    with pytest.raises(n2x.Namespace2XmlError, match="declares output 'json'"):
-        n2x._refuse_swallowed_arguments("cfg.output=json\n", "xml", None, None)
+    with pytest.raises(filt.Namespace2XmlError, match="declares output 'json'"):
+        filt._refuse_swallowed_arguments("cfg.output=json\n", "xml", None, None)
 
 
 def test_a_scheme_agreeing_with_the_format_is_accepted():
-    n2x._refuse_swallowed_arguments("cfg.output=xml\ncfg.root=configuration\n", "xml", None, None)
+    filt._refuse_swallowed_arguments("cfg.output=xml\ncfg.root=configuration\n", "xml", None, None)
 
 
 def test_a_scheme_declaring_no_output_is_left_to_the_tool():
     """Reading little on purpose: silence here is deferred judgement, not approval."""
-    n2x._refuse_swallowed_arguments("cfg.appender.*.port.type=int\n", "xml", None, None)
+    filt._refuse_swallowed_arguments("cfg.appender.*.port.type=int\n", "xml", None, None)
 
 
 # --- Section 8 record kinds, applied to the scheme this filter reads ----------------------------
@@ -161,13 +161,13 @@ def test_a_record_that_declares_nothing_is_not_read_as_a_declaration(scheme):
     would then be checked against a line the tool never applies. A blank record is ignored for
     the same reason. The parametrised id names the kind under test.
     """
-    n2x._refuse_swallowed_arguments(scheme, "xml", None, None)
+    filt._refuse_swallowed_arguments(scheme, "xml", None, None)
 
 
 def test_an_escaped_hash_does_not_begin_a_comment():
     """Section 8 is explicit that '\\#' is not a comment marker, so this record does declare."""
-    with pytest.raises(n2x.Namespace2XmlError, match="declares output 'json'"):
-        n2x._refuse_swallowed_arguments("\\#cfg.output=json\n", "xml", None, None)
+    with pytest.raises(filt.Namespace2XmlError, match="declares output 'json'"):
+        filt._refuse_swallowed_arguments("\\#cfg.output=json\n", "xml", None, None)
 
 
 def test_an_escaped_dot_does_not_create_an_output_part():
@@ -176,7 +176,7 @@ def test_an_escaped_dot_does_not_create_an_output_part():
     The last part of 'cfg.a\\.output' is the single part 'a.output', which is not an output
     declaration. Splitting naively would invent one and refuse a valid scheme.
     """
-    n2x._refuse_swallowed_arguments("cfg.a\\.output=json\n", "xml", None, None)
+    filt._refuse_swallowed_arguments("cfg.a\\.output=json\n", "xml", None, None)
 
 
 # --- Sections 15 and 16.1: how an output declaration is compared --------------------------------
@@ -201,14 +201,14 @@ def test_an_output_declaration_the_tool_would_accept_is_not_refused_here(declare
     Both spellings of a scheme are checked together. The mapping form carries its own copy of
     this comparison, and a copy is a place the two can quietly stop agreeing.
     """
-    n2x._refuse_swallowed_arguments("cfg.output=%s\n" % declared, "xml", None, None)
-    n2x._refuse_swallowed_arguments({"cfg": {"output": declared}}, "xml", None, None)
+    filt._refuse_swallowed_arguments("cfg.output=%s\n" % declared, "xml", None, None)
+    filt._refuse_swallowed_arguments({"cfg": {"output": declared}}, "xml", None, None)
 
 
 def test_the_format_argument_is_folded_on_its_side_of_the_comparison_too():
     """One clause governs both sides, so folding only the declaration would still refuse."""
-    n2x._refuse_swallowed_arguments("cfg.output=xml\n", "XML", None, None)
-    n2x._refuse_swallowed_arguments({"cfg": {"output": "xml"}}, "XML", None, None)
+    filt._refuse_swallowed_arguments("cfg.output=xml\n", "XML", None, None)
+    filt._refuse_swallowed_arguments({"cfg": {"output": "xml"}}, "XML", None, None)
 
 
 @pytest.mark.parametrize(
@@ -218,16 +218,16 @@ def test_the_format_argument_is_folded_on_its_side_of_the_comparison_too():
 )
 def test_a_declaration_naming_neither_format_is_still_refused(scheme):
     """Normalizing the comparison must not quietly make it vacuous."""
-    with pytest.raises(n2x.Namespace2XmlError, match="declares output"):
-        n2x._refuse_swallowed_arguments(scheme, "xml", None, None)
+    with pytest.raises(filt.Namespace2XmlError, match="declares output"):
+        filt._refuse_swallowed_arguments(scheme, "xml", None, None)
 
 
 def test_a_directive_name_is_matched_case_insensitively_in_a_mapping_too():
     """Section 15 folds the name as well as the value. Reading only the lowercase spelling let
     an 'OUTPUT:' declaration past the cross-check entirely, which is the silent half of the
     same defect."""
-    with pytest.raises(n2x.Namespace2XmlError, match="declares output 'json'"):
-        n2x._refuse_swallowed_arguments({"cfg": {"OUTPUT": "json"}}, "xml", None, None)
+    with pytest.raises(filt.Namespace2XmlError, match="declares output 'json'"):
+        filt._refuse_swallowed_arguments({"cfg": {"OUTPUT": "json"}}, "xml", None, None)
 
 
 # --- Identity: the cache key must move when the binary does -------------------------------------
@@ -247,8 +247,8 @@ def _stub_version(monkeypatch, executable, texts):
         calls.append(argv)
         return _Version(texts[min(len(calls) - 1, len(texts) - 1)])
 
-    monkeypatch.setattr(shared, "resolve", lambda tool: str(executable))
-    monkeypatch.setattr(shared.subprocess, "run", run)
+    monkeypatch.setattr(n2x, "resolve", lambda tool: str(executable))
+    monkeypatch.setattr(n2x.subprocess, "run", run)
 
     return calls
 
@@ -261,8 +261,8 @@ def test_the_identity_is_cached_for_an_unchanged_binary(monkeypatch, tmp_path):
     binary.write_text("first", encoding="utf-8")
     calls = _stub_version(monkeypatch, binary, [IDENTITY % ("3.0.0", "r99+aaaa")])
 
-    assert shared.tool_identity() == "3.0.0|r99+aaaa"
-    assert shared.tool_identity() == "3.0.0|r99+aaaa"
+    assert n2x.tool_identity() == "3.0.0|r99+aaaa"
+    assert n2x.tool_identity() == "3.0.0|r99+aaaa"
     assert len(calls) == 1
 
 
@@ -279,11 +279,11 @@ def test_upgrading_the_binary_in_place_invalidates_the_identity(monkeypatch, tmp
         monkeypatch, binary,
         [IDENTITY % ("3.0.0", "r99+aaaa"), IDENTITY % ("3.1.0", "r100+bbbb")])
 
-    assert shared.tool_identity() == "3.0.0|r99+aaaa"
+    assert n2x.tool_identity() == "3.0.0|r99+aaaa"
 
     binary.write_text("second and longer", encoding="utf-8")
 
-    assert shared.tool_identity() == "3.1.0|r100+bbbb"
+    assert n2x.tool_identity() == "3.1.0|r100+bbbb"
     assert len(calls) == 2
 
 
@@ -298,8 +298,8 @@ def test_a_binary_without_a_contract_bundle_is_refused(monkeypatch, tmp_path):
     binary.write_text("two-point-x", encoding="utf-8")
     _stub_version(monkeypatch, binary, ["namespace2xml 2.4.0\n"])
 
-    with pytest.raises(shared.Namespace2XmlError, match="--prerelease"):
-        shared.tool_identity()
+    with pytest.raises(n2x.Namespace2XmlError, match="--prerelease"):
+        n2x.tool_identity()
 
 
 def test_a_failure_points_at_the_report_address_the_binary_publishes(monkeypatch, tmp_path):
@@ -314,14 +314,14 @@ def test_a_failure_points_at_the_report_address_the_binary_publishes(monkeypatch
         monkeypatch, binary,
         [IDENTITY % ("3.0.0", "r99+aaaa") + "report: https://example.invalid/issues\n"])
 
-    shared.tool_identity()
+    n2x.tool_identity()
 
-    assert "https://example.invalid/issues" in shared.support_hint(str(binary))
-    assert "verbatim" in shared.support_hint(str(binary))
+    assert "https://example.invalid/issues" in n2x.support_hint(str(binary))
+    assert "verbatim" in n2x.support_hint(str(binary))
 
 
 def test_an_unknown_binary_contributes_no_hint_rather_than_a_broken_one(monkeypatch):
-    assert shared.support_hint("no-such-executable-anywhere") == ""
+    assert n2x.support_hint("no-such-executable-anywhere") == ""
 
 
 # --- Section 15: the mapping spelling of a scheme -----------------------------------------------
@@ -332,7 +332,7 @@ def test_a_mapping_scheme_carries_its_path_in_the_nesting():
     The nesting is the path here, which is the whole point of the spelling: an author writing a
     playbook writes structure, not a dotted string that happens to live inside YAML.
     """
-    text = n2x.encode_scheme_mapping({"cfg": {"output": "xml", "root": "configuration"}})
+    text = filt.encode_scheme_mapping({"cfg": {"output": "xml", "root": "configuration"}})
 
     assert json.loads(text) == {"cfg": {"output": "xml", "root": "configuration"}}
 
@@ -343,7 +343,7 @@ def test_a_mapping_scheme_keeps_the_order_it_was_written_in():
     A later matching directive overrides an earlier one, so sorting the keys would not be a
     cosmetic difference -- it would silently change which directive wins.
     """
-    text = n2x.encode_scheme_mapping(
+    text = filt.encode_scheme_mapping(
         {"cfg": {"appender": {"*": {"type": "ignore"}, "a": {"type": "element"}}}})
 
     assert list(json.loads(text)["cfg"]["appender"]) == ["*", "a"]
@@ -357,14 +357,14 @@ def test_a_dotted_key_in_a_mapping_scheme_is_refused_with_the_nested_spelling():
     back with the dot escaped as \\u{2E}, and where the key is a selector rather than a
     directive name the render *succeeds* with only WARN009 and the directive inert.
     """
-    with pytest.raises(shared.Namespace2XmlError, match="cfg -> output"):
-        n2x.encode_scheme_mapping({"cfg.output": "xml"})
+    with pytest.raises(n2x.Namespace2XmlError, match="cfg -> output"):
+        filt.encode_scheme_mapping({"cfg.output": "xml"})
 
 
 def test_the_dotted_key_refusal_offers_both_the_nesting_and_the_escape():
     """An author reaching for 'a.b:' means one of exactly two things. Name both."""
-    with pytest.raises(shared.Namespace2XmlError) as failure:
-        n2x.encode_scheme_mapping({"cfg.output": "xml"})
+    with pytest.raises(n2x.Namespace2XmlError) as failure:
+        filt.encode_scheme_mapping({"cfg.output": "xml"})
 
     message = str(failure.value)
 
@@ -379,7 +379,7 @@ def test_an_escaped_dot_in_a_key_is_one_name_part_containing_a_dot():
     YAML quoting cannot carry this: 'a.b', "a.b" and a.b all load to the same string and the
     quote style is discarded, so the escape has to live in the text.
     """
-    document = json.loads(n2x.encode_scheme_mapping({"a\\.b": {"output": "xml"}}))
+    document = json.loads(filt.encode_scheme_mapping({"a\\.b": {"output": "xml"}}))
 
     assert list(document) == ["a.b"]
     assert document["a.b"] == {"output": "xml"}
@@ -394,16 +394,16 @@ def test_an_escaped_dot_is_not_confused_with_a_separator_in_the_same_key():
     what it proposes cannot drift apart: that is the check, and the wording is only how it is
     read.
     """
-    with pytest.raises(shared.Namespace2XmlError) as failure:
-        n2x.encode_scheme_mapping({"a\\.b.c": {"output": "xml"}})
+    with pytest.raises(n2x.Namespace2XmlError) as failure:
+        filt.encode_scheme_mapping({"a\\.b.c": {"output": "xml"}})
 
     message = str(failure.value)
 
     assert "a\\.b -> c" in message
     assert "a\\.b\\.c" in message
 
-    nested = json.loads(n2x.encode_scheme_mapping({"a\\.b": {"c": {"output": "xml"}}}))
-    escaped = json.loads(n2x.encode_scheme_mapping({"a\\.b\\.c": {"output": "xml"}}))
+    nested = json.loads(filt.encode_scheme_mapping({"a\\.b": {"c": {"output": "xml"}}}))
+    escaped = json.loads(filt.encode_scheme_mapping({"a\\.b\\.c": {"output": "xml"}}))
 
     assert nested == {"a.b": {"c": {"output": "xml"}}}
     assert escaped == {"a.b.c": {"output": "xml"}}
@@ -426,7 +426,7 @@ def test_a_dot_inside_a_qualified_name_is_uri_text_and_is_left_alone(key):
     the refusal: section 8 makes marker recognition committing, so the 'Q{urn:example' the hint
     would propose is PARSE001 rather than a part the author can retreat to.
     """
-    document = json.loads(n2x.encode_scheme_mapping({"cfg": {key: {"type": "ignore"}}}))
+    document = json.loads(filt.encode_scheme_mapping({"cfg": {key: {"type": "ignore"}}}))
 
     assert list(document["cfg"]) == [key]
 
@@ -436,8 +436,8 @@ def test_a_dot_after_the_closing_brace_is_ambiguous_like_any_other():
     text, so a dot in it separates nothing and is refused as everywhere else. The hint has to
     describe that split without also splitting the URI it left behind.
     """
-    with pytest.raises(shared.Namespace2XmlError) as failure:
-        n2x.encode_scheme_mapping({"cfg": {"Q{urn:e.g}a.b": {"type": "ignore"}}})
+    with pytest.raises(n2x.Namespace2XmlError) as failure:
+        filt.encode_scheme_mapping({"cfg": {"Q{urn:e.g}a.b": {"type": "ignore"}}})
 
     message = str(failure.value)
 
@@ -452,7 +452,7 @@ def test_an_unterminated_marker_is_left_for_the_tool_to_report():
     to prevent, so the key is passed through rather than second-guessed with a hint that would
     have to invent where the URI was meant to end.
     """
-    document = json.loads(n2x.encode_scheme_mapping({"cfg": {"Q{urn:x": {"type": "ignore"}}}))
+    document = json.loads(filt.encode_scheme_mapping({"cfg": {"Q{urn:x": {"type": "ignore"}}}))
 
     assert list(document["cfg"]) == ["Q{urn:x"]
 
@@ -461,8 +461,8 @@ def test_an_escaped_marker_is_an_ordinary_part_and_its_dots_are_not_uri_text():
     """Section 8: an escaped marker is literal, so '\\Q{...}' is an ordinary part and the dot
     rule applies to it in full. Treating the escape as a marker would carry the exception into
     a key that never asked for it."""
-    with pytest.raises(shared.Namespace2XmlError, match="contains a dot"):
-        n2x.encode_scheme_mapping({"cfg": {"\\Q{urn:e.g}n": {"type": "ignore"}}})
+    with pytest.raises(n2x.Namespace2XmlError, match="contains a dot"):
+        filt.encode_scheme_mapping({"cfg": {"\\Q{urn:e.g}n": {"type": "ignore"}}})
 
 
 # --- Section 9.1: a backslash before anything but a dot is not an escape ------------------------
@@ -481,7 +481,7 @@ def test_a_backslash_that_escapes_nothing_reaches_the_tool_unchanged(key):
     and the section 9.1 rules that do apply are the tool's to apply, not this converter's to
     anticipate.
     """
-    document = json.loads(n2x.encode_scheme_mapping({"cfg": {key: {"type": "ignore"}}}))
+    document = json.loads(filt.encode_scheme_mapping({"cfg": {key: {"type": "ignore"}}}))
 
     assert list(document["cfg"]) == [key]
 
@@ -503,32 +503,32 @@ def test_a_scheme_that_is_neither_a_mapping_nor_text_is_refused_by_name(scheme):
     The cross-check abstains on a shape it cannot read, which lets that sentence be the one the
     author sees.
     """
-    with pytest.raises(n2x.Namespace2XmlError, match="must be a mapping"):
-        n2x.render({"k": "v"}, "xml", scheme_yaml=scheme)
+    with pytest.raises(filt.Namespace2XmlError, match="must be a mapping"):
+        filt.render({"k": "v"}, "xml", scheme_yaml=scheme)
 
 
 def test_a_bare_dot_key_is_refused_rather_than_read_as_an_empty_path():
-    with pytest.raises(shared.Namespace2XmlError):
-        n2x.encode_scheme_mapping({"cfg": {".": "xml"}})
+    with pytest.raises(n2x.Namespace2XmlError):
+        filt.encode_scheme_mapping({"cfg": {".": "xml"}})
 
 
 def test_a_backslash_that_does_not_precede_a_dot_survives_unchanged():
     """Section 9 keeps '\\@x' as an escaped marker. Only '\\.' is consumed here."""
-    document = json.loads(n2x.encode_scheme_mapping({"cfg": {"\\@x": "element"}}))
+    document = json.loads(filt.encode_scheme_mapping({"cfg": {"\\@x": "element"}}))
 
     assert list(document["cfg"]) == ["\\@x"]
 
 
 def test_a_list_directive_value_is_refused_naming_the_comma_spelling():
     """Section 15 wants a nonempty scalar, and YAML invites a list for a multi-valued directive."""
-    with pytest.raises(shared.Namespace2XmlError, match="'xml,json'"):
-        n2x.encode_scheme_mapping({"cfg": {"output": ["xml", "json"]}})
+    with pytest.raises(n2x.Namespace2XmlError, match="'xml,json'"):
+        filt.encode_scheme_mapping({"cfg": {"output": ["xml", "json"]}})
 
 
 def test_a_directive_written_with_no_value_is_refused():
     """A YAML key with nothing after the colon is null, which section 15 has no scalar for."""
-    with pytest.raises(shared.Namespace2XmlError, match="no value"):
-        n2x.encode_scheme_mapping({"cfg": {"output": None}})
+    with pytest.raises(n2x.Namespace2XmlError, match="no value"):
+        filt.encode_scheme_mapping({"cfg": {"output": None}})
 
 
 def test_a_number_shaped_directive_value_is_refused_rather_than_silently_shortened():
@@ -537,8 +537,8 @@ def test_a_number_shaped_directive_value_is_refused_rather_than_silently_shorten
     Stringifying it would put a value in the scheme that the author did not write, which is the
     quiet-wrong-answer failure this suite exists to catch.
     """
-    with pytest.raises(shared.Namespace2XmlError, match="Quote it"):
-        n2x.encode_scheme_mapping({"cfg": {"filename": 3.10}})
+    with pytest.raises(n2x.Namespace2XmlError, match="Quote it"):
+        filt.encode_scheme_mapping({"cfg": {"filename": 3.10}})
 
 
 def test_a_wildcard_selector_survives_a_mapping_scheme_unescaped():
@@ -547,7 +547,7 @@ def test_a_wildcard_selector_survives_a_mapping_scheme_unescaped():
     encode_name_part exists for data names and escapes an asterisk on purpose. Reusing it here
     would turn every wildcard rule into a rule matching one literal asterisk.
     """
-    text = n2x.encode_scheme_mapping({"cfg": {"*": {"type": "ignore"}}})
+    text = filt.encode_scheme_mapping({"cfg": {"*": {"type": "ignore"}}})
 
     assert "*" in json.loads(text)["cfg"]
     assert "\\*" not in text
@@ -555,24 +555,24 @@ def test_a_wildcard_selector_survives_a_mapping_scheme_unescaped():
 
 def test_a_mapping_scheme_declaring_a_different_output_than_the_format_is_refused():
     """The O(fmt) cross-check has to read both spellings, or it silently stops working for one."""
-    with pytest.raises(n2x.Namespace2XmlError, match="declares output 'json'"):
-        n2x._refuse_swallowed_arguments({"cfg": {"output": "json"}}, "xml", None, None)
+    with pytest.raises(filt.Namespace2XmlError, match="declares output 'json'"):
+        filt._refuse_swallowed_arguments({"cfg": {"output": "json"}}, "xml", None, None)
 
 
 def test_a_mapping_scheme_agreeing_with_the_format_is_accepted():
-    n2x._refuse_swallowed_arguments({"cfg": {"output": "xml"}}, "xml", None, None)
+    filt._refuse_swallowed_arguments({"cfg": {"output": "xml"}}, "xml", None, None)
 
 
 def test_a_synthesis_only_argument_alongside_a_mapping_scheme_names_the_mapping_spelling():
     """Naming the '<selector>.root=...' fix at an author who wrote a mapping names a fix they
     cannot apply as written."""
-    with pytest.raises(n2x.Namespace2XmlError, match="nested under the selector"):
-        n2x._refuse_swallowed_arguments(
+    with pytest.raises(filt.Namespace2XmlError, match="nested under the selector"):
+        filt._refuse_swallowed_arguments(
             {"cfg": {"output": "xml"}}, "xml", "configuration", None)
 
 
 def test_supplying_both_scheme_spellings_is_refused():
     """They are one argument with two spellings, so both together leaves the render ambiguous."""
-    with pytest.raises(n2x.Namespace2XmlError, match="two spellings"):
-        n2x.render({"k": "v"}, "xml", scheme="cfg.output=xml\n",
+    with pytest.raises(filt.Namespace2XmlError, match="two spellings"):
+        filt.render({"k": "v"}, "xml", scheme="cfg.output=xml\n",
                    scheme_yaml={"cfg": {"output": "xml"}})

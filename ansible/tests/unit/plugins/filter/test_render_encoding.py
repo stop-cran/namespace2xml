@@ -16,13 +16,13 @@ import sys
 
 import pytest
 
-# `n2x` is the filter under test; `shared` is the module_utils the filter now calls into.
-# Discovery, the contract-bundle gate and the section 8.3 encoder live in `shared`, so a test
-# that stands in for one of those patches it there -- patching the filter would leave the code
-# under test calling the real thing.
+# `filt` is the filter under test; `n2x` is the module_utils it calls into, named for the
+# file it is. Discovery, the contract-bundle gate and the section 8.3 encoder live in `n2x`,
+# so a test that stands in for one of those patches it there -- patching the filter would
+# leave the code under test calling the real thing.
 try:
-    from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as n2x
-    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x as shared
+    from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as filt
+    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x
 except ImportError:  # a checkout that is not inside an ansible_collections tree
     # Through `plugins` -- an implicit namespace package -- rather than by path: the filter
     # reaches module_utils by relative import, and a relative import needs a package. Loading
@@ -32,8 +32,8 @@ except ImportError:  # a checkout that is not inside an ansible_collections tree
     if str(_ANSIBLE) not in sys.path:
         sys.path.insert(0, str(_ANSIBLE))
 
-    from plugins.filter import render as n2x  # type: ignore[no-redef]
-    from plugins.module_utils import n2x as shared  # type: ignore[no-redef]
+    from plugins.filter import render as filt  # type: ignore[no-redef]
+    from plugins.module_utils import n2x  # type: ignore[no-redef]
 
 
 def test_the_filter_shares_the_encoders_rather_than_carrying_its_own():
@@ -47,8 +47,8 @@ def test_the_filter_shares_the_encoders_rather_than_carrying_its_own():
     Asserted with ``is`` on purpose. Equality of behaviour is what a reintroduced copy would
     also satisfy on the day it was written, which is exactly when the comparison is useless.
     """
-    assert n2x.encode_value is shared.encode_value
-    assert n2x.encode_scheme_mapping is shared.encode_scheme_mapping
+    assert filt.encode_value is n2x.encode_value
+    assert filt.encode_scheme_mapping is n2x.encode_scheme_mapping
 
 
 # (id, data, hand-authored profile). The profile column is the thing under test.
@@ -130,52 +130,52 @@ CASES = [
 @pytest.mark.parametrize(("data", "profile"), [case[1:] for case in CASES],
                          ids=[case[0] for case in CASES])
 def test_flatten_matches_the_specification(data, profile):
-    assert n2x.flatten(data, "cfg") == profile
+    assert filt.flatten(data, "cfg") == profile
 
 
 def test_a_tuple_is_a_sequence_like_a_list():
-    assert n2x.flatten({"a": ("x", "y")}, "cfg") == "cfg.a.0=x\ncfg.a.1=y\n"
+    assert filt.flatten({"a": ("x", "y")}, "cfg") == "cfg.a.0=x\ncfg.a.1=y\n"
 
 
 def test_an_empty_name_part_is_a_parse_error():
-    with pytest.raises(n2x.Namespace2XmlError, match="empty name part"):
-        n2x.encode_name_part("")
+    with pytest.raises(filt.Namespace2XmlError, match="empty name part"):
+        filt.encode_name_part("")
 
 
 def test_binary_data_is_refused_rather_than_guessed_at():
-    with pytest.raises(n2x.Namespace2XmlError, match="binary data"):
-        n2x.flatten({"blob": b"\x00\x01"}, "cfg")
+    with pytest.raises(filt.Namespace2XmlError, match="binary data"):
+        filt.flatten({"blob": b"\x00\x01"}, "cfg")
 
 
 def test_q_is_escaped_only_where_it_could_open_a_canonical_component():
     # 'Q{' can introduce a section 11.4 component at the start of a part and nowhere else, so
     # escaping it elsewhere would spend an escape to prevent nothing.
-    assert n2x.encode_name_part("Qx") == "\\Qx"
-    assert n2x.encode_name_part("xQ") == "xQ"
+    assert filt.encode_name_part("Qx") == "\\Qx"
+    assert filt.encode_name_part("xQ") == "xQ"
 
 
 def test_a_lone_dollar_is_not_a_reference_start():
     # Section 8.3 escapes '${', not '$'. Escaping the bare character would change text that
     # round-trips perfectly well as itself.
-    assert n2x.encode_value("costs $5") == "costs $5"
-    assert n2x.encode_value("$ {x}") == "$ {x}"
+    assert filt.encode_value("costs $5") == "costs $5"
+    assert filt.encode_value("$ {x}") == "$ {x}"
 
 
 def test_the_container_sentinels_are_escaped_only_when_they_are_the_whole_value():
-    assert n2x.encode_value("{}") == "\\{}"
-    assert n2x.encode_value("a{}b") == "a{}b"
+    assert filt.encode_value("{}") == "\\{}"
+    assert filt.encode_value("a{}b") == "a{}b"
 
 
 def test_the_synthesized_scheme_declares_only_what_was_asked_for():
-    assert n2x.synthesize_scheme("json", "cfg") == "cfg.output=json\n"
-    assert n2x.synthesize_scheme("xml", "cfg", "configuration") == (
+    assert filt.synthesize_scheme("json", "cfg") == "cfg.output=json\n"
+    assert filt.synthesize_scheme("xml", "cfg", "configuration") == (
         "cfg.output=xml\ncfg.root=configuration\n")
-    assert n2x.synthesize_scheme("ini", "cfg", None, ":") == "cfg.output=ini\ncfg.delimiter=:\n"
+    assert filt.synthesize_scheme("ini", "cfg", None, ":") == "cfg.output=ini\ncfg.delimiter=:\n"
 
 
 def test_a_selector_needing_escapes_is_escaped_in_both_the_profile_and_the_scheme():
-    assert n2x.flatten({"k": "v"}, "my.app") == "my\\.app.k=v\n"
-    assert n2x.synthesize_scheme("json", "my.app") == "my\\.app.output=json\n"
+    assert filt.flatten({"k": "v"}, "my.app") == "my\\.app.k=v\n"
+    assert filt.synthesize_scheme("json", "my.app") == "my\\.app.output=json\n"
 
 
 # ---------------------------------------------------------------------------------------------
@@ -259,13 +259,13 @@ XML_CASES = [
 @pytest.mark.parametrize(("data", "profile"), [case[1:] for case in XML_CASES],
                          ids=[case[0] for case in XML_CASES])
 def test_the_xmltodict_convention_matches_the_specification(data, profile):
-    assert n2x.flatten(data, "cfg", "xmltodict") == profile
+    assert filt.flatten(data, "cfg", "xmltodict") == profile
 
 
 def test_the_default_convention_still_escapes_every_marker():
     # The reason `escaped` stays the default: under it a key is data, and this profile is what
     # every existing caller already gets. Adding a convention must not move anyone.
-    assert n2x.flatten({"@id": "1", "#text": "x", "Q{urn}y": "z"}, "cfg") == (
+    assert filt.flatten({"@id": "1", "#text": "x", "Q{urn}y": "z"}, "cfg") == (
         "cfg.\\@id=1\n"
         "cfg.\\#text=x\n"
         "cfg.\\Q{urn\\}y=z\n")
@@ -274,49 +274,49 @@ def test_the_default_convention_still_escapes_every_marker():
 def test_the_selector_is_a_name_rather_than_data_under_either_convention():
     # It names where the data hangs and has to match the scheme's own selector, so it is not
     # read for markers even when the keys beneath it are.
-    assert n2x.flatten({"k": "v"}, "@sel", "xmltodict") == "\\@sel.k=v\n"
+    assert filt.flatten({"k": "v"}, "@sel", "xmltodict") == "\\@sel.k=v\n"
 
 
 def test_an_unknown_convention_is_refused_rather_than_defaulted():
-    with pytest.raises(n2x.Namespace2XmlError, match="not a key convention"):
-        n2x.flatten({"k": "v"}, "cfg", "badgerfish")
+    with pytest.raises(filt.Namespace2XmlError, match="not a key convention"):
+        filt.flatten({"k": "v"}, "cfg", "badgerfish")
 
 
 def test_text_beside_a_child_element_is_refused_because_it_has_no_position():
     # Section 11.4 gives an element's own text the element's path only while it has no child
     # elements. Once it has one the element is mixed, every content node takes an ordered part,
     # and the mapping does not record which one the text was.
-    with pytest.raises(n2x.Namespace2XmlError, match="mixed content"):
-        n2x.flatten({"a": {"#text": "hi", "b": 1}}, "cfg", "xmltodict")
+    with pytest.raises(filt.Namespace2XmlError, match="mixed content"):
+        filt.flatten({"a": {"#text": "hi", "b": 1}}, "cfg", "xmltodict")
 
 
 def test_text_beside_a_content_token_is_refused_for_the_same_reason():
-    with pytest.raises(n2x.Namespace2XmlError, match="mixed content"):
-        n2x.flatten({"a": {"#text": "hi", "#0": "x"}}, "cfg", "xmltodict")
+    with pytest.raises(filt.Namespace2XmlError, match="mixed content"):
+        filt.flatten({"a": {"#text": "hi", "#0": "x"}}, "cfg", "xmltodict")
 
 
 def test_text_beside_an_escaped_literal_child_is_refused_too():
     # '\\@b' is an ordinary element named '@b', not an attribute, so it competes for position.
-    with pytest.raises(n2x.Namespace2XmlError, match="mixed content"):
-        n2x.flatten({"a": {"#text": "hi", "\\@b": 1}}, "cfg", "xmltodict")
+    with pytest.raises(filt.Namespace2XmlError, match="mixed content"):
+        filt.flatten({"a": {"#text": "hi", "\\@b": 1}}, "cfg", "xmltodict")
 
 
 def test_text_holding_a_container_is_refused():
-    with pytest.raises(n2x.Namespace2XmlError, match="own text"):
-        n2x.flatten({"a": {"#text": {"b": 1}}}, "cfg", "xmltodict")
+    with pytest.raises(filt.Namespace2XmlError, match="own text"):
+        filt.flatten({"a": {"#text": {"b": 1}}}, "cfg", "xmltodict")
 
 
 def test_an_unclosed_namespace_marker_is_refused_here_rather_than_by_the_tool():
     # Section 8 makes marker recognition committing, so the tool would refuse this with
     # PARSE001 naming a synthesized profile in a temporary directory. Refusing here names the
     # key the author actually wrote.
-    with pytest.raises(n2x.Namespace2XmlError, match="never closes it"):
-        n2x.flatten({"Q{urn:p": "v"}, "cfg", "xmltodict")
+    with pytest.raises(filt.Namespace2XmlError, match="never closes it"):
+        filt.flatten({"Q{urn:p": "v"}, "cfg", "xmltodict")
 
 
 def test_an_undefined_escape_inside_a_uri_is_refused():
-    with pytest.raises(n2x.Namespace2XmlError, match="no escape section 11.4 defines"):
-        n2x.flatten({"Q{urn:\\p}x": "v"}, "cfg", "xmltodict")
+    with pytest.raises(filt.Namespace2XmlError, match="no escape section 11.4 defines"):
+        filt.flatten({"Q{urn:\\p}x": "v"}, "cfg", "xmltodict")
 
 
 @pytest.mark.parametrize("key", ["#text ", "#nope", "#", "#01", "#1x"])
@@ -324,13 +324,13 @@ def test_a_hash_key_that_is_neither_text_nor_a_canonical_index_is_refused(key):
     # Escaping it would be the silent wrong answer this convention exists to remove: the author
     # wrote a marker. '#01' is refused because section 8.7 counts only the canonical spelling,
     # so accepting it would produce a part that orders nothing.
-    with pytest.raises(n2x.Namespace2XmlError, match="reserves for content"):
-        n2x.flatten({key: "v"}, "cfg", "xmltodict")
+    with pytest.raises(filt.Namespace2XmlError, match="reserves for content"):
+        filt.flatten({key: "v"}, "cfg", "xmltodict")
 
 
 def test_an_attribute_with_no_name_is_refused():
-    with pytest.raises(n2x.Namespace2XmlError, match="attribute with no name"):
-        n2x.flatten({"@": "v"}, "cfg", "xmltodict")
+    with pytest.raises(filt.Namespace2XmlError, match="attribute with no name"):
+        filt.flatten({"@": "v"}, "cfg", "xmltodict")
 
 
 class _Spy:
@@ -354,51 +354,51 @@ class _Spy:
 @pytest.fixture(name="spy")
 def _spy(monkeypatch):
     spy = _Spy()
-    monkeypatch.setattr(shared, "tool_identity", lambda tool=None: "3.0.0|deadbeef")
-    monkeypatch.setattr(shared, "resolve", lambda tool: "/stand-in/namespace2xml")
-    monkeypatch.setattr(n2x, "_marshal_and_run", spy)
-    monkeypatch.setattr(n2x, "_RENDER_CACHE", {})
+    monkeypatch.setattr(n2x, "tool_identity", lambda tool=None: "3.0.0|deadbeef")
+    monkeypatch.setattr(n2x, "resolve", lambda tool: "/stand-in/namespace2xml")
+    monkeypatch.setattr(filt, "_marshal_and_run", spy)
+    monkeypatch.setattr(filt, "_RENDER_CACHE", {})
 
     return spy
 
 
 def test_an_identical_render_is_served_from_the_memo(spy):
-    assert n2x.render({"k": "v"}, "json") == "RENDERED"
-    assert n2x.render({"k": "v"}, "json") == "RENDERED"
+    assert filt.render({"k": "v"}, "json") == "RENDERED"
+    assert filt.render({"k": "v"}, "json") == "RENDERED"
     assert spy.calls == 1
 
 
 def test_memoize_false_spawns_the_tool_every_time(spy):
-    n2x.render({"k": "v"}, "json", memoize=False)
-    n2x.render({"k": "v"}, "json", memoize=False)
+    filt.render({"k": "v"}, "json", memoize=False)
+    filt.render({"k": "v"}, "json", memoize=False)
     assert spy.calls == 2
 
 
 def test_the_memo_is_keyed_on_the_contract_identity_not_only_the_data(spy, monkeypatch):
-    n2x.render({"k": "v"}, "json")
-    monkeypatch.setattr(shared, "tool_identity", lambda tool=None: "3.0.1|cafebabe")
-    n2x.render({"k": "v"}, "json")
+    filt.render({"k": "v"}, "json")
+    monkeypatch.setattr(n2x, "tool_identity", lambda tool=None: "3.0.1|cafebabe")
+    filt.render({"k": "v"}, "json")
     assert spy.calls == 2
 
 
 def test_the_memo_distinguishes_formats_and_schemes(spy):
-    n2x.render({"k": "v"}, "json")
-    n2x.render({"k": "v"}, "yaml")
-    n2x.render({"k": "v"}, "yaml", root="doc")
+    filt.render({"k": "v"}, "json")
+    filt.render({"k": "v"}, "yaml")
+    filt.render({"k": "v"}, "yaml", root="doc")
     assert spy.calls == 3
 
 
 def test_the_convention_reaches_render_and_changes_what_the_tool_is_given(spy):
-    n2x.render({"bean": {"@id": "ds"}}, "xml", root="beans", convention="xmltodict")
+    filt.render({"bean": {"@id": "ds"}}, "xml", root="beans", convention="xmltodict")
     assert spy.profile == "cfg.bean.@id=ds\n"
 
-    n2x.render({"bean": {"@id": "ds"}}, "xml", root="beans")
+    filt.render({"bean": {"@id": "ds"}}, "xml", root="beans")
     assert spy.profile == "cfg.bean.\\@id=ds\n"
 
 
 def test_two_conventions_that_produce_the_same_profile_share_the_memo(spy):
     # The cache key is built from the profile, not from the arguments that produced it, so a
     # convention needs no key component of its own: identical profiles are identical renders.
-    n2x.render({"plain": "v"}, "json")
-    n2x.render({"plain": "v"}, "json", convention="xmltodict")
+    filt.render({"plain": "v"}, "json")
+    filt.render({"plain": "v"}, "json", convention="xmltodict")
     assert spy.calls == 1
