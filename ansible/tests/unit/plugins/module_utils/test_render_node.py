@@ -649,3 +649,78 @@ def test_returned_paths_are_absolute_even_when_dest_was_not(tmp_path, tool):
 
     assert all(os.path.isabs(path) for path in result["files"])
     assert all(os.path.isabs(path) for path in result["changed_files"])
+
+
+def _filter_encode_scheme_mapping(mapping):
+    """The controller-side filter's own copy of the mapping-scheme converter."""
+    try:
+        from ansible_collections.stop_cran.namespace2xml.plugins.filter import (  # noqa: E501
+            render as filter_render)
+    except ImportError:
+        import importlib.util
+
+        path = _PLUGINS / "filter" / "render.py"
+        spec = importlib.util.spec_from_file_location("n2x_filter_for_drift", path)
+        filter_render = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(filter_render)
+
+    return filter_render.encode_scheme_mapping(mapping)
+
+
+def test_the_two_mapping_scheme_converters_agree():
+    """The node copy and the controller copy must not drift.
+
+    A filter cannot import module_utils, so this converter exists twice on purpose. The hazard
+    of a deliberate duplicate is that one copy is fixed and the other is not, and the symptom is
+    a playbook whose scheme means one thing through the module and another through the filter.
+    """
+    accepted = [
+        {"cfg": {"output": "xml"}},
+        {"cfg": {"output": "xml", "root": "configuration", "filename": "a.xml"}},
+        {"xmlinputoptions": "NormalizeFormattingWhitespace", "cfg": {"output": "json"}},
+        {"cfg": {"appender": {"*": {"name": {"type": "ignore"}}, "a": {"type": "element"}}}},
+        {"cfg": {"output": "xml,json"}},
+        {"cfg": {"hidden": True, "port": 8080}},
+        {"cfg": {"name": "a=b"}},
+        {"cfg": {"name": "line\nbreak"}},
+        {"cfg": {"name": "\u00e9\u4e2d"}},
+        {"cfg": {"a": {"b": {"c": {"d": {"output": "ini"}}}}}},
+        {"cfg": {"a\\.b": {"output": "xml"}}},
+        {"a\\.b": {"output": "xml"}},
+        {"cfg": {"a\\.b\\.c": {"type": "element"}}},
+    ]
+
+    for mapping in accepted:
+        assert n2x.encode_scheme_mapping(mapping) == _filter_encode_scheme_mapping(mapping), mapping
+
+    refused = [
+        {}, [], "cfg.output=xml", None,
+        {"cfg.output": "xml"},
+        {"cfg": {"a\\.b.c": {"type": "element"}}},
+        {"cfg": {".": "xml"}},
+        {"cfg": {"output": ["xml", "json"]}},
+        {"cfg": {"output": None}},
+        {"cfg": {"output": ""}},
+        {"cfg": {"filename": 3.10}},
+        {"cfg": {}},
+        {"": "xml"},
+        {3: "xml"},
+        {"cfg": {"output": {"nested": []}}},
+    ]
+
+    for mapping in refused:
+        node_message = None
+        filter_message = None
+
+        try:
+            n2x.encode_scheme_mapping(mapping)
+        except n2x.Namespace2XmlError as error:
+            node_message = str(error)
+
+        try:
+            _filter_encode_scheme_mapping(mapping)
+        except Exception as error:  # the filter's error derives from AnsibleFilterError
+            filter_message = str(error)
+
+        assert node_message is not None, mapping
+        assert node_message == filter_message, mapping

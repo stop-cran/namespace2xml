@@ -68,7 +68,30 @@ options:
         declares. A disagreement is an error rather than an override, because the scheme wins
         and the argument would otherwise be a value the caller was compelled to supply and the
         filter then ignored.
+      - Mutually exclusive with O(scheme_yaml).
     type: str
+  scheme_yaml:
+    description:
+      - The same scheme as O(scheme), written as a native mapping instead of a block of text,
+        so it reads as part of the playbook rather than as an embedded document.
+      - B(The nesting carries the path.) Section 9 makes a JSON or YAML mapping key one name
+        part, so a dot does not separate names here as it does in O(scheme) - a key containing
+        a dot asks for one name with a literal dot in it. It is refused rather than passed
+        through, because as a selector it would draw only C(WARN009) and the render would
+        succeed with the directive inert. Write C(cfg:) then C(output:) beneath it, not
+        C(cfg.output:).
+      - To select a name that really does contain a dot, escape it C(\.) as section 8 does -
+        C('a\.b') is the single name C(a.b). Quoting cannot express this, since C(a.b) and
+        C('a.b') load to the same string; write it plain or single-quoted, as YAML's
+        double-quoted style rejects C("a\.b") as an unknown escape.
+      - A directive that takes several values is one comma-separated scalar, C(output),
+        C("xml,json"). A list is refused, because section 15 wants a nonempty scalar.
+      - Quote a wildcard selector - bare C(*) is a YAML alias indicator. Quote anything YAML
+        would read as a number, since C(3.10) arrives as C(3.1).
+      - Carries the same refusals and the same O(fmt) cross-check as O(scheme). Passed to the
+        tool as a JSON document, which section 15 accepts alongside YAML.
+    type: dict
+    version_added: 2.1.0
   delimiter:
     description:
       - The section 16.4 output delimiter, for the flat formats.
@@ -214,6 +237,7 @@ _value:
 """
 
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -221,7 +245,8 @@ import sys
 import tempfile
 import unicodedata
 
-__all__ = ["render", "flatten", "encode_name_part", "encode_value", "tool_identity"]
+__all__ = ["render", "flatten", "encode_name_part", "encode_value", "encode_scheme_mapping",
+           "tool_identity"]
 
 DEFAULT_SELECTOR = "cfg"
 
@@ -466,6 +491,236 @@ def synthesize_scheme(fmt, selector=DEFAULT_SELECTOR, root=None, delimiter=None)
     return "".join(line + "\n" for line in lines)
 
 
+# Deliberately duplicated from plugins/module_utils/n2x.py, which a filter may not import:
+# module_utils ships to the node and the controller half must stand alone. The unit suite
+# holds the two copies to the same behaviour rather than trusting that they stay aligned.
+_SCHEME_BOOLEANS = {True: "true", False: "false"}
+_SCHEME_LITERAL_DOT = "\\."
+
+
+def encode_scheme_mapping(mapping):
+    """Render a playbook mapping as a Section 15 scheme document.
+
+    A scheme written as a mapping is not the same shape as one written as text. In the text
+    form a dot separates name parts; in the mapping form the *nesting* carries the path, so a
+    key containing a dot is one name part with a dot inside it -- Section 9 says a native key
+    is one component, and the delimiter "loses its meaning there, because a key is one part
+    rather than a path". The tool echoes such a key back as ``configuration\\u{2E}output``.
+    Where that lands as a directive name it is rejected; where it lands as a *selector* it
+    draws only ``WARN009`` and the render succeeds with the directive inert. That second case
+    -- a wrong answer with a zero exit code -- is what this function exists to catch at the
+    plugin boundary, with a message that names both fixes.
+
+    The document is emitted as JSON, not YAML. Section 15 accepts ``.json``, ``.yaml`` and
+    ``.yml`` alike, JSON is a subset of YAML, and ``json`` is in the standard library. A node
+    already needs .NET and the tool; emitting YAML would add PyYAML to that list to buy
+    nothing.
+
+    Key order is preserved, and must be. Section 15.2 gives scheme directives source order
+    only: a later matching directive overrides an earlier one, and pattern specificity does
+    not alter precedence. Sorting the keys would silently change what the scheme means.
+    """
+    if not isinstance(mapping, dict):
+        raise Namespace2XmlError(
+            "A mapping scheme must be a mapping, not %s." % _scheme_kind(mapping))
+
+    if not mapping:
+        raise Namespace2XmlError(
+            "A mapping scheme is empty. Section 15 wants at least one directive; omit the "
+            "argument entirely if no inline scheme is intended.")
+
+    return json.dumps(
+        _scheme_branch(mapping, ()), indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+
+
+def _scheme_kind(value):
+    """Name a value's type the way an author would recognize it from their playbook."""
+    if value is None:
+        return "an empty value"
+
+    return {
+        bool: "a boolean", int: "a number", float: "a number",
+        str: "a string", list: "a list", tuple: "a list", dict: "a mapping",
+    }.get(type(value), "a %s" % type(value).__name__)
+
+
+def _scheme_where(path):
+    """Locate a key for an error message.
+
+    Bracketed rather than dotted on purpose: in this form a dot is a literal character in a
+    name, so a dotted location would illustrate the very confusion being reported.
+    """
+    return "".join("[%s]" % part for part in path) or "the top level"
+
+
+def _scheme_branch(node, path):
+    """Validate and normalize one mapping level, preserving author order."""
+    branch = {}
+
+    for key, value in node.items():
+        if not isinstance(key, str):
+            raise Namespace2XmlError(
+                "The key %r under %s is %s. Quote it: a scheme path is made of names, and "
+                "YAML reads an unquoted %s as a value rather than a name."
+                % (key, _scheme_where(path), _scheme_kind(key), key))
+
+        if not key:
+            raise Namespace2XmlError(
+                "A key under %s is empty. Section 15 has no empty name part."
+                % _scheme_where(path))
+
+        if "." in key or _SCHEME_LITERAL_DOT in key:
+            name = _scheme_name_part(key, path)
+        else:
+            name = key
+
+        here = path + (key,)
+
+        if isinstance(value, dict):
+            if not value:
+                raise Namespace2XmlError(
+                    "The mapping at %s is empty, so it declares nothing. Give it a directive "
+                    "or drop it." % _scheme_where(here))
+
+            branch[name] = _scheme_branch(value, here)
+        else:
+            branch[name] = _scheme_leaf(value, here)
+
+    return branch
+
+
+def _scheme_name_part(key, path):
+    """Resolve one mapping key to the name part it denotes, or refuse it.
+
+    Section 9 settles what a native key means: a JSON or YAML mapping key is one component,
+    and only the delimiter and ``\\u{HEX}`` lose their meaning there, "because a key is one
+    part rather than a path". A dotted key is therefore a name with a dot inside it, which is
+    almost never what an author reaching for ``a.b:`` intends.
+
+    YAML quoting cannot carry the distinction. ``a.b``, ``'a.b'`` and ``"a.b"`` all load to
+    the same string and the quote style is discarded by the parser, so there is no signal to
+    read. The escape is carried in the text instead, spelled as Section 8 spells it in the
+    namespace form: ``\\.`` is one literal dot. Note that YAML's own double-quoted style
+    rejects ``"a\\.b"`` as an unknown escape -- write it plain or single-quoted.
+    """
+    out = []
+    index = 0
+
+    while index < len(key):
+        if key.startswith(_SCHEME_LITERAL_DOT, index):
+            out.append(".")
+            index += 2
+            continue
+
+        if key[index] == ".":
+            raise Namespace2XmlError(
+                "The key '%s' under %s contains a dot. In a mapping scheme the nesting "
+                "carries the path, so a dot here separates nothing -- Section 9 makes a "
+                "native key one name part -- and as a selector it would match nothing "
+                "(WARN009) rather than fail. Nest the parts instead -- '%s' -- or write "
+                "'%s' if one name containing a literal dot is what you meant."
+                % (key, _scheme_where(path), _scheme_nesting_hint(key),
+                   _scheme_escape_dots(key)))
+
+        out.append(key[index])
+        index += 1
+
+    return "".join(out)
+
+
+def _scheme_escape_dots(key):
+    """Show the literal-dot spelling of a key, escaping only its unescaped dots."""
+    out = []
+    index = 0
+
+    while index < len(key):
+        if key.startswith(_SCHEME_LITERAL_DOT, index):
+            out.append(_SCHEME_LITERAL_DOT)
+            index += 2
+        elif key[index] == ".":
+            out.append(_SCHEME_LITERAL_DOT)
+            index += 1
+        else:
+            out.append(key[index])
+            index += 1
+
+    return "".join(out)
+
+
+def _scheme_nesting_hint(key):
+    """Show the nested spelling of a dotted key, for the error that rejects it.
+
+    Splits on unescaped dots only, so an already-escaped dot stays inside its part.
+    """
+    parts = []
+    current = []
+    index = 0
+
+    while index < len(key):
+        if key.startswith(_SCHEME_LITERAL_DOT, index):
+            current.append(".")
+            index += 2
+        elif key[index] == ".":
+            parts.append("".join(current))
+            current = []
+            index += 1
+        else:
+            current.append(key[index])
+            index += 1
+
+    parts.append("".join(current))
+
+    return " -> ".join(part for part in parts if part)
+
+
+def _scheme_leaf(value, path):
+    """Validate and stringify one directive value."""
+    if value is None:
+        raise Namespace2XmlError(
+            "The directive at %s has no value. Section 15 wants a nonempty scalar, and a "
+            "YAML key written with nothing after the colon parses as an empty value."
+            % _scheme_where(path))
+
+    if isinstance(value, (list, tuple)):
+        raise Namespace2XmlError(
+            "The directive at %s is a list, and Section 15 wants a nonempty scalar. A "
+            "directive that takes several values is spelled as one comma-separated scalar: "
+            "%s." % (_scheme_where(path), _scheme_comma_hint(value)))
+
+    if isinstance(value, bool):
+        return _SCHEME_BOOLEANS[value]
+
+    if isinstance(value, float):
+        raise Namespace2XmlError(
+            "The directive at %s is %r, which YAML read as a number -- so a value written "
+            "as 3.10 arrives as 3.1. Quote it to keep what you wrote."
+            % (_scheme_where(path), value))
+
+    if isinstance(value, int):
+        return str(value)
+
+    if not isinstance(value, str):
+        raise Namespace2XmlError(
+            "The directive at %s is %s. Section 15 wants a nonempty scalar."
+            % (_scheme_where(path), _scheme_kind(value)))
+
+    if not value:
+        raise Namespace2XmlError(
+            "The directive at %s is empty. Section 15 wants a nonempty scalar."
+            % _scheme_where(path))
+
+    return value
+
+
+def _scheme_comma_hint(values):
+    """Show the comma-scalar spelling of a list, for the error that rejects it."""
+    joined = ",".join(
+        _SCHEME_BOOLEANS[item] if isinstance(item, bool) else str(item)
+        for item in values if item is not None)
+
+    return "'%s'" % joined if joined else "one scalar naming every value"
+
+
 def _split_unescaped(text, separator):
     """Split on a separator that a preceding backslash protects, per Section 8.2."""
     parts = []
@@ -494,19 +749,23 @@ def _split_unescaped(text, separator):
     return parts
 
 
-def _declared_outputs(scheme_text):
+def _declared_outputs(scheme):
     """The set of formats an explicit scheme declares, for cross-checking against ``fmt``.
 
-    This reads deliberately little. Section 8 record kinds are honoured -- an unescaped leading
-    ``#`` is a comment and an unescaped leading ``!`` is a mask, so neither declares anything --
-    and a name is split on unescaped dots so that a rule ending in a literal ``\\.output`` part
-    is not mistaken for one. Everything past that is left alone: the point is to catch a plain
+    Accepts either form of scheme. A mapping is walked for keys named ``output``; text is read
+    deliberately little. Section 8 record kinds are honoured -- an unescaped leading ``#`` is a
+    comment and an unescaped leading ``!`` is a mask, so neither declares anything -- and a name
+    is split on unescaped dots so that a rule ending in a literal ``\\.output`` part is not
+    mistaken for one. Everything past that is left alone: the point is to catch a plain
     disagreement, not to re-implement Section 15.2 matching here. When nothing is recognised the
     caller stays silent and lets the tool speak for itself.
     """
+    if isinstance(scheme, dict):
+        return _declared_outputs_in_mapping(scheme)
+
     outputs = set()
 
-    for line in scheme_text.splitlines():
+    for line in scheme.splitlines():
         stripped = line.strip(" \t")
 
         if not stripped or stripped[0] in "#!":
@@ -525,7 +784,42 @@ def _declared_outputs(scheme_text):
     return outputs
 
 
-def _refuse_swallowed_arguments(scheme_text, fmt, root, delimiter):
+def _declared_outputs_in_mapping(mapping, seen=None):
+    """Walk a mapping scheme for ``output`` directives, wherever they are nested.
+
+    The mapping form carries the path in its nesting, so there is no name to split: a key
+    literally named ``output`` whose value is a scalar is the directive, at any depth.
+    """
+    outputs = set()
+    seen = seen if seen is not None else set()
+
+    if id(mapping) in seen:
+        return outputs
+
+    seen.add(id(mapping))
+
+    for key, value in mapping.items():
+        if isinstance(value, dict):
+            outputs |= _declared_outputs_in_mapping(value, seen)
+        elif key == "output" and value is not None and not isinstance(value, (list, tuple)):
+            outputs.add(_SCHEME_BOOLEANS[value] if isinstance(value, bool) else str(value))
+
+    return outputs
+
+
+def _declare_hint(scheme, swallowed):
+    """Spell the refused arguments the way the scheme in hand is written.
+
+    A mapping scheme has no ``name=value`` lines, so quoting the text spelling at an author who
+    wrote YAML would name a fix they cannot apply as given.
+    """
+    if isinstance(scheme, dict):
+        return " and ".join("'%s:' nested under the selector" % name for name in swallowed)
+
+    return " and ".join("'<selector>.%s=...'" % name for name in swallowed)
+
+
+def _refuse_swallowed_arguments(scheme, fmt, root, delimiter):
     """Refuse arguments that an explicit scheme would silently discard.
 
     ``root`` and ``delimiter`` are read only while synthesizing a scheme. Passed alongside one,
@@ -544,11 +838,11 @@ def _refuse_swallowed_arguments(scheme_text, fmt, root, delimiter):
         raise Namespace2XmlError(
             "%s cannot be combined with an explicit 'scheme'. Those arguments are read only "
             "while synthesizing a scheme, so here they would be discarded and the render would "
-            "succeed having ignored them. Declare them in the scheme instead, as "
-            "'<selector>.root=...' and '<selector>.delimiter=...'."
-            % " and ".join("'%s'" % name for name in swallowed))
+            "succeed having ignored them. Declare them in the scheme instead, as %s."
+            % (" and ".join("'%s'" % name for name in swallowed),
+               _declare_hint(scheme, swallowed)))
 
-    declared = _declared_outputs(scheme_text)
+    declared = _declared_outputs(scheme)
 
     if declared and fmt not in declared:
         raise Namespace2XmlError(
@@ -757,6 +1051,7 @@ def render(
     config,
     fmt,
     scheme=None,
+    scheme_yaml=None,
     root=None,
     selector=DEFAULT_SELECTOR,
     delimiter=None,
@@ -771,6 +1066,8 @@ def render(
         ``namespace``, ``quotednamespace``.
     :param scheme: explicit scheme text, used instead of the synthesized minimal one. The
         selector it declares must be ``selector``.
+    :param scheme_yaml: the same thing written as a mapping, where the nesting carries the path
+        rather than a dot. Mutually exclusive with ``scheme``.
     :param root: the section 16.3 root, which XML needs for a multi-member view.
     :param selector: the top-level name the data is written under.
     :param delimiter: the section 16.4 output delimiter, for the flat formats.
@@ -784,21 +1081,36 @@ def render(
     """
     profile = flatten(config, selector)
 
-    if scheme is not None:
-        _refuse_swallowed_arguments(scheme, fmt, root, delimiter)
+    if scheme is not None and scheme_yaml is not None:
+        raise Namespace2XmlError(
+            "'scheme' and 'scheme_yaml' are two spellings of one argument, so supplying both "
+            "leaves it ambiguous which the render should use. Keep the one you mean.")
 
-    scheme_text = scheme if scheme is not None else synthesize_scheme(
-        fmt, selector, root, delimiter)
+    explicit = scheme if scheme is not None else scheme_yaml
+
+    if explicit is not None:
+        _refuse_swallowed_arguments(explicit, fmt, root, delimiter)
+
+    if scheme_yaml is not None:
+        # Section 15 picks the parser from the extension, so this has to reach the tool under a
+        # .json name and the text form must not.
+        scheme_text, scheme_name = encode_scheme_mapping(scheme_yaml), "scheme.json"
+    elif scheme is not None:
+        scheme_text, scheme_name = scheme, "scheme.txt"
+    else:
+        scheme_text, scheme_name = synthesize_scheme(
+            fmt, selector, root, delimiter), "scheme.txt"
+
     identity = tool_identity(tool)
     key = None
 
     if memoize:
-        key = _cache_key(profile, scheme_text, fmt, identity)
+        key = _cache_key(profile, scheme_text, scheme_name, fmt, identity)
 
         if key in _RENDER_CACHE:
             return _RENDER_CACHE[key]
 
-    text = _marshal_and_run(profile, scheme_text, _resolve(tool), workdir)
+    text = _marshal_and_run(profile, scheme_text, scheme_name, _resolve(tool), workdir)
 
     if key is not None:
         _RENDER_CACHE[key] = text
@@ -806,17 +1118,19 @@ def render(
     return text
 
 
-def _cache_key(profile, scheme_text, fmt, identity):
+def _cache_key(profile, scheme_text, scheme_name, fmt, identity):
     digest = hashlib.sha256()
 
-    for part in (profile, scheme_text, fmt, identity):
+    # The file name is part of the key because it selects the parser: identical bytes read as a
+    # namespace profile and as JSON are two different schemes, and must not share a cache entry.
+    for part in (profile, scheme_text, scheme_name, fmt, identity):
         digest.update(part.encode("utf-8"))
         digest.update(b"\x00")
 
     return digest.hexdigest()
 
 
-def _marshal_and_run(profile, scheme_text, executable, workdir):
+def _marshal_and_run(profile, scheme_text, scheme_name, executable, workdir):
     """Write the inputs, run the tool, read the single output back, and clean up.
 
     A filter has data in memory and the CLI is file-in, directory-out, so every call pays a
@@ -826,7 +1140,7 @@ def _marshal_and_run(profile, scheme_text, executable, workdir):
 
     try:
         input_path = os.path.join(directory, "input.txt")
-        scheme_path = os.path.join(directory, "scheme.txt")
+        scheme_path = os.path.join(directory, scheme_name)
         output_dir = os.path.join(directory, "out")
 
         _write(input_path, profile)

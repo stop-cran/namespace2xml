@@ -126,6 +126,7 @@ the rendered text against what is on the node.
 | `fmt` | *(positional, required)* `xml`, `json`, `yaml`, `ini`, `namespace`, `quotednamespace` |
 | `root` | the XML document element name. Required whenever the data has more than one top-level key |
 | `scheme` | explicit scheme text, for anything the synthesized minimal scheme does not cover |
+| `scheme_yaml` | the same scheme written as a YAML mapping instead of text. Mutually exclusive with `scheme` |
 | `selector` | the top-level name the data is written under. Default `cfg` |
 | `delimiter` | output delimiter, for the flat formats |
 | `tool` | path to the binary. Authoritative — a value given here resolves or the filter fails |
@@ -157,6 +158,56 @@ scheme: |
   cfg.output=ini
   cfg.*.version.type=string
 ```
+
+### Two spellings of a scheme
+
+A playbook is YAML, so a scheme embedded in one as a block of `a.b=c` lines is a second syntax
+inside a file that already has one. Section 15 of the specification selects the scheme parser
+from the file extension and accepts a structured document as readily as text, so both plugins
+also take the scheme as a mapping — `scheme_yaml` on the filter and on the module:
+
+```yaml
+scheme_yaml:
+  xmlinputoptions: NormalizeFormattingWhitespace
+  cfg:
+    output: xml
+    root: configuration
+    appender:
+      "*":
+        name:
+          type: ignore
+```
+
+The two spellings are the same scheme, and the integration suite renders both and compares the
+bytes. Choose on how the scheme is produced rather than on taste: a mapping composes with
+`combine`, `vars_files` and inventory variables and is checked as you write it, while text stays
+copy-pasteable to and from the command line and a `.scheme` file. They are mutually exclusive —
+supplying both leaves the render ambiguous, so it is refused.
+
+Three things about the mapping form are worth knowing before you meet them:
+
+- **The nesting is the path.** Section 9 makes a JSON or YAML mapping key *one* name part —
+  "only the delimiter and `\u{HEX}` lose their meaning there, because a key is one part rather
+  than a path". So `cfg.output: xml` asks for a single name with a dot in it, and both plugins
+  refuse it rather than pass it through. Nest the parts. This is refused rather than warned
+  about because the failure is otherwise silent: as a *selector* a dotted key draws only
+  `WARN009` and the render succeeds with the directive inert.
+- **Write `\.` for a name that really does contain a dot.** YAML quoting cannot express this —
+  `a.b`, `'a.b'` and `"a.b"` all load to the same string and the quote style is discarded — so
+  the escape lives in the text, spelled as Section 8 spells it: `'a\.b': {type: attribute}`
+  selects the one name `a.b`. Write it plain or single-quoted; YAML's double-quoted style
+  rejects `"a\.b"` as an unknown escape.
+- **A multi-valued directive is one comma-separated scalar**, not a sequence: `output: "xml,json"`.
+- **Quote a wildcard and anything number-shaped.** A bare `*` is a YAML alias indicator, and
+  YAML reads `3.10` as the number `3.1`.
+
+A scheme key and an input key are not the same language, and the difference is deliberate: a
+scheme key is a *selector*, an input key is *data*. `*` already shows this — in a scheme key it
+is a wildcard, in an input key it is escaped to a literal `\*` and matches nothing else. A dot
+follows the same line. In an **input** mapping, `{'a.b': 'hello'}` is the one name `a.b`, passed
+through as data with no ceremony. In a **scheme** mapping the bare form is refused and `'a\.b'`
+selects that same name, because here a mistake is silent rather than loud. A name containing a
+literal backslash is not expressible in a scheme key; nothing has needed one.
 
 ### Memoization
 
@@ -197,6 +248,7 @@ the handful of things that differ on this host, and the node renders its own con
 | `src` | *(required)* ordered input file paths **on the node**, one `-i` each |
 | `scheme` | ordered scheme file paths on the node, one `-s` each |
 | `scheme_text` | scheme directives written inline in the playbook, applied *after* every `scheme` file |
+| `scheme_yaml` | the same inline scheme written as a YAML mapping. Mutually exclusive with `scheme_text`, and composes with `scheme` files the same way |
 | `variables` | namespace entries applied after all inputs, one `-v name=value` each. Keys are passed **verbatim** |
 | `dest` | *(required)* the output root directory, passed as `-o` |
 | `tool` | path to the binary on the node |
@@ -354,13 +406,15 @@ argument, so nothing you write today would break.
 
 ## Versioning
 
-This collection is at 2.0.0 while the tool is at 3.x. They are separate artefacts with separate
+This collection is at 2.1.0 while the tool is at 3.x. They are separate artefacts with separate
 compatibility promises: the collection pins no tool version, and the two are released under
 different tags — `v3.*` for the tool, `ansible-v*` for this collection.
 
 2.0.0 rather than 1.1.0 because 1.0.0 documented, as a requirement, that target nodes need neither
 .NET nor the tool. The module makes that false for any play that uses it, and a promise about what
 you must install is the kind a major version exists to revise. Nothing about the filter changed.
+
+2.1.0 added `scheme_yaml` to both plugins. Additive: every 2.0.0 playbook renders identically.
 
 ## How this is tested
 

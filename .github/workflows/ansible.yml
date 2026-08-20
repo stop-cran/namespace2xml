@@ -81,6 +81,56 @@ jobs:
           set -euo pipefail
           ansible-test sanity --venv --python 3.13 --color -v
 
+  # ansible-test sanity validates the plugins' own DOCUMENTATION blocks and nothing else. The
+  # prose pages under docs/docsite are rendered by antsibull-docs, which Galaxy runs and this
+  # repository does not, so an unknown role or a toctree entry naming a file that is not there
+  # would be discovered on the docs site after publishing -- and a published version cannot be
+  # replaced. This job is the only thing that reads extra-docs.yml before a consumer does.
+  docsite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install antsibull-docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check \
+            'ansible-core>=2.21,<2.22' antsibull-docs
+          antsibull-docs --version
+
+      - name: Stage the collection
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/$COLLECTION_TREE"
+          mkdir -p "$(dirname "$dest")"
+          cp -a ansible "$dest"
+          test -f "$dest/docs/docsite/extra-docs.yml"
+
+      # The linter reports problems on stdout and still exits zero in some versions, so the
+      # output is checked as well as the status. A silent pass that printed complaints is the
+      # exact failure mode this job exists to prevent.
+      - name: antsibull-docs lint-collection-docs
+        shell: bash
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/$COLLECTION_TREE"
+          status=0
+          antsibull-docs lint-collection-docs --plugin-docs "$dest" > "$RUNNER_TEMP/lint.txt" 2>&1 \
+            || status=$?
+          cat "$RUNNER_TEMP/lint.txt"
+          if [ "$status" -ne 0 ] || [ -s "$RUNNER_TEMP/lint.txt" ]; then
+            echo "::error::antsibull-docs reported problems in the collection documentation"
+            exit 1
+          fi
+          echo "the collection documentation lints clean"
+
   # `ansible-galaxy collection build` reports success for any tree it can read, including one whose
   # build_ignore has quietly swallowed a plugin, and the tarball -- not the repository -- is the
   # whole of what a Galaxy consumer ever receives. Ten files reach them; everything else in this

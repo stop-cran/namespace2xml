@@ -9,9 +9,13 @@
 # nodes need neither .NET nor the tool. Adding the `render` module makes that false for any play
 # that uses it, and a promise about what a consumer must install is exactly the kind a major
 # version exists to revise. Nothing in the filter's interface changed.
+#
+# 2.1.0 adds `scheme_yaml` to both plugins: the same scheme written as a mapping rather than as a
+# block of text inside a YAML file. Additive, so a minor -- every 2.0.0 playbook renders
+# identically, and the two spellings are compared byte for byte by the integration suite.
 namespace: stop_cran
 name: namespace2xml
-version: 2.0.0
+version: 2.1.0
 readme: README.md
 
 authors:

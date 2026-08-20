@@ -183,6 +183,87 @@
       Re-rendering unchanged data produced a different document, so `copy` reported a change.
       Rendering is not deterministic.
 
+# Section 15 picks the scheme parser from the file extension, so a mapping in the playbook is a
+# JSON scheme document rather than a second dialect. What has to hold on a real binary is that
+# the two spellings are one scheme: a converter that mangled a name or dropped a directive would
+# still render something, and only a comparison against the text spelling catches it.
+- name: Render one scheme in both spellings
+  ansible.builtin.set_fact:
+    from_text: "{{ logback | stop_cran.namespace2xml.render('xml', scheme=text_scheme) }}"
+    from_mapping: "{{ logback | stop_cran.namespace2xml.render('xml', scheme_yaml=mapping_scheme) }}"
+  vars:
+    logback:
+      appender:
+        name: STDOUT
+        encoder:
+          pattern: "%d{HH:mm:ss} %-5level %msg%n"
+      root:
+        level: info
+    text_scheme: |
+      cfg.output=xml
+      cfg.root=configuration
+      cfg.appender.name.type=attribute
+    mapping_scheme:
+      cfg:
+        output: xml
+        root: configuration
+        appender:
+          name:
+            type: attribute
+
+- name: The two spellings of one scheme produce the same document
+  ansible.builtin.assert:
+    that:
+      - from_mapping == from_text
+      - "'name=\"STDOUT\"' in from_mapping"
+    fail_msg: >-
+      scheme_yaml is a spelling of scheme, not a dialect. The renders differ, so the mapping was
+      translated into a scheme that means something else.
+      text: {{ from_text }}
+      mapping: {{ from_mapping }}
+
+# A dot separates names in the text spelling and is a literal character in the mapping one. Left
+# to the tool this surfaces as an unrecognized directive naming `cfg\u{2E}output`, which is
+# accurate and unreadable. The filter has to refuse it first, in the author's own vocabulary.
+- name: Attempt a mapping scheme with a dotted key
+  ansible.builtin.set_fact:
+    dotted: "{{ {'a': 'b'} | stop_cran.namespace2xml.render('xml', scheme_yaml={'cfg.output': 'xml'}) }}"
+  register: dotted_key
+  ignore_errors: true
+
+- name: A dotted key is refused with the nested spelling named
+  ansible.builtin.assert:
+    that:
+      - dotted_key is failed
+      - "'cfg -> output' in dotted_key.msg"
+      - "'cfg\\\\.output' in dotted_key.msg"
+    fail_msg: >-
+      Expected a refusal naming the nested spelling.
+      Result: {{ dotted_key.msg | default('the render succeeded') }}
+
+# The escape is the other half of the refusal above: section 8 spells a literal dot `\.`, and a
+# key carrying one has to reach the tool as a single name. YAML quoting cannot express this --
+# 'a.b' and a.b load to the same string -- so the escape is the only spelling there is. Rendered
+# against the real tool rather than asserted at the plugin boundary, because the claim is about
+# what the tool matches, not about what the converter emits.
+- name: Render an input whose name part contains a literal dot
+  ansible.builtin.set_fact:
+    literal_dot: >-
+      {{ {'configuration': {'a.b': 'hello', 'plain': 'world'}}
+         | stop_cran.namespace2xml.render(
+             'xml',
+             scheme_yaml={'configuration': {'output': 'xml', 'root': 'configuration',
+                                            'a\.b': {'type': 'attribute'}}}) }}
+
+- name: The escaped key selected the literal-dot name rather than matching nothing
+  ansible.builtin.assert:
+    that:
+      - "'a.b=\"hello\"' in literal_dot"
+      - "'<plain>world</plain>' in literal_dot"
+    fail_msg: >-
+      Expected the escaped key to place the literal-dot name as an attribute.
+      Rendered: {{ literal_dot }}
+
 - name: Remove the scratch directory
   ansible.builtin.file:
     path: "{{ scratch.path }}"

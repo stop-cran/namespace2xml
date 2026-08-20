@@ -158,9 +158,13 @@ class _Spy:
     def __init__(self, text="RENDERED"):
         self.text = text
         self.calls = 0
+        self.scheme_text = None
+        self.scheme_name = None
 
-    def __call__(self, profile, scheme_text, executable, workdir):
+    def __call__(self, profile, scheme_text, scheme_name, executable, workdir):
         self.calls += 1
+        self.scheme_text = scheme_text
+        self.scheme_name = scheme_name
         return self.text
 
 
