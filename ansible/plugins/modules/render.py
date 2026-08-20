@@ -76,6 +76,10 @@ options:
         C('a\.b') is the single name C(a.b). Quoting cannot express this, since C(a.b) and
         C('a.b') load to the same string; write it plain or single-quoted, as YAML's
         double-quoted style rejects C("a\.b") as an unknown escape.
+      - A dot inside a leading C(Q{...}) needs no escape. Section 11.4 makes those dots part
+        of the URI, where they "do not split the qualified path", so C('Q{urn:example.com}name')
+        and C('@Q{urn:example.com}x') are written as they read. The URI ends at the first
+        unescaped C(}); a dot in the local name after it is ambiguous like any other.
       - A directive that takes several values is one comma-separated scalar, C(output),
         C("xml,json"). A YAML list is refused, because section 15 wants a nonempty scalar.
       - Quote a wildcard selector - bare C(*) is a YAML alias indicator. Quote anything that

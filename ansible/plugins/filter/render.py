@@ -60,14 +60,20 @@ options:
     description:
       - Explicit scheme text, used instead of the minimal scheme the filter would synthesize.
       - Needed for anything the synthesized scheme does not cover, such as C(type),
-        C(substitute) or C(hidden) rules. The selector it declares must equal O(selector).
+        C(substitute) or C(merge) rules. The selector it declares must equal O(selector).
       - O(root) and O(delimiter) are refused alongside it, because they are read only while
         synthesizing a scheme and would otherwise be discarded without a word. Declare them in
         the scheme instead.
       - O(fmt) is still required, and is cross-checked against the C(output) the scheme
         declares. A disagreement is an error rather than an override, because the scheme wins
         and the argument would otherwise be a value the caller was compelled to supply and the
-        filter then ignored.
+        filter then ignored. Names and formats are compared case-insensitively and a
+        comma-separated C(output) is read as the set it declares, following sections 15 and
+        16.1.
+      - A filter returns one document, so a scheme that produces a set of files - several
+        formats in one C(output) declaration, or several C(filename) targets - has no single
+        result to hand back and the render fails. Use the C(stop_cran.namespace2xml.render)
+        module when the scheme is meant to produce several files.
       - Mutually exclusive with O(scheme_yaml).
     type: str
   scheme_yaml:
@@ -84,8 +90,13 @@ options:
         C('a\.b') is the single name C(a.b). Quoting cannot express this, since C(a.b) and
         C('a.b') load to the same string; write it plain or single-quoted, as YAML's
         double-quoted style rejects C("a\.b") as an unknown escape.
+      - A dot inside a leading C(Q{...}) needs no escape. Section 11.4 makes those dots part
+        of the URI, where they "do not split the qualified path", so C('Q{urn:example.com}name')
+        and C('@Q{urn:example.com}x') are written as they read. The URI ends at the first
+        unescaped C(}); a dot in the local name after it is ambiguous like any other.
       - A directive that takes several values is one comma-separated scalar, C(output),
-        C("xml,json"). A list is refused, because section 15 wants a nonempty scalar.
+        C("xml,json"). A list is refused, because section 15 wants a nonempty scalar. The
+        one-document limit described under O(scheme) applies to such a declaration here too.
       - Quote a wildcard selector - bare C(*) is a YAML alias indicator. Quote anything YAML
         would read as a number, since C(3.10) arrives as C(3.1).
       - Carries the same refusals and the same O(fmt) cross-check as O(scheme). Passed to the
@@ -589,6 +600,40 @@ def _scheme_branch(node, path):
     return branch
 
 
+def _scheme_qname_span(key):
+    """Measure a leading ``Q{...}`` marker, whose dots are URI text rather than separators.
+
+    Section 8 lists ``Q{uri}x`` among the markers a native mapping key carries, and Section
+    11.4 settles what a dot inside one means: "dots inside ``Q{...}`` are part of the URI and
+    do not split the qualified path". Refusing such a key would reject a name the tool accepts
+    as written, and offering to nest it would be worse than useless -- Section 8 also makes
+    marker recognition committing, so ``Q{urn:example`` is ``PARSE001`` rather than an ordinary
+    part, and an author who took that advice would land on a blocking error.
+
+    The marker is recognized at the start of a part only, optionally after the ``@`` that marks
+    an attribute (Section 11.4's ``@Q{urn:p}x``). The first unescaped ``}`` closes the URI;
+    ``\\}`` does not. An unterminated marker spans the rest of the key and is passed through
+    for the tool to reject as ``PARSE001``, a loud refusal downstream being exactly not the
+    silent wrong answer this converter exists to prevent.
+    """
+    start = 1 if key.startswith("@") else 0
+
+    if not key.startswith("Q{", start):
+        return 0
+
+    index = start + 2
+
+    while index < len(key):
+        if key[index] == "\\":
+            index += 2
+        elif key[index] == "}":
+            return index + 1
+        else:
+            index += 1
+
+    return len(key)
+
+
 def _scheme_name_part(key, path):
     """Resolve one mapping key to the name part it denotes, or refuse it.
 
@@ -602,7 +647,12 @@ def _scheme_name_part(key, path):
     read. The escape is carried in the text instead, spelled as Section 8 spells it in the
     namespace form: ``\\.`` is one literal dot. Note that YAML's own double-quoted style
     rejects ``"a\\.b"`` as an unknown escape -- write it plain or single-quoted.
+
+    A dot inside a leading ``Q{...}`` marker is neither a separator nor an ambiguity: Section
+    11.4 makes it URI text. Those dots pass through unrefused and unescaped, as measured by
+    :func:`_scheme_qname_span`.
     """
+    span = _scheme_qname_span(key)
     out = []
     index = 0
 
@@ -612,7 +662,7 @@ def _scheme_name_part(key, path):
             index += 2
             continue
 
-        if key[index] == ".":
+        if key[index] == "." and index >= span:
             raise Namespace2XmlError(
                 "The key '%s' under %s contains a dot. In a mapping scheme the nesting "
                 "carries the path, so a dot here separates nothing -- Section 9 makes a "
@@ -629,7 +679,12 @@ def _scheme_name_part(key, path):
 
 
 def _scheme_escape_dots(key):
-    """Show the literal-dot spelling of a key, escaping only its unescaped dots."""
+    """Show the literal-dot spelling of a key, escaping only its unescaped dots.
+
+    Dots inside a leading ``Q{...}`` marker are left alone: Section 11.4 already reads them as
+    URI text, so escaping them would change the URI rather than preserve it.
+    """
+    span = _scheme_qname_span(key)
     out = []
     index = 0
 
@@ -637,7 +692,7 @@ def _scheme_escape_dots(key):
         if key.startswith(_SCHEME_LITERAL_DOT, index):
             out.append(_SCHEME_LITERAL_DOT)
             index += 2
-        elif key[index] == ".":
+        elif key[index] == "." and index >= span:
             out.append(_SCHEME_LITERAL_DOT)
             index += 1
         else:
@@ -650,17 +705,20 @@ def _scheme_escape_dots(key):
 def _scheme_nesting_hint(key):
     """Show the nested spelling of a dotted key, for the error that rejects it.
 
-    Splits on unescaped dots only, so an already-escaped dot stays inside its part.
+    Splits on unescaped dots outside any leading ``Q{...}`` marker only. An already-escaped dot
+    stays inside its part *and stays escaped*: the hint is text the author is meant to paste
+    back, so decoding the escape here would print a spelling this converter then refuses.
     """
+    span = _scheme_qname_span(key)
     parts = []
     current = []
     index = 0
 
     while index < len(key):
         if key.startswith(_SCHEME_LITERAL_DOT, index):
-            current.append(".")
+            current.append(_SCHEME_LITERAL_DOT)
             index += 2
-        elif key[index] == ".":
+        elif key[index] == "." and index >= span:
             parts.append("".join(current))
             current = []
             index += 1
@@ -749,6 +807,24 @@ def _split_unescaped(text, separator):
     return parts
 
 
+def _output_formats(declaration):
+    """Split one ``output`` declaration into the formats it names, normalized for comparison.
+
+    Section 16.1 makes an ``output`` declaration a comma-separated list -- "formats in one
+    comma-separated declaration have a left-to-right declaration ordinal" -- and adds that
+    "names are case-insensitive" and "whitespace around comma-separated values is ignored".
+    Section 15 says the same thing more broadly: directive names are matched under ASCII
+    case-insensitive comparison, "as is every other name and value in the scheme language:
+    formats in Section 16.1".
+
+    Comparing the declaration as raw text instead refuses spellings the tool itself accepts.
+    ``output: XML`` and ``output: ' xml '`` are ``xml``, and ``output: "xml,json"`` declares
+    two formats rather than one format oddly named ``xml,json`` -- which no O(fmt) value could
+    ever equal, so the cross-check below would have demanded agreement that cannot be written.
+    """
+    return set(part.strip().lower() for part in declaration.split(",") if part.strip())
+
+
 def _declared_outputs(scheme):
     """The set of formats an explicit scheme declares, for cross-checking against ``fmt``.
 
@@ -778,8 +854,8 @@ def _declared_outputs(scheme):
 
         name_parts = _split_unescaped(pieces[0], ".")
 
-        if name_parts[-1].strip() == "output":
-            outputs.add("=".join(pieces[1:]).strip())
+        if name_parts[-1].strip().lower() == "output":
+            outputs |= _output_formats("=".join(pieces[1:]))
 
     return outputs
 
@@ -801,8 +877,10 @@ def _declared_outputs_in_mapping(mapping, seen=None):
     for key, value in mapping.items():
         if isinstance(value, dict):
             outputs |= _declared_outputs_in_mapping(value, seen)
-        elif key == "output" and value is not None and not isinstance(value, (list, tuple)):
-            outputs.add(_SCHEME_BOOLEANS[value] if isinstance(value, bool) else str(value))
+        elif (isinstance(key, str) and key.strip().lower() == "output"
+              and value is not None and not isinstance(value, (list, tuple))):
+            outputs |= _output_formats(
+                _SCHEME_BOOLEANS[value] if isinstance(value, bool) else str(value))
 
     return outputs
 
@@ -844,7 +922,7 @@ def _refuse_swallowed_arguments(scheme, fmt, root, delimiter):
 
     declared = _declared_outputs(scheme)
 
-    if declared and fmt not in declared:
+    if declared and fmt.strip().lower() not in declared:
         raise Namespace2XmlError(
             "the scheme declares output %s, but the filter was asked for '%s'. The format "
             "argument is not applied on top of an explicit scheme, so one of the two is a "
@@ -1207,9 +1285,19 @@ def _run_and_read(executable, input_path, scheme_path, output_dir):
         for name in names)
 
     if len(produced) != 1:
+        # A filter returns one document. A scheme that asks for several -- several formats in one
+        # 'output' declaration, or several 'filename' targets -- has no single answer to return,
+        # and one that asks for none has nothing to return. Naming both causes keeps a reader
+        # from taking their own scheme's shape for a defect in this collection.
         raise Namespace2XmlError(
-            "expected exactly one output file, got %d: %s%s"
-            % (len(produced), ", ".join(os.path.basename(path) for path in produced),
+            "expected exactly one output file, got %d%s. A filter returns one document, so a "
+            "scheme that produces a set of files has no single result to hand back: section "
+            "16.1 reads 'output: xml,json' as two formats and writes one file for each, "
+            "several 'filename' targets do the same, and 'output: ignore' writes none. Narrow "
+            "the scheme, or use the 'stop_cran.namespace2xml.render' module, which publishes "
+            "every produced file to the node.%s"
+            % (len(produced),
+               (": " + ", ".join(os.path.basename(path) for path in produced)) if produced else "",
                _support_hint(executable)))
 
     with open(produced[0], "r", encoding="utf-8", newline="") as handle:

@@ -168,6 +168,57 @@ def test_an_escaped_dot_does_not_create_an_output_part():
     n2x._refuse_swallowed_arguments("cfg.a\\.output=json\n", "xml", None, None)
 
 
+# --- Sections 15 and 16.1: how an output declaration is compared --------------------------------
+
+@pytest.mark.parametrize(
+    "declared",
+    ["XML", "Xml", " xml ", "xml,json", "json, xml", "JSON,XML"],
+    ids=["upper", "mixed", "padded", "comma-first", "comma-second-padded", "comma-upper"],
+)
+def test_an_output_declaration_the_tool_would_accept_is_not_refused_here(declared):
+    """Section 15 matches directive names under ASCII case-insensitive comparison, "as is every
+    other name and value in the scheme language: formats in Section 16.1". Section 16.1 repeats
+    it for this directive -- "names are case-insensitive", "whitespace around comma-separated
+    values is ignored" -- and makes a comma-separated declaration name several formats, each
+    with a left-to-right ordinal.
+
+    Comparing the declaration as raw text refuses spellings the tool itself accepts. For the
+    comma-separated ones it is worse than strict: it demands an agreement that cannot be
+    written, because no section 16.1 format is spelled 'xml,json' and so no O(fmt) value could
+    ever have satisfied it.
+
+    Both spellings of a scheme are checked together. The mapping form carries its own copy of
+    this comparison, and a copy is a place the two can quietly stop agreeing.
+    """
+    n2x._refuse_swallowed_arguments("cfg.output=%s\n" % declared, "xml", None, None)
+    n2x._refuse_swallowed_arguments({"cfg": {"output": declared}}, "xml", None, None)
+
+
+def test_the_format_argument_is_folded_on_its_side_of_the_comparison_too():
+    """One clause governs both sides, so folding only the declaration would still refuse."""
+    n2x._refuse_swallowed_arguments("cfg.output=xml\n", "XML", None, None)
+    n2x._refuse_swallowed_arguments({"cfg": {"output": "xml"}}, "XML", None, None)
+
+
+@pytest.mark.parametrize(
+    "scheme",
+    ["cfg.output=json,yaml\n", {"cfg": {"output": "json,yaml"}}],
+    ids=["text", "mapping"],
+)
+def test_a_declaration_naming_neither_format_is_still_refused(scheme):
+    """Normalizing the comparison must not quietly make it vacuous."""
+    with pytest.raises(n2x.Namespace2XmlError, match="declares output"):
+        n2x._refuse_swallowed_arguments(scheme, "xml", None, None)
+
+
+def test_a_directive_name_is_matched_case_insensitively_in_a_mapping_too():
+    """Section 15 folds the name as well as the value. Reading only the lowercase spelling let
+    an 'OUTPUT:' declaration past the cross-check entirely, which is the silent half of the
+    same defect."""
+    with pytest.raises(n2x.Namespace2XmlError, match="declares output 'json'"):
+        n2x._refuse_swallowed_arguments({"cfg": {"OUTPUT": "json"}}, "xml", None, None)
+
+
 # --- Identity: the cache key must move when the binary does -------------------------------------
 
 class _Version:
@@ -324,14 +375,83 @@ def test_an_escaped_dot_in_a_key_is_one_name_part_containing_a_dot():
 
 
 def test_an_escaped_dot_is_not_confused_with_a_separator_in_the_same_key():
-    """A key may carry both: 'a\\.b.c' is a literal-dot name followed by a separator."""
+    """A key may carry both: 'a\\.b.c' is a literal-dot name followed by a separator.
+
+    A hint is text the author is meant to paste back, so the literal dot has to stay escaped in
+    it. 'a.b -> c' proposes a nesting whose own first key this converter refuses again, which is
+    advice into a dead end. Both spellings the hint offers are exercised below, so the hint and
+    what it proposes cannot drift apart: that is the check, and the wording is only how it is
+    read.
+    """
     with pytest.raises(n2x.Namespace2XmlError) as failure:
         n2x.encode_scheme_mapping({"a\\.b.c": {"output": "xml"}})
 
     message = str(failure.value)
 
-    assert "a.b -> c" in message
+    assert "a\\.b -> c" in message
     assert "a\\.b\\.c" in message
+
+    nested = json.loads(n2x.encode_scheme_mapping({"a\\.b": {"c": {"output": "xml"}}}))
+    escaped = json.loads(n2x.encode_scheme_mapping({"a\\.b\\.c": {"output": "xml"}}))
+
+    assert nested == {"a.b": {"c": {"output": "xml"}}}
+    assert escaped == {"a.b.c": {"output": "xml"}}
+
+
+# --- Section 11.4: a dot inside Q{...} is URI text ----------------------------------------------
+
+@pytest.mark.parametrize(
+    "key",
+    ["Q{urn:example.com}name", "@Q{urn:example.com}x", "Q{urn:a.b.c}n", "Q{urn:x\\}y.z}n"],
+    ids=["element", "attribute", "several-dots", "escaped-brace"],
+)
+def test_a_dot_inside_a_qualified_name_is_uri_text_and_is_left_alone(key):
+    """Section 8 lists 'Q{uri}x' among the markers a native key may carry, and section 11.4 says
+    "dots inside Q{...} are part of the URI and do not split the qualified path". It closes the
+    URI at the first unescaped '}', so an escaped one does not end it, and it spells an
+    attribute '@Q{urn:p}x'.
+
+    Refusing such a key rejects a name the tool accepts, and here the hint would be worse than
+    the refusal: section 8 makes marker recognition committing, so the 'Q{urn:example' the hint
+    would propose is PARSE001 rather than a part the author can retreat to.
+    """
+    document = json.loads(n2x.encode_scheme_mapping({"cfg": {key: {"type": "ignore"}}}))
+
+    assert list(document["cfg"]) == [key]
+
+
+def test_a_dot_after_the_closing_brace_is_ambiguous_like_any_other():
+    """The URI ends at the first unescaped '}', and the local name that follows is ordinary
+    text, so a dot in it separates nothing and is refused as everywhere else. The hint has to
+    describe that split without also splitting the URI it left behind.
+    """
+    with pytest.raises(n2x.Namespace2XmlError) as failure:
+        n2x.encode_scheme_mapping({"cfg": {"Q{urn:e.g}a.b": {"type": "ignore"}}})
+
+    message = str(failure.value)
+
+    assert "Q{urn:e.g}a -> b" in message
+    assert "urn:e -> " not in message
+
+
+def test_an_unterminated_marker_is_left_for_the_tool_to_report():
+    """Section 8: recognition commits once 'Q{' is seen, and an unterminated one is PARSE001.
+
+    That is a loud refusal naming the record, not the silent wrong answer this converter exists
+    to prevent, so the key is passed through rather than second-guessed with a hint that would
+    have to invent where the URI was meant to end.
+    """
+    document = json.loads(n2x.encode_scheme_mapping({"cfg": {"Q{urn:x": {"type": "ignore"}}}))
+
+    assert list(document["cfg"]) == ["Q{urn:x"]
+
+
+def test_an_escaped_marker_is_an_ordinary_part_and_its_dots_are_not_uri_text():
+    """Section 8: an escaped marker is literal, so '\\Q{...}' is an ordinary part and the dot
+    rule applies to it in full. Treating the escape as a marker would carry the exception into
+    a key that never asked for it."""
+    with pytest.raises(n2x.Namespace2XmlError, match="contains a dot"):
+        n2x.encode_scheme_mapping({"cfg": {"\\Q{urn:e.g}n": {"type": "ignore"}}})
 
 
 def test_a_bare_dot_key_is_refused_rather_than_read_as_an_empty_path():

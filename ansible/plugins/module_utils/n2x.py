@@ -198,6 +198,40 @@ def _scheme_branch(node, path):
     return branch
 
 
+def _scheme_qname_span(key):
+    """Measure a leading ``Q{...}`` marker, whose dots are URI text rather than separators.
+
+    Section 8 lists ``Q{uri}x`` among the markers a native mapping key carries, and Section
+    11.4 settles what a dot inside one means: "dots inside ``Q{...}`` are part of the URI and
+    do not split the qualified path". Refusing such a key would reject a name the tool accepts
+    as written, and offering to nest it would be worse than useless -- Section 8 also makes
+    marker recognition committing, so ``Q{urn:example`` is ``PARSE001`` rather than an ordinary
+    part, and an author who took that advice would land on a blocking error.
+
+    The marker is recognized at the start of a part only, optionally after the ``@`` that marks
+    an attribute (Section 11.4's ``@Q{urn:p}x``). The first unescaped ``}`` closes the URI;
+    ``\\}`` does not. An unterminated marker spans the rest of the key and is passed through
+    for the tool to reject as ``PARSE001``, a loud refusal downstream being exactly not the
+    silent wrong answer this converter exists to prevent.
+    """
+    start = 1 if key.startswith("@") else 0
+
+    if not key.startswith("Q{", start):
+        return 0
+
+    index = start + 2
+
+    while index < len(key):
+        if key[index] == "\\":
+            index += 2
+        elif key[index] == "}":
+            return index + 1
+        else:
+            index += 1
+
+    return len(key)
+
+
 def _scheme_name_part(key, path):
     """Resolve one mapping key to the name part it denotes, or refuse it.
 
@@ -211,7 +245,12 @@ def _scheme_name_part(key, path):
     read. The escape is carried in the text instead, spelled as Section 8 spells it in the
     namespace form: ``\\.`` is one literal dot. Note that YAML's own double-quoted style
     rejects ``"a\\.b"`` as an unknown escape -- write it plain or single-quoted.
+
+    A dot inside a leading ``Q{...}`` marker is neither a separator nor an ambiguity: Section
+    11.4 makes it URI text. Those dots pass through unrefused and unescaped, as measured by
+    :func:`_scheme_qname_span`.
     """
+    span = _scheme_qname_span(key)
     out = []
     index = 0
 
@@ -221,7 +260,7 @@ def _scheme_name_part(key, path):
             index += 2
             continue
 
-        if key[index] == ".":
+        if key[index] == "." and index >= span:
             raise Namespace2XmlError(
                 "The key '%s' under %s contains a dot. In a mapping scheme the nesting "
                 "carries the path, so a dot here separates nothing -- Section 9 makes a "
@@ -238,7 +277,12 @@ def _scheme_name_part(key, path):
 
 
 def _scheme_escape_dots(key):
-    """Show the literal-dot spelling of a key, escaping only its unescaped dots."""
+    """Show the literal-dot spelling of a key, escaping only its unescaped dots.
+
+    Dots inside a leading ``Q{...}`` marker are left alone: Section 11.4 already reads them as
+    URI text, so escaping them would change the URI rather than preserve it.
+    """
+    span = _scheme_qname_span(key)
     out = []
     index = 0
 
@@ -246,7 +290,7 @@ def _scheme_escape_dots(key):
         if key.startswith(_SCHEME_LITERAL_DOT, index):
             out.append(_SCHEME_LITERAL_DOT)
             index += 2
-        elif key[index] == ".":
+        elif key[index] == "." and index >= span:
             out.append(_SCHEME_LITERAL_DOT)
             index += 1
         else:
@@ -259,17 +303,20 @@ def _scheme_escape_dots(key):
 def _scheme_nesting_hint(key):
     """Show the nested spelling of a dotted key, for the error that rejects it.
 
-    Splits on unescaped dots only, so an already-escaped dot stays inside its part.
+    Splits on unescaped dots outside any leading ``Q{...}`` marker only. An already-escaped dot
+    stays inside its part *and stays escaped*: the hint is text the author is meant to paste
+    back, so decoding the escape here would print a spelling this converter then refuses.
     """
+    span = _scheme_qname_span(key)
     parts = []
     current = []
     index = 0
 
     while index < len(key):
         if key.startswith(_SCHEME_LITERAL_DOT, index):
-            current.append(".")
+            current.append(_SCHEME_LITERAL_DOT)
             index += 2
-        elif key[index] == ".":
+        elif key[index] == "." and index >= span:
             parts.append("".join(current))
             current = []
             index += 1

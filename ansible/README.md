@@ -148,7 +148,7 @@ the name is a fact about the target document rather than about your data — `co
 ### Schemes
 
 The filter synthesizes the smallest scheme that expresses your arguments. Pass `scheme` for
-anything beyond that — `type`, `substitute`, `hidden` and the rest of the
+anything beyond that — `type`, `substitute`, `merge` and the rest of the
 [scheme rules](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md).
 The selector the scheme declares must match `selector`, and a rule's pattern must match the
 value's full path in the generated profile — `cfg` plus your keys.
@@ -184,7 +184,7 @@ bytes. Choose on how the scheme is produced rather than on taste: a mapping comp
 copy-pasteable to and from the command line and a `.scheme` file. They are mutually exclusive —
 supplying both leaves the render ambiguous, so it is refused.
 
-Three things about the mapping form are worth knowing before you meet them:
+A few things about the mapping form are worth knowing before you meet them:
 
 - **The nesting is the path.** Section 9 makes a JSON or YAML mapping key *one* name part —
   "only the delimiter and `\u{HEX}` lose their meaning there, because a key is one part rather
@@ -197,7 +197,14 @@ Three things about the mapping form are worth knowing before you meet them:
   the escape lives in the text, spelled as Section 8 spells it: `'a\.b': {type: attribute}`
   selects the one name `a.b`. Write it plain or single-quoted; YAML's double-quoted style
   rejects `"a\.b"` as an unknown escape.
+- **A dot inside `Q{...}` needs no escape.** Section 11.4 makes those dots part of the URI —
+  they "do not split the qualified path" — so `'Q{urn:example.com}name'` and
+  `'@Q{urn:example.com}x'` are written as they read. The URI ends at the first unescaped `}`; a
+  dot in the local name after it is ambiguous like any other and still wants `\.` or nesting.
 - **A multi-valued directive is one comma-separated scalar**, not a sequence: `output: "xml,json"`.
+  A filter has one return value, so a scheme that produces several files — several formats in
+  one `output`, or several `filename` targets — has no single result to hand back and only works
+  through the module.
 - **Quote a wildcard and anything number-shaped.** A bare `*` is a YAML alias indicator, and
   YAML reads `3.10` as the number `3.1`.
 

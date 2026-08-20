@@ -688,6 +688,11 @@ def test_the_two_mapping_scheme_converters_agree():
         {"cfg": {"a\\.b": {"output": "xml"}}},
         {"a\\.b": {"output": "xml"}},
         {"cfg": {"a\\.b\\.c": {"type": "element"}}},
+        {"cfg": {"Q{urn:example.com}name": {"type": "element"}}},
+        {"cfg": {"@Q{urn:p.q}x": {"type": "attribute"}}},
+        {"cfg": {"Q{urn:x\\}y.z}n": {"type": "element"}}},
+        {"cfg": {"Q{urn:x": {"type": "element"}}},
+        {"cfg": {"OUTPUT": " XML "}},
     ]
 
     for mapping in accepted:
@@ -697,6 +702,8 @@ def test_the_two_mapping_scheme_converters_agree():
         {}, [], "cfg.output=xml", None,
         {"cfg.output": "xml"},
         {"cfg": {"a\\.b.c": {"type": "element"}}},
+        {"cfg": {"Q{urn:e.g}a.b": {"type": "element"}}},
+        {"cfg": {"\\Q{urn:e.g}n": {"type": "element"}}},
         {"cfg": {".": "xml"}},
         {"cfg": {"output": ["xml", "json"]}},
         {"cfg": {"output": None}},
