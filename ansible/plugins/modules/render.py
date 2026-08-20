@@ -103,6 +103,9 @@ attributes:
     description: Reports before and after content for every file that differs.
   platform:
     support: full
+    description: Runs the tool through a subprocess and converges files with the standard
+      Ansible file arguments, neither of which is POSIX-specific; the value below records
+      where it is actually tested.
     platforms: posix
 requirements:
   - namespace2xml 3.0 or newer, installed on the managed node

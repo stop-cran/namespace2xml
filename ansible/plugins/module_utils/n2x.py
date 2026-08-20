@@ -29,24 +29,14 @@ __all__ = [
 ]
 
 
-try:  # pragma: no cover -- exercised by whichever of the two environments is running
-    from ansible.errors import AnsibleFilterError as _ErrorBase
-except ImportError:
-    # Two environments reach this. A module executing on a managed node ships with
-    # ``module_utils`` and no ``ansible.errors``, and a bare checkout with no controller
-    # installed is where the specification-side half of the oracle is cheapest to run. Both
-    # want a plain exception; only the filter wants the Ansible base class, and only the filter
-    # is ever loaded somewhere that has it.
-    _ErrorBase = Exception
-
-
-class Namespace2XmlError(_ErrorBase):  # type: ignore[valid-type, misc]
+class Namespace2XmlError(Exception):
     """A failure: bad input data, a tool that could not be found, or a run that did not succeed.
 
-    Derived from ``AnsibleFilterError`` where that class exists, so a play reports a failed
-    template as a filter error with the message attached rather than as a traceback from an
-    unrecognised exception type. On a managed node the base is :class:`Exception` and the module
-    turns it into ``failed: true`` carrying the same message.
+    A plain exception, deliberately. This module ships to the managed node, where
+    ``ansible.errors`` does not exist -- ``module_utils`` may import ``ansible.module_utils``
+    and nothing else from Ansible. Each caller translates: the module turns it into
+    ``failed: true`` carrying the message, and a controller-side caller is free to re-raise it
+    as ``AnsibleFilterError``.
     """
 
 

@@ -30,6 +30,12 @@
       - scratch.path is defined
 
 - block:
+    - name: Create the directory the template lives in
+      ansible.builtin.file:
+        path: "{{ scratch.path }}/template"
+        state: directory
+        mode: "0755"
+
     - name: Stage a pristine template the render never writes to
       ansible.builtin.copy:
         dest: "{{ scratch.path }}/template/logback.xml"
