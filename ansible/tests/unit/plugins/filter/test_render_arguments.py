@@ -575,7 +575,7 @@ def test_supplying_both_scheme_spellings_is_refused():
     """They are one argument with two spellings, so both together leaves the render ambiguous."""
     with pytest.raises(filt.Namespace2XmlError, match="two spellings"):
         filt.render({"k": "v"}, "xml", scheme="cfg.output=xml\n",
-                   scheme_yaml={"cfg": {"output": "xml"}})
+                    scheme_yaml={"cfg": {"output": "xml"}})
 
 
 # --- Which schemes have to be put to the tool, and which answer themselves ----------------------
