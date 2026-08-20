@@ -32,19 +32,23 @@ import sys
 
 import pytest
 
-_PLUGINS = pathlib.Path(__file__).resolve().parents[4] / "plugins"
+_ANSIBLE = pathlib.Path(__file__).resolve().parents[4]
+_PLUGINS = _ANSIBLE / "plugins"
 
 try:
     from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import (
         n2x, render_node)
 except ImportError:  # a checkout that is not inside an ansible_collections tree
-    # `module_utils` is an implicit namespace package, so putting `plugins` on the path is
-    # enough for the relative import inside render_node to resolve. Loading the file directly
-    # would not be: a relative import needs a package, not a lone module.
-    if str(_PLUGINS) not in sys.path:
-        sys.path.insert(0, str(_PLUGINS))
+    # Through `plugins` -- an implicit namespace package -- rather than by path, because the
+    # relative import inside render_node needs a package, not a lone module. The root is the
+    # collection directory rather than `plugins` itself so that this file and the filter tests
+    # name the same package, and therefore share one `n2x` module object: the filter reaches
+    # module_utils by relative import, and a second copy would let a test patch one while the
+    # code under test called the other.
+    if str(_ANSIBLE) not in sys.path:
+        sys.path.insert(0, str(_ANSIBLE))
 
-    from module_utils import n2x, render_node  # type: ignore[no-redef]
+    from plugins.module_utils import n2x, render_node  # type: ignore[no-redef]
 
 
 def _filter_encode_value(value):
@@ -57,12 +61,10 @@ def _filter_encode_value(value):
         from ansible_collections.stop_cran.namespace2xml.plugins.filter import (  # noqa: E501
             render as filter_render)
     except ImportError:
-        import importlib.util
+        if str(_ANSIBLE) not in sys.path:
+            sys.path.insert(0, str(_ANSIBLE))
 
-        path = _PLUGINS / "filter" / "render.py"
-        spec = importlib.util.spec_from_file_location("n2x_filter_for_drift", path)
-        filter_render = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(filter_render)
+        from plugins.filter import render as filter_render
 
     return filter_render.encode_value(value)
 
@@ -665,12 +667,10 @@ def _filter_encode_scheme_mapping(mapping):
         from ansible_collections.stop_cran.namespace2xml.plugins.filter import (  # noqa: E501
             render as filter_render)
     except ImportError:
-        import importlib.util
+        if str(_ANSIBLE) not in sys.path:
+            sys.path.insert(0, str(_ANSIBLE))
 
-        path = _PLUGINS / "filter" / "render.py"
-        spec = importlib.util.spec_from_file_location("n2x_filter_for_drift", path)
-        filter_render = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(filter_render)
+        from plugins.filter import render as filter_render
 
     return filter_render.encode_scheme_mapping(mapping)
 

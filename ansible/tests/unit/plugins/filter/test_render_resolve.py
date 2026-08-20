@@ -14,20 +14,25 @@ Ansible before this code existed; see ``.github/workflows/ansible-topology-spike
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import pathlib
 import stat
+import sys
 
 import pytest
 
 try:
     from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as n2x
 except ImportError:  # a checkout that is not inside an ansible_collections tree
-    _PATH = pathlib.Path(__file__).resolve().parents[4] / "plugins" / "filter" / "render.py"
-    _SPEC = importlib.util.spec_from_file_location("n2x_render", _PATH)
-    n2x = importlib.util.module_from_spec(_SPEC)
-    _SPEC.loader.exec_module(n2x)
+    # Through `plugins` -- an implicit namespace package -- rather than by path: the filter
+    # reaches module_utils by relative import, and a relative import needs a package. Loading
+    # both halves through one package root is also what makes the shared module one object.
+    _ANSIBLE = pathlib.Path(__file__).resolve().parents[4]
+
+    if str(_ANSIBLE) not in sys.path:
+        sys.path.insert(0, str(_ANSIBLE))
+
+    from plugins.filter import render as n2x  # type: ignore[no-redef]
 
 
 WINDOWS = os.name == "nt"
