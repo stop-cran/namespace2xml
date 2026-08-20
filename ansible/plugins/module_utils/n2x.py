@@ -51,6 +51,7 @@ class Namespace2XmlError(Exception):
 
 
 _IDENTITY_CACHE: dict = {}
+_RESOLVE_CACHE: dict = {}
 
 _VALUE_CONTAINER_SENTINELS = {"{}": "\\{}", "[]": "\\[]"}
 
@@ -445,6 +446,40 @@ def _tool_directories():
 
 
 def resolve(tool=None):
+    """Find the tool binary, memoizing the search but never the failure to find one.
+
+    The search is expensive and `render` asks for it twice per call -- once through
+    `tool_identity`, which resolves before it consults its own cache, and once for the run
+    itself. `shutil.which` walks every `PATH` entry against every `PATHEXT`, which measured
+    7.3 ms against 0.15 ms for a path that needs no searching, so an uncached resolver put
+    ~14.6 ms into every render to locate a file that had not moved -- roughly four times what
+    all the temporary-file marshalling costs (#112).
+
+    Two things this must not do.
+
+    It must not remember a failure. `_tool_directories` explains that on the node a
+    non-interactive shell never sourced the profile the install instructions told a human to
+    re-source, and on the controller a tool installed by an earlier task in the same play is
+    invisible to the `PATH` this process started with. A lookup that misses now is expected to
+    succeed later, and caching the miss would break the case that function exists to serve.
+
+    It must not hand back a path that has stopped being runnable. A hit is revalidated before
+    it is trusted, which costs a fraction of the search it replaces and means a tool moved or
+    removed mid-play falls through to a fresh lookup rather than to a stale answer.
+    """
+    key = (tool, os.environ.get("NAMESPACE2XML"), os.environ.get("PATH"))
+    cached = _RESOLVE_CACHE.get(key)
+
+    if cached is not None and _runnable(cached):
+        return cached
+
+    found = _search_for_tool(tool)
+    _RESOLVE_CACHE[key] = found
+
+    return found
+
+
+def _search_for_tool(tool):
     """Find the tool binary, or say precisely what to do about its absence."""
     if tool:
         return _given(tool, "the 'tool' argument")

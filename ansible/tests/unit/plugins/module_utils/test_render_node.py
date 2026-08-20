@@ -84,6 +84,14 @@ _confined = pytest.mark.skipif(
     reason="section 21.1 publication needs POSIX dir_fd and O_NOFOLLOW")
 
 
+@pytest.fixture(autouse=True)
+def _clean_resolve_cache():
+    """The resolver's memo is a module global, so a test that fills it would leak into the next."""
+    n2x._RESOLVE_CACHE.clear()
+    yield
+    n2x._RESOLVE_CACHE.clear()
+
+
 # --- Section 6.2: the argument vector is the play's order, not a sorted one ---------------------
 
 def test_inputs_and_schemes_keep_the_order_they_were_given():
@@ -774,3 +782,70 @@ def test_the_two_mapping_scheme_converters_are_identical_as_source():
                 node[name].splitlines(), controller[name].splitlines(),
                 "module_utils/n2x.py", "filter/render.py", lineterm=""))
             raise AssertionError("%s has drifted between the two copies:\n%s" % (name, drift))
+
+
+# --- Issue #112: the node copy memoizes the search too ------------------------------------------
+#
+# The node copy is where the cost compounds: the module runs once per host, so a fleet pays the
+# search on every one of them. These repeat the two properties that matter against `resolve`,
+# which differs from the filter's `_resolve` by name and by carrying a default argument -- enough
+# difference that the filter's tests passing says nothing about this copy.
+
+def _stub_tool(directory):
+    """An executable stub the resolver will accept, and its path."""
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / ("namespace2xml.exe" if os.name == "nt" else "namespace2xml")
+    path.write_text("" if os.name == "nt" else "#!/bin/sh\nexit 0\n", encoding="utf-8")
+    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    return str(path)
+
+
+def test_the_node_resolver_searches_once_for_repeated_calls(tmp_path, monkeypatch):
+    """``run_tool`` resolves for the identity probe and again for the run itself.
+
+    ``shutil.which`` walks every ``PATH`` entry against every ``PATHEXT``, measured at 7.3 ms
+    against 0.15 ms for a path that needs no searching, so leaving this uncached spent roughly
+    14.6 ms per render to locate a file that had not moved (#112).
+    """
+    planted = _stub_tool(tmp_path / "tools")
+    monkeypatch.setenv("NAMESPACE2XML", planted)
+
+    searched = []
+    uncached = n2x._search_for_tool
+
+    def counting(tool):
+        searched.append(tool)
+        return uncached(tool)
+
+    monkeypatch.setattr(n2x, "_search_for_tool", counting)
+
+    assert n2x.resolve() == planted
+    assert n2x.resolve() == planted
+    assert len(searched) == 1
+
+
+def test_the_node_resolver_does_not_remember_a_failure(tmp_path, monkeypatch):
+    """On a node the tool is routinely installed after this process read its environment.
+
+    ``_tool_directories`` exists because a non-interactive shell never sourced the profile the
+    install instructions told a human to re-source. A lookup that finds nothing now is expected
+    to succeed later, so remembering the miss would break the ordinary case.
+    """
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    nowhere = tmp_path / "no-home"
+    nowhere.mkdir()
+
+    for name in ("NAMESPACE2XML", "DOTNET_CLI_HOME", "DOTNET_TOOLS_PATH", "HOME", "USERPROFILE"):
+        monkeypatch.delenv(name, raising=False)
+
+    monkeypatch.setenv("PATH", str(tools))
+    monkeypatch.setattr(os.path, "expanduser", lambda path: str(nowhere))
+
+    with pytest.raises(n2x.Namespace2XmlError):
+        n2x.resolve()
+
+    planted = _stub_tool(tools)
+
+    assert os.path.normcase(n2x.resolve()) == os.path.normcase(planted)

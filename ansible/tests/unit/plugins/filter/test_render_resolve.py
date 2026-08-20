@@ -86,6 +86,20 @@ def _sandbox(monkeypatch, tmp_path):
     return tmp_path
 
 
+@pytest.fixture(autouse=True)
+def _clean_resolve_cache():
+    """The resolver's memo is a module global, so a test that fills it would leak into the next.
+
+    Several tests below set ``PATH`` to the empty string, which makes their cache keys identical.
+    They would in practice survive a leak, because each plants into its own ``tmp_path`` and a
+    stale entry therefore fails revalidation -- but passing for that reason is an accident, and
+    an accident that would stop holding the moment a test reused a directory.
+    """
+    n2x._RESOLVE_CACHE.clear()
+    yield
+    n2x._RESOLVE_CACHE.clear()
+
+
 def test_an_explicit_absolute_path_is_used_as_given(sandbox, monkeypatch):
     planted = plant(str(sandbox / "explicit"))
     monkeypatch.setenv("PATH", "")
@@ -205,6 +219,84 @@ def test_every_success_path_returns_an_absolute_path(sandbox, monkeypatch):
     monkeypatch.chdir(sandbox)
 
     assert os.path.isabs(n2x._resolve(None))
+
+
+def test_a_second_resolution_does_not_search_again(sandbox, monkeypatch):
+    """Searching is the expensive part, and ``render`` asks for it twice per call.
+
+    Once through ``tool_identity``, which resolves before it consults its own cache, and once
+    for the run itself. ``shutil.which`` walks every ``PATH`` entry against every ``PATHEXT``,
+    measured at 7.3 ms against 0.15 ms for a path that needs no searching -- so an uncached
+    resolver spent about 14.6 ms per render, roughly four times what all the temporary-file
+    marshalling costs, locating a file that had not moved (#112).
+    """
+    directory = str(sandbox / "on-path")
+    planted = plant(directory)
+    monkeypatch.setenv("PATH", directory)
+
+    searched = []
+    uncached = n2x._search_for_tool
+
+    def counting(tool):
+        searched.append(tool)
+        return uncached(tool)
+
+    monkeypatch.setattr(n2x, "_search_for_tool", counting)
+
+    assert same(n2x._resolve(None), planted)
+    assert same(n2x._resolve(None), planted)
+    assert len(searched) == 1
+
+
+def test_a_failure_is_not_remembered(sandbox, monkeypatch):
+    """A play may install the tool in one task and template with it in a later one.
+
+    ``_tool_directories`` exists because ``ansible-playbook``'s environment was fixed before the
+    play began, so a lookup that finds nothing now is expected to succeed later. Remembering the
+    miss would break the very case that function was written to serve.
+    """
+    directory = str(sandbox / "arrives-late")
+    os.makedirs(directory, exist_ok=True)
+    monkeypatch.setenv("PATH", directory)
+
+    with pytest.raises(n2x.Namespace2XmlError, match="dotnet tool install"):
+        n2x._resolve(None)
+
+    planted = plant(directory)
+
+    assert same(n2x._resolve(None), planted)
+
+
+def test_a_remembered_path_that_stops_being_runnable_is_searched_for_again(sandbox, monkeypatch):
+    """A memo that outlives its answer is worse than no memo, because it is confidently wrong."""
+    first = str(sandbox / "first")
+    planted = plant(first)
+    second = str(sandbox / "second")
+    os.makedirs(second, exist_ok=True)
+    monkeypatch.setenv("PATH", os.pathsep.join((first, second)))
+
+    assert same(n2x._resolve(None), planted)
+
+    os.remove(planted)
+    relocated = plant(second)
+
+    assert same(n2x._resolve(None), relocated)
+
+
+def test_a_changed_path_is_answered_afresh(sandbox, monkeypatch):
+    """``PATH`` is part of the key because it is part of the question."""
+    first = str(sandbox / "first")
+    planted = plant(first)
+    second = str(sandbox / "second")
+    relocated = plant(second)
+
+    monkeypatch.setenv("PATH", first)
+
+    assert same(n2x._resolve(None), planted)
+
+    monkeypatch.setenv("PATH", second)
+
+    assert same(n2x._resolve(None), relocated)
 
 
 def test_the_error_derives_from_ansibles_filter_error():
