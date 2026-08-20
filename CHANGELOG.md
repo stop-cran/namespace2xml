@@ -13,6 +13,12 @@ independently.
 
 ## [Unreleased]
 
+## [3.0.0-preview.5] - 2026-08-20
+
+### Contract
+
+- `contract-bundle` `r99+bad2fa36f0a5`.
+
 ### Added
 
 - **The release now proves its symbols can reach source, rather than proving they exist.** The
