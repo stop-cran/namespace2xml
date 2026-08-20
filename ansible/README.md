@@ -439,7 +439,7 @@ When the base document is a file on the node, the [`render` module](#the-render-
 
 ## Versioning
 
-This collection is at 2.2.0 while the tool is at 3.x. They are separate artefacts with separate
+This collection is at 2.1.0 while the tool is at 3.x. They are separate artefacts with separate
 compatibility promises: the collection pins no tool version, and the two are released under
 different tags — `v3.*` for the tool, `ansible-v*` for this collection.
 
@@ -447,10 +447,9 @@ different tags — `v3.*` for the tool, `ansible-v*` for this collection.
 .NET nor the tool. The module makes that false for any play that uses it, and a promise about what
 you must install is the kind a major version exists to revise. Nothing about the filter changed.
 
-2.1.0 added `scheme_yaml` to both plugins. Additive: every 2.0.0 playbook renders identically.
-
-2.2.0 added the filter's `convention` argument. Additive: the default is the encoding 2.1.0 used,
-so every 2.1.0 playbook renders identically.
+2.1.0 added `scheme_yaml` to both plugins and the filter's `convention` argument. Both are
+additive: `scheme_text` is untouched and not deprecated, and `convention` defaults to the encoding
+every earlier release used, so every 2.0.0 playbook renders identically.
 
 ## How this is tested
 

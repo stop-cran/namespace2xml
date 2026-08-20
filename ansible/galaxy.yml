@@ -10,17 +10,16 @@
 # that uses it, and a promise about what a consumer must install is exactly the kind a major
 # version exists to revise. Nothing in the filter's interface changed.
 #
-# 2.1.0 adds `scheme_yaml` to both plugins: the same scheme written as a mapping rather than as a
-# block of text inside a YAML file. Additive, so a minor -- every 2.0.0 playbook renders
-# identically, and the two spellings are compared byte for byte by the integration suite.
-#
-# 2.2.0 adds the filter's `convention` argument, which selects whether a mapping key's `@`, `Q{}`
-# and `#` markers are escaped into an ordinary name (the default, and what every earlier release
-# did) or read as the Section 11.4 XML addressing. Additive, so a minor -- the default is
-# unchanged, so every 2.1.0 playbook renders identically byte for byte.
+# 2.1.0 adds two things at once, released together and therefore carrying one version. First,
+# `scheme_yaml` on both plugins: the same scheme written as a mapping rather than as a block of
+# text inside a YAML file. Second, the filter's `convention` argument, which selects whether a
+# mapping key's `@`, `Q{}` and `#` markers are escaped into an ordinary name (the default, and
+# what every earlier release did) or read as the Section 11.4 XML addressing. Both are additive,
+# so a minor -- every 2.0.0 playbook renders identically byte for byte, and the two scheme
+# spellings are compared byte for byte by the integration suite.
 namespace: stop_cran
 name: namespace2xml
-version: 2.2.0
+version: 2.1.0
 readme: README.md
 
 authors:

@@ -70,7 +70,7 @@ options:
     choices:
       - escaped
       - xmltodict
-    version_added: 2.2.0
+    version_added: 2.1.0
   root:
     description:
       - The section 16.3 root, which names the XML document element.
