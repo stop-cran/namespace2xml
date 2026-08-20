@@ -731,3 +731,46 @@ def test_the_two_mapping_scheme_converters_agree():
 
         assert node_message is not None, mapping
         assert node_message == filter_message, mapping
+
+
+def test_the_two_mapping_scheme_converters_are_identical_as_source():
+    """Compare the copies as text, not only by what they answer.
+
+    The corpus above can only see a difference that changes one of its own answers. That is a
+    real blind spot and it has already been exploited twice: an independent review found the
+    nesting hint printing a spelling this converter then refuses, and the escaping helper
+    escaping dots inside a Q{...} URI. Both were wrong in *both* copies, so the corpus agreed
+    with itself and reported nothing.
+
+    Comparing the source closes the half of the gap that is mechanical -- a fix applied to one
+    copy and not the other -- without waiting for someone to think of the corpus entry that
+    would have caught it. The other half, a value wrong in both, is what the specification-
+    authored expectations in the filter's own suite are for.
+
+    Compared function by function rather than as whole files, since each module carries its own
+    imports, docstring and unshared helpers.
+    """
+    import ast
+    import difflib
+
+    shared = ["_scheme_qname_span", "_scheme_name_part", "_scheme_escape_dots",
+              "_scheme_nesting_hint", "_scheme_branch", "_scheme_where",
+              "encode_scheme_mapping"]
+
+    def functions(path):
+        text = path.read_text(encoding="utf-8")
+        return {node.name: ast.get_source_segment(text, node)
+                for node in ast.parse(text).body if isinstance(node, ast.FunctionDef)}
+
+    node = functions(_PLUGINS / "module_utils" / "n2x.py")
+    controller = functions(_PLUGINS / "filter" / "render.py")
+
+    for name in shared:
+        assert name in node, "%s is missing from the node-side copy" % name
+        assert name in controller, "%s is missing from the controller-side copy" % name
+
+        if node[name] != controller[name]:
+            drift = "\n".join(difflib.unified_diff(
+                node[name].splitlines(), controller[name].splitlines(),
+                "module_utils/n2x.py", "filter/render.py", lineterm=""))
+            raise AssertionError("%s has drifted between the two copies:\n%s" % (name, drift))
