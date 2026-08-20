@@ -335,7 +335,10 @@ def test_the_no_controller_fallback_can_still_be_combined_with_the_shared_error(
     The first assertion is what makes the second one mean something: it shows the shape that
     does not construct, so the invariant below reads as a constraint rather than a preference.
     """
-    with pytest.raises(TypeError, match="method resolution order"):
+    # Matched short and stopped before "order": CPython 3.11 and 3.12 wrap this message as
+    # "...consistent method resolution\norder (MRO) for bases...", so the full phrase is not
+    # present as written on every interpreter the collection supports.
+    with pytest.raises(TypeError, match="consistent method resolution"):
         type("Broken", (Exception, shared.Namespace2XmlError), {})
 
     base = n2x._FilterErrorBase
