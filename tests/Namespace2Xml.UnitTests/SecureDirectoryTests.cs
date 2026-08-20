@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Namespace2Xml.Output;
 using NUnit.Framework;
 using Shouldly;
@@ -158,6 +159,46 @@ public sealed class SecureDirectoryTests
     public void TheFactoryReportsContainmentSupport()
     {
         new SecureRootFactory().SupportsSecureContainment.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Section 21.1's no-follow opens need each kernel's own <c>O_DIRECTORY</c> and
+    /// <c>O_NOFOLLOW</c> numbers, which Linux varies by processor architecture.
+    /// </summary>
+    /// <remarks>
+    /// The expected values are the kernel's, not the tool's: <c>00200000</c> and <c>00400000</c>
+    /// from <c>include/uapi/asm-generic/fcntl.h</c>, overridden to <c>040000</c> and <c>0100000</c>
+    /// by <c>arch/arm</c>, <c>arch/arm64</c> and <c>arch/powerpc</c>. Getting arm64 wrong made the
+    /// root open ask for <c>O_DIRECT</c>, which fails with <c>EINVAL</c> on a directory, so no
+    /// invocation on that architecture could publish anything.
+    /// </remarks>
+    /// <param name="architecture">The process architecture.</param>
+    /// <param name="directory">The <c>O_DIRECTORY</c> that architecture's kernel expects.</param>
+    /// <param name="noFollow">The <c>O_NOFOLLOW</c> that architecture's kernel expects.</param>
+    [TestCase(Architecture.X86, 0x10000, 0x20000)]
+    [TestCase(Architecture.X64, 0x10000, 0x20000)]
+    [TestCase(Architecture.S390x, 0x10000, 0x20000)]
+    [TestCase(Architecture.LoongArch64, 0x10000, 0x20000)]
+    [TestCase(Architecture.RiscV64, 0x10000, 0x20000)]
+    [TestCase(Architecture.Arm, 0x4000, 0x8000)]
+    [TestCase(Architecture.Armv6, 0x4000, 0x8000)]
+    [TestCase(Architecture.Arm64, 0x4000, 0x8000)]
+    [TestCase(Architecture.Ppc64le, 0x4000, 0x8000)]
+    public void LinuxNoFollowFlagsFollowTheArchitecture(
+        Architecture architecture, int directory, int noFollow)
+    {
+        PosixSecureDirectory.NoFollowFlagsFor(macOS: false, architecture)
+            .ShouldBe((directory, noFollow));
+    }
+
+    /// <summary>Section 21.1 on macOS, whose numbers do not vary by architecture.</summary>
+    /// <param name="architecture">The process architecture.</param>
+    [TestCase(Architecture.X64)]
+    [TestCase(Architecture.Arm64)]
+    public void MacOsNoFollowFlagsDoNotVary(Architecture architecture)
+    {
+        PosixSecureDirectory.NoFollowFlagsFor(macOS: true, architecture)
+            .ShouldBe((0x100000, 0x100));
     }
 
     private static string NewScratchDirectory()

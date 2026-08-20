@@ -112,6 +112,33 @@ independently.
 
 ### Fixed
 
+- **The tool could not write a single file on arm64 Linux.** Found in session while standing up a
+  real Linux controller to measure the Ansible filter's caches; no inbound report.
+  `PosixSecureDirectory` sent one pair of numbers for `O_DIRECTORY` and `O_NOFOLLOW` to every
+  non-macOS host, and Linux does not agree on them across processor architectures: most take
+  `include/uapi/asm-generic/fcntl.h`'s `00200000` and `00400000`, while arm, arm64 and powerpc
+  override both with `040000` and `0100000` in their own `arch/<arch>/include/uapi/asm/fcntl.h`.
+
+  On an arm64 kernel the generic `O_DIRECTORY` is `O_DIRECT`, which a directory open rejects, so
+  **every** invocation ended at its first destination with `error PATH002 §21.3: the destination
+  '…' could not be written: opening the output root failed: Invalid argument`, exit `1`, nothing
+  written anywhere. Measured on Ubuntu 24.04, kernel `6.6.87.2` aarch64, tool `3.0.0-preview.4`:
+  broken before the fix and writing `cfg.xml` after it, under both `/tmp` and `$HOME`. That is AWS
+  Graviton, Ampere, Azure Cobalt, Raspberry Pi and every `linux/arm64` container.
+
+  Had the root open succeeded, the destination open would have been worse than a failure. Its
+  `O_NOFOLLOW` is `O_LARGEFILE` under the same mistake, so §21.1's no-follow guarantee would have
+  been *not requested* rather than *not honoured* — a silent loss of containment instead of an
+  error. Verified on the same host after the fix: a destination that is a symbolic link pointing
+  outside the output root is refused with `error PATH001 §21.1`, and the link target is not
+  created.
+
+  This shipped because the CI matrix named operating systems while the flags vary by processor.
+  `publication-invariants` now runs on `ubuntu-24.04-arm` too, where the existing
+  `SecureDirectoryTests` fail outright without the fix, and the per-architecture mapping is a pure
+  function gated over the nine architectures .NET names for Linux, proven red against the values it
+  replaces.
+
 - **YAML output no longer under-quotes by the difference between this tool's reader and its
   readers'.** Found in session by an exploratory round against independent parsers, with no inbound
   report. §19.4's principle was right — quote a string whose plain form would not read back as the

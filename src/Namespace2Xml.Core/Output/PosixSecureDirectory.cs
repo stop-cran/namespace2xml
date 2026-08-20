@@ -120,11 +120,52 @@ internal sealed partial class PosixSecureDirectory : ISecureDirectory
 
     private static int OpenTruncate => OperatingSystem.IsMacOS() ? 0x400 : 0x200;
 
-    private static int OpenDirectory => OperatingSystem.IsMacOS() ? 0x100000 : 0x10000;
+    private static int OpenDirectory => NoFollowFlags.Directory;
 
-    private static int OpenNoFollow => OperatingSystem.IsMacOS() ? 0x100 : 0x20000;
+    private static int OpenNoFollow => NoFollowFlags.NoFollow;
 
     private static int OpenCloseOnExec => OperatingSystem.IsMacOS() ? 0x1000000 : 0x80000;
+
+    private static (int Directory, int NoFollow) NoFollowFlags { get; } =
+        NoFollowFlagsFor(OperatingSystem.IsMacOS(), RuntimeInformation.ProcessArchitecture);
+
+    /// <summary>
+    /// The <c>O_DIRECTORY</c> and <c>O_NOFOLLOW</c> bits for one host.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Linux does not give these two flags the same numbers on every processor architecture. Most
+    /// take <c>include/uapi/asm-generic/fcntl.h</c>, where <c>O_DIRECTORY</c> is <c>00200000</c>
+    /// and <c>O_NOFOLLOW</c> is <c>00400000</c>; arm, arm64 and powerpc override both in their own
+    /// <c>arch/&lt;arch&gt;/include/uapi/asm/fcntl.h</c> with <c>040000</c> and <c>0100000</c>.
+    /// </para>
+    /// <para>
+    /// Sending the generic numbers to an arm64 kernel therefore asks for <c>O_DIRECT</c> and
+    /// <c>O_LARGEFILE</c> instead. Opening the output root fails with <c>EINVAL</c> and the
+    /// invocation cannot publish anything; and had it not failed, the destination open would have
+    /// requested <c>O_LARGEFILE</c> where it meant <c>O_NOFOLLOW</c>, leaving the containment
+    /// Section 21.1 requires unasked for. macOS uses one set of numbers on both of its
+    /// architectures. Every other platform is refused by
+    /// <see cref="SecureRootFactory.SupportsSecureContainment"/> before reaching this type.
+    /// </para>
+    /// </remarks>
+    /// <param name="macOS">Whether the host is macOS rather than Linux.</param>
+    /// <param name="architecture">The process architecture.</param>
+    /// <returns>The two flag values this host's kernel expects.</returns>
+    internal static (int Directory, int NoFollow) NoFollowFlagsFor(bool macOS, Architecture architecture)
+    {
+        if (macOS)
+        {
+            return (0x100000, 0x100);
+        }
+
+        return architecture is Architecture.Arm
+            or Architecture.Armv6
+            or Architecture.Arm64
+            or Architecture.Ppc64le
+            ? (0x4000, 0x8000)
+            : (0x10000, 0x20000);
+    }
 
     private static void ValidateComponent(string component)
     {
