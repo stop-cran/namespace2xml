@@ -144,6 +144,33 @@ jobs:
           if (-not $package) { throw 'dotnet pack produced no symbol package.' }
           pwsh -NoProfile -File tools/verify-sourcelink.ps1 -SymbolPackage $package.FullName
 
+  # Third release-only script in a row to fail the first time it ran on Linux. This one searched the
+  # tool directory for the installed assembly without -Force, so it never descended into `.store` --
+  # hidden on Unix by its leading dot, ordinary on Windows -- and reported the package as empty.
+  #
+  # The cost argument for keeping this out of per-push CI was about its subject: the packed assembly
+  # differs from the built one only at publication. But the script that judges it is ordinary code
+  # with ordinary platform bugs, and those are not release-shaped at all. A check that runs once per
+  # tag is a check whose own defects are discovered by the release it was meant to protect.
+  #
+  # Pull requests stay excluded on cost alone -- unlike sourcelink, this job would be perfectly
+  # correct on a PR. Pushes to master carry it, which is what stands between a bad script and a tag.
+  packaged-corpus:
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: The corpus must pass against the packaged tool, not the build output
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/verify-packaged-corpus.ps1
+
   # Section 24 requires byte-identical output for identical inputs. A tool that only claims
   # determinism is not determinate; this job measures it.
   determinism:

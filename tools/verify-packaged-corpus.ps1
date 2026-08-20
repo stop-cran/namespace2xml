@@ -21,6 +21,13 @@
     for a release. The release workflow runs it before anything is pushed to nuget.org, so a
     failure costs a retag rather than a bad package under the trusted name.
 
+    That argument was made once and was wrong in the way arguments about cost usually are: it
+    reasoned about the subject and forgot the instrument. The seam does only matter at publication,
+    but this script is ordinary code, and the first time it ran on Linux it could not see into
+    `.store` and declared the package empty. So it now also runs on every push to master, where a
+    defect in the check costs a commit instead of a retag. Pull requests are still spared the four
+    minutes.
+
 .PARAMETER Package
     Directory holding the .nupkg to install from. When omitted the CLI is packed into a temporary
     directory first, which is what a local run wants.
@@ -94,7 +101,11 @@ try {
         # The payload sits under the tool store rather than beside the shim, and the corpus needs
         # the managed assembly itself: the harness launches it through the .NET muxer so that one
         # run is identical on every platform.
-        $found = Get-ChildItem -LiteralPath $toolDirectory -Recurse -Filter 'namespace2xml.dll' |
+        # -Force is load-bearing: the payload sits under `.store`, and on Linux a leading dot makes
+        # that directory hidden, which Get-ChildItem skips unless asked. Without it this search
+        # finds nothing on the very platform the release runs on, while still passing on Windows,
+        # where the name carries no such meaning.
+        $found = Get-ChildItem -LiteralPath $toolDirectory -Recurse -Force -Filter 'namespace2xml.dll' |
             Where-Object { $_.FullName -match '[\\/]tools[\\/]' } |
             Select-Object -First 1
 

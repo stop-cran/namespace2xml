@@ -47,6 +47,27 @@ independently.
   fired before anything was pushed to nuget.org, which is exactly where it was designed to fail — but
   a release gate that only ever runs at release is one no push can keep honest.
 
+- **The packaged-corpus gate now runs on every push, because it was the next release gate to fail
+  at release.** The check installs the packed tool and runs the whole conformance corpus against
+  that artifact rather than against the build output. It had run exactly once — during the
+  `3.0.0-preview.5` release — and failed with `The installed tool carries no namespace2xml.dll`.
+
+  The package was fine. `dotnet tool install --tool-path` lays the payload out under `.store`, and a
+  leading dot makes that directory hidden on Unix, which `Get-ChildItem -Recurse` skips unless asked.
+  On Windows the same name carries no such meaning, so the search worked there and could never have
+  worked on Linux. Measured against a real install on `linux/arm64`: the old expression returns **0**
+  matches, the same expression with `-Force` returns **1**, at
+  `.store/namespace2xml/3.0.0-preview.5/namespace2xml/3.0.0-preview.5/tools/net10.0/any/namespace2xml.dll`.
+
+  This is the third release-only script in one release to be wrong on the platform the release runs
+  on, after `curl.exe` and a version string read from a tag that a shallow checkout does not fetch.
+  The pattern is not three coincidences: a script whose only execution is a tagged release has no
+  occasion to be wrong until the moment being wrong is most expensive. The argument for keeping this
+  one release-only reasoned about its subject — the packed assembly, which genuinely only differs at
+  publication — and forgot that the instrument is ordinary code with ordinary platform bugs. It now
+  runs on every push to master, on Linux and on Windows. Pull requests are still spared the four
+  minutes, on cost rather than on correctness.
+
 - **The INI dialect now names a parser it is verified against.** `docs/format-ini.md` previously
   answered §19.6's compatibility question with "it names none", which the section permits. Measuring
   the dialect against Python's `configparser` showed that answer was costing more than it saved:

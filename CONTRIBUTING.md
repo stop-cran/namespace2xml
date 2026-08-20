@@ -602,14 +602,21 @@ commit it points at. In order:
    commit; discovering a failure after the tag is pushed costs a version number, permanently.
 6. **Then tag.**
 
-The release workflow adds one check the per-push run deliberately omits: it installs the packed
-tool and runs **the whole conformance corpus against that artifact** rather than against the build
-output. Packing, the NuGet layout, the generated `runtimeconfig` and `deps` files, the tool shim
-and the apphost all sit between the two, and a release build normalizes source paths, so the
-assembly inside the package has never been the assembly the corpus judged. The check costs about
-four minutes and can only fail for a release, so paying it on every push would slow every other
-change for nothing. It runs before anything is pushed to nuget.org: a failure costs a retag rather
-than a bad package under the trusted name.
+The release workflow installs the packed tool and runs **the whole conformance corpus against that
+artifact** rather than against the build output. Packing, the NuGet layout, the generated
+`runtimeconfig` and `deps` files, the tool shim and the apphost all sit between the two, and a
+release build normalizes source paths, so the assembly inside the package has never been the
+assembly the corpus judged. It runs before anything is pushed to nuget.org: a failure costs a retag
+rather than a bad package under the trusted name.
+
+This check used to run *only* there, on the argument that it costs four minutes and can only fail
+for a release. The seam it covers is indeed release-only, but the script that inspects it is not:
+the first time it executed on Linux it searched for the installed assembly without `-Force`, never
+descended into the hidden `.store` directory, and failed a tagged release by declaring the package
+empty. A check that runs once per tag has its own defects found by the release it exists to
+protect. It now also runs on every push to master, where fixing it costs a commit. Pull requests
+are still spared the four minutes, on cost — unlike the SourceLink job, it would be perfectly
+correct on one.
 
 To run it locally, `tools/verify-packaged-corpus.ps1` packs and judges the current tree.
 
