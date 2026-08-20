@@ -9,9 +9,18 @@
 # nodes need neither .NET nor the tool. Adding the `render` module makes that false for any play
 # that uses it, and a promise about what a consumer must install is exactly the kind a major
 # version exists to revise. Nothing in the filter's interface changed.
+#
+# 2.1.0 adds `scheme_yaml` to both plugins: the same scheme written as a mapping rather than as a
+# block of text inside a YAML file. Additive, so a minor -- every 2.0.0 playbook renders
+# identically, and the two spellings are compared byte for byte by the integration suite.
+#
+# 2.2.0 adds the filter's `convention` argument, which selects whether a mapping key's `@`, `Q{}`
+# and `#` markers are escaped into an ordinary name (the default, and what every earlier release
+# did) or read as the Section 11.4 XML addressing. Additive, so a minor -- the default is
+# unchanged, so every 2.1.0 playbook renders identically byte for byte.
 namespace: stop_cran
 name: namespace2xml
-version: 2.0.0
+version: 2.2.0
 readme: README.md
 
 authors:

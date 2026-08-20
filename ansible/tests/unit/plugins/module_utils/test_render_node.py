@@ -32,39 +32,22 @@ import sys
 
 import pytest
 
-_PLUGINS = pathlib.Path(__file__).resolve().parents[4] / "plugins"
+_ANSIBLE = pathlib.Path(__file__).resolve().parents[4]
 
 try:
     from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import (
         n2x, render_node)
 except ImportError:  # a checkout that is not inside an ansible_collections tree
-    # `module_utils` is an implicit namespace package, so putting `plugins` on the path is
-    # enough for the relative import inside render_node to resolve. Loading the file directly
-    # would not be: a relative import needs a package, not a lone module.
-    if str(_PLUGINS) not in sys.path:
-        sys.path.insert(0, str(_PLUGINS))
+    # Through `plugins` -- an implicit namespace package -- rather than by path, because the
+    # relative import inside render_node needs a package, not a lone module. The root is the
+    # collection directory rather than `plugins` itself so that this file and the filter tests
+    # name the same package, and therefore share one `n2x` module object: the filter reaches
+    # module_utils by relative import, and a second copy would let a test patch one while the
+    # code under test called the other.
+    if str(_ANSIBLE) not in sys.path:
+        sys.path.insert(0, str(_ANSIBLE))
 
-    from module_utils import n2x, render_node  # type: ignore[no-redef]
-
-
-def _filter_encode_value(value):
-    """The controller-side filter's own encoder, loaded the way the filter tests load it.
-
-    Importing it lazily keeps this file's other tests runnable where ansible-core is not
-    importable, which is every Windows checkout.
-    """
-    try:
-        from ansible_collections.stop_cran.namespace2xml.plugins.filter import (  # noqa: E501
-            render as filter_render)
-    except ImportError:
-        import importlib.util
-
-        path = _PLUGINS / "filter" / "render.py"
-        spec = importlib.util.spec_from_file_location("n2x_filter_for_drift", path)
-        filter_render = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(filter_render)
-
-    return filter_render.encode_value(value)
+    from plugins.module_utils import n2x, render_node  # type: ignore[no-redef]
 
 
 def write(path, text):
@@ -82,6 +65,14 @@ def write(path, text):
 _confined = pytest.mark.skipif(
     not render_node._CONFINEMENT,
     reason="section 21.1 publication needs POSIX dir_fd and O_NOFOLLOW")
+
+
+@pytest.fixture(autouse=True)
+def _clean_resolve_cache():
+    """The resolver's memo is a module global, so a test that fills it would leak into the next."""
+    n2x._RESOLVE_CACHE.clear()
+    yield
+    n2x._RESOLVE_CACHE.clear()
 
 
 # --- Section 6.2: the argument vector is the play's order, not a sorted one ---------------------
@@ -179,20 +170,6 @@ def test_a_name_is_not_escaped_even_though_its_value_is():
     assert render_node.encode_variable("a.b", "${x}") == "a.b=\\${x}"
     assert render_node.encode_variable(
         "configuration.root.@level", "DEBUG") == "configuration.root.@level=DEBUG"
-
-
-def test_the_module_and_the_filter_escape_a_value_the_same_way():
-    # The two encoders are separate copies -- the filter runs on the controller under a
-    # different Python -- so nothing but a test keeps them in step. A divergence here means the
-    # same playbook value renders differently depending on which plugin the play used.
-    corpus = [
-        "plain", "C:\\temp\\new", "${JAVA_HOME}", "a=b", "a.b", "a,b", "a;b", "a#b",
-        " pad ", "{}", "[]", "a{b}c", "line\nbreak", "tab\there", "", "\\", "*", "$",
-        "$notabrace", "\\${already}", "{}x", "x{}",
-    ]
-
-    for value in corpus:
-        assert n2x.encode_value(value) == _filter_encode_value(value), value
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
@@ -649,3 +626,70 @@ def test_returned_paths_are_absolute_even_when_dest_was_not(tmp_path, tool):
 
     assert all(os.path.isabs(path) for path in result["files"])
     assert all(os.path.isabs(path) for path in result["changed_files"])
+
+
+# --- Issue #112: the node copy memoizes the search too ------------------------------------------
+#
+# The node copy is where the cost compounds: the module runs once per host, so a fleet pays the
+# search on every one of them. These repeat the two properties that matter against `resolve`,
+# which differs from the filter's `_resolve` by name and by carrying a default argument -- enough
+# difference that the filter's tests passing says nothing about this copy.
+
+def _stub_tool(directory):
+    """An executable stub the resolver will accept, and its path."""
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / ("namespace2xml.exe" if os.name == "nt" else "namespace2xml")
+    path.write_text("" if os.name == "nt" else "#!/bin/sh\nexit 0\n", encoding="utf-8")
+    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    return str(path)
+
+
+def test_the_node_resolver_searches_once_for_repeated_calls(tmp_path, monkeypatch):
+    """``run_tool`` resolves for the identity probe and again for the run itself.
+
+    ``shutil.which`` walks every ``PATH`` entry against every ``PATHEXT``, measured at 7.3 ms
+    against 0.15 ms for a path that needs no searching, so leaving this uncached spent roughly
+    14.6 ms per render to locate a file that had not moved (#112).
+    """
+    planted = _stub_tool(tmp_path / "tools")
+    monkeypatch.setenv("NAMESPACE2XML", planted)
+
+    searched = []
+    uncached = n2x._search_for_tool
+
+    def counting(tool):
+        searched.append(tool)
+        return uncached(tool)
+
+    monkeypatch.setattr(n2x, "_search_for_tool", counting)
+
+    assert n2x.resolve() == planted
+    assert n2x.resolve() == planted
+    assert len(searched) == 1
+
+
+def test_the_node_resolver_does_not_remember_a_failure(tmp_path, monkeypatch):
+    """On a node the tool is routinely installed after this process read its environment.
+
+    ``_tool_directories`` exists because a non-interactive shell never sourced the profile the
+    install instructions told a human to re-source. A lookup that finds nothing now is expected
+    to succeed later, so remembering the miss would break the ordinary case.
+    """
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    nowhere = tmp_path / "no-home"
+    nowhere.mkdir()
+
+    for name in ("NAMESPACE2XML", "DOTNET_CLI_HOME", "DOTNET_TOOLS_PATH", "HOME", "USERPROFILE"):
+        monkeypatch.delenv(name, raising=False)
+
+    monkeypatch.setenv("PATH", str(tools))
+    monkeypatch.setattr(os.path, "expanduser", lambda path: str(nowhere))
+
+    with pytest.raises(n2x.Namespace2XmlError):
+        n2x.resolve()
+
+    planted = _stub_tool(tools)
+
+    assert os.path.normcase(n2x.resolve()) == os.path.normcase(planted)

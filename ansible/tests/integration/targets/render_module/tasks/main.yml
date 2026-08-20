@@ -431,6 +431,129 @@
           Expected a refusal citing section 21.1.
           Result: {{ root_is_file.msg | default('the render succeeded') }}
 
+    # Section 15 selects the scheme parser from the file extension, so a mapping written in the
+    # playbook is a JSON scheme document rather than a second dialect. The claim worth proving on
+    # a real binary is that the two spellings are the same scheme: a converter that quietly
+    # mangled a name or dropped a directive would still render *something*, and only a byte
+    # comparison against the text spelling catches it.
+    - name: Render with the scheme written as a text block
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
+          configuration.appender.class.type=element
+        dest: "{{ scratch.path }}/spelling/text"
+
+    - name: Render the same scheme written as a YAML mapping
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_yaml:
+          xmlinputoptions: NormalizeFormattingWhitespace
+          configuration:
+            output: xml
+            filename: logback.xml
+            root: configuration
+            appender:
+              class:
+                type: element
+        dest: "{{ scratch.path }}/spelling/yaml"
+      register: mapping_render
+
+    - name: Read both renders
+      ansible.builtin.slurp:
+        src: "{{ scratch.path }}/spelling/{{ item }}/logback.xml"
+      register: spellings
+      loop:
+        - text
+        - yaml
+
+    - name: The two spellings of one scheme produce the same bytes
+      ansible.builtin.assert:
+        that:
+          - mapping_render is changed
+          - spellings.results[0].content == spellings.results[1].content
+          - "'<class>' in (spellings.results[1].content | b64decode)"
+        fail_msg: >-
+          scheme_yaml is a spelling of scheme_text, not a dialect. Either the renders differ, so
+          the mapping was translated into a scheme that means something else, or the `type`
+          directive did not travel and the comparison proved only that two no-op schemes agree.
+
+    - name: Render again from the mapping spelling
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_yaml:
+          xmlinputoptions: NormalizeFormattingWhitespace
+          configuration:
+            output: xml
+            filename: logback.xml
+            root: configuration
+            appender:
+              class:
+                type: element
+        dest: "{{ scratch.path }}/spelling/yaml"
+      register: mapping_again
+
+    - name: The mapping spelling converges like any other scheme
+      ansible.builtin.assert:
+        that:
+          - mapping_again is not changed
+        fail_msg: >-
+          Section 24 makes the render deterministic, so a second run over unchanged inputs must
+          report ok. Got changed_files={{ mapping_again.changed_files | default('unknown') }}.
+
+    # A multi-valued directive is one comma-separated scalar under section 15. YAML makes a
+    # sequence the obvious guess, and the tool answers SCHEME001 about a file the author never
+    # wrote. The module has to refuse it first, in the author's own vocabulary.
+    - name: Attempt a mapping scheme with a sequence directive value
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_yaml:
+          configuration:
+            output:
+              - xml
+              - json
+        dest: "{{ scratch.path }}/sequence"
+      register: sequence_value
+      ignore_errors: true
+
+    - name: A sequence directive value is refused by name, before the tool runs
+      ansible.builtin.assert:
+        that:
+          - sequence_value is failed
+          - "'xml,json' in sequence_value.msg"
+        fail_msg: >-
+          Expected a refusal naming the comma-separated spelling.
+          Result: {{ sequence_value.msg | default('the render succeeded') }}
+
+    - name: Attempt a mapping scheme alongside a text scheme
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          configuration.output=xml
+        scheme_yaml:
+          configuration:
+            output: xml
+        dest: "{{ scratch.path }}/both"
+      register: both_spellings
+      ignore_errors: true
+
+    - name: Supplying both spellings of one scheme is refused
+      ansible.builtin.assert:
+        that:
+          - both_spellings is failed
+          - "'mutually exclusive' in both_spellings.msg"
+        fail_msg: >-
+          Expected the two spellings to be mutually exclusive.
+          Result: {{ both_spellings.msg | default('the render succeeded') }}
+
   always:
     - name: Remove the scratch directory
       ansible.builtin.file:

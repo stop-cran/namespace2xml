@@ -158,11 +158,14 @@ they are.
    be `0`, `1`, `2` is rendered as a list.
 3. **Binary data is refused.** A value that is not expressible as a profile scalar is an error
    rather than a silent coercion.
-4. **XML attributes, content tokens and qualified names cannot be addressed** from plain Ansible
-   data. They need a hand-written scheme; the synthesised one cannot express them. The module's
-   `variables` option is the way round this when the document is on the node, because it passes
-   names to the tool verbatim.
-   ([issue #103](https://github.com/stop-cran/namespace2xml/issues/103))
+4. **XML attributes, content tokens and qualified names need `convention: xmltodict`.** By default
+   the filter escapes `@`, `Q{…}` and `#` into ordinary names, because the default encoding is
+   total and every key must read back as itself. Pass `convention=xmltodict` and those markers are
+   read as §11.4 addressing instead — `@id` is an attribute, `Q{urn:p}b` a qualified element,
+   `#text` an element's own text, `#0`/`#1` ordered content. That convention is total too: `\@x`
+   spells the literal name `@x`. `#text` beside a child element is refused rather than positioned
+   by guesswork. The module's `variables` option remains the more direct route when the document
+   is already on the node, because it passes names to the tool verbatim.
 
 Rendering is also one-way: neither plugin reads a rendered document back into variables.
 

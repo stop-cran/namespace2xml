@@ -11,18 +11,44 @@ produced from the data -- needs the binary and lives in
 
 from __future__ import annotations
 
-import importlib.util
 import pathlib
+import sys
 
 import pytest
 
+# `n2x` is the filter under test; `shared` is the module_utils the filter now calls into.
+# Discovery, the contract-bundle gate and the section 8.3 encoder live in `shared`, so a test
+# that stands in for one of those patches it there -- patching the filter would leave the code
+# under test calling the real thing.
 try:
     from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as n2x
+    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x as shared
 except ImportError:  # a checkout that is not inside an ansible_collections tree
-    _PATH = pathlib.Path(__file__).resolve().parents[4] / "plugins" / "filter" / "render.py"
-    _SPEC = importlib.util.spec_from_file_location("n2x_render", _PATH)
-    n2x = importlib.util.module_from_spec(_SPEC)
-    _SPEC.loader.exec_module(n2x)
+    # Through `plugins` -- an implicit namespace package -- rather than by path: the filter
+    # reaches module_utils by relative import, and a relative import needs a package. Loading
+    # both halves through one package root is also what makes the shared module one object.
+    _ANSIBLE = pathlib.Path(__file__).resolve().parents[4]
+
+    if str(_ANSIBLE) not in sys.path:
+        sys.path.insert(0, str(_ANSIBLE))
+
+    from plugins.filter import render as n2x  # type: ignore[no-redef]
+    from plugins.module_utils import n2x as shared  # type: ignore[no-redef]
+
+
+def test_the_filter_shares_the_encoders_rather_than_carrying_its_own():
+    """One object, not two that agree today.
+
+    These encoders were duplicated for as long as a filter was believed unable to import its
+    collection's ``module_utils``, and the duplication was policed by comparing the two copies
+    -- first by corpus, then by source text, after the corpus twice failed to notice a value
+    that was wrong in both. Identity retires both gates: there is nothing left to drift.
+
+    Asserted with ``is`` on purpose. Equality of behaviour is what a reintroduced copy would
+    also satisfy on the day it was written, which is exactly when the comparison is useless.
+    """
+    assert n2x.encode_value is shared.encode_value
+    assert n2x.encode_scheme_mapping is shared.encode_scheme_mapping
 
 
 # (id, data, hand-authored profile). The profile column is the thing under test.
@@ -152,23 +178,184 @@ def test_a_selector_needing_escapes_is_escaped_in_both_the_profile_and_the_schem
     assert n2x.synthesize_scheme("json", "my.app") == "my\\.app.output=json\n"
 
 
+# ---------------------------------------------------------------------------------------------
+# The `xmltodict` convention (issue #103). Profiles below are authored from section 11.4, which
+# gives the four canonical spellings: '@' prefixes an attribute, 'Q{uri}local' qualifies a name,
+# '#n' orders a content node, and an only-child text run stands at the element's own path.
+# ---------------------------------------------------------------------------------------------
+
+# (id, data, hand-authored profile).
+XML_CASES = [
+    (
+        "attributes-plain-and-qualified",
+        {"bean": {"@id": "ds", "@Q{urn:p}scope": "singleton"}},
+        # Section 11.4: "an attribute is prefixed with '@'". The name after the marker is an
+        # ordinary name part, and a qualified one keeps its Q{...} wrapper.
+        "cfg.bean.@id=ds\n"
+        "cfg.bean.@Q{urn:p}scope=singleton\n",
+    ),
+    (
+        "a-uri-keeps-its-dots-and-the-local-name-does-not",
+        {"Q{urn:example.com/ns}a.b": "v"},
+        # Section 11.4 makes Q{...} one atomic lexer context where "delimiter, wildcard,
+        # reference, and ordinary name-escape recognition is suspended", so the dots in the URI
+        # stand as themselves. "The following local name uses ordinary name escaping", so the
+        # dot after the closing brace is escaped or it would split the path.
+        "cfg.Q{urn:example.com/ns}a\\.b=v\n",
+    ),
+    (
+        "a-brace-inside-the-uri-is-passed-through-already-escaped",
+        {"Q{urn:a\\}b}c": "v"},
+        # Section 11.4: "the first unescaped '}' ends the URI; '\\}' encodes a literal closing
+        # brace". The URI is not re-escaped on the way through -- it is already in the tool's
+        # spelling, and escaping it again would change the URI rather than preserve it.
+        "cfg.Q{urn:a\\}b}c=v\n",
+    ),
+    (
+        "own-text-stands-at-the-element-path-beside-its-attributes",
+        {"bean": {"@id": "ds", "#text": "hello"}},
+        # Section 11.4: an element with no child elements and one text run "exposes that run as
+        # the scalar at the element path rather than as a content node", and the run "is not
+        # addressable as '#n'". So this is 'cfg.bean=hello', never 'cfg.bean.#0=hello'.
+        # Attributes are not child elements, so they do not disturb it.
+        "cfg.bean.@id=ds\n"
+        "cfg.bean=hello\n",
+    ),
+    (
+        "content-tokens-order-mixed-content-and-nest",
+        {"a": {"#0": "before", "#1": {"b": "child"}, "#2": "after"}},
+        # Section 11.4: "every content node uses an ordered part", and "a mixed-content child
+        # element is addressed as '#n.element-name'".
+        "cfg.a.#0=before\n"
+        "cfg.a.#1.b=child\n"
+        "cfg.a.#2=after\n",
+    ),
+    (
+        "a-backslash-restores-every-name-the-markers-took",
+        {"\\@x": "a", "\\#0": "b", "\\Q{urn}y": "c", "\\\\@x": "d", "\\z": "e"},
+        # The escape hatch. Consuming one backslash before a marker leaves the rest to the
+        # section 8.2 encoder, which escapes the marker as a literal. The backslash escapes
+        # itself too, so '\\\\@x' is the name '\\@x' and nothing is unwritable. A backslash
+        # before anything else is not a marker escape, so '\\z' is the name '\\z'.
+        "cfg.\\@x=a\n"
+        "cfg.\\#0=b\n"
+        "cfg.\\Q{urn\\}y=c\n"
+        "cfg.\\\\\\@x=d\n"
+        "cfg.\\\\z=e\n",
+    ),
+    (
+        "an-unmarked-key-is-encoded-exactly-as-it-is-by-default",
+        {"a.b": "x", "with*star": "y", "Qx": "z"},
+        # Only the markers change meaning. Everything else keeps the section 8.2 encoding, so
+        # switching convention cannot quietly alter a key that was never about XML. 'Q' not
+        # followed by '{' opens nothing, so it is escaped as the literal it always was.
+        "cfg.a\\.b=x\n"
+        "cfg.with\\*star=y\n"
+        "cfg.\\Qx=z\n",
+    ),
+]
+
+
+@pytest.mark.parametrize(("data", "profile"), [case[1:] for case in XML_CASES],
+                         ids=[case[0] for case in XML_CASES])
+def test_the_xmltodict_convention_matches_the_specification(data, profile):
+    assert n2x.flatten(data, "cfg", "xmltodict") == profile
+
+
+def test_the_default_convention_still_escapes_every_marker():
+    # The reason `escaped` stays the default: under it a key is data, and this profile is what
+    # every existing caller already gets. Adding a convention must not move anyone.
+    assert n2x.flatten({"@id": "1", "#text": "x", "Q{urn}y": "z"}, "cfg") == (
+        "cfg.\\@id=1\n"
+        "cfg.\\#text=x\n"
+        "cfg.\\Q{urn\\}y=z\n")
+
+
+def test_the_selector_is_a_name_rather_than_data_under_either_convention():
+    # It names where the data hangs and has to match the scheme's own selector, so it is not
+    # read for markers even when the keys beneath it are.
+    assert n2x.flatten({"k": "v"}, "@sel", "xmltodict") == "\\@sel.k=v\n"
+
+
+def test_an_unknown_convention_is_refused_rather_than_defaulted():
+    with pytest.raises(n2x.Namespace2XmlError, match="not a key convention"):
+        n2x.flatten({"k": "v"}, "cfg", "badgerfish")
+
+
+def test_text_beside_a_child_element_is_refused_because_it_has_no_position():
+    # Section 11.4 gives an element's own text the element's path only while it has no child
+    # elements. Once it has one the element is mixed, every content node takes an ordered part,
+    # and the mapping does not record which one the text was.
+    with pytest.raises(n2x.Namespace2XmlError, match="mixed content"):
+        n2x.flatten({"a": {"#text": "hi", "b": 1}}, "cfg", "xmltodict")
+
+
+def test_text_beside_a_content_token_is_refused_for_the_same_reason():
+    with pytest.raises(n2x.Namespace2XmlError, match="mixed content"):
+        n2x.flatten({"a": {"#text": "hi", "#0": "x"}}, "cfg", "xmltodict")
+
+
+def test_text_beside_an_escaped_literal_child_is_refused_too():
+    # '\\@b' is an ordinary element named '@b', not an attribute, so it competes for position.
+    with pytest.raises(n2x.Namespace2XmlError, match="mixed content"):
+        n2x.flatten({"a": {"#text": "hi", "\\@b": 1}}, "cfg", "xmltodict")
+
+
+def test_text_holding_a_container_is_refused():
+    with pytest.raises(n2x.Namespace2XmlError, match="own text"):
+        n2x.flatten({"a": {"#text": {"b": 1}}}, "cfg", "xmltodict")
+
+
+def test_an_unclosed_namespace_marker_is_refused_here_rather_than_by_the_tool():
+    # Section 8 makes marker recognition committing, so the tool would refuse this with
+    # PARSE001 naming a synthesized profile in a temporary directory. Refusing here names the
+    # key the author actually wrote.
+    with pytest.raises(n2x.Namespace2XmlError, match="never closes it"):
+        n2x.flatten({"Q{urn:p": "v"}, "cfg", "xmltodict")
+
+
+def test_an_undefined_escape_inside_a_uri_is_refused():
+    with pytest.raises(n2x.Namespace2XmlError, match="no escape section 11.4 defines"):
+        n2x.flatten({"Q{urn:\\p}x": "v"}, "cfg", "xmltodict")
+
+
+@pytest.mark.parametrize("key", ["#text ", "#nope", "#", "#01", "#1x"])
+def test_a_hash_key_that_is_neither_text_nor_a_canonical_index_is_refused(key):
+    # Escaping it would be the silent wrong answer this convention exists to remove: the author
+    # wrote a marker. '#01' is refused because section 8.7 counts only the canonical spelling,
+    # so accepting it would produce a part that orders nothing.
+    with pytest.raises(n2x.Namespace2XmlError, match="reserves for content"):
+        n2x.flatten({key: "v"}, "cfg", "xmltodict")
+
+
+def test_an_attribute_with_no_name_is_refused():
+    with pytest.raises(n2x.Namespace2XmlError, match="attribute with no name"):
+        n2x.flatten({"@": "v"}, "cfg", "xmltodict")
+
+
 class _Spy:
     """Stand in for the tool so the cache can be tested without one installed."""
 
     def __init__(self, text="RENDERED"):
         self.text = text
         self.calls = 0
+        self.profile = None
+        self.scheme_text = None
+        self.scheme_name = None
 
-    def __call__(self, profile, scheme_text, executable, workdir):
+    def __call__(self, profile, scheme_text, scheme_name, executable, workdir):
         self.calls += 1
+        self.profile = profile
+        self.scheme_text = scheme_text
+        self.scheme_name = scheme_name
         return self.text
 
 
 @pytest.fixture(name="spy")
 def _spy(monkeypatch):
     spy = _Spy()
-    monkeypatch.setattr(n2x, "tool_identity", lambda tool=None: "3.0.0|deadbeef")
-    monkeypatch.setattr(n2x, "_resolve", lambda tool: "/stand-in/namespace2xml")
+    monkeypatch.setattr(shared, "tool_identity", lambda tool=None: "3.0.0|deadbeef")
+    monkeypatch.setattr(shared, "resolve", lambda tool: "/stand-in/namespace2xml")
     monkeypatch.setattr(n2x, "_marshal_and_run", spy)
     monkeypatch.setattr(n2x, "_RENDER_CACHE", {})
 
@@ -189,7 +376,7 @@ def test_memoize_false_spawns_the_tool_every_time(spy):
 
 def test_the_memo_is_keyed_on_the_contract_identity_not_only_the_data(spy, monkeypatch):
     n2x.render({"k": "v"}, "json")
-    monkeypatch.setattr(n2x, "tool_identity", lambda tool=None: "3.0.1|cafebabe")
+    monkeypatch.setattr(shared, "tool_identity", lambda tool=None: "3.0.1|cafebabe")
     n2x.render({"k": "v"}, "json")
     assert spy.calls == 2
 
@@ -199,3 +386,19 @@ def test_the_memo_distinguishes_formats_and_schemes(spy):
     n2x.render({"k": "v"}, "yaml")
     n2x.render({"k": "v"}, "yaml", root="doc")
     assert spy.calls == 3
+
+
+def test_the_convention_reaches_render_and_changes_what_the_tool_is_given(spy):
+    n2x.render({"bean": {"@id": "ds"}}, "xml", root="beans", convention="xmltodict")
+    assert spy.profile == "cfg.bean.@id=ds\n"
+
+    n2x.render({"bean": {"@id": "ds"}}, "xml", root="beans")
+    assert spy.profile == "cfg.bean.\\@id=ds\n"
+
+
+def test_two_conventions_that_produce_the_same_profile_share_the_memo(spy):
+    # The cache key is built from the profile, not from the arguments that produced it, so a
+    # convention needs no key component of its own: identical profiles are identical renders.
+    n2x.render({"plain": "v"}, "json")
+    n2x.render({"plain": "v"}, "json", convention="xmltodict")
+    assert spy.calls == 1

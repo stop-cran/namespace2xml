@@ -14,20 +14,31 @@ Ansible before this code existed; see ``.github/workflows/ansible-topology-spike
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import pathlib
 import stat
+import sys
 
 import pytest
 
+# `n2x` is the filter under test; `shared` is the module_utils the filter now calls into.
+# Discovery, the contract-bundle gate and the section 8.3 encoder live in `shared`, so a test
+# that stands in for one of those patches it there -- patching the filter would leave the code
+# under test calling the real thing.
 try:
     from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as n2x
+    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x as shared
 except ImportError:  # a checkout that is not inside an ansible_collections tree
-    _PATH = pathlib.Path(__file__).resolve().parents[4] / "plugins" / "filter" / "render.py"
-    _SPEC = importlib.util.spec_from_file_location("n2x_render", _PATH)
-    n2x = importlib.util.module_from_spec(_SPEC)
-    _SPEC.loader.exec_module(n2x)
+    # Through `plugins` -- an implicit namespace package -- rather than by path: the filter
+    # reaches module_utils by relative import, and a relative import needs a package. Loading
+    # both halves through one package root is also what makes the shared module one object.
+    _ANSIBLE = pathlib.Path(__file__).resolve().parents[4]
+
+    if str(_ANSIBLE) not in sys.path:
+        sys.path.insert(0, str(_ANSIBLE))
+
+    from plugins.filter import render as n2x  # type: ignore[no-redef]
+    from plugins.module_utils import n2x as shared  # type: ignore[no-redef]
 
 
 WINDOWS = os.name == "nt"
@@ -86,25 +97,39 @@ def _sandbox(monkeypatch, tmp_path):
     return tmp_path
 
 
+@pytest.fixture(autouse=True)
+def _clean_resolve_cache():
+    """The resolver's memo is a module global, so a test that fills it would leak into the next.
+
+    Several tests below set ``PATH`` to the empty string, which makes their cache keys identical.
+    They would in practice survive a leak, because each plants into its own ``tmp_path`` and a
+    stale entry therefore fails revalidation -- but passing for that reason is an accident, and
+    an accident that would stop holding the moment a test reused a directory.
+    """
+    shared._RESOLVE_CACHE.clear()
+    yield
+    shared._RESOLVE_CACHE.clear()
+
+
 def test_an_explicit_absolute_path_is_used_as_given(sandbox, monkeypatch):
     planted = plant(str(sandbox / "explicit"))
     monkeypatch.setenv("PATH", "")
 
-    assert n2x._resolve(planted) == planted
+    assert shared.resolve(planted) == planted
 
 
 def test_an_explicit_bare_name_is_resolved_on_path(sandbox, monkeypatch):
     planted = plant(str(sandbox / "explicit"))
     monkeypatch.setenv("PATH", str(sandbox / "explicit"))
 
-    assert same(n2x._resolve(BINARY), planted)
+    assert same(shared.resolve(BINARY), planted)
 
 
 def test_an_explicit_argument_that_resolves_to_nothing_fails(sandbox, monkeypatch):
     monkeypatch.setenv("PATH", "")
 
-    with pytest.raises(n2x.Namespace2XmlError, match="absent"):
-        n2x._resolve(str(sandbox / "absent" / BINARY))
+    with pytest.raises(shared.Namespace2XmlError, match="absent"):
+        shared.resolve(str(sandbox / "absent" / BINARY))
 
 
 def test_the_environment_variable_outranks_path(sandbox, monkeypatch):
@@ -114,7 +139,7 @@ def test_the_environment_variable_outranks_path(sandbox, monkeypatch):
     monkeypatch.setenv("NAMESPACE2XML", chosen)
     monkeypatch.setenv("PATH", ignored)
 
-    assert n2x._resolve(None) == chosen
+    assert shared.resolve(None) == chosen
 
 
 def test_an_environment_variable_pointing_nowhere_fails_by_name(sandbox, monkeypatch):
@@ -125,8 +150,8 @@ def test_an_environment_variable_pointing_nowhere_fails_by_name(sandbox, monkeyp
     monkeypatch.setenv("NAMESPACE2XML", str(sandbox / "nowhere" / BINARY))
     monkeypatch.setenv("PATH", ignored)
 
-    with pytest.raises(n2x.Namespace2XmlError, match="NAMESPACE2XML"):
-        n2x._resolve(None)
+    with pytest.raises(shared.Namespace2XmlError, match="NAMESPACE2XML"):
+        shared.resolve(None)
 
 
 def test_a_directory_on_path_is_searched(sandbox, monkeypatch):
@@ -134,7 +159,7 @@ def test_a_directory_on_path_is_searched(sandbox, monkeypatch):
     planted = plant(directory)
     monkeypatch.setenv("PATH", directory)
 
-    assert same(n2x._resolve(None), planted)
+    assert same(shared.resolve(None), planted)
 
 
 def test_the_dotnet_global_tools_directory_is_searched(sandbox, monkeypatch):
@@ -143,7 +168,7 @@ def test_the_dotnet_global_tools_directory_is_searched(sandbox, monkeypatch):
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv(HOME_VARIABLE, home)
 
-    assert same(n2x._resolve(None), planted)
+    assert same(shared.resolve(None), planted)
 
 
 def test_dotnet_cli_home_outranks_the_home_directory(sandbox, monkeypatch):
@@ -155,7 +180,7 @@ def test_dotnet_cli_home_outranks_the_home_directory(sandbox, monkeypatch):
     monkeypatch.setenv(HOME_VARIABLE, home)
     monkeypatch.setenv("DOTNET_CLI_HOME", cli_home)
 
-    assert same(n2x._resolve(None), relocated)
+    assert same(shared.resolve(None), relocated)
 
 
 def test_dotnet_tools_path_outranks_everything_discovered(sandbox, monkeypatch):
@@ -167,14 +192,14 @@ def test_dotnet_tools_path_outranks_everything_discovered(sandbox, monkeypatch):
     monkeypatch.setenv(HOME_VARIABLE, home)
     monkeypatch.setenv("DOTNET_TOOLS_PATH", explicit)
 
-    assert same(n2x._resolve(None), planted)
+    assert same(shared.resolve(None), planted)
 
 
 def test_a_tool_that_is_nowhere_fails_with_an_actionable_message(sandbox, monkeypatch):
     monkeypatch.setenv("PATH", "")
 
-    with pytest.raises(n2x.Namespace2XmlError, match="dotnet tool install"):
-        n2x._resolve(None)
+    with pytest.raises(shared.Namespace2XmlError, match="dotnet tool install"):
+        shared.resolve(None)
 
 
 def test_the_install_advice_asks_for_a_prerelease(sandbox, monkeypatch):
@@ -186,8 +211,8 @@ def test_the_install_advice_asks_for_a_prerelease(sandbox, monkeypatch):
     # 3.0 goes stable, and that is a deliberate edit rather than a silent drift.
     monkeypatch.setenv("PATH", "")
 
-    with pytest.raises(n2x.Namespace2XmlError) as caught:
-        n2x._resolve(None)
+    with pytest.raises(shared.Namespace2XmlError) as caught:
+        shared.resolve(None)
 
     # Asserted against the command and not merely against the word '--prerelease' appearing
     # somewhere: the message also explains why the flag is needed, so a substring check for the
@@ -204,7 +229,85 @@ def test_every_success_path_returns_an_absolute_path(sandbox, monkeypatch):
     monkeypatch.setenv("PATH", directory)
     monkeypatch.chdir(sandbox)
 
-    assert os.path.isabs(n2x._resolve(None))
+    assert os.path.isabs(shared.resolve(None))
+
+
+def test_a_second_resolution_does_not_search_again(sandbox, monkeypatch):
+    """Searching is the expensive part, and ``render`` asks for it twice per call.
+
+    Once through ``tool_identity``, which resolves before it consults its own cache, and once
+    for the run itself. ``shutil.which`` walks every ``PATH`` entry against every ``PATHEXT``,
+    measured at 7.3 ms against 0.15 ms for a path that needs no searching -- so an uncached
+    resolver spent about 14.6 ms per render, roughly four times what all the temporary-file
+    marshalling costs, locating a file that had not moved (#112).
+    """
+    directory = str(sandbox / "on-path")
+    planted = plant(directory)
+    monkeypatch.setenv("PATH", directory)
+
+    searched = []
+    uncached = shared._search_for_tool
+
+    def counting(tool):
+        searched.append(tool)
+        return uncached(tool)
+
+    monkeypatch.setattr(shared, "_search_for_tool", counting)
+
+    assert same(shared.resolve(None), planted)
+    assert same(shared.resolve(None), planted)
+    assert len(searched) == 1
+
+
+def test_a_failure_is_not_remembered(sandbox, monkeypatch):
+    """A play may install the tool in one task and template with it in a later one.
+
+    ``_tool_directories`` exists because ``ansible-playbook``'s environment was fixed before the
+    play began, so a lookup that finds nothing now is expected to succeed later. Remembering the
+    miss would break the very case that function was written to serve.
+    """
+    directory = str(sandbox / "arrives-late")
+    os.makedirs(directory, exist_ok=True)
+    monkeypatch.setenv("PATH", directory)
+
+    with pytest.raises(shared.Namespace2XmlError, match="dotnet tool install"):
+        shared.resolve(None)
+
+    planted = plant(directory)
+
+    assert same(shared.resolve(None), planted)
+
+
+def test_a_remembered_path_that_stops_being_runnable_is_searched_for_again(sandbox, monkeypatch):
+    """A memo that outlives its answer is worse than no memo, because it is confidently wrong."""
+    first = str(sandbox / "first")
+    planted = plant(first)
+    second = str(sandbox / "second")
+    os.makedirs(second, exist_ok=True)
+    monkeypatch.setenv("PATH", os.pathsep.join((first, second)))
+
+    assert same(shared.resolve(None), planted)
+
+    os.remove(planted)
+    relocated = plant(second)
+
+    assert same(shared.resolve(None), relocated)
+
+
+def test_a_changed_path_is_answered_afresh(sandbox, monkeypatch):
+    """``PATH`` is part of the key because it is part of the question."""
+    first = str(sandbox / "first")
+    planted = plant(first)
+    second = str(sandbox / "second")
+    relocated = plant(second)
+
+    monkeypatch.setenv("PATH", first)
+
+    assert same(shared.resolve(None), planted)
+
+    monkeypatch.setenv("PATH", second)
+
+    assert same(shared.resolve(None), relocated)
 
 
 def test_the_error_derives_from_ansibles_filter_error():
@@ -217,3 +320,30 @@ def test_the_error_derives_from_ansibles_filter_error():
     from ansible.errors import AnsibleFilterError
 
     assert issubclass(n2x.Namespace2XmlError, AnsibleFilterError)
+
+
+def test_the_no_controller_fallback_can_still_be_combined_with_the_shared_error():
+    """The stand-in base has to sit under the shared error, never above it.
+
+    Where no controller is installed the filter falls back to a stand-in for
+    ``AnsibleFilterError`` so the specification-side half of the oracle can be run on a machine
+    with nothing else installed. ``Exception`` is the obvious stand-in and is wrong: the shared
+    error already derives from it, so naming it first gives the error class no consistent method
+    resolution order and the filter fails to import at all -- turning a convenience into a hard
+    breakage on exactly the machines the fallback was for.
+
+    The first assertion is what makes the second one mean something: it shows the shape that
+    does not construct, so the invariant below reads as a constraint rather than a preference.
+    """
+    # Matched short and stopped before "order": CPython 3.11 and 3.12 wrap this message as
+    # "...consistent method resolution\norder (MRO) for bases...", so the full phrase is not
+    # present as written on every interpreter the collection supports.
+    with pytest.raises(TypeError, match="consistent method resolution"):
+        type("Broken", (Exception, shared.Namespace2XmlError), {})
+
+    base = n2x._FilterErrorBase
+
+    assert not (issubclass(shared.Namespace2XmlError, base)
+                and base is not shared.Namespace2XmlError), (
+        "%s is above the shared error, so the two cannot be combined into one class"
+        % base.__name__)

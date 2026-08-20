@@ -9,11 +9,10 @@ questions before they can do anything useful: where is the binary, is it a build
 this collection actually documents, what did it say when it ran, and how is a value written so
 the tool reads it as data.
 
-The node-side plugins import this module. The controller-side filter, for now, does not: it is
-a single self-contained file loaded by ansible-core's filter machinery under a different Python,
-and it carries its own copies of the same answers. That duplication is deliberate and temporary
--- see issue #107 -- and it is not left to good intentions: a unit test compares the two
-encoders over an adversarial corpus and fails the build if they ever stop agreeing.
+The node-side plugins import this module, and so does the controller-side filter: a collection
+plugin is a real package, so the filter can reach ``module_utils`` by relative import and does.
+It was believed otherwise until issue #107, and the filter carried its own copies of every
+answer below; those copies are gone.
 
 Keeping one answer to each of these is not tidiness. The refusal below -- that a binary without
 a ``contract-bundle`` is a pre-3.0 build and must not be rendered through -- is the single
@@ -23,6 +22,7 @@ of agreement with the original while both still pass their own tests.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -30,6 +30,7 @@ import subprocess
 __all__ = [
     "Namespace2XmlError",
     "encode_value",
+    "encode_scheme_mapping",
     "resolve",
     "tool_identity",
     "support_hint",
@@ -49,6 +50,7 @@ class Namespace2XmlError(Exception):
 
 
 _IDENTITY_CACHE: dict = {}
+_RESOLVE_CACHE: dict = {}
 
 _VALUE_CONTAINER_SENTINELS = {"{}": "\\{}", "[]": "\\[]"}
 
@@ -99,6 +101,280 @@ def encode_value(text):
         index += 1
 
     return "".join(out)
+
+
+_SCHEME_BOOLEANS = {True: "true", False: "false"}
+_SCHEME_LITERAL_DOT = "\\."
+
+
+def encode_scheme_mapping(mapping):
+    """Render a playbook mapping as a Section 15 scheme document.
+
+    A scheme written as a mapping is not the same shape as one written as text. In the text
+    form a dot separates name parts; in the mapping form the *nesting* carries the path, so a
+    key containing a dot is one name part with a dot inside it -- Section 9 says a native key
+    is one component, and the delimiter "loses its meaning there, because a key is one part
+    rather than a path". The tool echoes such a key back as ``configuration\\u{2E}output``.
+    Where that lands as a directive name it is rejected; where it lands as a *selector* it
+    draws only ``WARN009`` and the render succeeds with the directive inert. That second case
+    -- a wrong answer with a zero exit code -- is what this function exists to catch at the
+    plugin boundary, with a message that names both fixes.
+
+    The document is emitted as JSON, not YAML. Section 15 accepts ``.json``, ``.yaml`` and
+    ``.yml`` alike, JSON is a subset of YAML, and ``json`` is in the standard library. A node
+    already needs .NET and the tool; emitting YAML would add PyYAML to that list to buy
+    nothing.
+
+    Key order is preserved, and must be. Section 15.2 gives scheme directives source order
+    only: a later matching directive overrides an earlier one, and pattern specificity does
+    not alter precedence. Sorting the keys would silently change what the scheme means.
+    """
+    if not isinstance(mapping, dict):
+        raise Namespace2XmlError(
+            "A mapping scheme must be a mapping, not %s." % _scheme_kind(mapping))
+
+    if not mapping:
+        raise Namespace2XmlError(
+            "A mapping scheme is empty. Section 15 wants at least one directive; omit the "
+            "argument entirely if no inline scheme is intended.")
+
+    return json.dumps(
+        _scheme_branch(mapping, ()), indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+
+
+def _scheme_kind(value):
+    """Name a value's type the way an author would recognize it from their playbook."""
+    if value is None:
+        return "an empty value"
+
+    return {
+        bool: "a boolean", int: "a number", float: "a number",
+        str: "a string", list: "a list", tuple: "a list", dict: "a mapping",
+    }.get(type(value), "a %s" % type(value).__name__)
+
+
+def _scheme_where(path):
+    """Locate a key for an error message.
+
+    Bracketed rather than dotted on purpose: in this form a dot is a literal character in a
+    name, so a dotted location would illustrate the very confusion being reported.
+    """
+    return "".join("[%s]" % part for part in path) or "the top level"
+
+
+def _scheme_branch(node, path):
+    """Validate and normalize one mapping level, preserving author order."""
+    branch = {}
+
+    for key, value in node.items():
+        if not isinstance(key, str):
+            raise Namespace2XmlError(
+                "The key %r under %s is %s. Quote it: a scheme path is made of names, and "
+                "YAML reads an unquoted %s as a value rather than a name."
+                % (key, _scheme_where(path), _scheme_kind(key), key))
+
+        if not key:
+            raise Namespace2XmlError(
+                "A key under %s is empty. Section 15 has no empty name part."
+                % _scheme_where(path))
+
+        if "." in key or _SCHEME_LITERAL_DOT in key:
+            name = _scheme_name_part(key, path)
+        else:
+            name = key
+
+        here = path + (key,)
+
+        if isinstance(value, dict):
+            if not value:
+                raise Namespace2XmlError(
+                    "The mapping at %s is empty, so it declares nothing. Give it a directive "
+                    "or drop it." % _scheme_where(here))
+
+            branch[name] = _scheme_branch(value, here)
+        else:
+            branch[name] = _scheme_leaf(value, here)
+
+    return branch
+
+
+def _scheme_qname_span(key):
+    """Measure a leading ``Q{...}`` marker, whose dots are URI text rather than separators.
+
+    Section 8 lists ``Q{uri}x`` among the markers a native mapping key carries, and Section
+    11.4 settles what a dot inside one means: "dots inside ``Q{...}`` are part of the URI and
+    do not split the qualified path". Refusing such a key would reject a name the tool accepts
+    as written, and offering to nest it would be worse than useless -- Section 8 also makes
+    marker recognition committing, so ``Q{urn:example`` is ``PARSE001`` rather than an ordinary
+    part, and an author who took that advice would land on a blocking error.
+
+    The marker is recognized at the start of a part only, optionally after the ``@`` that marks
+    an attribute (Section 11.4's ``@Q{urn:p}x``). The first unescaped ``}`` closes the URI;
+    ``\\}`` does not. An unterminated marker spans the rest of the key and is passed through
+    for the tool to reject as ``PARSE001``, a loud refusal downstream being exactly not the
+    silent wrong answer this converter exists to prevent.
+    """
+    start = 1 if key.startswith("@") else 0
+
+    if not key.startswith("Q{", start):
+        return 0
+
+    index = start + 2
+
+    while index < len(key):
+        if key[index] == "\\":
+            index += 2
+        elif key[index] == "}":
+            return index + 1
+        else:
+            index += 1
+
+    return len(key)
+
+
+def _scheme_name_part(key, path):
+    """Resolve one mapping key to the name part it denotes, or refuse it.
+
+    Section 9 settles what a native key means: a JSON or YAML mapping key is one component,
+    and only the delimiter and ``\\u{HEX}`` lose their meaning there, "because a key is one
+    part rather than a path". A dotted key is therefore a name with a dot inside it, which is
+    almost never what an author reaching for ``a.b:`` intends.
+
+    YAML quoting cannot carry the distinction. ``a.b``, ``'a.b'`` and ``"a.b"`` all load to
+    the same string and the quote style is discarded by the parser, so there is no signal to
+    read. The escape is carried in the text instead, spelled as Section 8 spells it in the
+    namespace form: ``\\.`` is one literal dot. Note that YAML's own double-quoted style
+    rejects ``"a\\.b"`` as an unknown escape -- write it plain or single-quoted.
+
+    A dot inside a leading ``Q{...}`` marker is neither a separator nor an ambiguity: Section
+    11.4 makes it URI text. Those dots pass through unrefused and unescaped, as measured by
+    :func:`_scheme_qname_span`.
+    """
+    span = _scheme_qname_span(key)
+    out = []
+    index = 0
+
+    while index < len(key):
+        if key.startswith(_SCHEME_LITERAL_DOT, index):
+            out.append(".")
+            index += 2
+            continue
+
+        if key[index] == "." and index >= span:
+            raise Namespace2XmlError(
+                "The key '%s' under %s contains a dot. In a mapping scheme the nesting "
+                "carries the path, so a dot here separates nothing -- Section 9 makes a "
+                "native key one name part -- and as a selector it would match nothing "
+                "(WARN009) rather than fail. Nest the parts instead -- '%s' -- or write "
+                "'%s' if one name containing a literal dot is what you meant."
+                % (key, _scheme_where(path), _scheme_nesting_hint(key),
+                   _scheme_escape_dots(key)))
+
+        out.append(key[index])
+        index += 1
+
+    return "".join(out)
+
+
+def _scheme_escape_dots(key):
+    """Show the literal-dot spelling of a key, escaping only its unescaped dots.
+
+    Dots inside a leading ``Q{...}`` marker are left alone: Section 11.4 already reads them as
+    URI text, so escaping them would change the URI rather than preserve it.
+    """
+    span = _scheme_qname_span(key)
+    out = []
+    index = 0
+
+    while index < len(key):
+        if key.startswith(_SCHEME_LITERAL_DOT, index):
+            out.append(_SCHEME_LITERAL_DOT)
+            index += 2
+        elif key[index] == "." and index >= span:
+            out.append(_SCHEME_LITERAL_DOT)
+            index += 1
+        else:
+            out.append(key[index])
+            index += 1
+
+    return "".join(out)
+
+
+def _scheme_nesting_hint(key):
+    """Show the nested spelling of a dotted key, for the error that rejects it.
+
+    Splits on unescaped dots outside any leading ``Q{...}`` marker only. An already-escaped dot
+    stays inside its part *and stays escaped*: the hint is text the author is meant to paste
+    back, so decoding the escape here would print a spelling this converter then refuses.
+    """
+    span = _scheme_qname_span(key)
+    parts = []
+    current = []
+    index = 0
+
+    while index < len(key):
+        if key.startswith(_SCHEME_LITERAL_DOT, index):
+            current.append(_SCHEME_LITERAL_DOT)
+            index += 2
+        elif key[index] == "." and index >= span:
+            parts.append("".join(current))
+            current = []
+            index += 1
+        else:
+            current.append(key[index])
+            index += 1
+
+    parts.append("".join(current))
+
+    return " -> ".join(part for part in parts if part)
+
+
+def _scheme_leaf(value, path):
+    """Validate and stringify one directive value."""
+    if value is None:
+        raise Namespace2XmlError(
+            "The directive at %s has no value. Section 15 wants a nonempty scalar, and a "
+            "YAML key written with nothing after the colon parses as an empty value."
+            % _scheme_where(path))
+
+    if isinstance(value, (list, tuple)):
+        raise Namespace2XmlError(
+            "The directive at %s is a list, and Section 15 wants a nonempty scalar. A "
+            "directive that takes several values is spelled as one comma-separated scalar: "
+            "%s." % (_scheme_where(path), _scheme_comma_hint(value)))
+
+    if isinstance(value, bool):
+        return _SCHEME_BOOLEANS[value]
+
+    if isinstance(value, float):
+        raise Namespace2XmlError(
+            "The directive at %s is %r, which YAML read as a number -- so a value written "
+            "as 3.10 arrives as 3.1. Quote it to keep what you wrote."
+            % (_scheme_where(path), value))
+
+    if isinstance(value, int):
+        return str(value)
+
+    if not isinstance(value, str):
+        raise Namespace2XmlError(
+            "The directive at %s is %s. Section 15 wants a nonempty scalar."
+            % (_scheme_where(path), _scheme_kind(value)))
+
+    if not value:
+        raise Namespace2XmlError(
+            "The directive at %s is empty. Section 15 wants a nonempty scalar."
+            % _scheme_where(path))
+
+    return value
+
+
+def _scheme_comma_hint(values):
+    """Show the comma-scalar spelling of a list, for the error that rejects it."""
+    joined = ",".join(
+        _SCHEME_BOOLEANS[item] if isinstance(item, bool) else str(item)
+        for item in values if item is not None)
+
+    return "'%s'" % joined if joined else "one scalar naming every value"
 
 
 def _executable_names():
@@ -169,6 +445,40 @@ def _tool_directories():
 
 
 def resolve(tool=None):
+    """Find the tool binary, memoizing the search but never the failure to find one.
+
+    The search is expensive and `render` asks for it twice per call -- once through
+    `tool_identity`, which resolves before it consults its own cache, and once for the run
+    itself. `shutil.which` walks every `PATH` entry against every `PATHEXT`, which measured
+    7.3 ms against 0.15 ms for a path that needs no searching, so an uncached resolver put
+    ~14.6 ms into every render to locate a file that had not moved -- roughly four times what
+    all the temporary-file marshalling costs (#112).
+
+    Two things this must not do.
+
+    It must not remember a failure. `_tool_directories` explains that on the node a
+    non-interactive shell never sourced the profile the install instructions told a human to
+    re-source, and on the controller a tool installed by an earlier task in the same play is
+    invisible to the `PATH` this process started with. A lookup that misses now is expected to
+    succeed later, and caching the miss would break the case that function exists to serve.
+
+    It must not hand back a path that has stopped being runnable. A hit is revalidated before
+    it is trusted, which costs a fraction of the search it replaces and means a tool moved or
+    removed mid-play falls through to a fresh lookup rather than to a stale answer.
+    """
+    key = (tool, os.environ.get("NAMESPACE2XML"), os.environ.get("PATH"))
+    cached = _RESOLVE_CACHE.get(key)
+
+    if cached is not None and _runnable(cached):
+        return cached
+
+    found = _search_for_tool(tool)
+    _RESOLVE_CACHE[key] = found
+
+    return found
+
+
+def _search_for_tool(tool):
     """Find the tool binary, or say precisely what to do about its absence."""
     if tool:
         return _given(tool, "the 'tool' argument")

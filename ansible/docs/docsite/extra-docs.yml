@@ -1,0 +1,17 @@
+---
+# Prose pages rendered alongside the plugin documentation on Galaxy and by antsibull-docs.
+#
+# This exists for one thing the generated pages cannot say. Galaxy lists a collection's
+# contents, and that listing includes `plugins/module_utils/n2x.py` and
+# `plugins/module_utils/render_node.py` with empty documentation pages. They are empty because
+# module_utils is not one of Ansible's documentable plugin types -- it is absent from
+# `ansible.constants.DOCUMENTABLE_PLUGINS` -- so there is no DOCUMENTATION block to write and no
+# renderer that would read one. An author who finds those pages deserves to be told what they
+# are looking at rather than left to guess.
+#
+# The renderer takes reStructuredText only; Markdown here is not processed. Everything already
+# said in README.md stays there and is linked, not restated.
+sections:
+  - title: Guides
+    toctree:
+      - what_is_in_this_collection

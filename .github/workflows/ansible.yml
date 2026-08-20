@@ -81,6 +81,56 @@ jobs:
           set -euo pipefail
           ansible-test sanity --venv --python 3.13 --color -v
 
+  # ansible-test sanity validates the plugins' own DOCUMENTATION blocks and nothing else. The
+  # prose pages under docs/docsite are rendered by antsibull-docs, which Galaxy runs and this
+  # repository does not, so an unknown role or a toctree entry naming a file that is not there
+  # would be discovered on the docs site after publishing -- and a published version cannot be
+  # replaced. This job is the only thing that reads extra-docs.yml before a consumer does.
+  docsite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install antsibull-docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check \
+            'ansible-core>=2.21,<2.22' antsibull-docs
+          antsibull-docs --version
+
+      - name: Stage the collection
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/$COLLECTION_TREE"
+          mkdir -p "$(dirname "$dest")"
+          cp -a ansible "$dest"
+          test -f "$dest/docs/docsite/extra-docs.yml"
+
+      # The linter reports problems on stdout and still exits zero in some versions, so the
+      # output is checked as well as the status. A silent pass that printed complaints is the
+      # exact failure mode this job exists to prevent.
+      - name: antsibull-docs lint-collection-docs
+        shell: bash
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/$COLLECTION_TREE"
+          status=0
+          antsibull-docs lint-collection-docs --plugin-docs "$dest" > "$RUNNER_TEMP/lint.txt" 2>&1 \
+            || status=$?
+          cat "$RUNNER_TEMP/lint.txt"
+          if [ "$status" -ne 0 ] || [ -s "$RUNNER_TEMP/lint.txt" ]; then
+            echo "::error::antsibull-docs reported problems in the collection documentation"
+            exit 1
+          fi
+          echo "the collection documentation lints clean"
+
   # `ansible-galaxy collection build` reports success for any tree it can read, including one whose
   # build_ignore has quietly swallowed a plugin, and the tarball -- not the repository -- is the
   # whole of what a Galaxy consumer ever receives. Ten files reach them; everything else in this
@@ -191,8 +241,8 @@ jobs:
           mkdir -p "$(dirname "$dest")"
           cp -a ansible "$dest"
           mapfile -t modules < <(find "$dest/tests/unit" -name 'test_*.py' | sort)
-          if [ "${#modules[@]}" -ne 5 ]; then
-            printf 'Expected 5 unit test modules, found %d:\n' "${#modules[@]}" >&2
+          if [ "${#modules[@]}" -ne 6 ]; then
+            printf 'Expected 6 unit test modules, found %d:\n' "${#modules[@]}" >&2
             printf '  %s\n' "${modules[@]}" >&2
             exit 1
           fi
@@ -284,6 +334,43 @@ jobs:
               exit 1
             fi
           done
+
+      - name: The filter loads and runs under this ansible-core
+        shell: bash
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          # The step above proves ansible-doc can parse the docstring, which it does by reading
+          # the source rather than importing it. This one proves the release can actually load
+          # and call the plugin, which is a different claim and the one the version floor is
+          # really making: the filter reaches its own module_utils by relative import, and that
+          # only resolves if this ansible-core gives a collection plugin real package semantics.
+          #
+          # No binary is needed. Section 16.1's format check runs before the tool is resolved,
+          # so a deliberately bad format reaches the filter, executes it, and comes back with a
+          # message only the filter could have produced. A broken import fails here instead,
+          # and fails with an import error rather than this text.
+          cat > /tmp/probe.yml <<'PLAY'
+          - hosts: localhost
+            connection: local
+            gather_facts: false
+            tasks:
+              - name: A bad format must be refused by the filter, not by the tool
+                debug:
+                  msg: "{{ {'a': 1} | stop_cran.namespace2xml.render('not-a-format') }}"
+                register: outcome
+                ignore_errors: true
+
+              - name: The refusal has to be the filter's own
+                assert:
+                  that:
+                    - outcome is failed
+                    - "'not-a-format' in (outcome.msg | default(''))"
+                    - "'quotednamespace' in (outcome.msg | default(''))"
+                  fail_msg: "The filter did not run: {{ outcome.msg | default('no message') }}"
+          PLAY
+          ansible-playbook -i localhost, /tmp/probe.yml
 
       - name: The unit tests pass against this ansible-core
         shell: bash

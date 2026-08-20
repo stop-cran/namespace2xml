@@ -46,8 +46,8 @@ options:
   scheme:
     description:
       - Ordered scheme file paths on the managed node, each becoming one C(-s) argument.
-      - At least one of I(scheme) or I(scheme_text) is required. A render with no C(output)
-        directive produces no files, so the tool makes C(-s) mandatory.
+      - At least one of I(scheme), I(scheme_text) or I(scheme_yaml) is required. A render with
+        no C(output) directive produces no files, so the tool makes C(-s) mandatory.
     type: list
     elements: path
     default: []
@@ -60,7 +60,35 @@ options:
       - Input options such as C(xmlinputoptions) must be written unqualified. Section 16.8
         makes a selector-qualified input option a blocking C(SCHEME001), because input parsing
         happens before any output instance exists.
+      - Mutually exclusive with I(scheme_yaml).
     type: str
+  scheme_yaml:
+    description:
+      - The same scheme written as a native YAML mapping instead of a block of text, so it
+        reads as part of the playbook rather than as an embedded document.
+      - B(The nesting carries the path.) Section 9 makes a JSON or YAML mapping key one name
+        part, so a dot does not separate names here as it does in I(scheme_text) - a key
+        containing a dot asks for one name with a literal dot in it. It is refused rather than
+        passed through, because as a selector it would draw only C(WARN009) and the render
+        would succeed with the directive inert. Write C(configuration:) then C(output:)
+        beneath it, not C(configuration.output:).
+      - To select a name that really does contain a dot, escape it C(\.) as section 8 does -
+        C('a\.b') is the single name C(a.b). Quoting cannot express this, since C(a.b) and
+        C('a.b') load to the same string; write it plain or single-quoted, as YAML's
+        double-quoted style rejects C("a\.b") as an unknown escape.
+      - A dot inside a leading C(Q{...}) needs no escape. Section 11.4 makes those dots part
+        of the URI, where they "do not split the qualified path", so C('Q{urn:example.com}name')
+        and C('@Q{urn:example.com}x') are written as they read. The URI ends at the first
+        unescaped C(}); a dot in the local name after it is ambiguous like any other.
+      - A directive that takes several values is one comma-separated scalar, C(output),
+        C("xml,json"). A YAML list is refused, because section 15 wants a nonempty scalar.
+      - Quote a wildcard selector - bare C(*) is a YAML alias indicator. Quote anything that
+        YAML would read as a number, since C(3.10) arrives as C(3.1).
+      - Carries the same section 15.2 precedence as I(scheme_text), and is mutually exclusive
+        with it. Passed to the tool as a JSON document, which section 15 accepts alongside YAML
+        and which needs nothing installed on the node beyond what this module already requires.
+    type: dict
+    version_added: 2.1.0
   variables:
     description:
       - Namespace entries applied after all input files, each becoming one C(-v name=value)
@@ -179,6 +207,26 @@ EXAMPLES = r"""
     dest: /opt/app/conf
     mode: "0644"
 
+- name: The same scheme as a YAML mapping, where the nesting carries the path
+  stop_cran.namespace2xml.render:
+    src:
+      - /opt/app/templates/logback.xml
+    scheme_yaml:
+      xmlinputoptions: NormalizeFormattingWhitespace
+      configuration:
+        output: xml
+        filename: logback.xml
+        root: configuration
+        # Quoted: a bare asterisk is a YAML alias indicator, not a selector.
+        appender:
+          "*":
+            name:
+              type: ignore
+    variables:
+      configuration.root.@level: DEBUG
+    dest: /opt/app/conf
+    mode: "0644"
+
 - name: Combine a shipped default with a node-local override
   stop_cran.namespace2xml.render:
     src:
@@ -247,8 +295,24 @@ import tempfile
 
 from ansible.module_utils.basic import AnsibleModule
 
-from ..module_utils.n2x import Namespace2XmlError
+from ..module_utils.n2x import Namespace2XmlError, encode_scheme_mapping
 from ..module_utils.render_node import render
+
+
+def _inline_scheme(module):
+    """The inline scheme as a ``(text, file name)`` pair, or ``(None, None)``.
+
+    The file name carries meaning. Section 15 selects the parser from the extension, so the
+    mapping form has to land on a ``.json`` name and the text form has to avoid one.
+    """
+    if module.params["scheme_text"]:
+        return module.params["scheme_text"], "inline.scheme"
+
+    # Not truthiness: an empty mapping is a mistake worth reporting, not one to ignore.
+    if module.params["scheme_yaml"] is not None:
+        return encode_scheme_mapping(module.params["scheme_yaml"]), "inline.scheme.json"
+
+    return None, None
 
 
 def main():
@@ -257,12 +321,14 @@ def main():
             src=dict(type="list", elements="path", required=True),
             scheme=dict(type="list", elements="path", default=[]),
             scheme_text=dict(type="str"),
+            scheme_yaml=dict(type="dict"),
             variables=dict(type="dict"),
             dest=dict(type="path", required=True),
             tool=dict(type="path"),
         ),
         add_file_common_args=True,
         supports_check_mode=True,
+        mutually_exclusive=[("scheme_text", "scheme_yaml")],
     )
 
     dest = module.params["dest"]
@@ -270,14 +336,16 @@ def main():
     scratch = tempfile.mkdtemp(dir=module.tmpdir)
 
     try:
-        if module.params["scheme_text"]:
+        inline_text, inline_name = _inline_scheme(module)
+
+        if inline_text is not None:
             # Last, so an inline directive overrides the same directive in a scheme file.
             # Section 15.2 makes the later one win, and the playbook is the more specific
             # statement of intent than a file shipped with the application.
-            inline = os.path.join(module.tmpdir, "inline.scheme")
+            inline = os.path.join(module.tmpdir, inline_name)
 
             with open(inline, "w", encoding="utf-8") as handle:
-                handle.write(module.params["scheme_text"])
+                handle.write(inline_text)
 
             schemes.append(inline)
 
