@@ -578,6 +578,53 @@ def test_supplying_both_scheme_spellings_is_refused():
                     scheme_yaml={"cfg": {"output": "xml"}})
 
 
+# --- The module's name for inline text works here too -------------------------------------------
+#
+# On the `render` module `scheme` is a list of file paths and `scheme_text` is inline text; here
+# `scheme` *is* the inline text. Moving a render between the two therefore meant renaming the
+# argument, which is a rename with no reason a play author could see. `scheme_text` is accepted
+# here as the same argument, so one name works in both places. See #114.
+
+def test_the_module_spelling_of_inline_text_reaches_the_render_identically(monkeypatch):
+    """Identical in everything but the name carried along to quote back in a refusal."""
+    seen = []
+    monkeypatch.setattr(filt, "_render", lambda *args: seen.append(args) or "<x/>")
+
+    filt.render({"k": "v"}, "xml", scheme="cfg.output=xml\n")
+    filt.render({"k": "v"}, "xml", scheme_text="cfg.output=xml\n")
+
+    assert seen[0][:-1] == seen[1][:-1], "the two spellings must render the same thing"
+    assert (seen[0][-1], seen[1][-1]) == ("scheme", "scheme_text")
+
+
+def test_supplying_both_names_for_the_inline_text_is_refused():
+    """One argument under two names, so the pair leaves it ambiguous which was meant."""
+    with pytest.raises(filt.Namespace2XmlError, match="'scheme' and 'scheme_text'"):
+        filt.render({"k": "v"}, "xml", scheme="cfg.output=xml\n",
+                    scheme_text="cfg.output=xml\n")
+
+
+def test_a_refusal_quotes_back_the_scheme_spelling_the_caller_wrote():
+    """Being told to fix 'scheme' when the play says `scheme_text` sends the author looking for an
+    argument that is not in their playbook."""
+    with pytest.raises(filt.Namespace2XmlError, match="'scheme_text' and 'scheme_yaml'"):
+        filt.render({"k": "v"}, "xml", scheme_text="cfg.output=xml\n",
+                    scheme_yaml={"cfg": {"output": "xml"}})
+
+
+def test_a_synthesis_only_argument_alongside_the_module_spelling_names_that_spelling():
+    """Same reason, on the refusal a caller is far likelier to actually hit."""
+    with pytest.raises(filt.Namespace2XmlError, match="explicit 'scheme_text'"):
+        filt.render({"k": "v"}, "xml", scheme_text="cfg.output=xml\n", root="configuration")
+
+
+def test_a_synthesis_only_argument_alongside_a_mapping_scheme_names_the_mapping_argument():
+    """A mapping author told to fix 'scheme' is being pointed at a third argument again."""
+    with pytest.raises(filt.Namespace2XmlError, match="explicit 'scheme_yaml'"):
+        filt.render({"k": "v"}, "xml", scheme_yaml={"cfg": {"output": "xml"}},
+                    root="configuration")
+
+
 # --- Which schemes have to be put to the tool, and which answer themselves ----------------------
 #
 # Reading a scheme for its formats can say what it mentions; only section 15.2 says which of them

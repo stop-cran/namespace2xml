@@ -109,8 +109,21 @@ options:
         formats in one C(output) declaration, or several C(filename) targets - has no single
         result to hand back and the render fails. Use the C(stop_cran.namespace2xml.render)
         module when the scheme is meant to produce several files.
-      - Mutually exclusive with O(scheme_yaml).
+      - Mutually exclusive with O(scheme_yaml), and with O(scheme_text), which is this same
+        argument under the name the module gives it.
     type: str
+  scheme_text:
+    description:
+      - Explicit scheme text - the same argument as O(scheme), under the name the
+        C(stop_cran.namespace2xml.render) module gives it.
+      - On the module C(scheme) takes B(file paths) and C(scheme_text) takes B(inline text), so
+        moving a render between the filter and the module meant renaming the argument. Spelling
+        it C(scheme_text) in both places now works. C(scheme) keeps its filter meaning and is
+        not deprecated.
+      - Carries every refusal and every check described under O(scheme). Mutually exclusive with
+        O(scheme) and with O(scheme_yaml).
+    type: str
+    version_added: 2.3.0
   scheme_yaml:
     description:
       - The same scheme as O(scheme), written as a native mapping instead of a block of text,
@@ -136,6 +149,7 @@ options:
         would read as a number, since C(3.10) arrives as C(3.1).
       - Carries the same refusals and the same O(fmt) check as O(scheme). Passed to the
         tool as a JSON document, which section 15 accepts alongside YAML.
+      - Mutually exclusive with O(scheme) and O(scheme_text).
     type: dict
     version_added: 2.1.0
   delimiter:
@@ -152,12 +166,21 @@ options:
     type: path
   memoize:
     description:
-      - Reuse the result of an identical earlier render within the same run.
+      - Reuse the result of an identical earlier render within the same worker process.
       - The cache key covers the whole marshalled input plus the tool's version and contract
         revision, so it cannot survive a tool or contract change. Set to V(false) to force
         every call to spawn the tool.
       - A memoized call does not re-run the tool, so any warning the tool reports is shown
         once for a given input rather than once per call.
+      - B(The caches are per worker, not per run.) C(ansible-playbook) forks a fresh worker for
+        every (host, task) pair, and every cache in this filter - the memoized render, the
+        resolved binary path and the tool's contract identity - dies with it. Measured on
+        ansible-core 2.17 under the C(linear) strategy - five identical renders in one task on
+        one host cost one binary lookup, one C(--version) probe and one render subprocess; the
+        same five across eight hosts cost eight of each; one render in each of three tasks
+        across eight hosts costs twenty-four of each. The floor is one probe plus one render
+        per (host, task). Rendering several documents in one task keeps you at that floor;
+        spreading them over tasks does not.
     type: bool
     default: true
   workdir:
@@ -959,7 +982,7 @@ def _has_reference(declaration):
     return False
 
 
-def _refuse_swallowed_arguments(scheme, fmt, root, delimiter):
+def _refuse_swallowed_arguments(scheme, fmt, root, delimiter, spelling="scheme"):
     """Refuse arguments that an explicit scheme would silently discard.
 
     ``root`` and ``delimiter`` are read only while synthesizing a scheme. Passed alongside one,
@@ -986,10 +1009,10 @@ def _refuse_swallowed_arguments(scheme, fmt, root, delimiter):
 
     if swallowed:
         raise Namespace2XmlError(
-            "%s cannot be combined with an explicit 'scheme'. Those arguments are read only "
+            "%s cannot be combined with an explicit '%s'. Those arguments are read only "
             "while synthesizing a scheme, so here they would be discarded and the render would "
             "succeed having ignored them. Declare them in the scheme instead, as %s."
-            % (" and ".join("'%s'" % name for name in swallowed),
+            % (" and ".join("'%s'" % name for name in swallowed), spelling,
                _declare_hint(scheme, swallowed)))
 
     declarations = _output_declarations(scheme)
@@ -1053,6 +1076,7 @@ def render(
     memoize=True,
     workdir=None,
     convention=DEFAULT_CONVENTION,
+    scheme_text=None,
 ):
     """Render a dictionary as configuration text in ``fmt``.
 
@@ -1076,6 +1100,8 @@ def render(
         section 11.4 marker in a key is escaped and the key means itself, or ``xmltodict``,
         where ``@x``, ``Q{uri}x``, ``#n`` and ``#text`` address an attribute, a namespaced
         element, a content node and an element's own text.
+    :param scheme_text: ``scheme`` under the name the ``render`` module gives inline text.
+        Mutually exclusive with both other spellings.
     :returns: the rendered text.
     """
     # This is the collection's one filter, so it is the one place a refusal from the shared
@@ -1084,29 +1110,53 @@ def render(
     # type with a traceback instead of a message. Restating them here, once, is what keeps a
     # missing binary reading as a failed task rather than as a bug in this collection.
     try:
-        return _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool,
-                       memoize, workdir, convention)
+        explicit, spelling = _one_scheme_spelling(scheme, scheme_text)
+
+        return _render(config, fmt, explicit, scheme_yaml, root, selector, delimiter, tool,
+                       memoize, workdir, convention, spelling)
     except Namespace2XmlError:
         raise
     except _SharedError as error:
         raise Namespace2XmlError(str(error)) from error
 
 
+def _one_scheme_spelling(scheme, scheme_text):
+    """Collapse the two names for explicit scheme text down to the one the caller wrote.
+
+    ``scheme_text`` exists so that inline text spells the same here as it does on the
+    ``render`` module, where ``scheme`` is taken by file paths. It is one argument under two
+    names, so the pair together is refused, and the name that survives is carried forward for
+    every later message to quote back -- being told to fix ``'scheme'`` when you wrote
+    ``scheme_text`` sends you looking for an argument that is not in your playbook.
+    """
+    if scheme is not None and scheme_text is not None:
+        raise Namespace2XmlError(
+            "'scheme' and 'scheme_text' are two spellings of one argument, so supplying both "
+            "leaves it ambiguous which the render should use. Keep the one you mean.")
+
+    if scheme_text is not None:
+        return scheme_text, "scheme_text"
+
+    return scheme, "scheme"
+
+
 def _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool, memoize,
-            workdir, convention):
+            workdir, convention, spelling="scheme"):
     """Do the work of :func:`render`, raising either error class."""
     profile = flatten(config, selector, convention)
 
     if scheme is not None and scheme_yaml is not None:
         raise Namespace2XmlError(
-            "'scheme' and 'scheme_yaml' are two spellings of one argument, so supplying both "
-            "leaves it ambiguous which the render should use. Keep the one you mean.")
+            "'%s' and 'scheme_yaml' are two spellings of one argument, so supplying both "
+            "leaves it ambiguous which the render should use. Keep the one you mean."
+            % spelling)
 
     explicit = scheme if scheme is not None else scheme_yaml
     probe = None
 
     if explicit is not None:
-        _refuse_swallowed_arguments(explicit, fmt, root, delimiter)
+        _refuse_swallowed_arguments(explicit, fmt, root, delimiter,
+                                    "scheme_yaml" if scheme is None else spelling)
         probe = _format_probe(explicit, fmt, selector)
 
     if scheme_yaml is not None:

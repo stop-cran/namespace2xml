@@ -126,12 +126,13 @@ the rendered text against what is on the node.
 | `fmt` | *(positional, required)* `xml`, `json`, `yaml`, `ini`, `namespace`, `quotednamespace` |
 | `root` | the XML document element name. Required whenever the data has more than one top-level key |
 | `scheme` | explicit scheme text, for anything the synthesized minimal scheme does not cover. On the module this same name means scheme *files* — see the note under the module's arguments |
-| `scheme_yaml` | the same scheme written as a YAML mapping instead of text. Mutually exclusive with `scheme` |
+| `scheme_text` | the same argument as `scheme`, under the name the module gives inline text. Use it when you want one spelling in both plugins |
+| `scheme_yaml` | the same scheme written as a YAML mapping instead of text. Mutually exclusive with `scheme` and `scheme_text` |
 | `selector` | the top-level name the data is written under. Default `cfg` |
 | `convention` | how mapping keys are read: `escaped` (default) or `xmltodict`, which reads `@`, `Q{…}` and `#` as XML addressing |
 | `delimiter` | output delimiter, for the flat formats |
 | `tool` | path to the binary. Authoritative — a value given here resolves or the filter fails |
-| `memoize` | reuse an identical earlier render in the same run. Default `true` |
+| `memoize` | reuse an identical earlier render in the same worker process. Default `true` |
 | `workdir` | parent for the temporary marshalling directory |
 
 Full documentation, including the specification sections each argument corresponds to:
@@ -139,6 +140,13 @@ Full documentation, including the specification sections each argument correspon
 ```bash
 ansible-doc -t filter stop_cran.namespace2xml.render
 ```
+
+> **What a render costs.** `ansible-playbook` forks a worker per (host, task) pair, and every
+> cache the filter keeps — the memoized render, the resolved binary path, the tool's contract
+> identity — lives and dies inside that worker. Five identical renders in one task on one host
+> cost one `--version` probe and one tool subprocess; one render in each of three tasks across
+> eight hosts costs twenty-four of each. Rendering several documents in one task stays at the
+> floor; spreading them over tasks does not. `ansible-doc` has the measurements.
 
 ### `root` is required for XML with more than one top-level key
 
@@ -266,8 +274,12 @@ the handful of things that differ on this host, and the node renders its own con
 > **`scheme` does not mean the same thing on the two plugins.** On the filter it is scheme
 > *text*, because a controller-side render has no node filesystem to read from. On the module it
 > is a list of scheme *file paths on the node*, and the inline-text spelling is `scheme_text`.
-> `scheme_yaml` means the same mapping on both. Moving a scheme between the two plugins means
-> changing the argument name, not just the value.
+> `scheme_yaml` means the same mapping on both.
+>
+> Since 2.3.0 the filter also accepts `scheme_text` as a second name for its `scheme`, so inline
+> text can be written the same way in both plugins and a scheme moved between them needs no
+> rename. `scheme` keeps its filter meaning and is not deprecated — but a play that says
+> `scheme` in both places is saying two different things.
 
 Plus the standard file arguments — `mode`, `owner`, `group`, `seuser` and the rest — applied to
 every produced file.
@@ -445,7 +457,7 @@ When the base document is a file on the node, the [`render` module](#the-render-
 
 ## Versioning
 
-This collection is at 2.2.0 while the tool is at 3.x. They are separate artefacts with separate
+This collection is at 2.3.0 while the tool is at 3.x. They are separate artefacts with separate
 compatibility promises: the collection pins no tool version, and the two are released under
 different tags — `v3.*` for the tool, `ansible-v*` for this collection.
 
@@ -463,6 +475,15 @@ ansible-core floor from 2.14 to 2.15 — the first release that interprets the s
 plugin documentation is written in rather than printing it literally. That floor is why this is a
 minor and not a patch: it narrows the range of Ansible you may run this on. Every 2.1.0 playbook
 renders identically.
+
+2.3.0 adds `scheme_text` to the filter as a second name for its `scheme`, so inline scheme text
+is spelled the same in both plugins and moving a render between them no longer means renaming an
+argument. It is additive — `scheme` is untouched and not deprecated — and it also fixes refusals
+that quoted an argument name the caller had not written: a play using `scheme_yaml` or
+`scheme_text` was told to fix `scheme`, which is not in the playbook. The remainder of the
+release is documentation: the per-(host, task) cost of a render is now stated rather than left to
+be discovered, closing [#113](https://github.com/stop-cran/namespace2xml/issues/113). Every 2.2.0
+playbook renders identically.
 
 ## How this is tested
 

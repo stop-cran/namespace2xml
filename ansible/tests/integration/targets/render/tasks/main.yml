@@ -222,9 +222,10 @@
 # JSON scheme document rather than a second dialect. What has to hold on a real binary is that
 # the two spellings are one scheme: a converter that mangled a name or dropped a directive would
 # still render something, and only a comparison against the text spelling catches it.
-- name: Render one scheme in both spellings
+- name: Render one scheme in every spelling
   ansible.builtin.set_fact:
     from_text: "{{ logback | stop_cran.namespace2xml.render('xml', scheme=text_scheme) }}"
+    from_alias: "{{ logback | stop_cran.namespace2xml.render('xml', scheme_text=text_scheme) }}"
     from_mapping: "{{ logback | stop_cran.namespace2xml.render('xml', scheme_yaml=mapping_scheme) }}"
   vars:
     logback:
@@ -256,6 +257,35 @@
       translated into a scheme that means something else.
       text: {{ from_text }}
       mapping: {{ from_mapping }}
+
+# `scheme_text` is the name the module gives inline text, accepted here so one spelling works in
+# both plugins. It has to be the same argument and not a near-synonym, which only a byte
+# comparison against `scheme` on a real binary can say.
+- name: The module's name for inline text renders identically on the filter
+  ansible.builtin.assert:
+    that:
+      - from_alias == from_text
+    fail_msg: >-
+      scheme_text is a second name for scheme, not a second argument. The renders differ.
+      scheme: {{ from_text }}
+      scheme_text: {{ from_alias }}
+
+- name: Attempt both names for the inline scheme text at once
+  ansible.builtin.set_fact:
+    both_names: "{{ {'a': 'b'} | stop_cran.namespace2xml.render('xml', scheme=text_scheme, scheme_text=text_scheme) }}"
+  vars:
+    text_scheme: "cfg.output=xml\n"
+  register: both_scheme_names
+  ignore_errors: true
+
+- name: One argument under two names is refused rather than silently resolved
+  ansible.builtin.assert:
+    that:
+      - both_scheme_names is failed
+      - "'two spellings' in both_scheme_names.msg"
+    fail_msg: >-
+      Expected scheme and scheme_text together to be refused as one ambiguous argument.
+      {{ both_scheme_names }}
 
 # A dot separates names in the text spelling and is a literal character in the mapping one. Left
 # to the tool this surfaces as an unrecognized directive naming `cfg\u{2E}output`, which is

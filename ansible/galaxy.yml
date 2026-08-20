@@ -23,9 +23,16 @@
 # one reason -- it raises the ansible-core floor from 2.14 to 2.15. Narrowing the range of
 # Ansible a consumer may run this on is a revision of the compatibility promise, and this file
 # already argues that a promise about what a consumer must install is not a patch-level change.
+#
+# 2.3.0 gives the filter `scheme_text` as a second name for its `scheme`. On the module `scheme`
+# is file paths and `scheme_text` is inline text; on the filter `scheme` *is* the inline text, so
+# moving a render between the two plugins meant renaming an argument for no reason a play author
+# could see. Additive, so a minor: `scheme` keeps its meaning and is not deprecated. The same
+# change makes every scheme refusal quote back the spelling the caller actually wrote, which was
+# previously always `scheme` even for a play that had written `scheme_yaml`.
 namespace: stop_cran
 name: namespace2xml
-version: 2.2.0
+version: 2.3.0
 readme: README.md
 
 authors:
