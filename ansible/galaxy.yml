@@ -1,6 +1,6 @@
 ### The Ansible collection's version is independent of the tool's.
 #
-# namespace2xml the .NET tool is at 3.x. This collection is at 2.0.0 because it is a separate
+# namespace2xml the .NET tool is at 3.x. This collection is at 2.x because it is a separate
 # artefact with its own compatibility promise: it pins no tool version, so the two version
 # streams answer different questions and are released under different tags -- `v3.*` for the
 # tool, `ansible-v*` for this collection.
@@ -17,9 +17,15 @@
 # what every earlier release did) or read as the Section 11.4 XML addressing. Both are additive,
 # so a minor -- every 2.0.0 playbook renders identically byte for byte, and the two scheme
 # spellings are compared byte for byte by the integration suite.
+#
+# 2.2.0 changes no plugin behaviour: it ships the diagnostic registry inside the collection and
+# corrects documentation that had drifted from the code. It is a minor rather than a patch for
+# one reason -- it raises the ansible-core floor from 2.14 to 2.15. Narrowing the range of
+# Ansible a consumer may run this on is a revision of the compatibility promise, and this file
+# already argues that a promise about what a consumer must install is not a patch-level change.
 namespace: stop_cran
 name: namespace2xml
-version: 2.1.0
+version: 2.2.0
 readme: README.md
 
 authors:
@@ -57,3 +63,4 @@ build_ignore:
   - tests/output
   - '*.pyc'
   - __pycache__
+  - .pytest_cache

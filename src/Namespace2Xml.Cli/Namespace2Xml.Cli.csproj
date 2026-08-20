@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
     <!--
       The contract travels with the package so an agent can read it without network access, and
       llms.txt travels with it so the agent can find the rest. That index links by relative path,

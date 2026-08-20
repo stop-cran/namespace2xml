@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2024 namespace2xml contributors
-# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt)
+# Apache License 2.0 (see LICENSE)
 
 """The plugin documentation blocks must be loadable YAML.
 

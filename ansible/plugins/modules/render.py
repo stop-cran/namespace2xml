@@ -31,7 +31,7 @@ options:
   src:
     description:
       - Ordered input file paths B(on the managed node). Each becomes one C(-i) argument, in
-        the order given, and section 15.2 makes a later contribution win over an earlier one -
+        the order given, and section 5.1 makes a later contribution win over an earlier one -
         so this order is part of what the play is asking for and is never sorted.
       - Formats are recognised by extension per section 7.1 of the specification.
       - No file named here is ever written to. If the render would produce a file at a path
@@ -166,7 +166,9 @@ seealso:
   - name: Diagnostic code registry
     description: >-
       Every code the tool emits, what it means, and the specification clause it enforces. A
-      code arriving from this module, such as C(TYPE001) or C(WARN007), is looked up here.
+      code arriving from this module, such as C(TYPE001) or C(WARN007), is looked up here. A
+      copy is installed alongside this plugin at C(docs/diagnostics.md) inside the collection,
+      so it is readable with no network access.
     link: https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md
   - name: Reporting a problem
     description: >-

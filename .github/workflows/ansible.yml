@@ -148,6 +148,23 @@ jobs:
         with:
           python-version: '3.13'
 
+      # ansible/docs/diagnostics.md is a copy of the repository's registry. A collection tarball
+      # cannot reach outside its own directory, and a symlink does not survive `ansible-galaxy
+      # collection build` on every platform, so a copy is the only way to put it in a consumer's
+      # hands offline. A copy nothing checks is a copy that goes stale silently, and a stale
+      # diagnostic registry is worse than an absent one: it answers, and the answer is wrong.
+      - name: The shipped diagnostic registry is the repository's, byte for byte
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! cmp -s docs/diagnostics.md ansible/docs/diagnostics.md; then
+            echo "::error::ansible/docs/diagnostics.md has drifted from docs/diagnostics.md"
+            diff -u docs/diagnostics.md ansible/docs/diagnostics.md || true
+            echo "Copy it across: cp docs/diagnostics.md ansible/docs/diagnostics.md"
+            exit 1
+          fi
+          echo "diagnostics.md is identical in both locations"
+
       - name: Install ansible-core
         shell: bash
         run: |
@@ -254,11 +271,12 @@ jobs:
           set -euo pipefail
           ansible-test units --venv --python 3.13 --color -v
 
-  # meta/runtime.yml claims requires_ansible '>=2.14'. A claim in a metadata file that no gate reads
-  # is a guess, and 2.14 is not an arbitrary floor: it is the first release whose ansible-doc can
-  # read a filter plugin's inline DOCUMENTATION at all, which is the whole reason the collection
-  # documents itself the way it does. This job holds the claim to its two load-bearing parts -- the
-  # docs render, and the plugin behaves -- on the floor and on three releases above it.
+  # meta/runtime.yml claims requires_ansible '>=2.15'. A claim in a metadata file that no gate reads
+  # is a guess, and 2.15 is not an arbitrary floor: 2.14 is the first release whose ansible-doc can
+  # read a filter plugin's inline DOCUMENTATION at all, and 2.15 is the first that interprets the
+  # semantic markup that documentation is written in instead of printing it literally. This job
+  # holds the claim to its two load-bearing parts -- the docs render, and the plugin behaves -- on
+  # the floor and on three releases above it.
   #
   # It runs plain pytest rather than `ansible-test units` on purpose. ansible-test's own machinery
   # changed substantially across this range, and a failure there would say something about
@@ -268,7 +286,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - ansible: '2.14'
+          - ansible: '2.15'
             python: '3.11'
           - ansible: '2.16'
             python: '3.12'

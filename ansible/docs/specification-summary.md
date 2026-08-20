@@ -120,8 +120,10 @@ change the meaning of the whole file rather than fail loudly. The filter therefo
 break in `root`, validates `fmt` against the list above, and encodes `delimiter`. If you build a
 scheme yourself from untrusted data, you own that problem.
 
-`scheme` and the synthesis arguments (`fmt`, `root`, `delimiter`) are mutually exclusive: pass a
-scheme and you are describing the whole output yourself.
+`root` and `delimiter` are refused alongside `scheme`, because they are read only while
+synthesizing one. `fmt` stays required and is cross-checked against the format the scheme itself
+declares, so a mismatch is reported rather than quietly ignored. See the plugin documentation for
+the exact argument rules.
 
 ## 8. Diagnostics and failure
 
@@ -137,7 +139,9 @@ Exit codes are only two:
 Every diagnostic carries a **stable code** — `SCHEME002`, `XML002` and so on. The code is the
 part that does not change between releases and the part worth searching for. Look it up in the
 [diagnostics registry](https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md),
-which gives each code its meaning and the specification section that defines it.
+which gives each code its meaning and the specification section that defines it. A copy of that
+registry ships in this collection as `docs/diagnostics.md`, beside this page, so it is readable
+with no network access.
 
 When the tool fails, the filter raises `AnsibleFilterError` with the tool's own stderr attached,
 plus a line pointing at the issue tracker of the exact build that ran. The module fails the task
@@ -174,7 +178,7 @@ Rendering is also one-way: neither plugin reads a rendered document back into va
 | What | Where |
 |---|---|
 | Full specification (normative) | <https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md> |
-| Diagnostic code registry | <https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md> |
+| Diagnostic code registry | Ships here as `docs/diagnostics.md`; online at <https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md> |
 | Known limits of the tool | <https://github.com/stop-cran/namespace2xml/blob/master/KNOWN-LIMITS.md> |
 | This collection's usage guide | <https://github.com/stop-cran/namespace2xml/blob/master/ansible/README.md> |
 | How to report a problem (binding) | <https://github.com/stop-cran/namespace2xml/blob/master/CONTRIBUTING.md#4-the-feedback-channel-binding> |
@@ -183,8 +187,8 @@ Rendering is also one-way: neither plugin reads a rendered document back into va
 | The .NET tool on NuGet | <https://www.nuget.org/packages/namespace2xml> |
 | Repository | <https://github.com/stop-cran/namespace2xml> |
 
-Offline, the two documents that ship inside this collection are this page and `README.md`; both sit
-next to the installed plugin, under
+Offline, three documents ship inside this collection: this page, the diagnostic code registry at
+`docs/diagnostics.md`, and `README.md`. All three sit next to the installed plugin, under
 `~/.ansible/collections/ansible_collections/stop_cran/namespace2xml/`.
 
 ## 11. Found a problem?
@@ -196,7 +200,7 @@ Open an issue at <https://github.com/stop-cran/namespace2xml/issues/new/choose> 
 |---|---|
 | The filter misbehaves, or its arguments do | Bug report, component *Ansible collection* |
 | The module misbehaves — wrong `changed`, a refusal you disagree with, a file it should not have touched | Bug report, component *Ansible collection* |
-| The rendered document is wrong for the input | Bug report, component *CLI* — reproduce it with `fmt='namespace'` first |
+| The rendered document is wrong for the input | Bug report, component *Ansible collection* — a playbook was in the loop, so the fix lands here. Narrow it with `fmt='namespace'` first, and say whether a standalone CLI run reproduces it |
 | The documentation did not answer your question | Usage gap |
 | You need a behaviour that is not specified | Feature request — say whether it is a specification amendment |
 

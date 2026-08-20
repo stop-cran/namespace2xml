@@ -178,10 +178,12 @@ notes:
     zero-padded keys.
   - Binary data has no value spelling. The filter refuses C(bytes) rather than guessing an
     encoding.
-  - XML attributes, content tokens and namespace-qualified element names cannot be addressed.
-    Every key is escaped so that it reads back as itself, so a C(@name) key becomes a literal
-    element named C(\@name), which is not an C(NCName) and is reported as a blocking C(XML002)
-    rather than silently producing a wrong document. See the collection README.
+  - Under the default C(escaped) convention, XML attributes, content tokens and
+    namespace-qualified element names cannot be addressed. Every key is escaped so that it reads
+    back as itself, so a C(@name) key becomes a literal element named C(\@name), which is not an
+    C(NCName) and is reported as a blocking C(XML002) rather than silently producing a wrong
+    document. Pass O(convention=xmltodict) to read C(@), C(Q{...}) and C(#) as section 11.4
+    addressing instead. See the collection README.
   - Diagnostics are the tool's own and reach you unchanged. Warnings arrive on a successful
     render and are shown through Ansible's display; errors carry the tool's text and the
     address to report it to. Every code is listed in the diagnostic registry linked below.
@@ -199,7 +201,9 @@ seealso:
   - name: Diagnostic code registry
     description: >-
       Every code the tool emits, what it means, and the specification clause it enforces. A
-      code arriving from this filter, such as C(XML002) or C(WARN009), is looked up here.
+      code arriving from this filter, such as C(XML002) or C(WARN009), is looked up here. A
+      copy is installed alongside this plugin at C(docs/diagnostics.md) inside the collection,
+      so it is readable with no network access.
     link: https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md
   - name: Reporting a problem
     description: >-

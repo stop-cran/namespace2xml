@@ -195,6 +195,12 @@ Start at [AGENTS.md](AGENTS.md). The machine-readable index is [llms.txt](llms.t
 
 ## Documentation
 
+These links are relative, so they resolve in a clone and inside the extracted NuGet package, which
+mirrors this layout. On nuget.org relative links are stripped and will not be clickable: browse the
+same documents at <https://github.com/stop-cran/namespace2xml>, or run `namespace2xml --version`,
+which prints release-pinned URLs for the specification, the diagnostics registry, `llms.txt` and
+the issue tracker.
+
 | File | What it is |
 |---|---|
 | [docs/specification.md](docs/specification.md) | **The contract.** Normative and self-contained. |
@@ -234,6 +240,9 @@ version.
 Full guidance, including the report form and the rules for agent-authored reports, is in
 [CONTRIBUTING.md](CONTRIBUTING.md#4-the-feedback-channel-binding).
 
+If the four links above are not clickable, you are reading a copy with relative links stripped —
+open <https://github.com/stop-cran/namespace2xml/issues/new/choose> and pick the form there.
+
 ---
 
 ## Building from source
@@ -247,4 +256,4 @@ Requires the .NET 10 SDK. The solution uses the `.slnx` format.
 
 ## License
 
-[MIT](LICENSE).
+[Apache-2.0](LICENSE).

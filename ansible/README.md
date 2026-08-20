@@ -69,7 +69,7 @@ short version first.
 
 | | |
 |---|---|
-| ansible-core | `>=2.14` |
+| ansible-core | `>=2.15` |
 | Controller | the [`namespace2xml`](https://www.nuget.org/packages/namespace2xml) .NET tool, 3.0 or later — for the **filter** |
 | Managed nodes | the same tool, plus a .NET SDK to install it — for the **module** only |
 
@@ -125,7 +125,7 @@ the rendered text against what is on the node.
 |---|---|
 | `fmt` | *(positional, required)* `xml`, `json`, `yaml`, `ini`, `namespace`, `quotednamespace` |
 | `root` | the XML document element name. Required whenever the data has more than one top-level key |
-| `scheme` | explicit scheme text, for anything the synthesized minimal scheme does not cover |
+| `scheme` | explicit scheme text, for anything the synthesized minimal scheme does not cover. On the module this same name means scheme *files* — see the note under the module's arguments |
 | `scheme_yaml` | the same scheme written as a YAML mapping instead of text. Mutually exclusive with `scheme` |
 | `selector` | the top-level name the data is written under. Default `cfg` |
 | `convention` | how mapping keys are read: `escaped` (default) or `xmltodict`, which reads `@`, `Q{…}` and `#` as XML addressing |
@@ -262,6 +262,12 @@ the handful of things that differ on this host, and the node renders its own con
 | `variables` | namespace entries applied after all inputs, one `-v name=value` each. Keys are passed **verbatim** |
 | `dest` | *(required)* the output root directory, passed as `-o` |
 | `tool` | path to the binary on the node |
+
+> **`scheme` does not mean the same thing on the two plugins.** On the filter it is scheme
+> *text*, because a controller-side render has no node filesystem to read from. On the module it
+> is a list of scheme *file paths on the node*, and the inline-text spelling is `scheme_text`.
+> `scheme_yaml` means the same mapping on both. Moving a scheme between the two plugins means
+> changing the argument name, not just the value.
 
 Plus the standard file arguments — `mode`, `owner`, `group`, `seuser` and the rest — applied to
 every produced file.
@@ -439,7 +445,7 @@ When the base document is a file on the node, the [`render` module](#the-render-
 
 ## Versioning
 
-This collection is at 2.1.0 while the tool is at 3.x. They are separate artefacts with separate
+This collection is at 2.2.0 while the tool is at 3.x. They are separate artefacts with separate
 compatibility promises: the collection pins no tool version, and the two are released under
 different tags — `v3.*` for the tool, `ansible-v*` for this collection.
 
@@ -450,6 +456,13 @@ you must install is the kind a major version exists to revise. Nothing about the
 2.1.0 added `scheme_yaml` to both plugins and the filter's `convention` argument. Both are
 additive: `scheme_text` is untouched and not deprecated, and `convention` defaults to the encoding
 every earlier release used, so every 2.0.0 playbook renders identically.
+
+2.2.0 changes no plugin behaviour. It ships the diagnostic code registry inside the collection as
+`docs/diagnostics.md`, corrects documentation that had drifted from the code, and raises the
+ansible-core floor from 2.14 to 2.15 — the first release that interprets the semantic markup the
+plugin documentation is written in rather than printing it literally. That floor is why this is a
+minor and not a patch: it narrows the range of Ansible you may run this on. Every 2.1.0 playbook
+renders identically.
 
 ## How this is tested
 
@@ -471,7 +484,8 @@ Good — that is what the preview is for, and the project is built to absorb it.
 
 Every diagnostic these plugins surface carries a **stable code** and a **specification anchor**
 naming the clause it enforces, so a disagreement can be reported precisely rather than described.
-The codes are listed at
+The codes are listed in `docs/diagnostics.md`, which ships inside this collection and is also
+online at
 [docs/diagnostics.md](https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md).
 Both plugins pass the tool's diagnostics through unchanged — neither rewrites or summarises them.
 
@@ -505,7 +519,9 @@ namespace2xml --version                                  # ALL of it, especially
    that ran, which is more reliable than any link written here.
 2. **The collection version and `ansible --version`.**
 3. **A minimal play that reproduces it** — the smallest `vars` block and the exact filter call.
-   Inline data, not a reference to your inventory.
+   Inline data, not a reference to your inventory. For the module, run it with
+   `ansible-playbook -vvv` and attach the failing task's output: it carries the module's full
+   result, including `tool_identity`, which names the binary that actually ran on the node.
 4. **What you expected and what you got**, and *which clause of the specification* says you were
    right. If you cannot find one, that is a specification ambiguity, not a bug — file it as one.
 

@@ -60,7 +60,8 @@ is a pointer you can follow.
 Reporting a problem
 -------------------
 
-`Open an issue <https://github.com/stop-cran/namespace2xml/issues>`_. What makes a report
-actionable — the inputs, the scheme, what you expected and which section says so — is set out
-under "Found a problem?" in the README, along with what to include from
-``ansible-playbook -vvv``.
+`Open an issue <https://github.com/stop-cran/namespace2xml/issues/new/choose>`_ and set the
+**Component** field to ``Ansible collection``: if a playbook was in the loop the fix lands here,
+even when the message came from the tool underneath. What makes a report actionable — the inputs,
+the scheme, what you expected and which section says so — is set out under "Found a problem?" in
+the README, along with what to include from ``ansible-playbook -vvv``.
