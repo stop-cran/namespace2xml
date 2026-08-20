@@ -1,12 +1,12 @@
 name: namespace2xml
-version: 3.0.0-preview.4
+version: 3.0.0-preview.5
 contract-bundle: ${contract-bundle}
 specification-sha256: ${specification-sha256}
 registry-sha256: ${registry-sha256}
-specification: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.4/docs/specification.md
+specification: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.5/docs/specification.md
 !specification: https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md
-diagnostics: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.4/docs/diagnostics.md
+diagnostics: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.5/docs/diagnostics.md
 !diagnostics: https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md
-known-limits: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.4/KNOWN-LIMITS.md
-documentation: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.4/llms.txt
+known-limits: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.5/KNOWN-LIMITS.md
+documentation: https://github.com/stop-cran/namespace2xml/blob/v3.0.0-preview.5/llms.txt
 repository: https://github.com/stop-cran/namespace2xml
