@@ -80,7 +80,7 @@
 
 - name: Force a string with an explicit scheme
   ansible.builtin.set_fact:
-    typed_out: "{{ {'version': '3'} | stop_cran.namespace2xml.render('json', scheme=scheme_text) }}"
+    typed_out: "{{ {'version': '3'} | stop_cran.namespace2xml.render('json', scheme=[{'text': scheme_text}]) }}"
   vars:
     scheme_text: |
       cfg.output=json
@@ -224,7 +224,7 @@
 # still render something, and only a comparison against the text spelling catches it.
 - name: Render one scheme in every spelling
   ansible.builtin.set_fact:
-    from_text: "{{ logback | stop_cran.namespace2xml.render('xml', scheme=text_scheme) }}"
+    from_text: "{{ logback | stop_cran.namespace2xml.render('xml', scheme=[{'text': text_scheme}]) }}"
     from_alias: "{{ logback | stop_cran.namespace2xml.render('xml', scheme_text=text_scheme) }}"
     from_mapping: "{{ logback | stop_cran.namespace2xml.render('xml', scheme_yaml=mapping_scheme) }}"
   vars:
@@ -270,21 +270,28 @@
       scheme: {{ from_text }}
       scheme_text: {{ from_alias }}
 
-- name: Attempt both names for the inline scheme text at once
+# The one change in 3.0 that could have been silent. Before it, a bare string here was scheme
+# text; now a bare string in any source names a file. Reading it as a path would usually fail
+# later with a confusing not-found, and could conceivably succeed against an unrelated file, so
+# the filter refuses it up front and names the replacement spelling.
+- name: Attempt the pre-3.0 spelling of inline scheme text
   ansible.builtin.set_fact:
-    both_names: "{{ {'a': 'b'} | stop_cran.namespace2xml.render('xml', scheme=text_scheme, scheme_text=text_scheme) }}"
+    both_names: "{{ {'a': 'b'} | stop_cran.namespace2xml.render('xml', scheme=text_scheme) }}"
   vars:
     text_scheme: "cfg.output=xml\n"
   register: both_scheme_names
   ignore_errors: true
 
-- name: One argument under two names is refused rather than silently resolved
+- name: The old spelling is refused by name rather than read as a path
   ansible.builtin.assert:
     that:
       - both_scheme_names is failed
-      - "'two spellings' in both_scheme_names.msg"
+      - "'is a string' in both_scheme_names.msg"
+      - "'names a file' in both_scheme_names.msg"
+      - "\"[{'text'\" in both_scheme_names.msg"
     fail_msg: >-
-      Expected scheme and scheme_text together to be refused as one ambiguous argument.
+      Expected a bare-string scheme to be refused with the list spelling named. A play carrying
+      the 2.x spelling must be told what to write, not handed a path error.
       {{ both_scheme_names }}
 
 # A dot separates names in the text spelling and is a literal character in the mapping one. Left
