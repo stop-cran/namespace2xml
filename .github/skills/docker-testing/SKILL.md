@@ -65,6 +65,14 @@ you are actually running the rig; a few less-used switches are visible only in `
 qualifying — `./tools/integration-rig/rig.ps1 -Command up` — or change into that directory first.
 The short forms in the README assume you are already there.
 
+On a Windows box with stock settings that invocation does not run at all: Windows PowerShell 5.1
+defaults to a `Restricted` execution policy, and the script fails with *"running scripts is disabled
+on this system"* before Docker is touched. Check with `Get-ExecutionPolicy -List` — if every scope
+reads `Undefined` you are on the default and will hit this. Rather than relax the machine's policy,
+invoke through a process-scoped bypass: `powershell -NoProfile -ExecutionPolicy Bypass -File
+.\rig.ps1 -Command down`. Elsewhere the repository standardises on `pwsh -NoProfile -File`, which
+needs PowerShell 7; the same `-ExecutionPolicy Bypass` switch applies there.
+
 What belongs here rather than there is the judgement. The rig is the only thing that tests the
 *shipped collection* against a *remote managed node*. `ansible-test integration` gets closer than
 people assume — it drives the plugins through Ansible against the real binary — but it does so on

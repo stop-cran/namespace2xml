@@ -44,6 +44,18 @@ image, which is a poor trade for every push.
 ./rig.ps1 -Command down         # remove the containers and the network
 ```
 
+On Windows PowerShell 5.1 with stock settings these fail before Docker is touched -- the default
+execution policy is `Restricted`, and you get *"running scripts is disabled on this system"*.
+`Get-ExecutionPolicy -List` showing `Undefined` in every scope means you are on that default.
+Invoke through a process-scoped bypass rather than relaxing the machine's policy:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\rig.ps1 -Command up
+```
+
+`pwsh -NoProfile -ExecutionPolicy Bypass -File ./rig.ps1 -Command up` is the PowerShell 7 equivalent;
+`pwsh -NoProfile -File` is the form the rest of this repository uses for its scripts.
+
 By default the rig installs the tool version declared in `Directory.Build.props` from **nuget.org**
 and the collection from **Galaxy**, so it tests what an operator actually receives. To test a
 working tree instead:
