@@ -45,10 +45,9 @@ image, which is a poor trade for every push.
 ```
 
 On Windows these can fail before Docker is touched, with *"running scripts is disabled on this
-system"* -- Windows PowerShell ships a `Restricted` execution policy on client SKUs, where a script
-run from disk is refused. Windows Server defaults to `RemoteSigned`, where an unblocked local script
-runs. `Get-ExecutionPolicy` reports where you actually stand; don't infer it from the SKU. Invoke
-through a process-scoped bypass rather than relaxing the machine's policy:
+system"*. If `Get-ExecutionPolicy` reports `Restricted`, a script run from disk is refused -- run it
+rather than inferring from the machine. Invoke through a process-scoped bypass rather than relaxing
+the machine's policy:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\rig.ps1 -Command up

@@ -65,11 +65,10 @@ you are actually running the rig; a few less-used switches are visible only in `
 qualifying — `./tools/integration-rig/rig.ps1 -Command up` — or change into that directory first.
 The short forms in the README assume you are already there.
 
-On a Windows client that invocation may not run at all: Windows PowerShell ships a `Restricted`
-execution policy there, and the script fails with *"running scripts is disabled on this system"*
-before Docker is touched. `Get-ExecutionPolicy` reports where you stand, and
+On Windows that invocation may not run at all: if `Get-ExecutionPolicy` reports `Restricted`, the
+script fails with *"running scripts is disabled on this system"* before Docker is touched.
 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\integration-rig\rig.ps1 -Command up`
-gets past it without changing machine state. The rig README carries the caveats.
+is the process-scoped bypass, which changes no machine state. The rig README carries the caveats.
 
 What belongs here rather than there is the judgement. The rig is the only thing that tests the
 *shipped collection* against a *remote managed node*. `ansible-test integration` gets closer than
