@@ -489,7 +489,6 @@ import os
 import shutil
 import sys
 import tempfile
-import unicodedata
 
 # A collection plugin is a real package, so the controller-side filter can reach the same
 # module_utils the node-side module uses. Everything shared -- the section 8.3 encoder, the
@@ -509,8 +508,6 @@ from ..module_utils.profile import (
     flatten,
 )
 from ..module_utils.entries import (
-    INPUT_FORMATS,
-    SCHEME_FORMATS,
     Entry,
     marshal_inputs,
     marshal_schemes,

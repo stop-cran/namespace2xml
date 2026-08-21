@@ -24,7 +24,7 @@ import pytest
 # run at all. Nothing here calls `AnsibleModule`, so standing in for it costs no coverage: the
 # argument spec is exercised by the integration tests, which run a real play.
 try:
-    import ansible.module_utils.basic  # noqa: F401
+    import ansible.module_utils.basic  # noqa: F401  # pylint: disable=unused-import
 except ImportError:
     _basic = types.ModuleType("ansible.module_utils.basic")
     _basic.AnsibleModule = object

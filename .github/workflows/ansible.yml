@@ -258,8 +258,8 @@ jobs:
           mkdir -p "$(dirname "$dest")"
           cp -a ansible "$dest"
           mapfile -t modules < <(find "$dest/tests/unit" -name 'test_*.py' | sort)
-          if [ "${#modules[@]}" -ne 6 ]; then
-            printf 'Expected 6 unit test modules, found %d:\n' "${#modules[@]}" >&2
+          if [ "${#modules[@]}" -ne 9 ]; then
+            printf 'Expected 9 unit test modules, found %d:\n' "${#modules[@]}" >&2
             printf '  %s\n' "${modules[@]}" >&2
             exit 1
           fi
@@ -453,7 +453,18 @@ jobs:
           cp -a ansible "$dest"
           test -f "$dest/tests/integration/targets/render/tasks/main.yml"
           test -f "$dest/tests/integration/targets/render_module/tasks/main.yml"
-          test -f "$dest/tests/integration/targets/distribute/tasks/main.yml"
+          test -f "$dest/tests/integration/targets/distribute_role/tasks/main.yml"
+          # An integration target is run as a role, and a collection's own roles/ shadows the
+          # targets directory during that run. A target sharing a name with a role therefore
+          # executes the role instead, silently testing nothing -- it only failed loudly here
+          # because `distribute` happens to have required arguments. Keep the names disjoint.
+          for target in "$dest"/tests/integration/targets/*/; do
+            name=$(basename "$target")
+            if [ -d "$dest/roles/$name" ]; then
+              printf 'Integration target %s collides with roles/%s and would run the role instead.\n' "$name" "$name" >&2
+              exit 1
+            fi
+          done
 
       # Arm one: the ordinary case, with the tool on PATH.
       - name: Integration suite, tool on PATH
@@ -463,7 +474,7 @@ jobs:
           set -euo pipefail
           export PATH="$HOME/.dotnet/tools:$PATH"
           command -v namespace2xml
-          ansible-test integration --local --python 3.13 --color -v render render_module distribute
+          ansible-test integration --local --python 3.13 --color -v render render_module distribute_role
 
       # Arm two, and the reason both plugins have a dotnet global-tools fallback at all. `dotnet tool
       # install --global` writes to ~/.dotnet/tools whether or not the login shell puts that on
@@ -485,4 +496,4 @@ jobs:
             echo "namespace2xml is still on PATH; this arm would prove nothing." >&2
             exit 1
           fi
-          ansible-test integration --local --python 3.13 --color -v render render_module distribute
+          ansible-test integration --local --python 3.13 --color -v render render_module distribute_role
