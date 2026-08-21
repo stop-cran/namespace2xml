@@ -1,0 +1,28 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+# The tool targets net10.0, so the base image has to carry a .NET 10 runtime. Ubuntu's apt has no
+# such package, which is why this is the SDK image and not ubuntu:24.04.
+ARG TOOL_VERSION
+
+RUN apt-get update -qq \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+      openssh-server python3 sudo iproute2 \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /run/sshd \
+ && useradd -m -s /bin/bash ansible \
+ && echo 'ansible ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/ansible \
+ && mkdir -p /home/ansible/.ssh \
+ && chmod 700 /home/ansible/.ssh
+
+COPY .keys/authorized_keys /home/ansible/.ssh/authorized_keys
+RUN chown -R ansible:ansible /home/ansible/.ssh && chmod 600 /home/ansible/.ssh/authorized_keys
+
+# The tool is baked into the node image, which is how an operator would ship it: the module runs on
+# the node, so the node is where the binary has to be. Installed from a local folder rather than
+# nuget.org because api.nuget.org's V3 index resolves IPv6-only and the default Docker bridge has
+# no IPv6 route -- rig.ps1 downloads the package over V2 first and drops it in pkg/.
+COPY pkg /pkg
+RUN dotnet tool install --tool-path /usr/local/bin --source /pkg --version "$TOOL_VERSION" namespace2xml \
+ && /usr/local/bin/namespace2xml --version
+
+CMD ["/usr/sbin/sshd", "-D", "-e"]

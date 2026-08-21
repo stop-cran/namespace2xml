@@ -344,6 +344,23 @@ the next run and rejected by CI in between.
 Generators are idempotent, and idempotent is not correct. Read the output of one you have changed
 rather than re-running it and observing that nothing moved.
 
+### Testing the collection against real nodes
+
+`ansible-test units` and `ansible-test integration` both stay on the controller, so neither can see
+the module's central claim: that it renders a remote node's files from that node's own inputs, using
+a binary installed on that node. [`tools/integration-rig`](tools/integration-rig/README.md) stands
+that topology up in Docker — a controller, two nodes with deliberately divergent variables, real
+SSH, the collection installed from Galaxy.
+
+```
+pwsh -NoProfile -File tools/integration-rig/rig.ps1
+```
+
+It needs a Docker daemon and pulls a ~1 GB base image, so it is not a CI job; run it before a
+release, or when changing what the module expects of a node. Run `-Command test` a second time for
+the idempotence check — playbooks 01, 03 and 04 must report `changed=0`. By default it installs the
+version this working tree declares, from nuget.org; `-PackageSource local` tests unreleased changes.
+
 ### Adding a conformance fixture
 
 A case is a directory under `conformance/`. Full layout is specification Appendix C; the essentials:

@@ -1,0 +1,103 @@
+---
+# S2. Check mode must predict without writing; multiple sources must obey order (later wins).
+- name: Check mode, diff, and source ordering
+  hosts: nodes
+  gather_facts: false
+  become: true
+  vars:
+    src_dir: /opt/svc/config
+    out_dir: /etc/svc
+  tasks:
+    - name: Directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ src_dir }}"
+        - "{{ out_dir }}"
+
+    - name: Base layer
+      ansible.builtin.copy:
+        dest: "{{ src_dir }}/base.properties"
+        mode: "0644"
+        content: |
+          svc.port=1000
+          svc.host=base-{{ inventory_hostname }}
+
+    - name: Override layer, listed second
+      ansible.builtin.copy:
+        dest: "{{ src_dir }}/override.properties"
+        mode: "0644"
+        content: |
+          svc.port={{ n2x_port }}
+
+    - name: Start from a clean output, so check mode is predicting a real creation
+      ansible.builtin.file:
+        path: "{{ out_dir }}/svc.xml"
+        state: absent
+
+    - name: Predict the change without making it
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ src_dir }}/base.properties"
+          - "{{ src_dir }}/override.properties"
+        scheme_yaml:
+          svc:
+            output: xml
+            root: svc
+        dest: "{{ out_dir }}"
+      check_mode: true
+      diff: true
+      register: dry
+
+    - name: Check mode predicted a change
+      ansible.builtin.assert:
+        that:
+          - dry is changed
+        fail_msg: "check mode should have predicted a change"
+
+    - name: ... and wrote nothing
+      ansible.builtin.stat:
+        path: "{{ out_dir }}/svc.xml"
+      register: after_check
+
+    - name: Nothing was written in check mode
+      ansible.builtin.assert:
+        that:
+          - not after_check.stat.exists
+        fail_msg: "check mode wrote {{ out_dir }}/svc.xml"
+
+    - name: The predicted diff
+      ansible.builtin.debug:
+        var: dry.diff
+
+    - name: Now do it for real
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ src_dir }}/base.properties"
+          - "{{ src_dir }}/override.properties"
+        scheme_yaml:
+          svc:
+            output: xml
+            root: svc
+        dest: "{{ out_dir }}"
+      diff: true
+      register: wet
+
+    - name: Read it back
+      ansible.builtin.slurp:
+        src: "{{ out_dir }}/svc.xml"
+      register: svc_xml
+
+    - name: Show it
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} -> {{ svc_xml.content | b64decode }}"
+
+    - name: The later source won the port, the earlier still supplies the host
+      ansible.builtin.assert:
+        that:
+          - (svc_xml.content | b64decode) is search('<port>' ~ n2x_port ~ '</port>')
+          - (svc_xml.content | b64decode) is search('base-' ~ inventory_hostname)
+          - (svc_xml.content | b64decode) is not search('1000')
+        fail_msg: "source ordering not honoured: {{ svc_xml.content | b64decode }}"

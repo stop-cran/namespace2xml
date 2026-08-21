@@ -1,0 +1,80 @@
+---
+# S1. The point of the module: the file on each node decides that node's state.
+#     Nothing is rendered on the controller and shipped out; each node renders its own inputs.
+- name: Node-side render, divergent inputs, idempotence
+  hosts: nodes
+  gather_facts: false
+  become: true
+  vars:
+    src_dir: /opt/app/config
+    out_dir: /etc/app
+  tasks:
+    - name: The node's input directory exists
+      ansible.builtin.file:
+        path: "{{ src_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Each node carries its own, different, inputs
+      ansible.builtin.copy:
+        dest: "{{ src_dir }}/app.properties"
+        mode: "0644"
+        content: |
+          app.port={{ n2x_port }}
+          app.tier={{ n2x_tier }}
+          app.name=demo
+
+    - name: Render on the node
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ src_dir }}/app.properties"
+        scheme_yaml:
+          app:
+            output: xml
+            root: app
+        dest: "{{ out_dir }}"
+      register: first
+
+    - name: The first render succeeded
+      ansible.builtin.assert:
+        that:
+          - first is not failed
+          - first.files | length == 1
+        fail_msg: "expected the render to produce one file, got {{ first }}"
+
+    - name: Render again, unchanged inputs
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ src_dir }}/app.properties"
+        scheme_yaml:
+          app:
+            output: xml
+            root: app
+        dest: "{{ out_dir }}"
+      register: second
+
+    - name: The second render is idempotent
+      ansible.builtin.assert:
+        that:
+          - second is not changed
+        fail_msg: "expected idempotence, got changed={{ second.changed }}"
+
+    - name: Read back what the node produced
+      ansible.builtin.slurp:
+        src: "{{ out_dir }}/app.xml"
+      register: produced
+
+    - name: Show it
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} -> {{ produced.content | b64decode }}"
+
+    - name: The node's own port reached its own file, and the other node's did not
+      ansible.builtin.assert:
+        that:
+          - (produced.content | b64decode) is search(n2x_port | string)
+          - (produced.content | b64decode) is search(n2x_tier)
+        fail_msg: "node-local input did not decide node-local output"
+
+    - name: What the module reports
+      ansible.builtin.debug:
+        var: first

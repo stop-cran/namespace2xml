@@ -1,0 +1,68 @@
+---
+# S5. The other half of the collection: the filter renders on the controller, from data that
+#     lives in the play. Contrast with the module, which renders on the node from files on the node.
+- name: Controller-side filter
+  hosts: nodes
+  gather_facts: false
+  become: true
+  vars:
+    logback:
+      appender:
+        name: STDOUT
+        encoder:
+          pattern: "%d{HH:mm:ss} %-5level %msg%n"
+      root:
+        level: info
+    service:
+      port: 8080
+      hosts:
+        - alpha
+        - beta
+  tasks:
+    - name: Show what the filter makes of play data
+      ansible.builtin.debug:
+        msg: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') }}"
+      run_once: true
+
+    - name: The same data as JSON
+      ansible.builtin.debug:
+        msg: "{{ service | stop_cran.namespace2xml.render('json') }}"
+      run_once: true
+
+    - name: Start from a clean file, so the first copy is a real creation
+      ansible.builtin.file:
+        path: /etc/app/logback.xml
+        state: absent
+
+    - name: Render on the controller, place on the node
+      ansible.builtin.copy:
+        content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') }}"
+        dest: /etc/app/logback.xml
+        mode: "0644"
+      register: placed
+
+    - name: Place it again
+      ansible.builtin.copy:
+        content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') }}"
+        dest: /etc/app/logback.xml
+        mode: "0644"
+      register: replaced
+
+    - name: The controller-side render is stable enough for copy to see no change
+      ansible.builtin.assert:
+        that:
+          - placed is changed
+          - replaced is not changed
+        fail_msg: "controller-side render is not deterministic across invocations"
+
+    - name: A filter error is legible too
+      ansible.builtin.debug:
+        msg: "{{ service | stop_cran.namespace2xml.render('nonsense') }}"
+      register: bad
+      ignore_errors: true
+      run_once: true
+
+    - name: What it said
+      ansible.builtin.debug:
+        var: bad.msg
+      run_once: true

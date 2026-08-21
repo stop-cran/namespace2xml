@@ -1,0 +1,105 @@
+---
+# S3. The failure surface. Every one of these must fail, and fail legibly enough
+#     that an operator can act without reading the source.
+- name: Failure surface
+  hosts: node1
+  gather_facts: false
+  become: true
+  vars:
+    work: /opt/fail
+  tasks:
+    - name: Work directory
+      ansible.builtin.file:
+        path: "{{ work }}"
+        state: directory
+        mode: "0755"
+
+    - name: An input
+      ansible.builtin.copy:
+        dest: "{{ work }}/in.properties"
+        mode: "0644"
+        content: |
+          cfg.a=1
+
+    # 1. A binary that is not the tool.
+    - name: A tool whose --version declares no contract bundle
+      stop_cran.namespace2xml.render:
+        src: ["{{ work }}/in.properties"]
+        scheme_yaml: {cfg: {output: xml, root: cfg}}
+        dest: "{{ work }}/out"
+        tool: /bin/true
+      register: f_nottool
+      ignore_errors: true
+
+    # 2. A tool that is not there at all.
+    - name: A tool path that does not exist
+      stop_cran.namespace2xml.render:
+        src: ["{{ work }}/in.properties"]
+        scheme_yaml: {cfg: {output: xml, root: cfg}}
+        dest: "{{ work }}/out"
+        tool: /usr/local/bin/namespace2xml-does-not-exist
+      register: f_missing
+      ignore_errors: true
+
+    # 3. An input option written qualified, which Section 16.8 makes a blocking SCHEME001.
+    - name: A qualified input option
+      stop_cran.namespace2xml.render:
+        src: ["{{ work }}/in.properties"]
+        scheme_text: |
+          cfg.xmlinputoptions=NormalizeFormattingWhitespace
+          cfg.output=xml
+          cfg.root=cfg
+        dest: "{{ work }}/out"
+      register: f_scheme
+      ignore_errors: true
+
+    # 4. A render whose output would land on one of its own inputs.
+    - name: An input named so the output would overwrite it
+      ansible.builtin.file:
+        path: "{{ work }}/collide"
+        state: directory
+        mode: "0755"
+
+    - name: ... containing the input
+      ansible.builtin.copy:
+        dest: "{{ work }}/collide/cfg.xml"
+        mode: "0644"
+        content: |
+          cfg.a=1
+
+    - name: Rendering onto its own source
+      stop_cran.namespace2xml.render:
+        src: ["{{ work }}/collide/cfg.xml"]
+        scheme_yaml: {cfg: {output: xml, root: cfg}}
+        dest: "{{ work }}/collide"
+      register: f_selfwrite
+      ignore_errors: true
+
+    # 5. scheme_yaml and scheme_text together.
+    - name: Two ways of saying the scheme at once
+      stop_cran.namespace2xml.render:
+        src: ["{{ work }}/in.properties"]
+        scheme_yaml: {cfg: {output: xml}}
+        scheme_text: "cfg.output=xml"
+        dest: "{{ work }}/out"
+      register: f_both
+      ignore_errors: true
+
+    - name: Every one of them failed
+      ansible.builtin.assert:
+        that:
+          - f_nottool is failed
+          - f_missing is failed
+          - f_scheme is failed
+          - f_selfwrite is failed
+          - f_both is failed
+        fail_msg: "something that should have failed did not"
+
+    - name: What each of them said
+      ansible.builtin.debug:
+        msg:
+          - "not-a-tool     : {{ f_nottool.msg }}"
+          - "missing-tool   : {{ f_missing.msg }}"
+          - "bad-scheme     : {{ f_scheme.msg }}"
+          - "self-overwrite : {{ f_selfwrite.msg }}"
+          - "both-schemes   : {{ f_both.msg }}"

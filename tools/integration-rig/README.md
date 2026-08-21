@@ -1,0 +1,106 @@
+# Docker integration rig
+
+A real Ansible controller and two real managed nodes, in containers, talking over real SSH.
+
+## What this proves that the other suites cannot
+
+The collection already has three test layers, and none of them reaches this far:
+
+| layer | what it exercises | what it cannot see |
+|---|---|---|
+| `ansible-test units` | the plugins as Python functions | anything about a managed node |
+| `ansible-test integration` | the plugins through Ansible, on localhost | remote execution, per-node divergence |
+| `ansible-test sanity` | documentation, imports, style | behaviour of any kind |
+
+The `render` module exists because a managed node's *own* files should decide that node's state.
+Proving that needs two nodes with different inputs, a transport between them and the controller, and
+the tool installed on the node rather than on the controller. That is what this rig is.
+
+It is a harness a maintainer runs deliberately -- before a release, or when changing the module's
+contract with the node. **It does not run in CI**: it needs a Docker daemon and pulls a ~1 GB base
+image, which is a poor trade for every push.
+
+## Prerequisites
+
+- A running Docker daemon (Linux containers).
+- PowerShell -- Windows PowerShell 5.1 or `pwsh` 7+.
+- `ssh-keygen`, which ships with OpenSSH and is present by default on Windows 10+, macOS and every
+  mainstream Linux.
+- Outbound network for the base image, the collection and the package.
+
+## Running it
+
+```powershell
+./rig.ps1                       # down, up, test -- the full cycle
+./rig.ps1 -Command up           # build images and start containers
+./rig.ps1 -Command test         # run the playbooks against a running rig
+./rig.ps1 -Command down         # remove the containers and the network
+```
+
+By default the rig installs the tool version declared in `Directory.Build.props` from **nuget.org**
+and the collection from **Galaxy**, so it tests what an operator actually receives. To test a
+working tree instead:
+
+```powershell
+./rig.ps1 -PackageSource local
+./rig.ps1 -PackageSource local -Collection ../../ansible/stop_cran-namespace2xml-2.4.0.tar.gz
+```
+
+### The idempotence check
+
+Run `./rig.ps1 -Command test` **twice**. On the second pass playbooks 01, 03 and 04 must report
+`changed=0`. Playbooks 02, 05 and 06 legitimately report changes: 02 and 05 delete their target
+first so the run genuinely creates something, and 06 modifies a value on purpose to exercise the
+diff path.
+
+## What each playbook covers
+
+| playbook | covers |
+|---|---|
+| `01-node-render.yml` | node-local inputs decide node-local state; two nodes diverge; a second render changes nothing |
+| `02-check-and-order.yml` | `--check` writes nothing but still produces a diff; multiple `src` layers, later wins |
+| `03-failure-surface.yml` | five deliberate failures -- missing input, bad scheme, absent tool, a binary that is not a 3.x build, unwritable dest |
+| `04-yaml-scheme.yml` | `scheme_yaml`; the self-overwrite guard; `'*'` selectors; escaped dots; multi-format output |
+| `05-filter.yml` | the controller-side filter, which renders play data rather than node files |
+| `06-vars-and-safety.yml` | `-v` variables; a scheme file living on the node; `dest` is never cleaned; diff on modification |
+
+## Things that will bite you
+
+Each of these cost real debugging time; they are recorded so they cost it only once.
+
+- **`failed_when: false` overwrites the `failed` flag.** `result is failed` is then always false and
+  an assertion that something failed silently passes. Use `ignore_errors: true` instead.
+- **`x is changed` breaks on a converged system.** That is the module behaving correctly. Either
+  assert success, or delete the target first so the run is genuinely predicting a creation.
+- **`ansible-playbook a.yml b.yml` stops at the first failing playbook.** `rig.ps1` runs each one
+  separately so a single failure cannot hide the rest.
+- **Ansible ignores `ansible.cfg` in a world-writable directory.** `/play` is a bind mount and looks
+  world-writable from inside the container, so `rig.ps1` passes `ANSIBLE_CONFIG` explicitly. Without
+  it the inventory silently disappears too.
+- **`pip install ansible-core` can fail where apt succeeds.** On some networks
+  `files.pythonhosted.org` answers pip with `SSLV3_ALERT_HANDSHAKE_FAILURE` while `pypi.org/simple/`
+  returns 200. Both Dockerfiles use apt.
+- **The images must be .NET SDK images, not `ubuntu:24.04`.** The tool targets `net10.0`, which
+  Ubuntu's apt does not carry -- and the controller needs the binary too, because the *filter* runs
+  controller-side.
+- **`dotnet tool install` straight from nuget.org fails in a container.** `api.nuget.org`'s V3 index
+  resolves IPv6-only on some networks and the default Docker bridge has no IPv6 route. `rig.ps1`
+  downloads over the V2 endpoint on the host and installs from `--source /pkg`.
+- **nuget.org's copy of a package is not byte-identical to the GitHub release copy.** The gallery
+  adds a `.signature.p7s` counter-signature. Every other entry matches by CRC32; a size or hash
+  difference between those two channels is expected, not a supply-chain problem.
+
+## Housekeeping
+
+Everything the rig creates is named `n2x-*`, and `rig.ps1 -Command down` removes exactly those by
+name. **Never `docker prune` to clean up after it** -- a maintainer's machine usually carries
+unrelated stopped containers.
+
+`.keys/` and `pkg/` are generated and gitignored: a throwaway SSH keypair for containers that live
+for one test run, and a release artefact that is not source.
+
+## See also
+
+- [`ansible/README.md`](../../ansible/README.md) -- the collection itself
+- [`docs/specification.md`](../../docs/specification.md) -- normative; binds over the code
+- [`CONTRIBUTING.md`](../../CONTRIBUTING.md) -- how to report what this rig finds

@@ -1,0 +1,30 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+# The SDK image rather than ubuntu:24.04 for the same reason as the node: the *filter* runs on the
+# controller, so the controller needs the net10.0 binary too.
+ARG TOOL_VERSION
+ARG COLLECTION_SPEC=stop_cran.namespace2xml
+
+# apt rather than pip: on some networks files.pythonhosted.org answers pip with
+# SSLV3_ALERT_HANDSHAKE_FAILURE even while pypi.org/simple/ returns 200, and apt is unaffected.
+RUN apt-get update -qq \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+      ansible-core openssh-client ca-certificates curl python3 \
+ && rm -rf /var/lib/apt/lists/* \
+ && ansible --version
+
+# The published collection, exactly as an operator would get it. Override COLLECTION_SPEC with a
+# path to a local tarball to test an unreleased build.
+RUN ansible-galaxy collection install "$COLLECTION_SPEC" \
+ && ansible-galaxy collection list
+
+COPY pkg /pkg
+RUN dotnet tool install --tool-path /usr/local/bin --source /pkg --version "$TOOL_VERSION" namespace2xml \
+ && /usr/local/bin/namespace2xml --version
+
+RUN mkdir -p /root/.ssh
+COPY .keys/id_rig /root/.ssh/id_rig
+RUN chmod 600 /root/.ssh/id_rig
+
+WORKDIR /play
+CMD ["sleep", "infinity"]

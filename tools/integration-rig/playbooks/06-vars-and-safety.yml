@@ -1,0 +1,100 @@
+---
+# S6. The surfaces nothing above touched: -v variables, a scheme file living on the node,
+#     the promise that dest is never cleaned out, and a diff over a modification rather than
+#     a creation.
+- name: Variables, scheme files, dest safety, diff on modify
+  hosts: node1
+  gather_facts: false
+  become: true
+  vars:
+    work: /opt/s6
+  tasks:
+    - name: Directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ work }}/in"
+        - "{{ work }}/out"
+
+    - name: Something already living in the output directory that has nothing to do with us
+      ansible.builtin.copy:
+        dest: "{{ work }}/out/unrelated.txt"
+        mode: "0644"
+        content: "written by something else\n"
+
+    - name: A scheme that lives on the node as a file, not inline in the play
+      ansible.builtin.copy:
+        dest: "{{ work }}/in/scheme.txt"
+        mode: "0644"
+        content: |
+          cfg.output=xml
+          cfg.root=cfg
+
+    - name: The input
+      ansible.builtin.copy:
+        dest: "{{ work }}/in/app.properties"
+        mode: "0644"
+        content: |
+          cfg.a=1
+          cfg.b=2
+
+    - name: Render with a scheme file and a -v variable
+      stop_cran.namespace2xml.render:
+        src: ["{{ work }}/in/app.properties"]
+        scheme: ["{{ work }}/in/scheme.txt"]
+        variables:
+          cfg.env: prod
+        dest: "{{ work }}/out"
+      register: r1
+
+    - name: Read it
+      ansible.builtin.slurp:
+        src: "{{ work }}/out/cfg.xml"
+      register: x1
+
+    - name: Show it
+      ansible.builtin.debug:
+        msg: "{{ x1.content | b64decode }}"
+
+    - name: The unrelated file is still there
+      ansible.builtin.stat:
+        path: "{{ work }}/out/unrelated.txt"
+      register: unrelated
+
+    - name: dest was not cleaned out, and the variable landed
+      ansible.builtin.assert:
+        that:
+          - unrelated.stat.exists
+          - (x1.content | b64decode) is search('prod')
+        fail_msg: "dest safety or -v handling is wrong: {{ x1.content | b64decode }}"
+
+    - name: Change one value at the source
+      ansible.builtin.copy:
+        dest: "{{ work }}/in/app.properties"
+        mode: "0644"
+        content: |
+          cfg.a=1
+          cfg.b=99
+
+    - name: Render again, this time a modification rather than a creation
+      stop_cran.namespace2xml.render:
+        src: ["{{ work }}/in/app.properties"]
+        scheme: ["{{ work }}/in/scheme.txt"]
+        variables:
+          cfg.env: prod
+        dest: "{{ work }}/out"
+      diff: true
+      register: r2
+
+    - name: The modification was reported as a change
+      ansible.builtin.assert:
+        that:
+          - r2 is changed
+          - r2.changed_files | length == 1
+        fail_msg: "expected exactly one changed file, got {{ r2.changed_files | default('none') }}"
+
+    - name: The before/after the module reported
+      ansible.builtin.debug:
+        var: r2.diff

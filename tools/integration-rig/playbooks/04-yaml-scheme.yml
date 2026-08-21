@@ -1,0 +1,110 @@
+---
+# S4. Two things the YAML scheme has to get right, and the guard I failed to reach in S3.
+- name: scheme_yaml expressiveness and the self-overwrite guard
+  hosts: node1
+  gather_facts: false
+  become: true
+  vars:
+    work: /opt/s4
+  tasks:
+    - name: Directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ work }}/in"
+        - "{{ work }}/collide"
+        - "{{ work }}/out"
+
+    # --- the guard S3 never reached: output landing on its own input ---
+    - name: An input whose own name is what the output would be called
+      ansible.builtin.copy:
+        dest: "{{ work }}/collide/cfg.xml"
+        mode: "0644"
+        content: |
+          <?xml version="1.0" encoding="utf-8"?>
+          <cfg>
+            <a>1</a>
+          </cfg>
+
+    - name: Rendering XML onto the XML file it read
+      stop_cran.namespace2xml.render:
+        src: ["{{ work }}/collide/cfg.xml"]
+        scheme_yaml:
+          cfg:
+            output: xml
+            root: cfg
+        dest: "{{ work }}/collide"
+      register: selfwrite
+      ignore_errors: true
+
+    - name: The source survived untouched
+      ansible.builtin.slurp:
+        src: "{{ work }}/collide/cfg.xml"
+      register: after_selfwrite
+
+    - name: Report the guard
+      ansible.builtin.debug:
+        msg:
+          - "failed  : {{ selfwrite.failed | default(false) }}"
+          - "msg     : {{ selfwrite.msg | default('(none)') }}"
+          - "on disk : {{ after_selfwrite.content | b64decode }}"
+
+    # --- a literal dot in a name, and a wildcard selector ---
+    - name: An input with a literal dot in a name
+      ansible.builtin.copy:
+        dest: "{{ work }}/in/dotted.properties"
+        mode: "0644"
+        content: |
+          my\.app.port=1234
+          my\.app.host=example
+          other.port=1
+
+    - name: A wildcard default plus a name carrying a real dot
+      stop_cran.namespace2xml.render:
+        src: ["{{ work }}/in/dotted.properties"]
+        scheme_yaml:
+          '*':
+            output: xml
+          'my\.app':
+            root: myapp
+          other:
+            root: other
+        dest: "{{ work }}/out"
+      register: dotted
+
+    - name: What came out
+      ansible.builtin.debug:
+        var: dotted.files
+
+    - name: Read the dotted one, whose literal dot the spec encodes as %2E
+      ansible.builtin.slurp:
+        src: "{{ work }}/out/my%2Eapp.xml"
+      register: dotted_xml
+
+    - name: Show it
+      ansible.builtin.debug:
+        msg: "{{ dotted_xml.content | b64decode }}"
+
+    - name: The wildcard reached both selectors and the dot stayed literal
+      ansible.builtin.assert:
+        that:
+          - dotted.files | length == 2
+          - (dotted_xml.content | b64decode) is search('1234')
+        fail_msg: "wildcard or escaped dot mishandled: {{ dotted.files }}"
+
+    # --- a directive taking several values ---
+    - name: One selector, two output formats
+      stop_cran.namespace2xml.render:
+        src: ["{{ work }}/in/dotted.properties"]
+        scheme_yaml:
+          other:
+            output: "xml,json"
+            root: other
+        dest: "{{ work }}/multi"
+      register: multi
+
+    - name: Both formats were written
+      ansible.builtin.debug:
+        var: multi.files
