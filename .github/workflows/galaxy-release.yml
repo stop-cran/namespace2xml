@@ -33,11 +33,12 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install ansible-core
+      - name: Install ansible-core and antsibull-docs
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
+          python -m pip install --quiet --disable-pip-version-check \
+            'ansible-core>=2.21,<2.22' antsibull-docs
 
       - name: The tag must name the version the collection declares
         shell: bash
@@ -132,6 +133,33 @@ jobs:
           cd "$STAGED"
           ansible-test sanity --venv --python 3.13 --color -v
 
+      # Sanity does not read a role's argument_specs as documentation, so a description that
+      # parsed as a mapping rather than a string satisfies every gate above and fails only when
+      # Galaxy renders it -- which is after publishing, and a published version is permanent.
+      # The two halves of that class are caught by different gates: a colon on a continuation
+      # line breaks the YAML outright and sanity reports it, while a colon on the first line is
+      # valid YAML that quietly becomes a dict, and only the documentation linter objects. So
+      # this runs on the bytes being published for the same reason sanity does, and omitting it
+      # is what lets a plugin page reach Galaxy reading "cannot parse plugin documentation".
+      #
+      # The linter reports problems on stdout and still exits zero in some versions, so the
+      # output is checked as well as the status, exactly as the pull-request workflow does.
+      - name: The collection documentation must lint on the code being released
+        shell: bash
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          status=0
+          antsibull-docs lint-collection-docs --plugin-docs "$STAGED" > "$RUNNER_TEMP/lint.txt" 2>&1 \
+            || status=$?
+          cat "$RUNNER_TEMP/lint.txt"
+          if [ "$status" -ne 0 ] || [ -s "$RUNNER_TEMP/lint.txt" ]; then
+            echo "::error::antsibull-docs reported problems in the collection documentation"
+            exit 1
+          fi
+          echo "the collection documentation lints clean"
+
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
@@ -213,13 +241,31 @@ jobs:
           ansible-galaxy collection install "$tarball" -p "$RUNNER_TEMP/installed" --force
 
           root="$RUNNER_TEMP/installed/ansible_collections/${namespace}/${name}"
-          ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
-            ansible-doc -t filter "${collection}.render" >/dev/null
-          # The module carries module_utils the filter does not. A module_utils file that the
-          # build left behind imports perfectly from the source tree and fails only from an
-          # installed tarball, which is the last place anyone would look after a release.
-          ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
-            ansible-doc -t module "${collection}.render" >/dev/null
+          # ansible-doc warns on stderr and exits zero for a plugin it cannot find, so redirecting
+          # its output and reading only the status asserts nothing -- a tarball that shipped
+          # neither plugin passes it, and this is a release. The option names are the evidence, for
+          # the reason ansible.yml's compatibility job gives: ansible-doc will print an empty
+          # skeleton for a docstring it could not parse. The match is a here-string rather than a
+          # pipe into `grep -q`, which exits at the first hit and leaves the writer taking EPIPE
+          # under pipefail once the page outgrows the buffer.
+          resolves() {
+            kind=$1
+            shift
+            page=$(ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
+              ansible-doc -t "$kind" "${collection}.render")
+            for expected in "$@"; do
+              if grep -qF -- "$expected" <<<"$page"; then continue; fi
+              printf '%s\n' "$page"
+              echo "::error::ansible-doc printed no '$expected' for the $kind ${collection}.render installed from the tarball"
+              exit 1
+            done
+          }
+          resolves filter memoize selector delimiter workdir scheme_yaml convention
+          # The module is a separate file from the filter and build_ignore can drop one without
+          # touching the other, so both pages are asked for. Neither proves the module's
+          # module_utils came along: ansible-doc reads the docstring out of the source rather than
+          # importing it, and the load-and-call claim is the compatibility job's to make.
+          resolves module scheme_text scheme_yaml variables dest src
 
           # The collection is the only copy of the contract some consumers will ever hold: the
           # specification is 300 KB and stays in the repository. If these two are not installed
@@ -332,6 +378,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # ansible-doc warns on stderr and exits zero for a plugin it cannot find, so reading only
+          # its status would let this report success for a version Galaxy serves without either
+          # plugin in it -- the one failure this step exists to rule out, at the one point where
+          # the version is already permanent. The option names are the evidence, for the reason
+          # ansible.yml's compatibility job gives: ansible-doc will print an empty skeleton for a
+          # docstring it could not parse.
+          resolves() {
+            kind=$1
+            shift
+            page=$(ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/verify" \
+              ansible-doc -t "$kind" "${collection}.render")
+            for expected in "$@"; do
+              if grep -qF -- "$expected" <<<"$page"; then continue; fi
+              printf '%s\n' "$page"
+              echo "::error::Galaxy served ${collection} ${version} but ansible-doc printed no '$expected' for its $kind"
+              exit 1
+            done
+          }
+
           # The publish step reports what the client was told. This asks the registry, through the
           # same path a consumer uses, which is the only evidence that the release exists for
           # anyone but us. Indexing is not instant, so it is asked a few times before it is
@@ -339,10 +404,8 @@ jobs:
           for attempt in 1 2 3 4 5 6; do
             if ansible-galaxy collection install "${collection}:==${version}" \
                  -p "$RUNNER_TEMP/verify" --force >/dev/null 2>&1; then
-              ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/verify" \
-                ansible-doc -t filter "${collection}.render" >/dev/null
-              ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/verify" \
-                ansible-doc -t module "${collection}.render" >/dev/null
+              resolves filter memoize selector delimiter workdir scheme_yaml convention
+              resolves module scheme_text scheme_yaml variables dest src
               echo "Galaxy serves ${collection} ${version} and both of its plugins resolve."
               exit 0
             fi
