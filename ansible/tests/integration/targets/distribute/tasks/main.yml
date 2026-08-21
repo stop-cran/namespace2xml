@@ -1,0 +1,174 @@
+---
+# Integration coverage for the stop_cran.namespace2xml.distribute *role*.
+#
+# The role adds no rendering code -- it delegates to the render module, whose behaviour the unit
+# suite and the render_module target already cover. What is unproven anywhere else is the plumbing
+# the role wraps around that call: that its argument spec refuses an incomplete play, that a scheme
+# writing into a subdirectory has that subdirectory created before anything is copied into it, that
+# a converged host reports no change, and that the staging directory does not outlive the run.
+#
+# Here the controller and the node are the same machine, so this says nothing about the transport.
+# That is deliberate: the transport is proved by tools/integration-rig, which runs a real controller
+# against a node carrying neither .NET nor the transformer. What this target adds is that the
+# plumbing keeps working on every Ansible version in the support matrix, on every push.
+#
+# Expectations are authored from docs/specification.md -- Section 16.2 for an explicit filename
+# being a complete relative path that creates directories, Section 24 for determinism, which is
+# what makes the second pass's silence meaningful -- and not captured from a tool run.
+
+- name: Create a scratch directory
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: n2xdist
+  register: scratch
+
+- name: Fail the target loudly rather than skipping if the scratch directory is missing
+  ansible.builtin.assert:
+    that:
+      - scratch.path is defined
+
+- block:
+    - name: Stage an input file, as a play would keep one beside its inventory
+      ansible.builtin.copy:
+        dest: "{{ scratch.path }}/base.properties"
+        mode: "0644"
+        content: |
+          app.name=demo
+          app.owner=platform
+          svc.enabled=true
+
+    # Two output instances, and the second one names a filename containing a separator. Section
+    # 16.2 makes that a complete relative path which creates directories, so the role has to create
+    # conf.d before it can copy into it -- copy does not create missing parents.
+    - name: Distribute a configuration built from all three input shapes
+      ansible.builtin.include_role:
+        name: stop_cran.namespace2xml.distribute
+      vars: &distribute_args
+        namespace2xml_distribute_inputs:
+          - "{{ scratch.path }}/base.properties"
+          - text: |
+              app.port=8080
+          # A structure hangs under the selector, which is why the selector below is app rather
+          # than the default: written against the default it would become cfg.host and the scheme,
+          # rooted at app, would never see it -- with no error to say so.
+          - data:
+              host: integration
+        namespace2xml_distribute_scheme:
+          - data:
+              app:
+                output: xml
+                root: app
+              svc:
+                output: xml
+                root: svc
+                filename: conf.d/svc.xml
+        namespace2xml_distribute_selector: app
+        namespace2xml_distribute_dest: "{{ scratch.path }}/out"
+        namespace2xml_distribute_mode: "0640"
+        namespace2xml_distribute_directory_mode: "0750"
+
+    - name: Look at what was written
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: written
+      loop:
+        - "{{ scratch.path }}/out/app.xml"
+        - "{{ scratch.path }}/out/conf.d"
+        - "{{ scratch.path }}/out/conf.d/svc.xml"
+
+    - name: Both instances landed, the subdirectory was created, and both modes were applied
+      ansible.builtin.assert:
+        that:
+          - written.results[0].stat.exists
+          - written.results[0].stat.mode == '0640'
+          - written.results[1].stat.isdir
+          - written.results[1].stat.mode == '0750'
+          - written.results[2].stat.exists
+          - written.results[2].stat.mode == '0640'
+        fail_msg: >-
+          expected a 0640 app.xml beside a 0750 conf.d holding a 0640 svc.xml, got
+          {{ written.results | map(attribute='stat') | list }}
+
+    - name: Read the first instance back
+      ansible.builtin.slurp:
+        src: "{{ scratch.path }}/out/app.xml"
+      register: rendered
+
+    # If any one shape were dropped the render would still succeed and still write a file, so the
+    # only way to notice is to require every shape's contribution by name.
+    - name: Every input shape reached the result
+      ansible.builtin.assert:
+        that:
+          - (rendered.content | b64decode) is search('platform')
+          - (rendered.content | b64decode) is search('8080')
+          - (rendered.content | b64decode) is search('integration')
+        fail_msg: "an input shape did not reach the rendered document"
+
+    - name: The staging directory did not outlive the run
+      ansible.builtin.stat:
+        path: "{{ namespace2xml_distribute_staging.path }}"
+      register: staging
+
+    - name: Check that
+      ansible.builtin.assert:
+        that:
+          - not staging.stat.exists
+        fail_msg: >-
+          the role left rendered configuration behind at
+          {{ namespace2xml_distribute_staging.path }}
+
+    - name: Distribute the same configuration again
+      ansible.builtin.include_role:
+        name: stop_cran.namespace2xml.distribute
+      vars: *distribute_args
+
+    # Section 24 makes the transformer deterministic, so identical inputs produce identical bytes
+    # and the copy has nothing to do. A change reported here means the role is rewriting a file
+    # whose content it already matches.
+    - name: The second pass changed nothing
+      ansible.builtin.assert:
+        that:
+          - namespace2xml_distribute_copied.results | selectattr('changed') | list | length == 0
+        fail_msg: >-
+          expected no file to be rewritten, got
+          {{ namespace2xml_distribute_copied.results | selectattr('changed')
+             | map(attribute='item') | list }}
+
+    # A role whose required variables were merely read where they are used would fail somewhere
+    # inside the module, naming an argument rather than the play's mistake. The argument spec
+    # exists so the refusal names the variable the play omitted, before anything runs.
+    - name: A play that omits a required variable is refused by name
+      block:
+        - name: Distribute with no destination
+          ansible.builtin.include_role:
+            name: stop_cran.namespace2xml.distribute
+          vars:
+            namespace2xml_distribute_inputs:
+              - text: |
+                  cfg.a=1
+            namespace2xml_distribute_scheme:
+              - data:
+                  cfg:
+                    output: xml
+                    root: cfg
+
+        - name: Fail if the role accepted it
+          ansible.builtin.fail:
+            msg: the role rendered without a destination
+
+      rescue:
+        - name: The refusal names the missing variable
+          ansible.builtin.assert:
+            that:
+              - ansible_failed_result.argument_errors is defined
+              - ansible_failed_result.argument_errors
+                | select('search', 'namespace2xml_distribute_dest') | list | length > 0
+            fail_msg: >-
+              expected the argument spec to name the omitted variable, got
+              {{ ansible_failed_result }}
+
+  always:
+    - name: Remove the scratch directory
+      ansible.builtin.file:
+        path: "{{ scratch.path }}"
+        state: absent

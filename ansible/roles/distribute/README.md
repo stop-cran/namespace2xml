@@ -55,16 +55,18 @@ namespace2xml_distribute_selector: app          # the namespace everything below
 namespace2xml_distribute_inputs:
   - group_vars/base.properties          # a file on the controller
   - file: "{{ role_path }}/files/x.xml" # the same thing, spelled out
-    format: xml
   - text: |                             # the configuration, in the play
-      app.port=8080
+      app.port: 8080
+    format: yaml
   - data:                               # a structure, encoded for you
       host: "{{ inventory_hostname }}"
 ```
 
-A `data` entry takes no `format`: the collection encodes the structure into the transformer's own
-syntax, so there is no other parser left for a format to reach. Write the document yourself and
-pass it as `text` if you want a particular one.
+`format` belongs only to a `text` entry. A `file` entry takes its parser from the file's own
+extension — the path is handed to the transformer rather than copied, so a `format` beside it could
+not be honoured. A `data` entry is encoded into the transformer's own syntax by the collection, so
+there is no other parser left for a format to reach. Both combinations are refused rather than
+ignored.
 
 > **A `data` entry is hung under the selector.** With the default selector, `data: {host: web1}`
 > becomes `cfg.host=web1`. If the scheme is rooted at `app`, the two never meet: the render

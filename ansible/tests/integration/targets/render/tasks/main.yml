@@ -329,6 +329,84 @@
       Expected the escaped key to place the literal-dot name as an attribute.
       Rendered: {{ literal_dot }}
 
+- name: Stage a scheme file an entry list can name by string
+  ansible.builtin.copy:
+    dest: "{{ scratch.path }}/shared-scheme.txt"
+    content: |
+      cfg.output=xml
+      cfg.root=configuration
+    mode: "0644"
+
+# Section 15.2 gives the last matching declaration precedence, and the filter appends the piped
+# value after everything in 'inputs' (plugins/filter/render.py, _render). Both orderings are
+# asserted at once here: 'later' beats 'earlier' among the inputs, and the piped mapping beats
+# both. Every entry spelling the shared marshaller accepts appears, so a regression in any one
+# of them shows up as a wrong value rather than as a skipped case.
+- name: Stage a file an input entry can name
+  ansible.builtin.copy:
+    dest: "{{ scratch.path }}/layer.txt"
+    content: |
+      cfg.from_file=file-layer
+      cfg.shared=earlier
+    mode: "0644"
+
+# A namespace input value decodes '\n' into a line break (Section 19.6, and conformance fixture
+# 42), and a Jinja string literal in this position does not decode it first. Writing the text
+# inline as '...\n...' therefore reaches the tool as one entry whose value contains a newline,
+# not as two entries. The text is held in a block scalar here so the line breaks are real.
+- name: Hold the text an input entry carries, with real line breaks
+  ansible.builtin.set_fact:
+    text_layer: |
+      cfg.from_text=text-layer
+      cfg.shared=later
+
+- name: Render a piped mapping over an entry list using every input spelling
+  ansible.builtin.set_fact:
+    layered_filter: >-
+      {{ {'shared': 'piped', 'from_pipe': 'pipe-layer'}
+         | stop_cran.namespace2xml.render(
+             'xml',
+             scheme=[scratch.path ~ '/shared-scheme.txt'],
+             inputs=[{'file': scratch.path ~ '/layer.txt'},
+                     {'text': text_layer},
+                     {'data': {'from_data': 'data-layer'}}]) }}
+
+- name: Every layer contributed and the piped value won the shared name
+  ansible.builtin.assert:
+    that:
+      - "'<from_file>file-layer</from_file>' in layered_filter"
+      - "'<from_text>text-layer</from_text>' in layered_filter"
+      - "'<from_data>data-layer</from_data>' in layered_filter"
+      - "'<from_pipe>pipe-layer</from_pipe>' in layered_filter"
+      - "'<shared>piped</shared>' in layered_filter"
+      - "'earlier' not in layered_filter"
+      - "'later' not in layered_filter"
+    fail_msg: >-
+      Expected all four layers to contribute, with the piped mapping winning 'shared'.
+      Rendered: {{ layered_filter }}
+
+# The module appends a mapping scheme to a text one; the filter refuses the pair outright. That
+# difference is deliberate -- a filter call has no ordering between keyword arguments to appeal
+# to -- so it is pinned here rather than left to drift into agreement with the module.
+- name: Attempt both scheme spellings on the filter
+  ansible.builtin.set_fact:
+    both_schemes: >-
+      {{ {'a': 'b'} | stop_cran.namespace2xml.render(
+           'xml',
+           scheme=[{'data': {'cfg': {'output': 'xml'}}}],
+           scheme_text=text_layer) }}
+  ignore_errors: true
+  register: filter_both_schemes
+
+- name: The pair is refused by name rather than one spelling being dropped
+  ansible.builtin.assert:
+    that:
+      - filter_both_schemes is failed
+      - "'scheme_text' in filter_both_schemes.msg"
+    fail_msg: >-
+      Expected the filter to refuse 'scheme' alongside 'scheme_text'.
+      Got: {{ filter_both_schemes.msg | default('no failure') }}
+
 - name: Remove the scratch directory
   ansible.builtin.file:
     path: "{{ scratch.path }}"
