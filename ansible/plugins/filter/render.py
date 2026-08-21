@@ -233,6 +233,26 @@ options:
           - Mutually exclusive with O(scheme[].file) and O(scheme[].text).
         type: dict
         version_added: 3.0.0
+      format:
+        description:
+          - How O(scheme[].text) is parsed. Section 15 reads a scheme as its own line-oriented
+            text, or as JSON, or as YAML, and this chooses which.
+          - Use it for a scheme already held as JSON or YAML B(text) - read from a file by
+            C(lookup), or assembled elsewhere. A scheme written as part of the playbook is
+            better spelled O(scheme[].data), which needs no format and is checked more closely.
+          - Omitting it means C(namespace), so YAML text passed without it reaches the tool as a
+            namespace profile and is refused by C(PARSE001) rather than read as a scheme.
+          - Meaningful only with O(scheme[].text), and refused alongside O(scheme[].file) or
+            O(scheme[].data) for the reasons given under O(inputs[].format).
+          - C(xml) is absent because section 15 does not offer it, not because it would be hard
+            to add.
+        type: str
+        default: namespace
+        choices:
+          - namespace
+          - json
+          - yaml
+        version_added: 3.0.0
   scheme_text:
     description:
       - Deprecated. Write the same text as a O(scheme) entry's C(text) instead.

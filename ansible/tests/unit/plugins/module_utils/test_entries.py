@@ -142,6 +142,40 @@ def test_scheme_data_is_encoded_as_a_section_15_json_document():
     assert '"output": "xml"' in got.text
 
 
+def test_scheme_text_is_written_under_the_extension_its_format_selects():
+    """Section 15 reads a scheme as its own text, as JSON or as YAML, chosen by extension.
+
+    A scheme already held as YAML *text* -- read by ``lookup``, or assembled elsewhere -- has
+    nowhere else to declare what it is. Without this it would be written under ``.txt`` and the
+    tool would read a YAML document as a line-oriented scheme, failing as a parse error about
+    the wrong language rather than as a statement about the format.
+    """
+    got, = schemes([{"text": "cfg:\n  output: json\n", "format": "yaml"}])
+
+    assert got.text == "cfg:\n  output: json\n"
+    assert got.name.endswith(".yaml")
+
+
+def test_scheme_text_defaults_to_the_tools_own_syntax():
+    """Saying nothing means the spelling a scheme has on the command line and in a file."""
+    got, = schemes([{"text": "cfg.output=json"}])
+
+    assert got.name.endswith(".txt")
+
+
+def test_xml_is_refused_for_a_scheme_because_section_15_does_not_offer_it():
+    """The input and scheme format sets differ, and the message has to name the right one.
+
+    XML is a perfectly good *input* format, so this refusal is the only thing distinguishing
+    the two sets to a reader. It must list what a scheme takes rather than what an input does.
+    """
+    with pytest.raises(n2x.Namespace2XmlError) as caught:
+        schemes([{"text": "<r/>", "format": "xml"}])
+
+    assert "namespace, json, yaml" in str(caught.value)
+    assert "xml," not in str(caught.value)
+
+
 def test_entries_are_named_in_position_order():
     """The names are read by whoever has to fix the source they name, so they identify it."""
     got = inputs([{"text": "a=1"}, {"text": "b=2"}])

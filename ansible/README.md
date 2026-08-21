@@ -35,20 +35,33 @@ in play variables, on the controller, or from a managed node's own files, on the
 </configuration>
 ```
 
-## Two plugins, two topologies
+## Three entry points, three topologies
 
-| | `render` filter | [`render` module](#the-render-module) |
-|---|---|---|
-| Runs on | the controller | the managed node |
-| Transforms | data held in play variables | files already on the node |
-| Produces | text, for `copy` to place | files under `dest`, converged in place |
-| Needs on the node | nothing | .NET and the tool |
+| | [`render` filter](#the-render-filter) | [`render` module](#the-render-module) | [`distribute` role](#the-distribute-role) |
+|---|---|---|---|
+| Renders on | the controller | the managed node | the controller |
+| Writes on | nowhere — it returns text | the managed node | the managed node |
+| Reads | data held in play variables | files already on the node | data and files held on the controller |
+| Produces | text, for `copy` to place | files under `dest`, converged in place | files under `dest`, converged in place |
+| Needs on the node | nothing | .NET and the tool | nothing |
+| Handles many files | no — one return value | yes | yes |
 
-Pick by where the truth lives. When the configuration is assembled from play variables, the
-filter renders it on the controller and `ansible.builtin.copy` places it. When the node ships
-its own input files — a template inside the deployed application, a package default, a fragment
-written by another role — the module runs the tool *there*, so each node's own files decide that
-node's state and nothing has to be fetched back to the controller to be transformed.
+Pick by where the truth lives, and by what the node can host.
+
+When the node ships its own input files — a template inside the deployed application, a package
+default, a fragment written by another role — the **module** runs the tool *there*, so each
+node's own files decide that node's state and nothing has to be fetched back to the controller
+to be transformed.
+
+When the configuration is assembled on the controller and the node cannot host .NET and the
+tool — a small VM, a locked image, an appliance — the **`distribute` role** renders once on the
+controller and copies the result. It needs nothing on the node but an SSH connection. Use it
+also when a single source of truth must reach many nodes byte for byte.
+
+When you want the text itself, to place with `ansible.builtin.copy` or to pass to something
+else, use the **filter** directly. The role is the module delegated to `localhost` with a `copy`
+behind it, so anything the role does you can also do by hand.
+
 
 ## Why this exists
 
@@ -70,13 +83,15 @@ short version first.
 | | |
 |---|---|
 | ansible-core | `>=2.15` |
-| Controller | the [`namespace2xml`](https://www.nuget.org/packages/namespace2xml) .NET tool, 3.0 or later — for the **filter** |
+| Controller | the [`namespace2xml`](https://www.nuget.org/packages/namespace2xml) .NET tool, 3.0 or later — for the **filter** and the **`distribute` role** |
 | Managed nodes | the same tool, plus a .NET SDK to install it — for the **module** only |
 
 The **filter** evaluates on the controller, where templating happens; a play that uses only the
-filter needs neither .NET nor the tool on its target nodes. The **module** is the other way
-round. It runs the tool on each node it targets, because its inputs are that node's own files,
-so the tool has to be installed there.
+filter needs neither .NET nor the tool on its target nodes. The **`distribute` role** renders on
+the controller too — it runs the module delegated to `localhost` — so it has the same
+requirement: controller only. The **module** used directly is the other way round. It runs the
+tool on each node it targets, because its inputs are that node's own files, so the tool has to
+be installed there.
 
 ```bash
 # controller, for the filter
@@ -125,15 +140,33 @@ the rendered text against what is on the node.
 |---|---|
 | `fmt` | *(positional, required)* `xml`, `json`, `yaml`, `ini`, `namespace`, `quotednamespace` |
 | `root` | the XML document element name. Required whenever the data has more than one top-level key |
-| `scheme` | explicit scheme text, for anything the synthesized minimal scheme does not cover. On the module this same name means scheme *files* — see the note under the module's arguments |
-| `scheme_text` | the same argument as `scheme`, under the name the module gives inline text. Use it when you want one spelling in both plugins |
-| `scheme_yaml` | the same scheme written as a YAML mapping instead of text. Mutually exclusive with `scheme` and `scheme_text` |
+| `inputs` | further inputs, layered *underneath* the piped value. A list of [entries](#one-shape-for-every-source) |
+| `scheme` | the scheme, as a list of [entries](#one-shape-for-every-source). A bare string names a *file* |
+| `scheme_text` | **deprecated.** `scheme: [{text: ...}]` |
+| `scheme_yaml` | **deprecated.** `scheme: [{data: ...}]` |
 | `selector` | the top-level name the data is written under. Default `cfg` |
 | `convention` | how mapping keys are read: `escaped` (default) or `xmltodict`, which reads `@`, `Q{…}` and `#` as XML addressing |
 | `delimiter` | output delimiter, for the flat formats |
 | `tool` | path to the binary. Authoritative — a value given here resolves or the filter fails |
 | `memoize` | reuse an identical earlier render in the same worker process. Default `true` |
 | `workdir` | parent for the temporary marshalling directory |
+
+The piped value is applied **last**, so it wins any name an `inputs` entry also sets. That is
+[§16.10](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md) — the last
+contribution wins — and it is the ordering that makes `inputs` useful: put the shared defaults
+in `inputs` and pipe the host's overrides.
+
+```yaml
+- name: Layer group defaults under this host's overrides
+  ansible.builtin.copy:
+    dest: /opt/app/conf/app.xml
+    content: >-
+      {{ host_overrides | stop_cran.namespace2xml.render(
+           'xml', root='configuration',
+           inputs=[{'file': '/srv/defaults/base.properties'},
+                   {'data': group_defaults}]) }}
+```
+
 
 Full documentation, including the specification sections each argument corresponds to:
 
@@ -163,35 +196,68 @@ The selector the scheme declares must match `selector`, and a rule's pattern mus
 value's full path in the generated profile — `cfg` plus your keys.
 
 ```yaml
-scheme: |
-  cfg.output=ini
-  cfg.*.version.type=string
+scheme:
+  - text: |
+      cfg.output=ini
+      cfg.*.version.type=string
 ```
 
-### Two spellings of a scheme
+A scalar here is a **file name**, not scheme text, so passing the block above without the
+`- text:` wrapper is refused rather than read as a scheme. The message says so and names the fix.
 
-A playbook is YAML, so a scheme embedded in one as a block of `a.b=c` lines is a second syntax
-inside a file that already has one. Section 15 of the specification selects the scheme parser
-from the file extension and accepts a structured document as readily as text, so both plugins
-also take the scheme as a mapping — `scheme_yaml` on the filter and on the module:
+### One shape for every source
+
+`inputs` and `scheme` are lists, and every element is an **entry**. An entry is either a bare
+string, which names a file, or a mapping carrying exactly one of:
+
+| | |
+|---|---|
+| `file` | a path to read. The same thing a bare string means |
+| `text` | a document, written inline, in the syntax the tool reads |
+| `data` | a structure, which this collection encodes for you. The nesting carries the path |
+| `format` | how to parse `text`. Only ever alongside `text` |
+
+The list is ordered, and later beats earlier —
+[§16.10](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md) for
+inputs, §15.2 for schemes. So a small override layers onto a shared file without either of them
+knowing about the other:
 
 ```yaml
-scheme_yaml:
-  xmlinputoptions: NormalizeFormattingWhitespace
-  cfg:
-    output: xml
-    root: configuration
-    appender:
-      "*":
-        name:
-          type: ignore
+scheme:
+  - /srv/schemes/house-style.scheme     # a bare string is a file
+  - text: |                             # a couple of lines on top of it
+      cfg.*.version.type=string
+  - data:                               # or the same thing as a structure
+      cfg:
+        output: xml
+        root: configuration
 ```
 
-The two spellings are the same scheme, and the integration suite renders both and compares the
-bytes. Choose on how the scheme is produced rather than on taste: a mapping composes with
-`combine`, `vars_files` and inventory variables and is checked as you write it, while text stays
-copy-pasteable to and from the command line and a `.scheme` file. They are mutually exclusive —
-supplying both leaves the render ambiguous, so it is refused.
+`format` belongs to `text` alone, and setting it elsewhere is refused rather than ignored.
+Beside `file` there is nothing for it to do — [§7.1](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md)
+selects the parser from the extension and the file is passed to the tool rather than copied, so
+a `format` here could not be honoured. Beside `data` there is nothing left for it to reach: a
+structure is already being encoded into the tool's own syntax. To parse a file as something its
+extension does not say, read it in the play and pass it as `text`:
+
+```yaml
+inputs:
+  - text: "{{ lookup('file', '/srv/defaults.conf') }}"
+    format: yaml
+```
+
+The formats are `namespace`, `json`, `yaml` and `xml` for an input, and `namespace`, `json` and
+`yaml` for a scheme — [§15](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md)
+does not offer XML for a scheme.
+
+#### Why a structure, and not just text
+
+A playbook is YAML, so a scheme embedded in one as a block of `a.b=c` lines is a second syntax
+inside a file that already has one. Section 15 selects the scheme parser from the file extension
+and accepts a structured document as readily as text, so a `data` entry lets a scheme compose
+with `combine`, `vars_files` and inventory variables, and be checked as you write it. Text stays
+copy-pasteable to and from the command line and a `.scheme` file. Both spellings are the same
+scheme, and the integration suite renders both and compares the bytes.
 
 A few things about the mapping form are worth knowing before you meet them:
 
@@ -213,7 +279,7 @@ A few things about the mapping form are worth knowing before you meet them:
 - **A multi-valued directive is one comma-separated scalar**, not a sequence: `output: "xml,json"`.
   A filter has one return value, so a scheme that produces several files — several formats in
   one `output`, or several `filename` targets — has no single result to hand back and only works
-  through the module.
+  through the module or the role.
 - **Quote a wildcard and anything number-shaped.** A bare `*` is a YAML alias indicator, and
   YAML reads `3.10` as the number `3.1`.
 
@@ -226,6 +292,15 @@ selects that same name, because here a mistake is silent rather than loud. A bac
 anything other than a dot is not an escape at all: Section 9.1 says it "contributes itself and
 consumes nothing, so a key such as `C:\dir` needs no escaping". Only a leading one is special,
 where `\` suppresses a marker — write `\\@x` for a name that begins with a literal `\@`.
+
+#### A `data` entry hangs under the selector
+
+An input `data` entry is written under `selector`, exactly like the filter's piped value. With
+the default `cfg`, `data: {host: web1}` becomes `cfg.host=web1`. A scheme written against a
+different root will not match it, the render will **succeed**, and the input will simply be
+absent from the output. Nothing reports this, because a scheme that matches nothing is legal.
+Keep `selector` and the scheme's root the same word.
+
 
 ### Memoization
 
@@ -243,13 +318,14 @@ the handful of things that differ on this host, and the node renders its own con
 ```yaml
 - name: Raise the logback root level on each node
   stop_cran.namespace2xml.render:
-    src:
+    inputs:
       - /opt/app/templates/logback.xml
-    scheme_text: |
-      xmlinputoptions=NormalizeFormattingWhitespace
-      configuration.output=xml
-      configuration.filename=logback.xml
-      configuration.root=configuration
+    scheme:
+      - text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
     variables:
       configuration.root.@level: DEBUG
     dest: /opt/app/conf
@@ -263,23 +339,27 @@ the handful of things that differ on this host, and the node renders its own con
 
 | | |
 |---|---|
-| `src` | *(required)* ordered input file paths **on the node**, one `-i` each |
-| `scheme` | ordered scheme file paths on the node, one `-s` each |
-| `scheme_text` | scheme directives written inline in the playbook, applied *after* every `scheme` file |
-| `scheme_yaml` | the same inline scheme written as a YAML mapping. Mutually exclusive with `scheme_text`, and composes with `scheme` files the same way |
+| `inputs` | *(required unless `src`)* ordered inputs, as a list of [entries](#one-shape-for-every-source). A bare string names a file **on the node** |
+| `src` | **deprecated.** `inputs`, whose bare strings mean exactly what `src` meant |
+| `scheme` | the scheme, as a list of [entries](#one-shape-for-every-source). A bare string names a file **on the node** |
+| `scheme_text` | **deprecated.** `scheme: [{text: ...}]`. Still applied *after* every `scheme` entry |
+| `scheme_yaml` | **deprecated.** `scheme: [{data: ...}]` |
 | `variables` | namespace entries applied after all inputs, one `-v name=value` each. Keys are passed **verbatim** |
 | `dest` | *(required)* the output root directory, passed as `-o` |
 | `tool` | path to the binary on the node |
 
-> **`scheme` does not mean the same thing on the two plugins.** On the filter it is scheme
-> *text*, because a controller-side render has no node filesystem to read from. On the module it
-> is a list of scheme *file paths on the node*, and the inline-text spelling is `scheme_text`.
-> `scheme_yaml` means the same mapping on both.
+> **One name, one meaning — since 3.0.** `scheme` is a list of entries in both plugins, and a
+> bare string in it names a file. Before 3.0 the same word meant scheme *text* on the filter and
+> scheme *file paths* on the module, so a scheme moved between them changed meaning silently.
+> That is fixed, and it is why this is a major version: a filter call passing scheme text as a
+> bare `scheme` string is now read as a filename and refused, with a message naming the fix.
 >
-> Since 2.3.0 the filter also accepts `scheme_text` as a second name for its `scheme`, so inline
-> text can be written the same way in both plugins and a scheme moved between them needs no
-> rename. `scheme` keeps its filter meaning and is not deprecated — but a play that says
-> `scheme` in both places is saying two different things.
+> The one asymmetry that remains is deliberate. On the **module**, `scheme_text` and
+> `scheme_yaml` are applied *after* every `scheme` entry, which is what they always did and what
+> a play upgrading incrementally depends on. On the **filter** they are refused alongside
+> `scheme`, because a filter call has no ordering between keyword arguments to appeal to, so
+> "after" would be a claim the syntax cannot support.
+
 
 Plus the standard file arguments — `mode`, `owner`, `group`, `seuser` and the rest — applied to
 every produced file.
@@ -349,7 +429,65 @@ One more thing has no diagnostic to teach it: **an XML input's top-level namespa
 document element**. An overlay for `<configuration>` is rooted at `configuration`, and the scheme
 needs `root=configuration` to write the single document element back out.
 
+## The `distribute` role
+
+The module needs .NET and the tool on every node it converges. Sometimes that is not on offer —
+a VM with no room for a runtime, a locked image, a fleet you do not control — and sometimes it is
+simply wrong, because the configuration comes from one place and every node should get the same
+bytes.
+
+`distribute` renders on the controller and copies the result to the node. It is the module
+delegated to `localhost` followed by `ansible.builtin.copy`, so it needs .NET and the tool
+**where you already need them for the filter**, and **nothing on the node** but the SSH
+connection Ansible already has.
+
+```yaml
+- name: Ship the application configuration
+  hosts: appservers
+  tasks:
+    - name: Render on the controller, converge on the node
+      ansible.builtin.include_role:
+        name: stop_cran.namespace2xml.distribute
+      vars:
+        namespace2xml_distribute_dest: /etc/app
+        namespace2xml_distribute_selector: app
+        namespace2xml_distribute_inputs:
+          - /srv/config/base.properties
+          - data:
+              host: "{{ inventory_hostname }}"
+        namespace2xml_distribute_scheme:
+          - text: |
+              app.output=xml
+              app.filename=app.xml
+              app.root=configuration
+        namespace2xml_distribute_mode: "0640"
+```
+
+`inputs` and `scheme` are the same [entries](#one-shape-for-every-source) the plugins take, with
+one difference that follows from where the render happens: a `file` entry names a path **on the
+controller**, because that is the machine doing the reading.
+
+The role produces however many files the scheme declares, and an explicit `filename` carrying a
+`/` creates the subdirectory to hold it — [§16.2](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md)
+makes that deliberate rather than an accident of path handling. Directories are created with
+`namespace2xml_distribute_directory_mode`.
+
+Convergence, check mode and `--diff` come from `ansible.builtin.copy`, so a second run over
+unchanged data reports `changed=0` and a dry run reports exactly what a real run would write.
+The controller-side scratch directory is removed whether the play succeeds or fails.
+
+Full reference — every variable, with defaults:
+
+```bash
+ansible-doc -t role stop_cran.namespace2xml.distribute
+```
+
+> **Keep `namespace2xml_distribute_selector` and the scheme's root the same word.** A `data`
+> entry hangs under the selector, so a scheme written against a different root matches nothing,
+> renders nothing, and reports no error.
+
 ## Fidelity limits
+
 
 These are limits of the **filter**, and specifically of the step that turns an Ansible data
 structure into profile text. The module has none of them: its inputs are already namespace or
@@ -367,9 +505,10 @@ number written `version: "3"` renders as the integer `3`.
 A `type` scheme rule is the only way to force a string:
 
 ```yaml
-scheme: |
-  cfg.output=json
-  cfg.version.type=string
+scheme:
+  - text: |
+      cfg.output=json
+      cfg.version.type=string
 ```
 
 The pattern must match the value's **full path** in the generated profile, which is
@@ -457,9 +596,10 @@ When the base document is a file on the node, the [`render` module](#the-render-
 
 ## Versioning
 
-This collection is at 2.3.0 while the tool is at 3.x. They are separate artefacts with separate
+This collection is at 3.0.0 while the tool is at 3.x. They are separate artefacts with separate
 compatibility promises: the collection pins no tool version, and the two are released under
-different tags — `v3.*` for the tool, `ansible-v*` for this collection.
+different tags — `v3.*` for the tool, `ansible-v*` for this collection. The numbers matching at
+3.0 is a coincidence of timing, not a rule.
 
 2.0.0 rather than 1.1.0 because 1.0.0 documented, as a requirement, that target nodes need neither
 .NET nor the tool. The module makes that false for any play that uses it, and a promise about what
@@ -485,6 +625,33 @@ release is documentation: the per-(host, task) cost of a render is now stated ra
 be discovered, closing [#113](https://github.com/stop-cran/namespace2xml/issues/113). Every 2.2.0
 playbook renders identically.
 
+3.0.0 gives every source the same shape and adds the `distribute` role.
+
+Before it, a source could be spelled four ways depending on which plugin you were in and whether
+it was an input or a scheme — `src`, `scheme`, `scheme_text`, `scheme_yaml` — and `scheme` meant
+*text* on the filter but *file paths* on the module, so a scheme moved between them changed
+meaning without changing spelling. Now `inputs` and `scheme` are ordered lists of entries in both
+plugins, an entry is a bare string naming a file or a mapping carrying `file`, `text` or `data`,
+and the same list means the same thing everywhere. Sources compose: a small override layers onto
+a shared file, and the filter gained `inputs` so it can do this at all.
+
+This is a major version for three reasons, each of which will stop an existing playbook rather
+than change what it renders:
+
+- **A filter `scheme` given as a plain string is now a filename.** It used to be scheme text.
+  This is the one change that could otherwise have been silent — a scheme's text is not usually a
+  path that exists, so it is refused with a message naming the fix rather than read as one.
+- **`format` is refused beside `file` and beside `data`.** It only ever applied to `text`, and
+  elsewhere it was accepted and ignored, which is worse than a refusal.
+- **`src`, `scheme_text` and `scheme_yaml` are deprecated.** They still work, and they still
+  compose the way they did — on the module `scheme_text` and `scheme_yaml` are still applied
+  after every `scheme` entry — so a playbook that uses them keeps working and warns.
+
+The `distribute` role answers a request for the topology neither plugin covered: render on the
+controller, converge on the node, with nothing installed on the node. The module already required
+.NET and the tool on every node, which is not always available and, where the configuration comes
+from one place anyway, not always right.
+
 ## How this is tested
 
 The unit tests compare the encoder against profile text **authored by hand from the
@@ -498,6 +665,10 @@ The module is held to the claim that matters for a module rather than for a temp
 run changes nothing. Its integration target renders, asserts the document, renders again and
 requires `not changed` — so a tool that stopped being deterministic, or a comparison that stopped
 being a byte comparison, fails there and nowhere else.
+
+The `distribute` role is checked the same way, plus the two claims that are only its own: that
+check mode writes nothing while still reporting what a real run would write, and that its
+controller-side scratch directory is removed even when the render fails.
 
 Neither suite leaves the controller. `ansible-test units` exercises the plugins as Python, and
 `ansible-test integration` runs its targets against `localhost` — so between them they never prove
