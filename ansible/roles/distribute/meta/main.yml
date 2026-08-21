@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  author: stop-cran
+  description: >-
+    Render configuration with namespace2xml on the controller and distribute the result to
+    managed nodes, which need neither .NET nor the transformer.
+  license: Apache-2.0
+  min_ansible_version: "2.15"
+  standalone: false
+  platforms:
+    - name: any
+      versions:
+        - any
+  galaxy_tags:
+    - configuration
+    - templating
+
+# Nothing. The role drives one module from this same collection, and that module resolves the
+# transformer at call time.
+dependencies: []

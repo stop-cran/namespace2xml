@@ -16,6 +16,13 @@ The `render` module exists because a managed node's *own* files should decide th
 Proving that needs two nodes with different inputs, a transport between them and the controller, and
 the tool installed on the node rather than on the controller. That is what this rig is.
 
+The `distribute` role exists for the opposite arrangement, where the node cannot host the tool at
+all. Proving *that* needs a node with no .NET and no transformer on it, which is what `node3` is:
+`Dockerfile.node-bare` asserts their absence at build time, `rig.ps1` asserts it again from the
+controller, and playbook 07 asserts it a third time before it tests anything that rests on it. A
+base image that quietly started shipping .NET would otherwise turn the whole exercise into a
+tautology.
+
 It is a harness a maintainer runs deliberately -- before a release, or when changing the module's
 contract with the node. **It does not run in CI**: it needs a Docker daemon and pulls a ~1 GB base
 image, which is a poor trade for every push.
@@ -43,15 +50,20 @@ working tree instead:
 
 ```powershell
 ./rig.ps1 -PackageSource local
-./rig.ps1 -PackageSource local -Collection ../../ansible/stop_cran-namespace2xml-2.4.0.tar.gz
+./rig.ps1 -PackageSource local -Collection local
+./rig.ps1 -PackageSource local -Collection ../../ansible/stop_cran-namespace2xml-3.0.0.tar.gz
 ```
+
+`-Collection local` stages `ansible/` from the working tree into the build context, builds a tarball
+inside the controller image and installs that. Docker cannot read a path outside its build context,
+so a tarball given by path is copied in the same way rather than mounted.
 
 ### The idempotence check
 
 Run `./rig.ps1 -Command test` **twice**. On the second pass playbooks 01, 03 and 04 must report
-`changed=0`. Playbooks 02, 05 and 06 legitimately report changes: 02 and 05 delete their target
-first so the run genuinely creates something, and 06 modifies a value on purpose to exercise the
-diff path.
+`changed=0`. Playbooks 02, 05, 06 and 07 legitimately report changes: 02 and 05 delete their target
+first so the run genuinely creates something, 06 modifies a value on purpose to exercise the diff
+path, and 07 runs a check-mode pass whose reported change is precisely what it asserts.
 
 ## What each playbook covers
 
@@ -63,6 +75,7 @@ diff path.
 | `04-yaml-scheme.yml` | `scheme_yaml`; the self-overwrite guard; `'*'` selectors; escaped dots; multi-format output |
 | `05-filter.yml` | the controller-side filter, which renders play data rather than node files |
 | `06-vars-and-safety.yml` | `-v` variables; a scheme file living on the node; `dest` is never cleaned; diff on modification |
+| `07-distribute.yml` | the `distribute` role against `node3`, which has no .NET and no tool: all three input shapes, a scheme that renders into a subdirectory, file and directory modes, idempotence, check mode writing nothing, and no staging left on the controller |
 
 ## Things that will bite you
 
@@ -86,6 +99,18 @@ Each of these cost real debugging time; they are recorded so they cost it only o
 - **`dotnet tool install` straight from nuget.org fails in a container.** `api.nuget.org`'s V3 index
   resolves IPv6-only on some networks and the default Docker bridge has no IPv6 route. `rig.ps1`
   downloads over the V2 endpoint on the host and installs from `--source /pkg`.
+- **`check_mode` is not accepted on `include_role`.** Ansible rejects the play at parse time with
+  `'check_mode' is not a valid attribute for a IncludeRole`. Wrap the include in a `block:` and put
+  the keyword there -- a block passes it down to everything it contains.
+- **A check-mode `copy` result has no `dest`.** Ansible templates a task's arguments whether or not
+  an assertion fails, so a `fail_msg` reaching for `dest` turns a passing assertion into an
+  undefined-variable error. The loop's own `item` is always present.
+- **PowerShell variable names are case-insensitive.** A local named `$collection` silently
+  overwrites the `$Collection` parameter, and the failure surfaces much later as an unrelated build
+  error.
+- **Never write a Markdown backtick into a file through PowerShell string manipulation.** Backticks
+  are escape characters in double-quoted strings *and* in `@"..."@` here-strings, so `` `f `` and
+  `` `a `` become a form feed and a BEL inside the file. Edit these files with a real editor.
 - **nuget.org's copy of a package is not byte-identical to the GitHub release copy.** The gallery
   adds a `.signature.p7s` counter-signature. Every other entry matches by CRC32; a size or hash
   difference between those two channels is expected, not a supply-chain problem.

@@ -154,6 +154,11 @@ options:
     description:
       - The selector a O(inputs[].data) entry is flattened under. It has to match the selector
         the scheme declares, or the scheme's directives address nothing.
+      - >-
+        Nothing reports the mismatch. C(data: {host: web1}) under the default selector becomes
+        C(cfg.host=web1), so a scheme rooted at C(app) renders successfully with that input
+        absent from the result. When an C(inputs) list mixes a C(data) entry with file or text
+        entries, set this to the root those entries already share.
       - Read only for O(inputs[].data). It names nothing on its own.
     type: str
     default: cfg

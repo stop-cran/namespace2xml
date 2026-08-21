@@ -84,6 +84,10 @@ options:
     description:
       - The top-level name the data is written under in the generated profile.
       - Change it only when supplying O(scheme), whose declared selector must match.
+      - >-
+        A mismatch is not reported. The scheme's directives simply address nothing, and the
+        render succeeds with the data absent from its result. The same applies to an
+        O(inputs[].data) entry, which is flattened under this name too.
     type: str
     default: cfg
   inputs:

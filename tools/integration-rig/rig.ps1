@@ -29,16 +29,17 @@
     local      dotnet pack this working tree -- tests changes that are not released yet
 
 .PARAMETER Collection
-    What to hand `ansible-galaxy collection install`. Defaults to the published collection. Point it
-    at a built tarball to test an unreleased collection.
+    What to hand `ansible-galaxy collection install`. Defaults to the published collection.
+    `local` builds and installs this working tree's `ansible/` directory, which is how you test an
+    unreleased collection. A path to a built tarball works too.
 
 .EXAMPLE
     ./rig.ps1
     Full cycle against the published tool and the published collection.
 
 .EXAMPLE
-    ./rig.ps1 -PackageSource local -Collection ../../ansible/stop_cran-namespace2xml-2.4.0.tar.gz
-    Full cycle against this working tree's tool and a locally built collection.
+    ./rig.ps1 -PackageSource local -Collection local
+    Full cycle against this working tree, tool and collection both.
 
 .EXAMPLE
     ./rig.ps1 -Command test
@@ -66,9 +67,14 @@ $rig = $PSScriptRoot
 $repo = Resolve-Path (Join-Path (Join-Path $rig '..') '..')
 $keys = Join-Path $rig '.keys'
 $pkg = Join-Path $rig 'pkg'
+$collectionStage = Join-Path $rig 'collection'
 $network = 'n2x-net'
 $controller = 'n2x-ctl'
 $nodes = @('n2x-node1', 'n2x-node2')
+# A node with neither .NET nor the transformer, for the `distribute` role. Built from its own
+# Dockerfile rather than by omitting the tool from the usual one, so that "the node cannot run it"
+# is a property of the image and not of the build arguments.
+$bareNodes = @('n2x-node3')
 
 # Docker and git both write ordinary progress to stderr, which PowerShell turns into a terminating
 # NativeCommandError under $ErrorActionPreference='Stop'. Judge these by exit code, never by stream.
@@ -193,18 +199,50 @@ function Get-ToolPackage {
     $packages | ForEach-Object { Write-Host ("  {0}  {1:N0} bytes" -f $_.Name, $_.Length) }
 }
 
+function Get-Collection {
+    # Docker cannot COPY from outside the build context, so anything local has to be staged into
+    # the rig directory first. The directory is created either way: the Dockerfile COPYs it
+    # unconditionally, and a COPY of a missing directory fails the build.
+    if (Test-Path -LiteralPath $collectionStage) { Remove-Item -LiteralPath $collectionStage -Recurse -Force }
+    New-Item -ItemType Directory -Path $collectionStage -Force | Out-Null
+
+    if ($Collection -eq 'local') {
+        $source = Join-Path $repo 'ansible'
+        Write-Host "  staging the collection from $source"
+        # Into `src/`, which the controller image builds. Excluding the test output keeps a stale
+        # `tests/output` from a previous ansible-test run out of the tarball.
+        Copy-Item -LiteralPath $source -Destination (Join-Path $collectionStage 'src') -Recurse -Force
+        $output = Join-Path $collectionStage 'src\tests\output'
+        if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Recurse -Force }
+        Write-Host ("  staged {0:N0} files" -f @(Get-ChildItem -LiteralPath (Join-Path $collectionStage 'src') -Recurse -File).Count)
+        return
+    }
+
+    if (Test-Path -LiteralPath $Collection -PathType Leaf) {
+        Write-Host "  staging the collection tarball $Collection"
+        Copy-Item -LiteralPath $Collection -Destination $collectionStage -Force
+        return
+    }
+
+    Write-Host "  the controller will install $Collection from Galaxy"
+}
+
 function Invoke-Up {
     param([string] $ToolVersion)
 
     Write-Host "== preparing ($PackageSource, tool $ToolVersion, collection $Collection)"
     New-RigKeys
     Get-ToolPackage -ToolVersion $ToolVersion
+    Get-Collection
 
     Write-Host '== building images'
     Push-Location $rig
     try {
         Invoke-Native 'docker build (node)' {
             docker build -f Dockerfile.node --build-arg "TOOL_VERSION=$ToolVersion" -t n2x-node:rig .
+        } | Select-Object -Last 3
+        Invoke-Native 'docker build (bare node)' {
+            docker build -f Dockerfile.node-bare -t n2x-node-bare:rig .
         } | Select-Object -Last 3
         Invoke-Native 'docker build (controller)' {
             docker build -f Dockerfile.controller --build-arg "TOOL_VERSION=$ToolVersion" --build-arg "COLLECTION_SPEC=$Collection" -t n2x-ctl:rig .
@@ -217,6 +255,9 @@ function Invoke-Up {
     foreach ($node in $nodes) {
         Invoke-Native "docker run $node" { docker run -d --name $node --network $network --hostname $node n2x-node:rig } | Out-Null
     }
+    foreach ($node in $bareNodes) {
+        Invoke-Native "docker run $node" { docker run -d --name $node --network $network --hostname $node n2x-node-bare:rig } | Out-Null
+    }
     Invoke-Native "docker run $controller" {
         docker run -d --name $controller --network $network --hostname $controller -v "${rig}:/play" n2x-ctl:rig sleep infinity
     } | Out-Null
@@ -227,12 +268,25 @@ function Invoke-Up {
 
     # An unreachable node makes every later failure ambiguous, so prove SSH before running anything.
     Write-Host '== connectivity'
-    $ping = Invoke-Exec 'ansible nodes -m ping'
-    if (($ping -join "`n") -notmatch 'node1 \| SUCCESS' -or ($ping -join "`n") -notmatch 'node2 \| SUCCESS') {
-        $ping | ForEach-Object { Write-Host "  $_" }
-        throw 'Both nodes must answer ping before the suite can mean anything.'
+    $ping = Invoke-Exec 'ansible all -m ping'
+    $joined = $ping -join "`n"
+    foreach ($name in @('node1', 'node2', 'node3')) {
+        if ($joined -notmatch "$name \| SUCCESS") {
+            $ping | ForEach-Object { Write-Host "  $_" }
+            throw 'Every node must answer ping before the suite can mean anything.'
+        }
     }
-    Write-Host '  node1 and node2 both answered'
+    Write-Host '  node1, node2 and node3 all answered'
+
+    # The bare node's whole purpose is that the tool is not there. Assert it from the controller's
+    # side too: a stale image tag could otherwise leave a tool-bearing container standing in for it.
+    $bare = Invoke-Exec "ansible bare -m raw -a 'command -v namespace2xml || echo ABSENT'"
+    if (($bare -join "`n") -notmatch 'ABSENT') {
+        $bare | ForEach-Object { Write-Host "  $_" }
+        throw 'node3 has namespace2xml on PATH. It must not, or the distribute playbook proves nothing.'
+    }
+    Write-Host '  node3 confirmed to have no transformer'
+
 }
 
 function Invoke-Exec {
@@ -286,7 +340,7 @@ function Invoke-Test {
 function Invoke-Down {
     Write-Host '== tearing down'
     # By name only. This host may carry unrelated containers, so no prune, ever.
-    foreach ($container in @($controller) + $nodes) {
+    foreach ($container in @($controller) + $nodes + $bareNodes) {
         Invoke-Native "docker rm $container" { docker rm -f $container } -IgnoreFailure | Out-Null
     }
     Invoke-Native 'docker network rm' { docker network rm $network } -IgnoreFailure | Out-Null
