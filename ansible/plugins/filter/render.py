@@ -184,9 +184,10 @@ options:
         cannot read - one named C(.json), C(.yaml) or C(.yml), or one that cannot be opened -
         is the same question and is settled the same way.
       - A filter returns one document, so a scheme that produces a set of files - several
-        formats in one C(output) declaration, or several C(filename) targets - has no single
-        result to hand back and the render fails. Use the C(stop_cran.namespace2xml.render)
-        module when the scheme is meant to produce several files.
+        formats in one C(output) declaration, or several scheme entries each naming their own
+        C(filename) - has no single result to hand back and the render fails. Use the
+        C(stop_cran.namespace2xml.render) module when the scheme is meant to produce several
+        files. Note that C(filename) itself is one complete path, never a comma-separated list.
       - Mutually exclusive with O(scheme_text) and O(scheme_yaml), which are this same argument
         under the names 2.x gave it.
     type: list
@@ -1308,14 +1309,16 @@ def _run_and_read(executable, input_paths, scheme_paths, output_dir):
 
     if len(produced) != 1:
         # A filter returns one document. A scheme that asks for several -- several formats in one
-        # 'output' declaration, or several 'filename' targets -- has no single answer to return,
-        # and one that asks for none has nothing to return. Naming both causes keeps a reader
-        # from taking their own scheme's shape for a defect in this collection.
+        # 'output' declaration, or several scheme entries each naming their own 'filename' -- has
+        # no single answer to return, and one that asks for none has nothing to return. Naming
+        # both causes keeps a reader from taking their own scheme's shape for a defect in this
+        # collection.
         raise Namespace2XmlError(
             "expected exactly one output file, got %d%s. A filter returns one document, so a "
             "scheme that produces a set of files has no single result to hand back: section "
             "16.1 reads 'output: xml,json' as two formats and writes one file for each, "
-            "several 'filename' targets do the same, and 'output: ignore' writes none. Narrow "
+            "several scheme entries each naming their own 'filename' do the same, and "
+            "'output: ignore' writes none. Narrow "
             "the scheme, or use the 'stop_cran.namespace2xml.render' module, which publishes "
             "every produced file to the node.%s"
             % (len(produced),

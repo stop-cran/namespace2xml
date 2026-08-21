@@ -192,3 +192,83 @@
         fail_msg: >-
           the role left rendered configuration on the controller:
           {{ leftovers.files | map(attribute='path') | list }}
+
+# The controller holds the rendered configuration -- often credentials -- for as long as the run
+# takes, and removes it in an always block. An unreachable host is normally dropped from the play
+# the moment it stops answering, which skips that always block and leaves the render on disk. This
+# is the one failure that cannot be staged inside the collection's own integration target, because
+# that target runs against a single local host: it needs a second host that genuinely does not
+# answer. Port 1 refuses instantly, which makes the check deterministic and costs no timeout.
+- name: Register a node that cannot be reached
+  hosts: localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: A host that refuses every connection
+      ansible.builtin.add_host:
+        name: refusing-node
+        groups: refusing
+        ansible_host: 127.0.0.1
+        ansible_port: 1
+        ansible_user: nobody
+        ansible_ssh_common_args: -o StrictHostKeyChecking=no -o ConnectTimeout=3
+
+- name: S7b. A node that cannot be reached leaves nothing on the controller
+  hosts: refusing
+  gather_facts: false
+  tasks:
+    - name: What the controller holds before the run
+      ansible.builtin.find:
+        paths: /tmp
+        patterns: "*.namespace2xml"
+        file_type: directory
+      register: before
+      delegate_to: localhost
+
+    - name: This cannot succeed
+      block:
+        - name: Distribute to a node that will not answer
+          ansible.builtin.include_role:
+            name: stop_cran.namespace2xml.distribute
+          vars:
+            namespace2xml_distribute_inputs:
+              - text: |
+                  app.secret=hunter2
+            namespace2xml_distribute_scheme:
+              - data:
+                  app:
+                    output: xml
+                    root: app
+            namespace2xml_distribute_dest: /etc/unreachable
+
+        - name: Fail if the role claimed success
+          ansible.builtin.fail:
+            msg: the role reported success against a node that never answered
+          delegate_to: localhost
+
+      rescue:
+        - name: Failing is the expected outcome
+          ansible.builtin.assert:
+            that:
+              - ansible_failed_result.msg is search('stopped answering')
+            fail_msg: >-
+              expected the role to name the unreachable node, got
+              {{ ansible_failed_result.msg | default(ansible_failed_result) }}
+          delegate_to: localhost
+
+    - name: What the controller holds after it
+      ansible.builtin.find:
+        paths: /tmp
+        patterns: "*.namespace2xml"
+        file_type: directory
+      register: after
+      delegate_to: localhost
+
+    - name: The run left no rendered configuration on the controller
+      ansible.builtin.assert:
+        that:
+          - after.files | length == before.files | length
+        fail_msg: >-
+          the role left rendered configuration on the controller after the node stopped
+          answering: {{ after.files | map(attribute='path') | list }}
+      delegate_to: localhost

@@ -42,8 +42,8 @@ in play variables, on the controller, or from a managed node's own files, on the
 | Renders on | the controller | the managed node | the controller |
 | Writes on | nowhere — it returns text | the managed node | the managed node |
 | Reads | data held in play variables | files already on the node | data and files held on the controller |
-| Produces | text, for `copy` to place | files under `dest`, converged in place | files under `dest`, converged in place |
-| Needs on the node | nothing | .NET and the tool | nothing |
+| Produces | text, for `copy` to place | files under `dest`, written in place | files under `dest`, written in place |
+| Needs on the node | nothing | .NET and the tool | nothing beyond Ansible's own Python |
 | Handles many files | no — one return value | yes | yes |
 
 Pick by where the truth lives, and by what the node can host.
@@ -55,8 +55,9 @@ to be transformed.
 
 When the configuration is assembled on the controller and the node cannot host .NET and the
 tool — a small VM, a locked image, an appliance — the **`distribute` role** renders once on the
-controller and copies the result. It needs nothing on the node but an SSH connection. Use it
-also when a single source of truth must reach many nodes byte for byte.
+controller and copies the result. It needs nothing on the node beyond the Python interpreter
+Ansible already requires there. Use it also when a single source of truth must reach many nodes
+byte for byte.
 
 When you want the text itself, to place with `ansible.builtin.copy` or to pass to something
 else, use the **filter** directly. The role is the module delegated to `localhost` with a `copy`
@@ -278,8 +279,13 @@ A few things about the mapping form are worth knowing before you meet them:
   dot in the local name after it is ambiguous like any other and still wants `\.` or nesting.
 - **A multi-valued directive is one comma-separated scalar**, not a sequence: `output: "xml,json"`.
   A filter has one return value, so a scheme that produces several files — several formats in
-  one `output`, or several `filename` targets — has no single result to hand back and only works
-  through the module or the role.
+  one `output`, or a `filename` that resolves to more than one target — has no single result to
+  hand back and only works through the module or the role.
+- **`filename` is one complete path, and commas in it are literal.** Unlike `output`, it is not
+  comma-separated: `filename: "a.yaml,b.json"` asks for a single file whose name contains a
+  comma, not two files. The comma is then percent-encoded along with everything else outside
+  `[A-Za-z0-9-_.]`, so the result is one file named `a.yaml%2Cb.json` and a `WARN005`. To write
+  several formats, name several outputs and leave `filename` off, or split the scheme.
 - **Quote a wildcard and anything number-shaped.** A bare `*` is a YAML alias indicator, and
   YAML reads `3.10` as the number `3.1`.
 
@@ -438,8 +444,8 @@ bytes.
 
 `distribute` renders on the controller and copies the result to the node. It is the module
 delegated to `localhost` followed by `ansible.builtin.copy`, so it needs .NET and the tool
-**where you already need them for the filter**, and **nothing on the node** but the SSH
-connection Ansible already has.
+**where you already need them for the filter**, and **nothing on the node** beyond the Python
+interpreter Ansible already requires there.
 
 ```yaml
 - name: Ship the application configuration

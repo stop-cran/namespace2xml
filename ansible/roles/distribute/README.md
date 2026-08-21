@@ -92,11 +92,22 @@ for what the transformer does with them.
 | `namespace2xml_distribute_convention` | no | `escaped` | `escaped` or `xmltodict`; how a `data` key is read. |
 | `namespace2xml_distribute_variables` | no | `{}` | Namespace entries applied after every input. |
 | `namespace2xml_distribute_tool` | no | searched | Path to the transformer **on the controller**. |
-| `namespace2xml_distribute_owner` | no | umask | Owner of every file and directory written on the node. |
-| `namespace2xml_distribute_group` | no | umask | Group of the same. |
-| `namespace2xml_distribute_mode` | no | umask | Mode of every file. Quote octal literals. |
-| `namespace2xml_distribute_directory_mode` | no | umask | Mode of every directory the role creates. |
+| `namespace2xml_distribute_owner` | no | see below | Owner of every file and directory written on the node. |
+| `namespace2xml_distribute_group` | no | see below | Group of the same. |
+| `namespace2xml_distribute_mode` | no | see below | Mode of every file. Quote octal literals. |
+| `namespace2xml_distribute_directory_mode` | no | see below | Mode of every directory the role creates. |
 | `namespace2xml_distribute_backup` | no | `false` | Keep a timestamped copy of anything overwritten. |
+
+Left unset, these four are not passed to the node at all, and the defaults are the ones
+`ansible.builtin.copy` and `ansible.builtin.file` already have. That is not one rule but two.
+Ownership follows the user the task ran as — the connection user, or `root` under `become: true`.
+Permissions follow the node's `umask` for anything newly created, and are **left alone** on
+anything that already exists, so a file whose mode was changed on the node keeps that mode across
+runs until you name `namespace2xml_distribute_mode`.
+
+Setting `namespace2xml_distribute_owner` or `namespace2xml_distribute_group` to anything other than
+the connection user needs `become: true` in the play. Without it the change is refused by the node,
+and the role stops on a message from `chown` or `chgrp` rather than a message of its own.
 
 ## Return values
 
@@ -114,6 +125,16 @@ The role leaves two registered variables behind for the play to inspect:
     state: reloaded
   when: namespace2xml_distribute_copied.results | selectattr('changed') | list | length > 0
 ```
+
+Guard that `when:` with `is defined` if the play continues past an unreachable host. A host that
+stopped answering never reaches the copy, so `namespace2xml_distribute_copied` is left as a skip
+result with no `results` key at all, and `selectattr` on it raises rather than returning nothing.
+
+Read those `results` rather than the play recap when you want to know whether the node changed. If
+one file in the loop fails, the recap counts the host as failed and its `changed` column can stay
+at zero even though earlier files in the same loop were written — the per-item entries still carry
+`changed: true`, but the task-level tally does not. The role is not transactional: a run that fails
+part way through has already copied everything it got to before the failure, and those files stay.
 
 ## Behaviour worth knowing
 
@@ -137,8 +158,36 @@ running the transformer as root on the controller or needing passwordless sudo t
 really is only readable by root on the controller, read it in your own task and pass it as `text`.
 
 **Directories are created before files are copied.** Paths the scheme asked for are preserved
-beneath `namespace2xml_distribute_dest`, and each intermediate directory is created explicitly so
-that `namespace2xml_distribute_directory_mode` can apply to it.
+beneath `namespace2xml_distribute_dest`, and every directory between the destination and the file
+is named explicitly — including the destination itself — so that
+`namespace2xml_distribute_directory_mode` applies to all of them and keeps applying on later runs.
+A pass that only changes the mode converges the whole tree, not just its deepest directory.
+
+**Symlinks standing where directories belong are refused, not followed.** If some path component
+under the destination is a link, the role stops rather than writing through it, so a link planted
+on the node cannot redirect rendered configuration outside the destination. A destination that is
+*itself* a symlink is a deliberate choice by the play and keeps working normally.
+
+**A directory standing where a file belongs is not detected.** If the node already has a directory
+at the path an output renders to — `app.xml/` where `app.xml` should go — `ansible.builtin.copy`
+reads the destination as a directory to copy *into* and writes `app.xml/app.xml` instead, reporting
+success. Later runs then report no change, because from the module's point of view there is nothing
+left to do. The role does not check for this: catching it would cost an extra round trip to the
+node for every file rendered, on every run, to guard against a state nothing the role does can
+produce. If something else on the node might create directories named after the files your scheme
+renders, check for them in your own task before calling the role.
+
+**A node that cannot be reached fails, it does not pass.** The copy is skipped and the staging
+directory on the controller is removed, so nothing rendered — credentials included — is left
+behind. The cost is that the host is reported as **failed** rather than **unreachable**: the role
+turns the unreachable result into an ordinary failure so that its own cleanup can run first. Plays
+that count on the distinction — `max_fail_percentage`, or anything reading the recap — should
+count failures here, not unreachables.
+
+**Nothing is ever deleted.** The role writes what the scheme produced and leaves everything else
+alone. Drop an output from the scheme and the file it used to render stays on the node, unchanged
+and now unmanaged. If a destination has to contain exactly what the scheme describes and nothing
+else, remove the stale files yourself.
 
 ## Requirements
 

@@ -3,17 +3,22 @@
 What is in this collection
 ==========================
 
-The public interface is two plugins, and nothing else in this collection is one.
+The public interface is two plugins and one role.
 
 - :ansplugin:`stop_cran.namespace2xml.render#filter` renders data held in **play variables** on
   the controller and returns text.
 - :ansplugin:`stop_cran.namespace2xml.render#module` renders a managed node's **own files** in
   place, and reports whether anything changed.
+- ``stop_cran.namespace2xml.distribute`` renders on the **controller** and copies the result to
+  nodes that cannot host the transformer. It is documented in its own `role README
+  <https://github.com/stop-cran/namespace2xml/blob/master/ansible/roles/distribute/README.md>`_,
+  since roles do not get generated plugin pages.
 
-Both drive the same transformer, `namespace2xml
+Both plugins drive the same transformer, `namespace2xml
 <https://www.nuget.org/packages/namespace2xml>`_, a .NET tool that reads namespace text or an
 existing document and writes XML, JSON, YAML, INI or namespace text. The plugins do not
-reimplement it; they marshal inputs, run it, and interpret the result.
+reimplement it; they marshal inputs, run it, and interpret the result. The role drives the
+module.
 
 Which one to reach for, the arguments each takes, the fidelity limits, and how to report a
 problem are all in the `collection README

@@ -5,9 +5,10 @@ argument_specs:
     description:
       - Runs the C(stop_cran.namespace2xml.render) module on the controller, then copies every
         file it produced to the managed node, preserving the paths the scheme asked for.
-      - For nodes that cannot host the transformer. Nothing is installed on the node and nothing
-        is executed there beyond C(ansible.builtin.copy), so a node needs neither .NET nor
-        namespace2xml - only the controller does.
+      - For nodes that cannot host the transformer. Nothing is installed on the node, and the only
+        modules that run there are C(ansible.builtin.file) to create the destination tree and
+        C(ansible.builtin.copy) to place the rendered files - so a node needs neither .NET nor
+        namespace2xml, only the controller does.
       - Renders once per host, not once per play. The render runs with that host's variables in
         scope, so C(inventory_hostname) in a scheme or an input means what it says. A fleet that
         renders identically pays for one run of a fast local process per host; a fleet that does
@@ -76,19 +77,31 @@ argument_specs:
       namespace2xml_distribute_owner:
         description:
           - Owner of every file and directory this role writes on the node.
+          - >-
+            Left unset, ownership follows the user the task ran as. Naming anyone else needs
+            C(become: true) in the play; without it the node refuses the change and the role
+            stops on a message from C(chown) rather than one of its own.
         type: str
       namespace2xml_distribute_group:
         description:
           - Group of every file and directory this role writes on the node.
+          - >-
+            Left unset, the group follows the user the task ran as. Naming another group needs
+            C(become: true), on the same terms as C(namespace2xml_distribute_owner).
         type: str
       namespace2xml_distribute_mode:
         description:
           - Mode of every file this role writes on the node, as C(ansible.builtin.copy) takes
             it. Quote an octal literal, or YAML will read C(0644) as a decimal number.
+          - Left unset, a newly created file follows the node's C(umask) and an existing file
+            keeps whatever mode it already had.
         type: raw
       namespace2xml_distribute_directory_mode:
         description:
-          - Mode of every directory this role creates on the node.
+          - Mode of every directory this role creates on the node, including the destination
+            itself. Quote an octal literal, as with C(namespace2xml_distribute_mode).
+          - Left unset, a newly created directory follows the node's C(umask) and an existing
+            directory keeps whatever mode it already had.
         type: raw
       namespace2xml_distribute_backup:
         description:

@@ -5,16 +5,22 @@
 # suite and the render_module target already cover. What is unproven anywhere else is the plumbing
 # the role wraps around that call: that its argument spec refuses an incomplete play, that a scheme
 # writing into a subdirectory has that subdirectory created before anything is copied into it, that
-# a converged host reports no change, and that the staging directory does not outlive the run.
+# a converged host reports no change, that the staging directory does not outlive the run, that a
+# later pass changing directory metadata converges every directory rather than only the ones the
+# role happened to name, and that a symlink standing where a directory belongs is refused rather
+# than followed out of the destination.
 #
 # Here the controller and the node are the same machine, so this says nothing about the transport.
 # That is deliberate: the transport is proved by tools/integration-rig, which runs a real controller
-# against a node carrying neither .NET nor the transformer. What this target adds is that the
-# plumbing keeps working on every Ansible version in the support matrix, on every push.
+# against a node carrying neither .NET nor the transformer, and which is also the only place a node
+# that stops answering mid-run can be staged. What this target adds is that the plumbing keeps
+# working on every Ansible version in the support matrix, on every push.
 #
 # Expectations are authored from docs/specification.md -- Section 16.2 for an explicit filename
 # being a complete relative path that creates directories, Section 24 for determinism, which is
-# what makes the second pass's silence meaningful -- and not captured from a tool run.
+# what makes the second pass's silence meaningful -- and from the role's own documented promise
+# that the metadata it is given applies to every file and directory it writes. None of them are
+# captured from a tool run.
 
 - name: Create a scratch directory
   ansible.builtin.tempfile:
@@ -166,6 +172,222 @@
             fail_msg: >-
               expected the argument spec to name the omitted variable, got
               {{ ansible_failed_result }}
+
+    # Ansible's file module applies the metadata it was given only to directories it creates
+    # itself, so a directory the role never names is created implicitly by the module on the
+    # first pass and then never converged again. That makes the defect invisible on a first run
+    # and invisible to any test that only ever runs with one set of modes -- it appears when a
+    # later play changes directory_mode and some of the tree quietly keeps the old one. The
+    # output below is nested twice and nothing else is written flat, because a flat output makes
+    # the role name the destination anyway and would mask the destination's own case.
+    - name: A second pass with different metadata converges the whole tree
+      block:
+        - name: Distribute into a doubly nested path
+          ansible.builtin.include_role:
+            name: stop_cran.namespace2xml.distribute
+          vars: &converge_args
+            namespace2xml_distribute_inputs:
+              - text: |
+                  app.name=converge
+            namespace2xml_distribute_scheme:
+              - data:
+                  app:
+                    output: xml
+                    root: app
+                    filename: a/b/c.xml
+            namespace2xml_distribute_dest: "{{ scratch.path }}/converge"
+            namespace2xml_distribute_directory_mode: "0755"
+
+        - name: Distribute again, asking for a different directory mode
+          ansible.builtin.include_role:
+            name: stop_cran.namespace2xml.distribute
+          vars:
+            <<: *converge_args
+            namespace2xml_distribute_directory_mode: "0710"
+
+        - name: Look at every directory between the destination and the file
+          ansible.builtin.stat:
+            path: "{{ item }}"
+          register: converged
+          loop:
+            - "{{ scratch.path }}/converge"
+            - "{{ scratch.path }}/converge/a"
+            - "{{ scratch.path }}/converge/a/b"
+
+        - name: Every one of them carries the mode the second pass asked for
+          ansible.builtin.assert:
+            that:
+              - item.stat.isdir
+              - item.stat.mode == '0710'
+            fail_msg: >-
+              {{ item.item }} is {{ item.stat.mode | default('absent') }}, expected 0710 --
+              the role created it implicitly instead of naming it, so the second pass skipped it
+          loop: "{{ converged.results }}"
+          loop_control:
+            label: "{{ item.item }}"
+
+    # ansible.builtin.copy already refuses to write through a symlink standing where its output
+    # belongs, but ansible.builtin.file follows one by default, so an attacker-planted link on an
+    # intermediate directory would have redirected the whole render outside the destination the
+    # play declared. Failing is the only safe answer; the assertion that matters is the one after
+    # the rescue, because a role that failed *after* writing would pass a bare "did it fail" test.
+    - name: A symlink standing where a directory belongs is refused, not followed
+      block:
+        - name: Somewhere outside the destination, and a link pointing at it
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: "{{ item.state }}"
+            src: "{{ item.src | default(omit) }}"
+            mode: "{{ item.mode | default(omit) }}"
+          loop:
+            - path: "{{ scratch.path }}/outside"
+              state: directory
+              mode: "0755"
+            - path: "{{ scratch.path }}/sym"
+              state: directory
+              mode: "0755"
+            - path: "{{ scratch.path }}/sym/conf"
+              state: link
+              src: "{{ scratch.path }}/outside"
+
+        - name: Render into the path the link stands on
+          block:
+            - name: Distribute beneath the link
+              ansible.builtin.include_role:
+                name: stop_cran.namespace2xml.distribute
+              vars:
+                namespace2xml_distribute_inputs:
+                  - text: |
+                      app.name=contained
+                namespace2xml_distribute_scheme:
+                  - data:
+                      app:
+                        output: xml
+                        root: app
+                        filename: conf/inside.xml
+                namespace2xml_distribute_dest: "{{ scratch.path }}/sym"
+
+            - name: Fail if the role wrote through the link
+              ansible.builtin.fail:
+                msg: the role followed a symlink out of the destination
+
+          rescue:
+            - name: Refusing is the expected outcome
+              ansible.builtin.debug:
+                msg: the role refused, as it should
+
+        - name: Nothing arrived outside the destination
+          ansible.builtin.stat:
+            path: "{{ scratch.path }}/outside/inside.xml"
+          register: escaped
+
+        - name: Confirm containment
+          ansible.builtin.assert:
+            that:
+              - not escaped.stat.exists
+            fail_msg: >-
+              rendered configuration escaped to {{ scratch.path }}/outside/inside.xml
+
+    # The role names every directory now rather than letting the module create the intermediate
+    # ones implicitly, which is what makes the convergence above work -- but naming a directory
+    # that is already correct must still report nothing. A loop that reported a change on every
+    # run would make the role permanently dirty, and every play that watches this role for a
+    # handler would fire on every run forever.
+    - name: Naming every directory does not make the role permanently dirty
+      block:
+        - name: Distribute once
+          ansible.builtin.include_role:
+            name: stop_cran.namespace2xml.distribute
+          vars: &idempotent_args
+            namespace2xml_distribute_inputs:
+              - text: |
+                  app.name=idempotent
+            namespace2xml_distribute_scheme:
+              - data:
+                  app:
+                    output: xml
+                    root: app
+                    filename: x/y/z.xml
+            namespace2xml_distribute_dest: "{{ scratch.path }}/idem"
+            namespace2xml_distribute_directory_mode: "0750"
+
+        - name: Distribute again, asking for exactly the same thing
+          ansible.builtin.include_role:
+            name: stop_cran.namespace2xml.distribute
+          vars: *idempotent_args
+
+        - name: Neither the directories nor the files were touched
+          ansible.builtin.assert:
+            that:
+              - namespace2xml_distribute_dirs_made.results | selectattr('changed') | list | length == 0
+              - namespace2xml_distribute_copied.results | selectattr('changed') | list | length == 0
+            fail_msg: >-
+              the second pass reported changes it should not have:
+              directories
+              {{ namespace2xml_distribute_dirs_made.results | selectattr('changed')
+                 | map(attribute='item') | list }},
+              files
+              {{ namespace2xml_distribute_copied.results | selectattr('changed')
+                 | map(attribute='item') | list }}
+
+    # Refusing to follow a symlink is about a link standing where the role expects to create a
+    # directory. A destination the play itself chose to point somewhere else is not that case, and
+    # has to keep working -- otherwise the containment fix breaks every deployment whose target
+    # directory is a link. The flat output matters here: it makes the role hand the destination
+    # itself to the file module, which is the path most likely to be refused by mistake.
+    - name: A destination that is deliberately a symlink still works
+      block:
+        - name: A real directory, and a destination pointing at it
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: "{{ item.state }}"
+            src: "{{ item.src | default(omit) }}"
+            mode: "{{ item.mode | default(omit) }}"
+          loop:
+            - path: "{{ scratch.path }}/real"
+              state: directory
+              mode: "0755"
+            - path: "{{ scratch.path }}/linked"
+              state: link
+              src: "{{ scratch.path }}/real"
+
+        - name: Distribute through the link
+          ansible.builtin.include_role:
+            name: stop_cran.namespace2xml.distribute
+          vars:
+            namespace2xml_distribute_inputs:
+              - text: |
+                  flat.name=one
+                  deep.name=two
+            namespace2xml_distribute_scheme:
+              - data:
+                  flat:
+                    output: xml
+                    root: flat
+                  deep:
+                    output: xml
+                    root: deep
+                    filename: p/q/deep.xml
+            namespace2xml_distribute_dest: "{{ scratch.path }}/linked"
+
+        - name: Both files arrived at what the link points to
+          ansible.builtin.stat:
+            path: "{{ item }}"
+          register: through_link
+          loop:
+            - "{{ scratch.path }}/real/flat.xml"
+            - "{{ scratch.path }}/real/p/q/deep.xml"
+
+        - name: Check that
+          ansible.builtin.assert:
+            that:
+              - item.stat.exists
+            fail_msg: >-
+              {{ item.item }} is missing -- refusing to follow symlinks broke a destination the
+              play deliberately pointed elsewhere
+          loop: "{{ through_link.results }}"
+          loop_control:
+            label: "{{ item.item }}"
 
   always:
     - name: Remove the scratch directory

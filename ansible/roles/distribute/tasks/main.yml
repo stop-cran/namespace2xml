@@ -48,6 +48,23 @@
           {{ namespace2xml_distribute_render.files
              | map('relpath', namespace2xml_distribute_staging.path) | list }}
 
+    # Every ancestor, not just the immediate parent of each output. `dirname` alone would give
+    # `a/b` for `a/b/c.xml` and leave `a` to be created implicitly by the module, which applies
+    # the requested metadata only to directories it creates itself — so a later metadata change
+    # would silently skip `a`. The empty string is the destination itself, which sorts first, and
+    # a parent always sorts before its children because it is a prefix of them.
+    - name: Work out every directory the render needs on the node
+      ansible.builtin.set_fact:
+        namespace2xml_distribute_dirs: >-
+          {%- set out = [''] -%}
+          {%- for d in namespace2xml_distribute_relative | map('dirname') | unique -%}
+            {%- set parts = d.split('/') | reject('equalto', '') | list -%}
+            {%- for i in range(parts | length) -%}
+              {%- set _ = out.append(parts[:i + 1] | join('/')) -%}
+            {%- endfor -%}
+          {%- endfor -%}
+          {{ out | unique | sort }}
+
     - name: Create the directories the render needs on the node
       ansible.builtin.file:
         path: "{{ [namespace2xml_distribute_dest, item] | path_join }}"
@@ -55,7 +72,26 @@
         owner: "{{ namespace2xml_distribute_owner or omit }}"
         group: "{{ namespace2xml_distribute_group or omit }}"
         mode: "{{ namespace2xml_distribute_directory_mode or omit }}"
-      loop: "{{ namespace2xml_distribute_relative | map('dirname') | unique | sort }}"
+        # A symlink already sitting where a directory belongs would otherwise be followed, and
+        # the render would be written wherever it points — outside the destination the play
+        # declared. Refusing is the only safe answer; `ansible.builtin.copy` already defaults
+        # this way for the files themselves.
+        follow: false
+      loop: "{{ namespace2xml_distribute_dirs }}"
+      # An unreachable host is dropped from the play the moment it stops answering, which means
+      # `always` below never runs and the staging directory is left on the controller holding the
+      # rendered configuration — credentials included. Absorbing it here keeps the host in the
+      # play; the failure is re-raised at the end of the block, after cleanup is guaranteed.
+      ignore_unreachable: true
+      register: namespace2xml_distribute_dirs_made
+
+    # A looped task reports connection failures per item, never at the top level of the result.
+    - name: Note whether the node answered
+      ansible.builtin.set_fact:
+        namespace2xml_distribute_unreachable: >-
+          {{ namespace2xml_distribute_dirs_made.results | default([])
+             | selectattr('unreachable', 'defined') | selectattr('unreachable')
+             | list | length > 0 }}
 
     - name: Copy each rendered file to the node
       ansible.builtin.copy:
@@ -67,6 +103,22 @@
         backup: "{{ namespace2xml_distribute_backup }}"
       loop: "{{ namespace2xml_distribute_relative }}"
       register: namespace2xml_distribute_copied
+      ignore_unreachable: true
+      # No point spending one connection timeout per file on a node already known to be gone.
+      when: not (namespace2xml_distribute_unreachable | bool)
+
+    - name: Stop, because the node could not be reached
+      ansible.builtin.fail:
+        msg: >-
+          {{ inventory_hostname }} stopped answering before
+          {{ namespace2xml_distribute_dest }} was written. The controller's staging directory has
+          been removed. Nothing was left half-written on the node beyond whatever had already
+          been copied, which `namespace2xml_distribute_copied` records.
+      when: >-
+        (namespace2xml_distribute_unreachable | bool)
+        or (namespace2xml_distribute_copied.results | default([])
+            | selectattr('unreachable', 'defined') | selectattr('unreachable')
+            | list | length > 0)
 
   always:
     # In `always`, so a failed render or a failed copy does not leave the controller's temporary
