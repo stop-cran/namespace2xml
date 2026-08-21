@@ -76,6 +76,7 @@ path, and 07 runs a check-mode pass whose reported change is precisely what it a
 | `05-filter.yml` | the controller-side filter, which renders play data rather than node files |
 | `06-vars-and-safety.yml` | `-v` variables; a scheme file living on the node; `dest` is never cleaned; diff on modification |
 | `07-distribute.yml` | the `distribute` role against `node3`, which has no .NET and no tool: all three input shapes, a scheme that renders into a subdirectory, file and directory modes, idempotence, check mode writing nothing, and no staging left on the controller |
+| `08-scheme-spellings.yml` | the three ways to hand the filter a scheme -- entry list, `scheme_text`, `scheme_yaml` -- agree, an entry's explicit `format` overrides inference, and a bare-string `scheme` is refused by name rather than read as a path |
 
 ## Things that will bite you
 

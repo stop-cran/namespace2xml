@@ -1,8 +1,10 @@
 ---
-# Exercises only the regions of targets/render/tasks/main.yml changed for 3.0, with assertions
-# that avoid the `set_fact` + `from_json` round trip that ansible-core 2.16 cannot do. The target
-# itself asserts through from_json; CI runs it on a core that supports that.
-- name: Probe the 3.0 scheme spellings
+# S8. The three scheme spellings 3.0 accepts, and the one it now refuses. These cover the regions
+#     of the collection's own `render` integration target that this rig's ansible-core cannot
+#     reach: that target asserts through `set_fact` + `from_json`, which 2.16 undoes by
+#     re-parsing the rendered JSON into a dict. Here the assertions tolerate either shape, so the
+#     same coverage survives on an old core. CI runs the target itself on a core that supports it.
+- name: Scheme spellings
   hosts: localhost
   gather_facts: false
   tasks:

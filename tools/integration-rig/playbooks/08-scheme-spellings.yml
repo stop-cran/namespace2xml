@@ -1,0 +1,80 @@
+---
+# S8. The three scheme spellings 3.0 accepts, and the one it now refuses. These cover the regions
+#     of the collection's own `render` integration target that this rig's ansible-core cannot
+#     reach: that target asserts through `set_fact` + `from_json`, which 2.16 undoes by
+#     re-parsing the rendered JSON into a dict. Here the assertions tolerate either shape, so the
+#     same coverage survives on an old core. CI runs the target itself on a core that supports it.
+- name: Scheme spellings
+  hosts: localhost
+  gather_facts: false
+  tasks:
+
+    - name: Force a string with an explicit scheme
+      ansible.builtin.set_fact:
+        typed_out: "{{ {'version': '3'} | stop_cran.namespace2xml.render('json', scheme=[{'text': scheme_text}]) }}"
+      vars:
+        scheme_text: |
+          cfg.output=json
+          cfg.version.type=string
+
+    - name: The explicit type rule wins over inference
+      vars:
+        parsed: "{{ typed_out if typed_out is mapping else (typed_out | from_json) }}"
+      ansible.builtin.assert:
+        that:
+          - parsed.version == '3'
+          - parsed.version is string
+        fail_msg: "Explicit type=string did not take effect. Actual: {{ typed_out }}"
+        success_msg: "typed scheme entry: OK"
+
+    - name: Render one scheme in every spelling
+      ansible.builtin.set_fact:
+        from_text: "{{ logback | stop_cran.namespace2xml.render('xml', scheme=[{'text': text_scheme}]) }}"
+        from_alias: "{{ logback | stop_cran.namespace2xml.render('xml', scheme_text=text_scheme) }}"
+        from_mapping: "{{ logback | stop_cran.namespace2xml.render('xml', scheme_yaml=mapping_scheme) }}"
+      vars:
+        logback:
+          appender:
+            name: STDOUT
+            encoder:
+              pattern: "%d{HH:mm:ss} %-5level %msg%n"
+          root:
+            level: info
+        text_scheme: |
+          cfg.output=xml
+          cfg.root=configuration
+          cfg.appender.name.type=attribute
+        mapping_scheme:
+          cfg:
+            output: xml
+            root: configuration
+            appender:
+              name:
+                type: attribute
+
+    - name: The three spellings of one scheme produce the same document
+      ansible.builtin.assert:
+        that:
+          - from_mapping == from_text
+          - from_alias == from_text
+          - "'name=\"STDOUT\"' in from_mapping"
+        fail_msg: "text: {{ from_text }} alias: {{ from_alias }} mapping: {{ from_mapping }}"
+        success_msg: "three spellings agree: OK"
+
+    - name: Attempt the pre-3.0 spelling of inline scheme text
+      ansible.builtin.set_fact:
+        both_names: "{{ {'a': 'b'} | stop_cran.namespace2xml.render('xml', scheme=text_scheme) }}"
+      vars:
+        text_scheme: "cfg.output=xml\n"
+      register: both_scheme_names
+      ignore_errors: true
+
+    - name: The old spelling is refused by name rather than read as a path
+      ansible.builtin.assert:
+        that:
+          - both_scheme_names is failed
+          - "'is a string' in both_scheme_names.msg"
+          - "'names a file' in both_scheme_names.msg"
+          - "\"[{'text'\" in both_scheme_names.msg"
+        fail_msg: "unexpected: {{ both_scheme_names }}"
+        success_msg: "bare-string refusal: OK"
