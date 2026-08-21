@@ -112,6 +112,17 @@ jobs:
           fi
           test -f "$dest/tests/integration/targets/render/tasks/main.yml"
           test -f "$dest/tests/integration/targets/render_module/tasks/main.yml"
+          test -f "$dest/tests/integration/targets/distribute_role/tasks/main.yml"
+          # An integration target is run as a role, and a collection's own roles/ shadows the
+          # targets directory during that run. A target sharing a name with a role therefore
+          # executes the role instead, silently testing nothing. Keep the names disjoint.
+          for target in "$dest"/tests/integration/targets/*/; do
+            tname=$(basename "$target")
+            if [ -d "$dest/roles/$tname" ]; then
+              printf 'Integration target %s collides with roles/%s and would run the role instead.\n' "$tname" "$tname" >&2
+              exit 1
+            fi
+          done
           echo "STAGED=$dest" >> "$GITHUB_ENV"
 
       - name: ansible-test sanity must pass on the code being released
@@ -125,8 +136,9 @@ jobs:
         with:
           global-json-file: global.json
 
-      # The module publishes files on a node. Releasing it without ever having run it against
-      # the real binary is releasing an untested writer, and the module is the half of this
+      # The module publishes files on a node, and the role publishes them from the controller to
+      # nodes that cannot host the tool at all. Releasing either without ever having run it against
+      # the real binary is releasing an untested writer, and those are the halves of this
       # collection that can damage something.
       - name: Pack and install the transformer as a global tool
         shell: bash
@@ -145,7 +157,7 @@ jobs:
           export PATH="$HOME/.dotnet/tools:$PATH"
           command -v namespace2xml
           cd "$STAGED"
-          ansible-test integration --local --python 3.13 --color -v render render_module
+          ansible-test integration --local --python 3.13 --color -v render render_module distribute_role
 
       - name: Build the collection
         shell: bash
