@@ -17,8 +17,8 @@ part that is not — anything involving `ansible-doc`, `ansible-test`, `ansible-
 node, or a transport between two machines. On Windows those fail before they start, because they
 call `os.get_blocking` on a handle that has no such notion (`AGENTS.md` records this).
 
-This is a deliberate, occasional activity. None of these Docker recipes runs in CI, and none of them
-belongs in a per-commit loop.
+This is a deliberate, occasional activity. None of the three shapes below runs in CI, and none of
+them belongs in a per-commit loop.
 
 ## The contract
 
@@ -65,13 +65,11 @@ you are actually running the rig; a few less-used switches are visible only in `
 qualifying — `./tools/integration-rig/rig.ps1 -Command up` — or change into that directory first.
 The short forms in the README assume you are already there.
 
-On a Windows box with stock settings that invocation does not run at all: Windows PowerShell 5.1
-defaults to a `Restricted` execution policy, and the script fails with *"running scripts is disabled
-on this system"* before Docker is touched. Check with `Get-ExecutionPolicy -List` — if every scope
-reads `Undefined` you are on the default and will hit this. Rather than relax the machine's policy,
-invoke through a process-scoped bypass: `powershell -NoProfile -ExecutionPolicy Bypass -File
-.\rig.ps1 -Command down`. Elsewhere the repository standardises on `pwsh -NoProfile -File`, which
-needs PowerShell 7; the same `-ExecutionPolicy Bypass` switch applies there.
+On a Windows client that invocation may not run at all: Windows PowerShell ships a `Restricted`
+execution policy there, and the script fails with *"running scripts is disabled on this system"*
+before Docker is touched. `Get-ExecutionPolicy` reports where you stand, and
+`powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\integration-rig\rig.ps1 -Command up`
+gets past it without changing machine state. The rig README carries the caveats.
 
 What belongs here rather than there is the judgement. The rig is the only thing that tests the
 *shipped collection* against a *remote managed node*. `ansible-test integration` gets closer than
@@ -81,14 +79,14 @@ all invisible to it. Only the unit layer treats the plugins as plain Python func
 
 One other thing in the repository reaches a managed container, and it is worth knowing what it does
 and does not settle. `.github/workflows/ansible-topology-spike.yml` has two jobs. `execution-locus`
-starts a `python:3.12-slim` target, inventories it over `community.docker`, and shows that a node
-able to run neither `dotnet` nor the tool still ends up with a rendered file — the filter ran on the
-controller. That job drives the prototype filter in `spikes/ansible`, and the workflow's own header
-records that the measurement is not part of the product; it goes when the spike goes. Arm A of the
-second job is not history: it is the only place the filter's binary discovery runs against real
-ansible-core with the install directory off PATH, so it gates that behaviour, and it is due to be
-folded into the collection's integration tests when `spikes/ansible` is deleted. Neither job tests
-the shipped collection against a remote node.
+starts a `python:3.12-slim` target, inventories it over `community.docker.docker`, and shows that a
+node able to run neither `dotnet` nor the tool still ends up with a rendered file — the filter ran on
+the controller. That job drives the prototype filter in `spikes/ansible`, and the workflow's own
+header records that the measurement is not part of the product; it goes when the spike goes. Arm A
+of the second job is not history: it is the only place the filter's binary discovery runs against
+real ansible-core with the install directory off PATH, so it gates that behaviour, and it is due to
+be folded into the collection's integration tests when `spikes/ansible` is deleted. Neither job
+tests the shipped collection against a remote node.
 
 The converse also holds: a green rig is not a green `ansible-test`. The two see different failures,
 and one of them is described under limits.

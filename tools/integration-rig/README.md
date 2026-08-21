@@ -44,17 +44,20 @@ image, which is a poor trade for every push.
 ./rig.ps1 -Command down         # remove the containers and the network
 ```
 
-On Windows PowerShell 5.1 with stock settings these fail before Docker is touched -- the default
-execution policy is `Restricted`, and you get *"running scripts is disabled on this system"*.
-`Get-ExecutionPolicy -List` showing `Undefined` in every scope means you are on that default.
-Invoke through a process-scoped bypass rather than relaxing the machine's policy:
+On Windows these can fail before Docker is touched, with *"running scripts is disabled on this
+system"* -- Windows PowerShell ships a `Restricted` execution policy on client SKUs, where a script
+run from disk is refused. Windows Server defaults to `RemoteSigned`, where an unblocked local script
+runs. `Get-ExecutionPolicy` reports where you actually stand; don't infer it from the SKU. Invoke
+through a process-scoped bypass rather than relaxing the machine's policy:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\rig.ps1 -Command up
 ```
 
 `pwsh -NoProfile -ExecutionPolicy Bypass -File ./rig.ps1 -Command up` is the PowerShell 7 equivalent;
-`pwsh -NoProfile -File` is the form the rest of this repository uses for its scripts.
+`pwsh -NoProfile -File` is the form the rest of this repository uses for its scripts. One case the
+bypass will not rescue: if `Get-ExecutionPolicy -List` shows a policy set under `MachinePolicy` or
+`UserPolicy`, Group Policy is deciding and it outranks the command line.
 
 By default the rig installs the tool version declared in `Directory.Build.props` from **nuget.org**
 and the collection from **Galaxy**, so it tests what an operator actually receives. To test a
