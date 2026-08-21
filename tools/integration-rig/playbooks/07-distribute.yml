@@ -1,0 +1,194 @@
+---
+# S7. The other topology: the render happens on the controller and only its output crosses to the
+#     node. node3 has no .NET and no transformer at all (see Dockerfile.node-bare), so if any part
+#     of this play needed the tool on the node, the play could not pass -- which is the point.
+- name: Controller-side render distributed to a node that cannot host the tool
+  hosts: bare
+  gather_facts: false
+  become: true
+  vars:
+    out_dir: /etc/app
+    # Held in one place because the play distributes four times, and a pass that differed from the
+    # one before it by a stray character would look like a change the role invented.
+    rig_inputs:
+      - /tmp/n2x-rig-base.properties
+      - text: |
+          app.port={{ n2x_port }}
+          app.tier={{ n2x_tier }}
+      # No "format" beside "data": a structure is encoded into the tool's own syntax by the
+      # collection, so there is no other parser left for a format to reach.
+      #
+      # A structure hangs under the selector, so the "app" selector set below is what puts this in
+      # the same namespace tree as the two inputs above. The same entry written against the
+      # default "cfg" selector, alongside inputs that say "app.something", would render nothing at
+      # all and report no error -- the two trees simply would not meet.
+      - data:
+          host: "{{ inventory_hostname }}"
+    # Two output instances, and the second one deliberately lands in a subdirectory. Section 16.2
+    # of the specification makes a literal separator in "filename" create directories, and those
+    # directories have to be created on the node before anything can be copied into them.
+    rig_scheme:
+      - data:
+          app:
+            output: xml
+            root: app
+          svc:
+            output: xml
+            root: svc
+            filename: conf.d/svc.xml
+  tasks:
+    - name: Nothing on this node can run the transformer
+      ansible.builtin.raw: command -v namespace2xml || command -v dotnet || echo NEITHER
+      register: probe
+      changed_when: false
+
+    - name: Confirm the premise before testing anything that rests on it
+      ansible.builtin.assert:
+        that:
+          - probe.stdout is search('NEITHER')
+        fail_msg: >-
+          node3 can run the tool, so this play would pass even if the role
+          rendered on the node. Rebuild the rig.
+
+    # The inputs live on the controller, never on the node.
+    - name: Stage an input file on the controller
+      ansible.builtin.copy:
+        dest: /tmp/n2x-rig-base.properties
+        mode: "0644"
+        content: |
+          app.name=demo
+          app.owner=platform
+          svc.enabled=true
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Render on the controller and distribute
+      ansible.builtin.include_role:
+        name: stop_cran.namespace2xml.distribute
+      vars:
+        namespace2xml_distribute_inputs: "{{ rig_inputs }}"
+        namespace2xml_distribute_scheme: "{{ rig_scheme }}"
+        namespace2xml_distribute_selector: app
+        namespace2xml_distribute_dest: "{{ out_dir }}"
+        namespace2xml_distribute_mode: "0640"
+        namespace2xml_distribute_directory_mode: "0750"
+
+    - name: Read back what arrived on the node
+      ansible.builtin.slurp:
+        src: "{{ out_dir }}/app.xml"
+      register: arrived
+
+    - name: Show it
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} -> {{ arrived.content | b64decode }}"
+
+    # Every one of the three input shapes has to be visible in the result, or the role quietly
+    # dropped one and a play would ship an incomplete configuration without saying so.
+    - name: All three input shapes reached the node, and the host's own variables with them
+      ansible.builtin.assert:
+        that:
+          - (arrived.content | b64decode) is search('platform')
+          - (arrived.content | b64decode) is search(n2x_port | string)
+          - (arrived.content | b64decode) is search(n2x_tier)
+          - (arrived.content | b64decode) is search(inventory_hostname)
+        fail_msg: "a controller-side input did not reach the node"
+
+    - name: The subdirectory the scheme asked for exists on the node, with the file in it
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: nested
+      loop:
+        - "{{ out_dir }}/conf.d"
+        - "{{ out_dir }}/conf.d/svc.xml"
+
+    - name: Check the nested destination, and that both modes were applied
+      ansible.builtin.assert:
+        that:
+          - nested.results[0].stat.isdir
+          - nested.results[0].stat.mode == '0750'
+          - nested.results[1].stat.exists
+          - nested.results[1].stat.mode == '0640'
+        fail_msg: >-
+          expected a 0750 conf.d holding a 0640 svc.xml, got
+          {{ nested.results | map(attribute='stat') | list }}
+
+    - name: Distribute again with everything unchanged
+      ansible.builtin.include_role:
+        name: stop_cran.namespace2xml.distribute
+      vars:
+        namespace2xml_distribute_inputs: "{{ rig_inputs }}"
+        namespace2xml_distribute_scheme: "{{ rig_scheme }}"
+        namespace2xml_distribute_selector: app
+        namespace2xml_distribute_dest: "{{ out_dir }}"
+        namespace2xml_distribute_mode: "0640"
+        namespace2xml_distribute_directory_mode: "0750"
+
+    # The render is reported unchanged by construction, so the only task that can report a change
+    # on a converged node is the copy. If it reports one, the role is rewriting a file whose
+    # content it already matches.
+    - name: The second pass changed nothing on the node
+      ansible.builtin.assert:
+        that:
+          - namespace2xml_distribute_copied.results | selectattr('changed') | list | length == 0
+        fail_msg: >-
+          expected no file to be rewritten, got
+          {{ namespace2xml_distribute_copied.results | selectattr('changed')
+             | map(attribute='item') | list }}
+
+    # Check mode has to render -- otherwise it has nothing to compare the node against and would
+    # report every file as new -- but it must not write. Both halves are asserted, because a role
+    # that skipped the render would look identical to one that worked, right up until it reported
+    # a converged fleet as pending.
+    - name: Distribute a changed configuration in check mode
+      # The keyword goes on a block rather than on the include: `check_mode` is not accepted as an
+      # attribute of `include_role`, but a block passes it down to everything it contains.
+      block:
+        - name: Include the role under check mode
+          ansible.builtin.include_role:
+            name: stop_cran.namespace2xml.distribute
+          vars:
+            namespace2xml_distribute_inputs: "{{ rig_inputs + [{'text': 'app.port=1'}] }}"
+            namespace2xml_distribute_scheme: "{{ rig_scheme }}"
+            namespace2xml_distribute_selector: app
+            namespace2xml_distribute_dest: "{{ out_dir }}"
+            namespace2xml_distribute_mode: "0640"
+            namespace2xml_distribute_directory_mode: "0750"
+      check_mode: true
+
+    - name: Check mode saw the change
+      ansible.builtin.assert:
+        that:
+          - namespace2xml_distribute_copied.results | selectattr('changed') | list | length == 1
+        fail_msg: >-
+          expected check mode to report exactly the one file the change affects, got
+          {{ namespace2xml_distribute_copied.results | selectattr('changed')
+             | map(attribute='item') | list }}
+
+    - name: Read the node back after check mode
+      ansible.builtin.slurp:
+        src: "{{ out_dir }}/app.xml"
+      register: after_check
+
+    - name: Check mode wrote nothing
+      ansible.builtin.assert:
+        that:
+          - (after_check.content | b64decode) == (arrived.content | b64decode)
+        fail_msg: "check mode altered the node"
+
+    - name: No staging directory was left behind on the controller
+      ansible.builtin.find:
+        paths: /tmp
+        patterns: "*.namespace2xml"
+        file_type: directory
+      register: leftovers
+      delegate_to: localhost
+      become: false
+
+    - name: Check that too
+      ansible.builtin.assert:
+        that:
+          - leftovers.files | length == 0
+        fail_msg: >-
+          the role left rendered configuration on the controller:
+          {{ leftovers.files | map(attribute='path') | list }}

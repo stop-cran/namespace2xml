@@ -554,6 +554,148 @@
           Expected the two spellings to be mutually exclusive.
           Result: {{ both_spellings.msg | default('the render succeeded') }}
 
+    # Everything above this point speaks the 2.x spelling -- src, scheme_text, scheme_yaml -- which
+    # is what makes it worth keeping: those plays must go on working. Nothing above exercises the
+    # entry shape that 3.0 introduces, so the release's own surface would otherwise reach operators
+    # having been proved only by unit tests that stub the binary out.
+    - name: Create the directory those files live in
+      ansible.builtin.file:
+        path: "{{ scratch.path }}/entries"
+        state: directory
+        mode: "0755"
+
+    - name: Stage two files an entry list can name
+      ansible.builtin.copy:
+        dest: "{{ scratch.path }}/entries/{{ item.name }}"
+        mode: "0644"
+        content: "{{ item.body }}"
+      loop:
+        - name: base.txt
+          body: |
+            cfg.a=from-bare-string
+            cfg.shared=first
+        - name: more.txt
+          body: |
+            cfg.b=from-file-mapping
+            cfg.shared=second
+      loop_control:
+        label: "{{ item.name }}"
+
+    # One list carrying every shape at once. Order is the point as much as shape: section 16.10
+    # makes a later input win, so cfg.shared has to arrive as the last value written for it.
+    - name: Render from a list mixing all four input spellings
+      stop_cran.namespace2xml.render:
+        inputs:
+          - "{{ scratch.path }}/entries/base.txt"
+          - file: "{{ scratch.path }}/entries/more.txt"
+          - text: |
+              cfg.c=from-text
+              cfg.shared=third
+          - data:
+              d: from-data
+        scheme:
+          - data:
+              cfg:
+                output: xml
+                root: cfg
+        dest: "{{ scratch.path }}/entries-out"
+      register: entry_shapes
+
+    - name: Read the result
+      ansible.builtin.slurp:
+        src: "{{ entry_shapes.files[0] }}"
+      register: entry_shapes_body
+
+    - name: Every shape contributed, and the last writer of a shared name won
+      ansible.builtin.assert:
+        that:
+          - (entry_shapes_body.content | b64decode) is search('from-bare-string')
+          - (entry_shapes_body.content | b64decode) is search('from-file-mapping')
+          - (entry_shapes_body.content | b64decode) is search('from-text')
+          - (entry_shapes_body.content | b64decode) is search('from-data')
+          - (entry_shapes_body.content | b64decode) is search('third')
+          - (entry_shapes_body.content | b64decode) is not search('first')
+          - (entry_shapes_body.content | b64decode) is not search('second')
+        fail_msg: >-
+          Expected all four spellings to contribute and the third to win cfg.shared.
+          Result: {{ entry_shapes_body.content | b64decode }}
+
+    # format names the parser for a document the playbook wrote. It cannot mean anything beside a
+    # path, whose parser comes from its extension, nor beside a structure this collection encodes
+    # itself. Both are refused rather than quietly ignored, which is the difference between a play
+    # that is corrected and a play that renders the wrong thing.
+    - name: Attempt a format beside a path
+      stop_cran.namespace2xml.render:
+        inputs:
+          - file: "{{ scratch.path }}/entries/base.txt"
+            format: xml
+        scheme:
+          - data:
+              cfg:
+                output: xml
+                root: cfg
+        dest: "{{ scratch.path }}/format-file"
+      register: format_beside_file
+      ignore_errors: true
+
+    - name: Attempt a format beside a structure
+      stop_cran.namespace2xml.render:
+        inputs:
+          - data:
+              a: 1
+            format: yaml
+        scheme:
+          - data:
+              cfg:
+                output: xml
+                root: cfg
+        dest: "{{ scratch.path }}/format-data"
+      register: format_beside_data
+      ignore_errors: true
+
+    - name: Both misplaced formats are refused, each naming what it was placed beside
+      ansible.builtin.assert:
+        that:
+          - format_beside_file is failed
+          - "'file' in format_beside_file.msg"
+          - format_beside_data is failed
+          - "'data' in format_beside_data.msg"
+        fail_msg: >-
+          Expected both to be refused.
+          Beside a path: {{ format_beside_file.msg | default('the render succeeded') }}
+          Beside a structure: {{ format_beside_data.msg | default('the render succeeded') }}
+
+    # The module keeps both spellings of a scheme working together, because a 2.x play that already
+    # passes scheme_text should be able to add an entry list without rewriting what it has. The
+    # filter refuses the same combination; the asymmetry is deliberate and each side preserves what
+    # its own callers already do.
+    - name: Render with an entry-list scheme and a text scheme together
+      stop_cran.namespace2xml.render:
+        inputs:
+          - text: |
+              cfg.a=1
+        scheme:
+          - data:
+              cfg:
+                output: xml
+        scheme_text: |
+          cfg.root=configuration
+        dest: "{{ scratch.path }}/scheme-both"
+      register: scheme_append
+
+    - name: Read what the appended scheme produced
+      ansible.builtin.slurp:
+        src: "{{ scheme_append.files[0] }}"
+      register: scheme_append_body
+
+    - name: The later scheme's root directive reached the document
+      ansible.builtin.assert:
+        that:
+          - (scheme_append_body.content | b64decode) is search('configuration')
+        fail_msg: >-
+          Expected the appended scheme_text to supply the root.
+          Result: {{ scheme_append_body.content | b64decode }}
+
   always:
     - name: Remove the scratch directory
       ansible.builtin.file:

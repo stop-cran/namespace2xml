@@ -1,0 +1,26 @@
+### Only the arguments that have a defensible default are here.
+#
+# `inputs`, `scheme` and `dest` are deliberately absent. Giving them empty defaults would make
+# them look optional and turn a play that forgot one into an undefined-variable error deep in a
+# task; leaving them out lets `meta/argument_specs.yml` refuse the play by name, before the
+# controller has rendered anything.
+#
+# `selector` and `convention` repeat the module's own defaults rather than being omitted,
+# because the argument spec documents them and a documented default that is not also here would
+# be a second place to look.
+namespace2xml_distribute_selector: cfg
+namespace2xml_distribute_convention: escaped
+namespace2xml_distribute_variables: {}
+namespace2xml_distribute_tool: ~
+
+# Applied to every file this role writes on the node. Left unset, each file arrives with
+# whatever the node's umask gives it, which is what `ansible.builtin.copy` does when it is not
+# told otherwise.
+namespace2xml_distribute_owner: ~
+namespace2xml_distribute_group: ~
+namespace2xml_distribute_mode: ~
+namespace2xml_distribute_directory_mode: ~
+
+# Keep a timestamped copy of any file this role overwrites. Off by default, matching
+# `ansible.builtin.copy`.
+namespace2xml_distribute_backup: false

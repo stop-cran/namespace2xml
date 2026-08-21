@@ -1,9 +1,9 @@
 ### The Ansible collection's version is independent of the tool's.
 #
-# namespace2xml the .NET tool is at 3.x. This collection is at 2.x because it is a separate
-# artefact with its own compatibility promise: it pins no tool version, so the two version
-# streams answer different questions and are released under different tags -- `v3.*` for the
-# tool, `ansible-v*` for this collection.
+# namespace2xml the .NET tool is at 3.x, and so is this collection -- but that is a coincidence
+# of timing, not a rule. This collection is a separate artefact with its own compatibility
+# promise: it pins no tool version, so the two version streams answer different questions and are
+# released under different tags -- `v3.*` for the tool, `ansible-v*` for this collection.
 #
 # 2.0.0 rather than 1.1.0 because the 1.0.0 documentation stated, as a requirement, that target
 # nodes need neither .NET nor the tool. Adding the `render` module makes that false for any play
@@ -30,9 +30,22 @@
 # could see. Additive, so a minor: `scheme` keeps its meaning and is not deprecated. The same
 # change makes every scheme refusal quote back the spelling the caller actually wrote, which was
 # previously always `scheme` even for a play that had written `scheme_yaml`.
+#
+# 3.0.0 gives every source the same shape, and adds the `distribute` role. `inputs` and `scheme`
+# are now ordered lists of entries in both plugins; an entry is a bare string naming a file, or a
+# mapping carrying `file`, `text` or `data`. The same list means the same thing on either plugin,
+# and sources compose -- a small override layers onto a shared file, which the filter could not
+# express at all before because it had no `inputs`. Three things break rather than change, which
+# is why this is a major: a filter `scheme` given as a plain string is now a *filename* where it
+# used to be scheme text (refused rather than misread, since scheme text is rarely a path that
+# exists); `format` is refused beside `file` and beside `data`, where it was previously accepted
+# and ignored; and `src`, `scheme_text` and `scheme_yaml` are deprecated -- still working, still
+# composing as before, and warning. The `distribute` role covers the topology neither plugin did:
+# render on the controller and converge on the node, with nothing installed on the node, for
+# fleets that cannot host a .NET runtime or should not each render their own copy.
 namespace: stop_cran
 name: namespace2xml
-version: 2.3.0
+version: 3.0.0
 readme: README.md
 
 authors:

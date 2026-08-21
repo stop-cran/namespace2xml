@@ -1,0 +1,82 @@
+---
+# The render happens on the controller and only the result crosses to the node, so nothing here
+# asks the node for .NET, for the transformer, or for anything the raw connection cannot do.
+- name: Distribute a render produced on the controller
+  block:
+    - name: Make a staging directory on the controller
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: .namespace2xml
+      register: namespace2xml_distribute_staging
+      delegate_to: localhost
+      # `become` in a play means "escalate on the managed node". A delegated task would take it to
+      # the controller as well, so a play that quite reasonably says `become: true` would end up
+      # rendering configuration as root on the controller and needing passwordless sudo there. If
+      # an input really is only readable by root on the controller, read it in your own task and
+      # pass it as `text`.
+      become: false
+      # A temporary directory on the controller is not managed state. Under `--check` the role
+      # still has to produce something for the copy step to compare the node against, or check
+      # mode would report every file as new on a node that is already converged.
+      check_mode: false
+      changed_when: false
+
+    - name: Render on the controller
+      stop_cran.namespace2xml.render:
+        inputs: "{{ namespace2xml_distribute_inputs }}"
+        scheme: "{{ namespace2xml_distribute_scheme }}"
+        selector: "{{ namespace2xml_distribute_selector }}"
+        convention: "{{ namespace2xml_distribute_convention }}"
+        variables: "{{ namespace2xml_distribute_variables or omit }}"
+        dest: "{{ namespace2xml_distribute_staging.path }}"
+        tool: "{{ namespace2xml_distribute_tool or omit }}"
+      register: namespace2xml_distribute_render
+      delegate_to: localhost
+      become: false
+      check_mode: false
+      # Writing into a directory made moments ago is always a change and never an interesting
+      # one. What changed is what reaches the node, which the copy step below reports.
+      changed_when: false
+
+    # Once per host rather than once per play, and deliberately: the render runs with that
+    # host's variables in scope, so `inventory_hostname` in a scheme or an input means what it
+    # says. A fleet that renders identically pays for N runs of a fast local process; a fleet
+    # that does not would otherwise be silently given one host's output.
+    - name: Work out where each rendered file belongs on the node
+      ansible.builtin.set_fact:
+        namespace2xml_distribute_relative: >-
+          {{ namespace2xml_distribute_render.files
+             | map('relpath', namespace2xml_distribute_staging.path) | list }}
+
+    - name: Create the directories the render needs on the node
+      ansible.builtin.file:
+        path: "{{ [namespace2xml_distribute_dest, item] | path_join }}"
+        state: directory
+        owner: "{{ namespace2xml_distribute_owner or omit }}"
+        group: "{{ namespace2xml_distribute_group or omit }}"
+        mode: "{{ namespace2xml_distribute_directory_mode or omit }}"
+      loop: "{{ namespace2xml_distribute_relative | map('dirname') | unique | sort }}"
+
+    - name: Copy each rendered file to the node
+      ansible.builtin.copy:
+        src: "{{ [namespace2xml_distribute_staging.path, item] | path_join }}"
+        dest: "{{ [namespace2xml_distribute_dest, item] | path_join }}"
+        owner: "{{ namespace2xml_distribute_owner or omit }}"
+        group: "{{ namespace2xml_distribute_group or omit }}"
+        mode: "{{ namespace2xml_distribute_mode or omit }}"
+        backup: "{{ namespace2xml_distribute_backup }}"
+      loop: "{{ namespace2xml_distribute_relative }}"
+      register: namespace2xml_distribute_copied
+
+  always:
+    # In `always`, so a failed render or a failed copy does not leave the controller's temporary
+    # directory behind. It holds the rendered configuration, which routinely carries credentials.
+    - name: Remove the staging directory
+      ansible.builtin.file:
+        path: "{{ namespace2xml_distribute_staging.path }}"
+        state: absent
+      delegate_to: localhost
+      become: false
+      check_mode: false
+      changed_when: false
+      when: namespace2xml_distribute_staging.path is defined

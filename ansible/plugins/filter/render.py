@@ -84,13 +84,89 @@ options:
     description:
       - The top-level name the data is written under in the generated profile.
       - Change it only when supplying O(scheme), whose declared selector must match.
+      - >-
+        A mismatch is not reported. The scheme's directives simply address nothing, and the
+        render succeeds with the data absent from its result. The same applies to an
+        O(inputs[].data) entry, which is flattened under this name too.
     type: str
     default: cfg
+  inputs:
+    description:
+      - Further inputs, layered underneath O(_input). Each entry becomes its own C(--input)
+        file, in the order written, and O(_input) is passed last.
+      - Section 7.3 merges sources in command-line order and section 17.1 gives the later
+        contribution precedence, so anything stated here is a base that O(_input) may override.
+        That is the topology the tool was built for, where an application ships a pristine
+        template and the play states the handful of things that differ on this host.
+      - An entry is either a B(string), naming a file on the controller, or a B(mapping)
+        carrying exactly one of O(inputs[].file), O(inputs[].text) or O(inputs[].data).
+      - A file is handed to the tool B(where it lies). It is neither copied nor read into the
+        play, so a large template costs nothing here, and the path the tool quotes in its own
+        diagnostics is the path you wrote.
+      - A Jinja C(combine) is not a substitute for this. It merges Python dictionaries by
+        Ansible's rules, before the tool sees anything; these are separate sources merged by the
+        tool under sections 7 and 17, which is where sequence ordering values, C(merge=append)
+        and XML node kinds are decided. The two do not agree, and only one of them is the
+        specification.
+    type: list
+    elements: raw
+    default: []
+    suboptions:
+      file:
+        description:
+          - A path on the controller, passed to the tool unread. C(~) is expanded.
+          - Writing the string on its own is the same thing - V(/etc/app/base.txt) is the entry
+            whose C(file) is V(/etc/app/base.txt).
+          - Section 7.1 selects the parser from the extension, so O(inputs[].format) is not
+            read here; rename the file, or read it in and use O(inputs[].text), to parse it as
+            something its extension does not say.
+          - Mutually exclusive with O(inputs[].text) and O(inputs[].data).
+        type: path
+        version_added: 3.0.0
+      text:
+        description:
+          - The input as a document in the tool's own syntax, written out verbatim and parsed as
+            O(inputs[].format).
+          - Mutually exclusive with O(inputs[].file) and O(inputs[].data).
+        type: str
+      data:
+        description:
+          - The input as an Ansible data structure, flattened into profile text exactly as
+            O(_input) is and under the same O(selector) and O(convention).
+          - Mutually exclusive with O(inputs[].file) and O(inputs[].text).
+        type: raw
+      format:
+        description:
+          - How O(inputs[].text) is parsed. Section 7.1 selects the parser from the file
+            extension, and this chooses the extension the text is written under.
+          - Meaningful only with O(inputs[].text). Setting it alongside O(inputs[].data) or
+            O(inputs[].file) is refused rather than ignored - C(data) has already been
+            flattened to the tool's own syntax by the time the tool sees it, and a C(file)
+            carries its own extension.
+          - Section 7.1's support matrix lists INI and shell as output formats only, so neither
+            is offered here.
+        type: str
+        default: namespace
+        choices:
+          - namespace
+          - json
+          - yaml
+          - xml
   scheme:
     description:
-      - Explicit scheme text, used instead of the minimal scheme the filter would synthesize.
+      - The scheme, used instead of the minimal scheme the filter would synthesize.
       - Needed for anything the synthesized scheme does not cover, such as C(type),
         C(substitute) or C(merge) rules. The selector it declares must equal O(selector).
+      - A B(list of entries), each either a string naming a scheme file on the controller or a
+        mapping carrying exactly one of O(scheme[].file), O(scheme[].text) or O(scheme[].data).
+      - Several entries become several C(--scheme) arguments in the order written. They
+        B(concatenate) rather than compete - section 15.2 resolves declarations in source order
+        across all of them - so a shared scheme file with a small per-host override layered on
+        top is the shape this exists for.
+      - "B(Changed in 3.0.0): this argument was a single block of scheme text. A bare string is
+        now a B(file path), matching C(scheme) on the C(stop_cran.namespace2xml.render) module.
+        Text is refused with a message naming both fixes rather than being written to a file
+        called after its own first line."
       - O(root) and O(delimiter) are refused alongside it, because they are read only while
         synthesizing a scheme and would otherwise be discarded without a word. Declare them in
         the scheme instead.
@@ -104,52 +180,93 @@ options:
         tool can answer. The filter therefore renders a second time with C(<selector>.output)
         set to O(fmt) - section 15.2 gives that last declaration precedence - and compares the
         two results. This costs one extra invocation of the tool, and only for schemes of that
-        shape; a single literal C(output) is settled without it.
+        shape; a single literal C(output) is settled without it. A scheme file this filter
+        cannot read - one named C(.json), C(.yaml) or C(.yml), or one that cannot be opened -
+        is the same question and is settled the same way.
       - A filter returns one document, so a scheme that produces a set of files - several
         formats in one C(output) declaration, or several C(filename) targets - has no single
         result to hand back and the render fails. Use the C(stop_cran.namespace2xml.render)
         module when the scheme is meant to produce several files.
-      - Mutually exclusive with O(scheme_yaml), and with O(scheme_text), which is this same
-        argument under the name the module gives it.
-    type: str
+      - Mutually exclusive with O(scheme_text) and O(scheme_yaml), which are this same argument
+        under the names 2.x gave it.
+    type: list
+    elements: raw
+    suboptions:
+      file:
+        description:
+          - A path on the controller, passed to the tool unread. C(~) is expanded.
+          - Writing the string on its own is the same thing.
+          - Section 7.1 lets the tool parse a scheme by extension, so a C(.json), C(.yaml) or
+            C(.yml) scheme is accepted and handed over - this filter simply does not read it
+            itself, and settles the O(fmt) check by asking the tool instead.
+          - Mutually exclusive with O(scheme[].text) and O(scheme[].data).
+        type: path
+        version_added: 3.0.0
+      text:
+        description:
+          - The scheme as a block of text in the tool's own syntax.
+          - Mutually exclusive with O(scheme[].file) and O(scheme[].data).
+        type: str
+        version_added: 3.0.0
+      data:
+        description:
+          - The scheme as a native mapping, so it reads as part of the playbook rather than as
+            an embedded document. Encoded to JSON, which section 15 accepts alongside YAML.
+          - B(The nesting carries the path.) Section 9 makes a mapping key one name part, so a
+            dot does not separate names here as it does in O(scheme[].text) - a key containing
+            a dot asks for one name with a literal dot in it, and is refused rather than passed
+            through, because as a selector it would draw only C(WARN009) and the render would
+            succeed with the directive inert. Write C(cfg:) then C(output:) beneath it, not
+            C(cfg.output:). Quoting does not change this - C(a.b) and C('a.b') load to the same
+            string.
+          - To select a name that really does contain a dot, escape it C(\.) as section 8 does -
+            C('a\.b') is the single name C(a.b). Write it plain or single-quoted, as YAML's
+            double-quoted style rejects C("a\.b") as an unknown escape.
+          - A dot inside a leading C(Q{...}) needs no escape. Section 11.4 makes those dots part
+            of the URI, where they "do not split the qualified path", so C('Q{urn:example.com}name')
+            and C('@Q{urn:example.com}x') are written as they read. The URI ends at the first
+            unescaped C(}); a dot in the local name after it is ambiguous like any other.
+          - A directive that takes several values is one comma-separated scalar, C(output),
+            C("xml,json"). A list is refused, because section 15 wants a nonempty scalar.
+          - Quote a wildcard selector - bare C(*) is a YAML alias indicator. Quote anything YAML
+            would read as a number, since C(3.10) arrives as C(3.1).
+          - Mutually exclusive with O(scheme[].file) and O(scheme[].text).
+        type: dict
+        version_added: 3.0.0
+      format:
+        description:
+          - How O(scheme[].text) is parsed. Section 15 reads a scheme as its own line-oriented
+            text, or as JSON, or as YAML, and this chooses which.
+          - Use it for a scheme already held as JSON or YAML B(text) - read from a file by
+            C(lookup), or assembled elsewhere. A scheme written as part of the playbook is
+            better spelled O(scheme[].data), which needs no format and is checked more closely.
+          - Omitting it means C(namespace), so YAML text passed without it reaches the tool as a
+            namespace profile and is refused by C(PARSE001) rather than read as a scheme.
+          - Meaningful only with O(scheme[].text), and refused alongside O(scheme[].file) or
+            O(scheme[].data) for the reasons given under O(inputs[].format).
+          - C(xml) is absent because section 15 does not offer it, not because it would be hard
+            to add.
+        type: str
+        default: namespace
+        choices:
+          - namespace
+          - json
+          - yaml
+        version_added: 3.0.0
   scheme_text:
     description:
-      - Explicit scheme text - the same argument as O(scheme), under the name the
-        C(stop_cran.namespace2xml.render) module gives it.
-      - On the module C(scheme) takes B(file paths) and C(scheme_text) takes B(inline text), so
-        moving a render between the filter and the module meant renaming the argument. Spelling
-        it C(scheme_text) in both places now works. C(scheme) keeps its filter meaning and is
-        not deprecated.
-      - Carries every refusal and every check described under O(scheme). Mutually exclusive with
-        O(scheme) and with O(scheme_yaml).
+      - Deprecated. Write the same text as a O(scheme) entry's C(text) instead.
+      - Kept working for plays written against 2.3.0, where this was the only spelling the
+        filter and the module shared. It carries every refusal and every check described under
+        O(scheme), and is refused alongside it.
     type: str
     version_added: 2.3.0
   scheme_yaml:
     description:
-      - The same scheme as O(scheme), written as a native mapping instead of a block of text,
-        so it reads as part of the playbook rather than as an embedded document.
-      - B(The nesting carries the path.) Section 9 makes a JSON or YAML mapping key one name
-        part, so a dot does not separate names here as it does in O(scheme) - a key containing
-        a dot asks for one name with a literal dot in it. It is refused rather than passed
-        through, because as a selector it would draw only C(WARN009) and the render would
-        succeed with the directive inert. Write C(cfg:) then C(output:) beneath it, not
-        C(cfg.output:).
-      - To select a name that really does contain a dot, escape it C(\.) as section 8 does -
-        C('a\.b') is the single name C(a.b). Quoting cannot express this, since C(a.b) and
-        C('a.b') load to the same string; write it plain or single-quoted, as YAML's
-        double-quoted style rejects C("a\.b") as an unknown escape.
-      - A dot inside a leading C(Q{...}) needs no escape. Section 11.4 makes those dots part
-        of the URI, where they "do not split the qualified path", so C('Q{urn:example.com}name')
-        and C('@Q{urn:example.com}x') are written as they read. The URI ends at the first
-        unescaped C(}); a dot in the local name after it is ambiguous like any other.
-      - A directive that takes several values is one comma-separated scalar, C(output),
-        C("xml,json"). A list is refused, because section 15 wants a nonempty scalar. The
-        one-document limit described under O(scheme) applies to such a declaration here too.
-      - Quote a wildcard selector - bare C(*) is a YAML alias indicator. Quote anything YAML
-        would read as a number, since C(3.10) arrives as C(3.1).
-      - Carries the same refusals and the same O(fmt) check as O(scheme). Passed to the
-        tool as a JSON document, which section 15 accepts alongside YAML.
-      - Mutually exclusive with O(scheme) and O(scheme_text).
+      - Deprecated. Write the same mapping as a O(scheme) entry's C(data) instead.
+      - Kept working for plays written against 2.2.0. Every note under O(scheme[].data) about
+        dots, wildcards and comma-separated values applies here unchanged.
+      - Refused alongside O(scheme) and O(scheme_text).
     type: dict
     version_added: 2.1.0
   delimiter:
@@ -292,9 +409,10 @@ EXAMPLES = r"""
     settings:
       section:
         version: "3"
-    scheme: |
-      cfg.output=ini
-      cfg.*.version.type=string
+    scheme:
+      - text: |
+          cfg.output=ini
+          cfg.*.version.type=string
 
 - name: Render an XML-shaped mapping, with attributes and a namespace
   ansible.builtin.copy:
@@ -313,6 +431,49 @@ EXAMPLES = r"""
 - name: Render with a tool built somewhere the default search would not find
   ansible.builtin.debug:
     msg: "{{ data | stop_cran.namespace2xml.render('yaml', tool='/opt/n2x/namespace2xml') }}"
+
+- name: Layer host overrides over a template the application ships
+  ansible.builtin.copy:
+    content: "{{ overrides | stop_cran.namespace2xml.render('xml', root='configuration', inputs=layers) }}"
+    dest: /opt/app/app.xml
+    mode: "0644"
+  vars:
+    layers:
+      # Named, not read: the file goes to the tool where it lies, so its size costs the play
+      # nothing and the tool's own diagnostics quote a path you can go and look at.
+      - files/app-defaults.txt
+      - files/{{ app_tier }}.json
+    overrides:
+      server:
+        port: "{{ app_port }}"
+
+- name: Layer a structure rather than a document, flattened the same way the piped data is
+  ansible.builtin.debug:
+    msg: "{{ host_vars_slice | stop_cran.namespace2xml.render('json', inputs=[{'data': group_defaults}]) }}"
+
+- name: Mix files, a document and a structure in one render, in the order written
+  ansible.builtin.debug:
+    msg: "{{ overrides | stop_cran.namespace2xml.render('json', inputs=layers) }}"
+  vars:
+    layers:
+      - /etc/app/base.txt
+      - text: |
+          cfg.server.port=8080
+      - data: "{{ group_defaults }}"
+
+- name: Layer a per-host override onto a shared scheme file
+  ansible.builtin.copy:
+    content: "{{ settings | stop_cran.namespace2xml.render('xml', scheme=schemes) }}"
+    dest: /opt/app/app.xml
+    mode: "0644"
+  vars:
+    schemes:
+      # Section 15.2 resolves declarations in source order across every --scheme, so the later
+      # entry adds to the shared one rather than replacing it.
+      - files/scheme-common.txt
+      - data:
+          cfg:
+            root: configuration
 """
 
 RETURN = r"""
@@ -328,7 +489,6 @@ import os
 import shutil
 import sys
 import tempfile
-import unicodedata
 
 # A collection plugin is a real package, so the controller-side filter can reach the same
 # module_utils the node-side module uses. Everything shared -- the section 8.3 encoder, the
@@ -340,33 +500,27 @@ from ..module_utils.n2x import (
     encode_scheme_mapping,
     encode_value,
 )
+from ..module_utils.profile import (
+    DEFAULT_CONVENTION,
+    DEFAULT_SELECTOR,
+    encode_name_part,
+    encode_xml_name_part,
+    flatten,
+)
+from ..module_utils.entries import (
+    Entry,
+    marshal_inputs,
+    marshal_schemes,
+)
 
 __all__ = ["render", "flatten", "encode_name_part", "encode_xml_name_part", "encode_value",
            "encode_scheme_mapping"]
 
-DEFAULT_SELECTOR = "cfg"
 
 # Section 16.1. A filter plugin's `choices:` documentation is not enforced at runtime, so this
 # list is the only thing standing between a mistyped format and a scheme directive built from it.
 FORMATS = ("xml", "json", "yaml", "ini", "namespace", "quotednamespace")
 
-CONVENTIONS = ("escaped", "xmltodict")
-DEFAULT_CONVENTION = "escaped"
-
-_XMLTODICT = "xmltodict"
-_XML_TEXT_KEY = "#text"
-
-# A leading backslash is consumed before any of these. The three markers are section 11.4's;
-# the backslash is itself, which is what keeps the encoding total -- without it a key that
-# genuinely starts with a backslash and a marker would have no spelling, and the objection
-# raised against this whole approach in issue #103 was that it trades one class of
-# unrepresentable data for another.
-_XML_ESCAPABLE = frozenset("@#Q\\")
-
-_DIGITS = frozenset("0123456789")
-
-_NAME_SHORT_ESCAPES = frozenset(".*=#!$@}")
-_FORCED_HEX = frozenset("\u0085\u2028\u2029")
 
 _RENDER_CACHE: dict = {}
 
@@ -404,354 +558,6 @@ class Namespace2XmlError(_FilterErrorBase, _SharedError):  # type: ignore[valid-
     """
 
 
-def _needs_hex(char):
-    """Whether a scalar has to be written as ``\\u{HEX}`` rather than as itself."""
-    if char in _FORCED_HEX:
-        return True
-
-    # Cc, Cf and Cs are the section 19.1 forbidden set. A record is a line, so CR and LF would
-    # end it early; they are Cc and so already covered, but the intent is worth stating.
-    return unicodedata.category(char) in ("Cc", "Cf", "Cs")
-
-
-def encode_name_part(part):
-    """Encode one qualified-name part so the section 8.2 lexer reads back the text given.
-
-    The encoding is total: every scalar has a spelling, either a short escape or ``\\u{HEX}``.
-    ``Q`` is escaped only in first position, which is the only place ``Q{`` can introduce an XML
-    canonical component; ``@`` and ``#`` are escaped everywhere, because the short forms exist
-    and are cheaper to reason about than a positional rule.
-    """
-    if part == "":
-        raise Namespace2XmlError("an empty name part is a parse error (section 8.2)")
-
-    out = []
-
-    for index, char in enumerate(part):
-        if char == "\\":
-            out.append("\\\\")
-        elif char in _NAME_SHORT_ESCAPES:
-            out.append("\\" + char)
-        elif char == "Q" and index == 0:
-            out.append("\\Q")
-        elif _needs_hex(char):
-            out.append("\\u{%X}" % ord(char))
-        else:
-            out.append(char)
-
-    return "".join(out)
-
-
-def _qname_span(name):
-    """Index just past the ``}`` that closes a leading ``Q{``, or ``None`` if nothing closes it.
-
-    Section 11.4: "the first unescaped ``}`` closes the URI; a literal ``}`` inside the URI is
-    written as ``\\}``". A backslash inside the URI therefore consumes the character after it,
-    which is what stops ``Q{a\\}b}c`` from ending at the brace the author escaped.
-    """
-    if not name.startswith("Q{"):
-        return None
-
-    index = 2
-
-    while index < len(name):
-        if name[index] == "\\":
-            index += 2
-        elif name[index] == "}":
-            return index + 1
-        else:
-            index += 1
-
-    return None
-
-
-def _checked_uri(uri, part):
-    """Return a namespace URI unchanged, refusing an escape section 11.4 does not define.
-
-    The URI is passed through rather than escaped. Inside ``Q{...}`` section 11.4 suspends
-    ordinary name escaping and defines exactly two sequences -- ``\\}`` for a literal closing
-    brace and ``\\\\`` for a literal backslash -- so the text between the braces is already in
-    the tool's own spelling and re-escaping it would change the URI rather than preserve it.
-    That also means the two characters that would otherwise be unwritable stay writable.
-
-    The cost of passing through is that a stray backslash reaches the tool, where section 11.4
-    makes it "a blocking parse error". Checking here turns that into a message naming the key,
-    which the tool cannot do: it sees a synthesized profile in a temporary directory and reports
-    a path the caller never wrote.
-    """
-    index = 0
-
-    while index < len(uri):
-        if uri[index] != "\\":
-            index += 1
-            continue
-
-        following = uri[index + 1] if index + 1 < len(uri) else ""
-
-        if following not in ("}", "\\"):
-            raise Namespace2XmlError(
-                "The key '%s' has a backslash inside its 'Q{...}' namespace URI that starts no "
-                "escape section 11.4 defines. Only '\\}' for a literal closing brace and '\\\\' "
-                "for a literal backslash are escapes there; anything else is a blocking parse "
-                "error. Write '\\\\' if a single backslash is part of the URI." % part)
-
-        index += 2
-
-    return uri
-
-
-def _encode_qualified(name, part):
-    """Encode a possibly namespace-qualified XML name -- ``Q{uri}local``, or a bare local name.
-
-    Section 11.4 spells a namespace-qualified name ``Q{namespace-uri}local-name`` and gives the
-    two halves different rules: the URI is one atomic lexer context where "delimiter, wildcard,
-    reference, and ordinary name-escape recognition is suspended", while "the following local
-    name uses ordinary name escaping". Encoding both alike would corrupt one of them -- escaping
-    the dots in ``urn:example.com`` breaks the URI, and leaving a dot unescaped in the local
-    name splits one name into two.
-    """
-    if not name.startswith("Q{"):
-        return encode_name_part(name)
-
-    span = _qname_span(name)
-
-    if span is None:
-        raise Namespace2XmlError(
-            "The key '%s' opens a 'Q{' namespace marker and never closes it. Section 11.4 ends "
-            "the URI at the first unescaped '}', and section 8 makes marker recognition "
-            "committing, so the tool refuses this with PARSE001 rather than reading it as an "
-            "ordinary name. Close the brace, or write '\\%s' if a name that merely begins with "
-            "'Q' is what you meant." % (part, part))
-
-    return ("Q{" + _checked_uri(name[2:span - 1], part) + "}"
-            + encode_name_part(name[span:]))
-
-
-def _canonical_index(text):
-    """Whether ``text`` is a decimal integer written the one way section 8.7 counts as canonical."""
-    if not text or not all(char in _DIGITS for char in text):
-        return False
-
-    return text == "0" or text[0] != "0"
-
-
-def encode_xml_name_part(part):
-    """Encode one mapping key under the ``xmltodict`` convention, where XML markers are live.
-
-    The default encoding is total: section 11.4's three markers are escaped in every position,
-    so any key reads back as itself and none of them can address anything. That is the right
-    default and it is also why an attribute, a namespaced element and a content token are
-    unreachable from a plain mapping -- issue #103. This encoding trades totality for reach in
-    the way the ecosystem already spells it, so a mapping written for ``xmltodict``, for
-    ``community.general.to_xml`` or by hand in the badgerfish style means here what it means
-    there.
-
-    Four keys are read rather than escaped, each mapping to a section 11.4 canonical spelling:
-
-    - ``@x`` and ``@Q{uri}x`` are attributes, "an attribute is prefixed with ``@``";
-    - ``Q{uri}x`` is an element in a namespace;
-    - ``#0``, ``#1`` and so on are content tokens, "every content node uses an ordered part";
-    - ``#text`` is the element's own text, which :func:`_walk` resolves because section 11.4
-      places that scalar at the *element* path rather than at a part of its own.
-
-    Totality is not lost, only moved: a key whose name really does start with one of the three
-    markers is written with a backslash before it, ``\\@x``, exactly as section 8 spells a
-    literal in the namespace form and as ``scheme_yaml`` already spells a literal dot. A leading
-    backslash escapes itself the same way, ``\\\\@x`` for the name ``\\@x``, so every key still
-    has exactly one spelling and nothing has become unwritable. A scheme key and an input key
-    have been two different languages since ``*`` -- a wildcard in one, an escaped literal in
-    the other -- and this follows that line.
-
-    A ``#`` key that is neither ``#text`` nor a canonical index is refused rather than escaped.
-    Escaping it would be the silent wrong answer this convention exists to remove: the author
-    wrote a marker, and a name part is not what they meant.
-    """
-    if part == "":
-        raise Namespace2XmlError("an empty name part is a parse error (section 8.2)")
-
-    if len(part) > 1 and part[0] == "\\" and part[1] in _XML_ESCAPABLE:
-        return encode_name_part(part[1:])
-
-    if part.startswith("@"):
-        if part == "@":
-            raise Namespace2XmlError(
-                "The key '@' names an attribute with no name. Section 11.4 spells an attribute "
-                "'@x', so write the attribute's name after the '@', or '\\@' for a name part "
-                "that is a single literal at-sign.")
-
-        return "@" + _encode_qualified(part[1:], part)
-
-    if part.startswith("Q{"):
-        return _encode_qualified(part, part)
-
-    if part.startswith("#"):
-        if _canonical_index(part[1:]):
-            return part
-
-        raise Namespace2XmlError(
-            "The key '%s' starts with '#', which section 11.4 reserves for content. A content "
-            "token is '#' and a canonical index -- '#0', '#1' -- and '#text' is an element's "
-            "own text. Neither fits '%s'. Write '\\%s' for a name part that literally starts "
-            "with '#'." % (part, part, part))
-
-    return encode_name_part(part)
-
-
-def _competes_with_text(key):
-    """Whether a sibling key occupies a position among its element's content.
-
-    Section 11.4 gives every content node of a mixed element an ordered part, so text standing
-    beside child elements needs to say *where* it stands. Attributes do not compete: they are
-    not content, and section 11.4 has attribute and child-element names never colliding.
-    """
-    if len(key) > 1 and key[0] == "\\" and key[1] in _XML_ESCAPABLE:
-        return True
-
-    return not key.startswith("@")
-
-
-def _reject_positionless_text(node, name):
-    """Refuse ``#text`` beside content, where section 11.4 needs a position the mapping lacks.
-
-    ``#text`` works because of a rule with a precondition: section 11.4 exposes a run of text as
-    the scalar at the element path only for "an element with no child elements and exactly one
-    non-comment text or CDATA node", and says outright that such a run "is not addressable as
-    ``#n``". Where the element also has child elements it is mixed, "every content node uses its
-    ``#n`` wrapper", and the scalar moves off the element path.
-
-    A mapping cannot say which ``#n``. It carries one ``#text`` for what may have been several
-    runs, and its key order records the order the author typed rather than the order the text
-    and the elements stood in. Choosing an index would be inventing a document, and the wrong
-    guess is not loud -- it renders, exits 0, and puts the text on the wrong side of a child.
-    So this refuses and names the spelling that does carry the position.
-    """
-    competing = sorted(str(key) for key in node
-                       if str(key) != _XML_TEXT_KEY and _competes_with_text(str(key)))
-
-    if not competing:
-        return
-
-    raise Namespace2XmlError(
-        "'%s' has '#text' beside %s, which makes it mixed content, and mixed content needs to "
-        "say where the text stands. Section 11.4 gives an element's own text the element's path "
-        "only when it has no child elements; once it does, every content node takes an ordered "
-        "part and the text is one of them. A mapping does not record that order, so guessing "
-        "one would render successfully with the text on the wrong side of a child. Write the "
-        "content tokens instead -- '#0' for the text, '#1' for what follows it -- or move the "
-        "text into its own element."
-        % (name, ", ".join("'" + key + "'" for key in competing)))
-
-
-def encode_scalar(value):
-    """Encode a leaf as namespace value text.
-
-    Section 18 infers the payload type from this text, so the mapping is lossy in one direction
-    that matters: the string ``"true"`` and the boolean ``True`` produce the same record, and so
-    do the string ``"3"`` and the integer ``3``. The README records this; a ``type`` scheme rule
-    is the only way to force a string.
-    """
-    if value is None:
-        return "null"
-
-    if isinstance(value, bool):
-        return "true" if value else "false"
-
-    if isinstance(value, float):
-        return encode_value(repr(value))
-
-    if isinstance(value, int):
-        return encode_value(str(value))
-
-    if isinstance(value, (bytes, bytearray)):
-        raise Namespace2XmlError(
-            "binary data has no namespace value spelling; decode it to text first")
-
-    return encode_value(value if isinstance(value, str) else str(value))
-
-
-def flatten(config, selector=DEFAULT_SELECTOR, convention=DEFAULT_CONVENTION):
-    """Flatten a dictionary into a namespace profile rooted at ``selector``.
-
-    An empty mapping or sequence becomes the section 8.3 sentinel rather than disappearing,
-    which is the difference between an emitted ``<empty />`` and no element at all.
-
-    ``convention`` chooses how a mapping key is read. Under ``escaped``, the default, a key is
-    data and every section 11.4 marker in it is escaped, so the profile says exactly what the
-    mapping said. Under ``xmltodict`` the markers are live -- see :func:`encode_xml_name_part`.
-    ``selector`` is escaped as an ordinary name part either way: it is an argument naming where
-    the data hangs, not data, and it has to match the selector the scheme declares.
-    """
-    _check_convention(convention)
-
-    records = []
-    _walk(config, [encode_name_part(selector)], records, convention)
-
-    return "".join(record + "\n" for record in records)
-
-
-def _check_convention(convention):
-    if convention in CONVENTIONS:
-        return
-
-    raise Namespace2XmlError(
-        "'%s' is not a key convention this filter knows. Use %s. The list is closed on purpose: "
-        "a convention decides whether '@id' is an attribute or a name part, so an unrecognized "
-        "one has to fail rather than fall back to a default and render something the caller did "
-        "not ask for."
-        % (convention, " or ".join("'" + name + "'" for name in CONVENTIONS)))
-
-
-def _walk(node, path, records, convention=DEFAULT_CONVENTION):
-    name = ".".join(path)
-    encode = encode_xml_name_part if convention == _XMLTODICT else encode_name_part
-
-    if isinstance(node, dict):
-        if not node:
-            records.append(name + "={}")
-            return
-
-        text_keys = ([key for key in node if str(key) == _XML_TEXT_KEY]
-                     if convention == _XMLTODICT else [])
-
-        if text_keys:
-            _reject_positionless_text(node, name)
-
-        for key, value in node.items():
-            if key in text_keys:
-                # Section 11.4 puts an only-child text run at the element's own path, where it
-                # "is not addressable as #n", so this emits the parent's record rather than
-                # descending. The refusal above has already established there is no child to
-                # order it against.
-                if isinstance(value, (dict, list, tuple)):
-                    raise Namespace2XmlError(
-                        "'%s' gives '#text' a %s. Section 11.4 makes an element's own text one "
-                        "run of characters standing at the element's path, so it holds a scalar "
-                        "-- there is no path left underneath it for members to hang from."
-                        % (name, "mapping" if isinstance(value, dict) else "sequence"))
-
-                records.append(name + "=" + encode_scalar(value))
-                continue
-
-            _walk(value, path + [encode(str(key))], records, convention)
-
-        return
-
-    if isinstance(node, (list, tuple)):
-        if not node:
-            records.append(name + "=[]")
-            return
-
-        for index, value in enumerate(node):
-            # Section 8.7: a canonical decimal integer part makes the parent a sequence.
-            # str(int) has no leading zero, and a leading zero would disable inference for the
-            # whole parent.
-            _walk(value, path + [str(index)], records, convention)
-
-        return
-
-    records.append(name + "=" + encode_scalar(node))
-
-
 def _reject_record_breaks(name, value):
     """Refuse a line break in a value interpolated raw into the generated scheme.
 
@@ -768,6 +574,11 @@ def _reject_record_breaks(name, value):
     the argument that cannot be encoded: Section 8.2 makes it carry typed component markers and
     its own backslash escapes, so encoding would rewrite what the caller wrote. Refusing is what
     is left, and it costs nothing real -- no document element name contains a line break.
+
+    It stays with the scheme rather than moving to the shared encoder with the rest of Section
+    8.3: what it guards is raw interpolation into a generated scheme directive, which is a
+    property of :func:`synthesize_scheme` below -- its only caller -- and not of the profile
+    encoding.
     """
     if "\n" in value or "\r" in value:
         raise Namespace2XmlError(
@@ -946,13 +757,20 @@ def _output_declarations_in_mapping(mapping, seen=None):
     return declarations
 
 
-def _declare_hint(scheme, swallowed):
+def _declare_hint(sources, swallowed):
     """Spell the refused arguments the way the scheme in hand is written.
 
     A mapping scheme has no ``name=value`` lines, so quoting the text spelling at an author who
     wrote YAML would name a fix they cannot apply as given.
+
+    With several schemes in play the hint follows the last one that can be read, because
+    Section 15.2 gives the last matching declaration precedence: a directive added to any
+    earlier scheme could be displaced by a later one, so that is where it has to go.
     """
-    if isinstance(scheme, dict):
+    latest = next((source for source in reversed(sources)
+                   if isinstance(source, (dict, str))), None)
+
+    if isinstance(latest, dict):
         return " and ".join("'%s:' nested under the selector" % name for name in swallowed)
 
     return " and ".join("'<selector>.%s=...'" % name for name in swallowed)
@@ -982,7 +800,7 @@ def _has_reference(declaration):
     return False
 
 
-def _refuse_swallowed_arguments(scheme, fmt, root, delimiter, spelling="scheme"):
+def _refuse_swallowed_arguments(sources, fmt, root, delimiter, spelling="scheme"):
     """Refuse arguments that an explicit scheme would silently discard.
 
     ``root`` and ``delimiter`` are read only while synthesizing a scheme. Passed alongside one,
@@ -1003,6 +821,10 @@ def _refuse_swallowed_arguments(scheme, fmt, root, delimiter, spelling="scheme")
     tool, so comparing the unresolved text would refuse a scheme whose ``output`` is perfectly
     valid -- the mirror of the same defect, and the reason the guard below stands down entirely
     when one is present.
+
+    ``sources`` is the ordered list of schemes, each already reduced to something readable --
+    a mapping, its text, or ``None`` for one that could not be read. Their declarations are
+    concatenated in order, which is what the tool does with ordered ``--scheme`` paths.
     """
     swallowed = [name for name, value in (("root", root), ("delimiter", delimiter))
                  if value is not None]
@@ -1013,11 +835,16 @@ def _refuse_swallowed_arguments(scheme, fmt, root, delimiter, spelling="scheme")
             "while synthesizing a scheme, so here they would be discarded and the render would "
             "succeed having ignored them. Declare them in the scheme instead, as %s."
             % (" and ".join("'%s'" % name for name in swallowed), spelling,
-               _declare_hint(scheme, swallowed)))
+               _declare_hint(sources, swallowed)))
 
-    declarations = _output_declarations(scheme)
+    declarations = _all_declarations(sources)
 
     if any(_has_reference(declaration) for declaration in declarations):
+        return
+
+    # A scheme nobody here could read may declare anything at all, so the set below is not the
+    # whole set and cannot be used to refuse. Silence is the only honest answer.
+    if any(source is None for source in sources):
         return
 
     declared = set()
@@ -1033,7 +860,19 @@ def _refuse_swallowed_arguments(scheme, fmt, root, delimiter, spelling="scheme")
             % (" and ".join(sorted("'%s'" % value for value in declared)), fmt))
 
 
-def _format_probe(scheme, fmt, selector):
+def _all_declarations(sources):
+    """Every ``output`` declaration the ordered schemes make, concatenated in their order.
+
+    Section 15.2 resolves declarations in source order across every ``--scheme`` given, so the
+    schemes concatenate rather than compete: reading them in order here is reading what the tool
+    will read. A source that could not be read contributes nothing and is caught separately.
+    """
+    return [declaration
+            for source in sources
+            for declaration in _output_declarations(source)]
+
+
+def _format_probe(sources, fmt, selector):
     """The scheme that asks the tool outright for ``fmt``, or ``None`` when nothing need be asked.
 
     Section 15.2 gives the last matching declaration precedence, and ``--scheme`` takes ordered
@@ -1045,13 +884,16 @@ def _format_probe(scheme, fmt, selector):
 
     Most renders never pay for it. A single literal declaration cannot be displaced by anything
     -- there is nothing after it -- so the cheap comparison above is already conclusive and this
-    returns ``None``. What is left is exactly the two shapes that comparison gets wrong: several
-    declarations competing, where the set says one thing and precedence says another, and a
-    reference, which only the tool can resolve.
+    returns ``None``. What is left is exactly the three shapes that comparison gets wrong:
+    several declarations competing, where the set says one thing and precedence says another; a
+    reference, which only the tool can resolve; and a scheme none of this could read, where the
+    cheap comparison never happened at all and the probe is the only check left.
     """
-    declarations = _output_declarations(scheme)
+    declarations = _all_declarations(sources)
+    unreadable = any(source is None for source in sources)
 
-    if len(declarations) < 2 and not any(_has_reference(item) for item in declarations):
+    if not unreadable and len(declarations) < 2 and not any(
+            _has_reference(item) for item in declarations):
         return None
 
     wanted = fmt.strip().lower()
@@ -1077,16 +919,21 @@ def render(
     workdir=None,
     convention=DEFAULT_CONVENTION,
     scheme_text=None,
+    inputs=None,
 ):
     """Render a dictionary as configuration text in ``fmt``.
 
     :param config: the data to render.
     :param fmt: one of the section 16.1 output formats -- ``xml``, ``json``, ``yaml``, ``ini``,
         ``namespace``, ``quotednamespace``.
-    :param scheme: explicit scheme text, used instead of the synthesized minimal one. The
-        selector it declares must be ``selector``.
-    :param scheme_yaml: the same thing written as a mapping, where the nesting carries the path
-        rather than a dot. Mutually exclusive with ``scheme``.
+    :param scheme: the scheme, as an ordered list of entries. Every entry is a string naming a
+        file, or a mapping carrying one of ``file``, ``text`` (a document in the tool's own
+        syntax) or ``data`` (a mapping, where the nesting carries the path rather than a dot),
+        and optionally ``format``. Section 15.2 gives the last matching declaration precedence,
+        so a later entry overrides an earlier one and a small override may be layered onto a
+        shared scheme file. Passing text directly as a string is refused: under this shape a
+        bare string names a file.
+    :param scheme_yaml: deprecated. ``[{data: ...}]`` in ``scheme``.
     :param root: the section 16.3 root, which XML needs for a multi-member view.
     :param selector: the top-level name the data is written under.
     :param delimiter: the section 16.4 output delimiter, for the flat formats.
@@ -1100,8 +947,10 @@ def render(
         section 11.4 marker in a key is escaped and the key means itself, or ``xmltodict``,
         where ``@x``, ``Q{uri}x``, ``#n`` and ``#text`` address an attribute, a namespaced
         element, a content node and an element's own text.
-    :param scheme_text: ``scheme`` under the name the ``render`` module gives inline text.
-        Mutually exclusive with both other spellings.
+    :param scheme_text: deprecated. ``[{text: ...}]`` in ``scheme``.
+    :param inputs: further inputs layered *under* ``config``, each becoming its own ``-i`` file
+        in the order given, in the same entry shape as ``scheme``. Section 7.3 merges in
+        command-line order, so ``config`` goes last and wins.
     :returns: the rendered text.
     """
     # This is the collection's one filter, so it is the one place a refusal from the shared
@@ -1110,76 +959,138 @@ def render(
     # type with a traceback instead of a message. Restating them here, once, is what keeps a
     # missing binary reading as a failed task rather than as a bug in this collection.
     try:
-        explicit, spelling = _one_scheme_spelling(scheme, scheme_text)
-
-        return _render(config, fmt, explicit, scheme_yaml, root, selector, delimiter, tool,
-                       memoize, workdir, convention, spelling)
+        return _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool,
+                       memoize, workdir, convention, scheme_text, inputs)
     except Namespace2XmlError:
         raise
     except _SharedError as error:
         raise Namespace2XmlError(str(error)) from error
 
 
-def _one_scheme_spelling(scheme, scheme_text):
-    """Collapse the two names for explicit scheme text down to the one the caller wrote.
+def _scheme_entries(scheme, scheme_text, scheme_yaml):
+    """Collapse the three spellings of the scheme argument into one ordered entry list.
 
-    ``scheme_text`` exists so that inline text spells the same here as it does on the
-    ``render`` module, where ``scheme`` is taken by file paths. It is one argument under two
-    names, so the pair together is refused, and the name that survives is carried forward for
-    every later message to quote back -- being told to fix ``'scheme'`` when you wrote
-    ``scheme_text`` sends you looking for an argument that is not in your playbook.
+    ``scheme_text`` and ``scheme_yaml`` are what 2.x offered before every source took the same
+    shape: one for inline text, because ``scheme`` there was already taken by something else on
+    the module, and one for a mapping. Both are now that shape written the long way round, so
+    they are kept working and mapped onto it rather than reimplemented. Supplying more than one
+    is refused, and the name the caller wrote is carried forward for every later message to
+    quote back -- being told to fix ``'scheme'`` when you wrote ``scheme_text`` sends you
+    looking for an argument that is not in your playbook.
     """
-    if scheme is not None and scheme_text is not None:
+    supplied = [(name, value) for name, value in (("scheme", scheme),
+                                                  ("scheme_text", scheme_text),
+                                                  ("scheme_yaml", scheme_yaml))
+                if value is not None]
+
+    if len(supplied) > 1:
         raise Namespace2XmlError(
-            "'scheme' and 'scheme_text' are two spellings of one argument, so supplying both "
-            "leaves it ambiguous which the render should use. Keep the one you mean.")
+            "%s are spellings of one argument, so supplying more than one leaves it ambiguous "
+            "which the render should use. Keep the one you mean -- 'scheme' takes them all now, "
+            "as a list of entries."
+            % " and ".join("'%s'" % name for name, dummy in supplied))
 
-    if scheme_text is not None:
-        return scheme_text, "scheme_text"
+    if not supplied:
+        return [], "scheme"
 
-    return scheme, "scheme"
+    name, value = supplied[0]
+
+    if name == "scheme_text":
+        return [{"text": value}], "scheme_text"
+
+    if name == "scheme_yaml":
+        return [{"data": value}], "scheme_yaml"
+
+    # The one deliberate break in this reshape. Before it, a bare string here was inline scheme
+    # text; after it, a bare string in any source list names a file. Guessing between the two
+    # would be the worst of the three options -- a render that reads the caller's scheme as a
+    # path, or their path as a document, and says nothing either way.
+    if isinstance(value, str):
+        raise Namespace2XmlError(
+            "'scheme' is a string. Every source is a list of entries now, and a bare string in "
+            "one names a file, so inline text can no longer be told apart from a path here. "
+            "Write scheme=[{'text': ...}] for a document you have inline, or scheme=[<path>] "
+            "for a file that holds one.")
+
+    return value, "scheme"
+
+
+def _scheme_sources(written, schemes):
+    """What each scheme says, in a form the checks above can read.
+
+    A ``data`` entry is read as the mapping it was written as rather than as the JSON it was
+    encoded into, because the mapping walk understands nesting and the line-oriented reader
+    would find nothing in JSON.
+
+    A ``file`` entry in the tool's own text syntax is read from disk: the filter runs on the
+    controller, where the file is, and the tool is about to read the same bytes. Anything else
+    -- a file that cannot be read, or one whose extension says JSON or YAML, which the reader
+    below does not speak -- comes back as ``None``. That is not the same as a scheme declaring
+    nothing: :func:`_refuse_swallowed_arguments` stands down when it sees one, and
+    :func:`_format_probe` runs instead, which settles the question by asking the tool.
+    """
+    sources = []
+
+    for original, entry in zip(written, schemes):
+        if isinstance(original, dict) and "data" in original:
+            sources.append(original["data"])
+        elif entry.text is not None:
+            sources.append(entry.text)
+        else:
+            sources.append(_read_scheme(entry.path))
+
+    return sources
+
+
+def _read_scheme(path):
+    """A scheme file's text, or ``None`` when this file has no business reading it."""
+    if os.path.splitext(path)[1].lower() in (".json", ".yaml", ".yml"):
+        return None
+
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read()
+    except (OSError, UnicodeDecodeError):
+        # The tool is about to open the same path and say so far better than a second diagnostic
+        # invented here, which would name this filter as the thing that failed.
+        return None
 
 
 def _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool, memoize,
-            workdir, convention, spelling="scheme"):
+            workdir, convention, scheme_text=None, inputs=None):
     """Do the work of :func:`render`, raising either error class."""
-    profile = flatten(config, selector, convention)
+    written, spelling = _scheme_entries(scheme, scheme_text, scheme_yaml)
 
-    if scheme is not None and scheme_yaml is not None:
-        raise Namespace2XmlError(
-            "'%s' and 'scheme_yaml' are two spellings of one argument, so supplying both "
-            "leaves it ambiguous which the render should use. Keep the one you mean."
-            % spelling)
+    # Section 7.3 merges sources in command-line order and section 17.1 gives the later
+    # contribution precedence, so the piped data is written last and overrides everything
+    # layered beneath it. The extras keep numbered names and the piped one keeps the name it
+    # has always had, which is the one quoted in every diagnostic written before this option
+    # existed.
+    layered = marshal_inputs(inputs, selector, convention)
+    layered.append(Entry(path=None, text=flatten(config, selector, convention),
+                         name="input.txt"))
 
-    explicit = scheme if scheme is not None else scheme_yaml
+    schemes = marshal_schemes(written, spelling)
     probe = None
 
-    if explicit is not None:
-        _refuse_swallowed_arguments(explicit, fmt, root, delimiter,
-                                    "scheme_yaml" if scheme is None else spelling)
-        probe = _format_probe(explicit, fmt, selector)
-
-    if scheme_yaml is not None:
-        # Section 15 picks the parser from the extension, so this has to reach the tool under a
-        # .json name and the text form must not.
-        scheme_text, scheme_name = encode_scheme_mapping(scheme_yaml), "scheme.json"
-    elif scheme is not None:
-        scheme_text, scheme_name = scheme, "scheme.txt"
+    if schemes:
+        sources = _scheme_sources(written, schemes)
+        _refuse_swallowed_arguments(sources, fmt, root, delimiter, spelling)
+        probe = _format_probe(sources, fmt, selector)
     else:
-        scheme_text, scheme_name = synthesize_scheme(
-            fmt, selector, root, delimiter), "scheme.txt"
+        schemes = [Entry(path=None, name="scheme.txt",
+                         text=synthesize_scheme(fmt, selector, root, delimiter))]
 
     identity = n2x.tool_identity(tool)
     key = None
 
     if memoize:
-        key = _cache_key(profile, scheme_text, scheme_name, fmt, identity)
+        key = _cache_key(layered, schemes, fmt, identity)
 
         if key in _RENDER_CACHE:
             return _RENDER_CACHE[key]
 
-    text = _marshal_and_run(profile, scheme_text, scheme_name, n2x.resolve(tool), workdir,
-                            probe, fmt)
+    text = _marshal_and_run(layered, schemes, n2x.resolve(tool), workdir, probe, fmt)
 
     if key is not None:
         _RENDER_CACHE[key] = text
@@ -1187,45 +1098,91 @@ def _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool, m
     return text
 
 
-def _cache_key(profile, scheme_text, scheme_name, fmt, identity):
+def _cache_key(layered, schemes, fmt, identity):
+    """A key for this exact render, or ``None`` when one cannot be built soundly.
+
+    The cache lives for a single ``ansible-playbook`` process, and a play is perfectly entitled
+    to write a scheme with ``template`` and render against it twice in the same run. A file
+    entry is therefore keyed by what would have to change for its content to differ -- its
+    path, its size and its modification time -- rather than by its path alone, which would
+    serve the first render's answer to the second.
+    """
     digest = hashlib.sha256()
 
-    # The file name is part of the key because it selects the parser: identical bytes read as a
-    # namespace profile and as JSON are two different schemes, and must not share a cache entry.
-    for part in (profile, scheme_text, scheme_name, fmt, identity):
+    for group in (layered, schemes):
+        # The count is hashed before the entries so that no regrouping of the same bytes across
+        # a different number of files can collide: two sources concatenate under section 7.3,
+        # one does not, and the two renders are not interchangeable.
+        digest.update(("%d" % len(group)).encode("utf-8"))
+        digest.update(b"\x00")
+
+        for entry in group:
+            # The file name is part of the key because it selects the parser: identical bytes
+            # read as a namespace profile and as JSON are two different sources, and must not
+            # share a cache entry.
+            stamp = entry.text if entry.path is None else _file_stamp(entry.path)
+
+            if stamp is None:
+                return None
+
+            for part in (entry.name, stamp):
+                digest.update(part.encode("utf-8"))
+                digest.update(b"\x00")
+
+    for part in (fmt, identity):
         digest.update(part.encode("utf-8"))
         digest.update(b"\x00")
 
     return digest.hexdigest()
 
 
-def _marshal_and_run(profile, scheme_text, scheme_name, executable, workdir, probe=None,
-                     fmt=None):
-    """Write the inputs, run the tool, read the single output back, and clean up.
+def _file_stamp(path):
+    """What would have to change for a file's content to differ, or ``None`` if unknowable."""
+    try:
+        status = os.stat(path)
+    except OSError:
+        return None
+
+    return "size=%d mtime=%d" % (status.st_size, status.st_mtime_ns)
+
+
+def _marshal_and_run(layered, schemes, executable, workdir, probe=None, fmt=None):
+    """Write the inline sources, run the tool, read the single output back, and clean up.
 
     A filter has data in memory and the CLI is file-in, directory-out, so every call pays a
-    directory, two writes, a process, a read and a delete.
+    directory, a write per inline source, a process, a read and a delete. An entry that already
+    names a file is handed over where it lies -- copying it would change the path the tool
+    quotes in its own diagnostics into one that is deleted before anyone can go and look.
     """
     directory = tempfile.mkdtemp(prefix="n2x-", dir=workdir)
 
     try:
-        input_path = os.path.join(directory, "input.txt")
-        scheme_path = os.path.join(directory, scheme_name)
+        input_paths = [_materialize(entry, directory) for entry in layered]
+        scheme_paths = [_materialize(entry, directory) for entry in schemes]
         output_dir = os.path.join(directory, "out")
 
-        _write(input_path, profile)
-        _write(scheme_path, scheme_text)
         os.mkdir(output_dir)
 
-        text = _run_and_read(executable, input_path, scheme_path, output_dir)
+        text = _run_and_read(executable, input_paths, scheme_paths, output_dir)
 
         if probe is not None:
-            _confirm_the_format_asked_for(executable, input_path, scheme_path, output_dir,
+            _confirm_the_format_asked_for(executable, input_paths, scheme_paths, output_dir,
                                           directory, probe, fmt)
 
         return text
     finally:
         shutil.rmtree(directory, ignore_errors=True)
+
+
+def _materialize(entry, directory):
+    """The path the tool should read for one entry, writing it out first when it is content."""
+    if entry.path is not None:
+        return entry.path
+
+    path = os.path.join(directory, entry.name)
+    _write(path, entry.text)
+
+    return path
 
 
 def _fingerprint(output_dir):
@@ -1249,7 +1206,7 @@ def _fingerprint(output_dir):
     return sorted(prints)
 
 
-def _confirm_the_format_asked_for(executable, input_path, scheme_path, output_dir, directory,
+def _confirm_the_format_asked_for(executable, input_paths, scheme_paths, output_dir, directory,
                                   probe, fmt):
     """Refuse a render whose format is not the one the caller asked for.
 
@@ -1275,8 +1232,7 @@ def _confirm_the_format_asked_for(executable, input_path, scheme_path, output_di
         # The tool's own diagnostics are deliberately dropped: `_warn` already surfaced the ones
         # belonging to the caller's render, and repeating them for a render invented here would
         # double every warning the scheme legitimately raises.
-        n2x.run_tool(executable, ["-i", input_path, "-s", scheme_path, "-s", probe_path,
-                                  "-o", probe_dir])
+        n2x.run_tool(executable, _argv(input_paths, scheme_paths + [probe_path], probe_dir))
         asked_for = _fingerprint(probe_dir)
     except _SharedError:
         asked_for = None
@@ -1315,13 +1271,33 @@ def _warn(text):
             sys.stderr.write("namespace2xml: %s\n" % line)
 
 
-def _run_and_read(executable, input_path, scheme_path, output_dir):
+def _argv(input_paths, scheme_paths, output_dir):
+    """The tool's argument vector, with the sources in the order they are meant to merge in.
+
+    The order is the whole meaning. Section 7.3 requires CLI source order for merging, wildcard
+    evaluation and precedence assignment, and section 17.1 gives the later contribution
+    precedence, so this list *is* the precedence the caller wrote down.
+    """
+    argv = []
+
+    for path in input_paths:
+        argv.extend(["-i", path])
+
+    for path in scheme_paths:
+        argv.extend(["-s", path])
+
+    argv.extend(["-o", output_dir])
+
+    return argv
+
+
+def _run_and_read(executable, input_paths, scheme_paths, output_dir):
     """Spawn the tool over prepared files and read the single output back."""
     # `run_tool` raises on a non-zero exit with the tool's own diagnostics folded into the
     # message, and returns stderr on success so a diagnostic about a rule that matched nothing
     # is not swallowed. Both halves of that are the shared behaviour; only the reading back of
     # a single file below is the filter's own.
-    _warn(n2x.run_tool(executable, ["-i", input_path, "-s", scheme_path, "-o", output_dir]))
+    _warn(n2x.run_tool(executable, _argv(input_paths, scheme_paths, output_dir)))
 
     # "dummy", not "_": ansible-test's pylint profile lists "_" in bad-names, so the
     # conventional Python throwaway fails collection sanity.

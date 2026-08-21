@@ -13,10 +13,28 @@ RUN apt-get update -qq \
  && rm -rf /var/lib/apt/lists/* \
  && ansible --version
 
-# The published collection, exactly as an operator would get it. Override COLLECTION_SPEC with a
-# path to a local tarball to test an unreleased build.
-RUN ansible-galaxy collection install "$COLLECTION_SPEC" \
- && ansible-galaxy collection list
+# The collection under test. rig.ps1 stages something here for every run: this working tree's
+# `ansible/` directory for `-Collection local`, a tarball it was pointed at, or nothing at all when
+# COLLECTION_SPEC names a published collection. Docker cannot COPY from outside the build context,
+# which is why staging is necessary rather than referring to the path directly.
+COPY collection /collection
+
+RUN if [ -d /collection/src ]; then \
+      ansible-galaxy collection build /collection/src --output-path /collection --force ; \
+    fi
+
+# A tarball if one was staged, otherwise whatever COLLECTION_SPEC names -- by default the published
+# collection, exactly as an operator would get it.
+RUN set -e ; \
+    if ls /collection/*.tar.gz >/dev/null 2>&1 ; then \
+      target="$(ls /collection/*.tar.gz | head -1)" ; \
+    else \
+      target="$COLLECTION_SPEC" ; \
+    fi ; \
+    echo "installing collection: $target" ; \
+    ansible-galaxy collection install "$target" --force
+
+RUN ansible-galaxy collection list
 
 COPY pkg /pkg
 RUN dotnet tool install --tool-path /usr/local/bin --source /pkg --version "$TOOL_VERSION" namespace2xml \

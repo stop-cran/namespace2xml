@@ -106,7 +106,9 @@ def test_variables_follow_the_schemes_and_precede_the_output_root():
 
 
 def test_a_render_with_no_input_is_refused():
-    with pytest.raises(n2x.Namespace2XmlError, match="src"):
+    # Names 'inputs', the argument both plugins take. Naming 'src' would send a 3.x author
+    # looking for an argument that is only a deprecated alias in their playbook.
+    with pytest.raises(n2x.Namespace2XmlError, match="inputs"):
         render_node.build_argv([], ["s"], None, "/out")
 
 

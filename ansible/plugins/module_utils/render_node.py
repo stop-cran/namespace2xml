@@ -107,13 +107,12 @@ def build_argv(src, schemes, variables, out_dir):
     module preserves the operator's order and never sorts.
     """
     if not src:
-        raise Namespace2XmlError("'src' must name at least one input file.")
+        raise Namespace2XmlError("'inputs' must name at least one input file.")
 
     if not schemes:
         raise Namespace2XmlError(
-            "at least one scheme is required: pass 'scheme' file paths, 'scheme_text', or both. "
-            "The tool's '-s' option is mandatory because a render with no output directive "
-            "produces no files.")
+            "at least one scheme is required: pass 'scheme'. The tool's '-s' option is "
+            "mandatory because a render with no output directive produces no files.")
 
     argv = []
 

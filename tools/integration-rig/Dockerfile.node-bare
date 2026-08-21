@@ -1,0 +1,27 @@
+FROM ubuntu:24.04
+
+# Deliberately not the .NET SDK image the other node uses. This node stands for the machine the
+# `distribute` role exists for: one that cannot host the transformer at all -- no .NET runtime, no
+# `namespace2xml` binary, and not enough disk to install either. If the role ever grew a hidden
+# dependency on the node having the tool, this image is where that would surface, and a node that
+# merely *had not been given* the tool would not prove the same thing.
+RUN apt-get update -qq \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+      openssh-server python3 sudo iproute2 \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /run/sshd \
+ && useradd -m -s /bin/bash ansible \
+ && echo 'ansible ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/ansible \
+ && mkdir -p /home/ansible/.ssh \
+ && chmod 700 /home/ansible/.ssh
+
+COPY .keys/authorized_keys /home/ansible/.ssh/authorized_keys
+RUN chown -R ansible:ansible /home/ansible/.ssh && chmod 600 /home/ansible/.ssh/authorized_keys
+
+# Prove the absence rather than assume it, at build time, so a base image that started shipping
+# .NET could not quietly turn this node into a copy of the other one.
+RUN if command -v dotnet >/dev/null 2>&1; then echo 'FATAL: this image must not have dotnet.' >&2; exit 1; fi \
+ && if command -v namespace2xml >/dev/null 2>&1; then echo 'FATAL: this image must not have namespace2xml.' >&2; exit 1; fi \
+ && echo 'confirmed: no dotnet, no namespace2xml'
+
+CMD ["/usr/sbin/sshd", "-D", "-e"]

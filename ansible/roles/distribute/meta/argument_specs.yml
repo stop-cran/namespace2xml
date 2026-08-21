@@ -1,0 +1,97 @@
+---
+argument_specs:
+  main:
+    short_description: Render on the controller and distribute the result to nodes
+    description:
+      - Runs the C(stop_cran.namespace2xml.render) module on the controller, then copies every
+        file it produced to the managed node, preserving the paths the scheme asked for.
+      - For nodes that cannot host the transformer. Nothing is installed on the node and nothing
+        is executed there beyond C(ansible.builtin.copy), so a node needs neither .NET nor
+        namespace2xml - only the controller does.
+      - Renders once per host, not once per play. The render runs with that host's variables in
+        scope, so C(inventory_hostname) in a scheme or an input means what it says. A fleet that
+        renders identically pays for one run of a fast local process per host; a fleet that does
+        not would otherwise be silently given one host's output.
+      - Under C(--check) the render still runs, into a temporary directory on the controller
+        that is removed either way. Only the copy is held back, so check mode reports the
+        difference between what the render produced and what the node already has - which is
+        the question being asked.
+      - The transformer is only needed where the render happens. Use the
+        C(stop_cran.namespace2xml.render) module directly instead when the inputs are files that
+        already live on the node and you would rather not bring them to the controller.
+    options:
+      namespace2xml_distribute_inputs:
+        description:
+          - Ordered inputs, resolved B(on the controller). Identical in shape to the module's
+            C(inputs)- each entry is either a string naming a file, or a mapping carrying one of
+            C(file), C(text) or C(data).
+          - A C(file) entry names a path on the controller, not on the node.
+        type: list
+        elements: raw
+        required: true
+      namespace2xml_distribute_scheme:
+        description:
+          - Ordered schemes, resolved on the controller, in the same shape as the module's
+            C(scheme). At least one is required, because a render with no C(output) directive
+            produces nothing to distribute.
+        type: list
+        elements: raw
+        required: true
+      namespace2xml_distribute_dest:
+        description:
+          - The directory B(on the node) the rendered files are written under. The paths the
+            scheme asked for are preserved beneath it.
+        type: path
+        required: true
+      namespace2xml_distribute_selector:
+        description:
+          - The namespace a C(data) input is flattened under. Passed to the module unchanged.
+          - >-
+            This has to name the same namespace the scheme reads, because a C(data) input is
+            hung under it. C(data: {host: web1}) under the default selector becomes
+            C(cfg.host=web1), so a scheme rooted at C(app) never sees it and the render succeeds
+            having silently ignored the input. When a play mixes a C(data) input with text or
+            file inputs, set this to the root those inputs already share and write the mapping
+            relative to it.
+        type: str
+        default: cfg
+      namespace2xml_distribute_convention:
+        description:
+          - How a mapping key in a C(data) input is read. Passed to the module unchanged.
+        type: str
+        default: escaped
+        choices:
+          - escaped
+          - xmltodict
+      namespace2xml_distribute_variables:
+        description:
+          - Namespace entries applied after every input, as the module's C(variables).
+        type: dict
+        default: {}
+      namespace2xml_distribute_tool:
+        description:
+          - An explicit path to the transformer B(on the controller). Left unset, it is searched
+            for as the module would.
+        type: path
+      namespace2xml_distribute_owner:
+        description:
+          - Owner of every file and directory this role writes on the node.
+        type: str
+      namespace2xml_distribute_group:
+        description:
+          - Group of every file and directory this role writes on the node.
+        type: str
+      namespace2xml_distribute_mode:
+        description:
+          - Mode of every file this role writes on the node, as C(ansible.builtin.copy) takes
+            it. Quote an octal literal, or YAML will read C(0644) as a decimal number.
+        type: raw
+      namespace2xml_distribute_directory_mode:
+        description:
+          - Mode of every directory this role creates on the node.
+        type: raw
+      namespace2xml_distribute_backup:
+        description:
+          - Keep a timestamped copy of any file this role overwrites.
+        type: bool
+        default: false
