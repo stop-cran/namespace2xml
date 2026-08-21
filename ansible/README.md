@@ -675,7 +675,7 @@ Neither suite leaves the controller. `ansible-test units` exercises the plugins 
 the claim the module is actually built on: that it renders a *remote* node's files, from that node's
 own inputs, using a binary installed on that node. That claim is checked by hand before a release,
 with [`tools/integration-rig`](https://github.com/stop-cran/namespace2xml/blob/master/tools/integration-rig/README.md)
-— a real controller and two managed nodes in Docker, connected over real SSH, with the collection
+— a real controller and three managed nodes in Docker, connected over real SSH, with the collection
 installed from Galaxy the way an operator installs it. It needs a Docker daemon, so it does not run
 in CI.
 

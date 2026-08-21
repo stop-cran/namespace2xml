@@ -358,7 +358,8 @@ pwsh -NoProfile -File tools/integration-rig/rig.ps1
 
 It needs a Docker daemon and pulls a ~1 GB base image, so it is not a CI job; run it before a
 release, or when changing what the module expects of a node. Run `-Command test` a second time for
-the idempotence check — playbooks 01, 03 and 04 must report `changed=0`. By default it installs the
+the idempotence check — playbooks 01, 03 and 04 must report `changed=0`, and playbook 08 reports
+`changed=0` on every pass because it never writes. By default it installs the
 version this working tree declares, from nuget.org; `-PackageSource local` tests unreleased changes.
 
 ### Adding a conformance fixture

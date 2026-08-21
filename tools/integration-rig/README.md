@@ -1,6 +1,6 @@
 # Docker integration rig
 
-A real Ansible controller and two real managed nodes, in containers, talking over real SSH.
+A real Ansible controller and three real managed nodes, in containers, talking over real SSH.
 
 ## What this proves that the other suites cannot
 
@@ -61,7 +61,8 @@ so a tarball given by path is copied in the same way rather than mounted.
 ### The idempotence check
 
 Run `./rig.ps1 -Command test` **twice**. On the second pass playbooks 01, 03 and 04 must report
-`changed=0`. Playbooks 02, 05, 06 and 07 legitimately report changes: 02 and 05 delete their target
+`changed=0`; playbook 08 asserts in memory and never writes, so it reports `changed=0` on every
+pass. Playbooks 02, 05, 06 and 07 legitimately report changes: 02 and 05 delete their target
 first so the run genuinely creates something, 06 modifies a value on purpose to exercise the diff
 path, and 07 runs a check-mode pass whose reported change is precisely what it asserts.
 
@@ -76,7 +77,7 @@ path, and 07 runs a check-mode pass whose reported change is precisely what it a
 | `05-filter.yml` | the controller-side filter, which renders play data rather than node files |
 | `06-vars-and-safety.yml` | `-v` variables; a scheme file living on the node; `dest` is never cleaned; diff on modification |
 | `07-distribute.yml` | the `distribute` role against `node3`, which has no .NET and no tool: all three input shapes, a scheme that renders into a subdirectory, file and directory modes, idempotence, check mode writing nothing, and no staging left on the controller |
-| `08-scheme-spellings.yml` | the three ways to hand the filter a scheme -- entry list, `scheme_text`, `scheme_yaml` -- agree, an entry's explicit `format` overrides inference, and a bare-string `scheme` is refused by name rather than read as a path |
+| `08-scheme-spellings.yml` | the three ways to hand the filter a scheme -- entry list, `scheme_text`, `scheme_yaml` -- agree, an explicit `type` rule wins over inference, and a bare-string `scheme` is refused by name rather than read as a path |
 
 ## Things that will bite you
 

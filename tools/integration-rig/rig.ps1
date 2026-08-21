@@ -1,14 +1,15 @@
 <#
 .SYNOPSIS
-    Stands up a real Ansible controller and two managed nodes in Docker and runs the collection
+    Stands up a real Ansible controller and three managed nodes in Docker and runs the collection
     against them over SSH.
 
 .DESCRIPTION
     The collection's own suites cannot reach this far. `ansible-test units` exercises the plugins as
     Python, and `ansible-test integration` runs its targets on localhost -- neither one proves that
     the module renders a *remote* node's files using a binary installed on that node, which is the
-    whole reason the module exists. This rig does: two nodes, different inventory variables, a real
-    sshd, and the collection installed from Galaxy exactly as an operator would install it.
+    whole reason the module exists. This rig does: two nodes carrying the tool, with different
+    inventory variables, plus a third that has neither .NET nor the tool for the `distribute` role;
+    a real sshd; and the collection installed from Galaxy exactly as an operator would install it.
 
     Nothing here runs in CI. It needs a Docker daemon and pulls a ~1 GB base image, so it is a
     harness a maintainer runs deliberately -- before a release, or when changing the module's
@@ -44,7 +45,8 @@
 .EXAMPLE
     ./rig.ps1 -Command test
     Re-run the playbooks against a rig that is already up. Running this twice is the idempotence
-    check: playbooks 01, 03 and 04 must report changed=0 on the second pass.
+    check: playbooks 01, 03 and 04 must report changed=0 on the second pass. Playbook 08 never
+    writes, so it reports changed=0 on every pass.
 #>
 [CmdletBinding()]
 param(

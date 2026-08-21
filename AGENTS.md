@@ -108,7 +108,9 @@ The `ansible` workflow additionally runs `ansible-test sanity`, builds the Galax
 asserts its contents, runs the unit tests under four ansible-core versions, and runs two
 integration targets against a locally packed build of the tool. None of that can run on Windows:
 `ansible-doc`, `ansible-test` and `ansible-playbook` all call `os.get_blocking`, which fails on a
-Windows handle. The unit tests are the whole of what you can check locally.
+Windows handle. The unit tests are the whole of what you can check *natively* — a container reaches
+most of the rest, and `.github/skills/docker-testing/SKILL.md` covers how, what it proves, and which
+gates stay out of reach until you push.
 
 The collection ships two plugins that share the name `render` and almost nothing else. The filter
 in `ansible/plugins/filter/render.py` flattens play variables into profile text and renders on the
