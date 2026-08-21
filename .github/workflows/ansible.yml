@@ -221,13 +221,33 @@ jobs:
           # survives the round trip well enough for the collection loader to accept it.
           tarball=$(find "$RUNNER_TEMP/build" -name '*.tar.gz')
           ansible-galaxy collection install "$tarball" -p "$RUNNER_TEMP/installed" --force
-          ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
-            ansible-doc -t filter stop_cran.namespace2xml.render >/dev/null
-          # The module ships module_utils that the filter does not, and a module_utils file left
-          # out of build_ignore's blast radius would import fine from the source tree and fail only
-          # here. That is the failure this line exists to catch.
-          ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
-            ansible-doc -t module stop_cran.namespace2xml.render >/dev/null
+
+          # ansible-doc warns on stderr and exits zero for a plugin it cannot find, so redirecting
+          # its output and reading only the status asserts nothing: a tarball that shipped neither
+          # plugin passes that check. The option names are the evidence, for the reason the
+          # compatibility job gives -- ansible-doc will print an empty skeleton for a docstring it
+          # could not parse -- and the match is a here-string rather than a pipe into `grep -q`,
+          # which exits at the first hit and leaves the writer taking EPIPE under pipefail once the
+          # page outgrows the buffer, turning a match into a failure.
+          resolves() {
+            kind=$1
+            shift
+            page=$(ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
+              ansible-doc -t "$kind" stop_cran.namespace2xml.render)
+            for expected in "$@"; do
+              if grep -qF -- "$expected" <<<"$page"; then continue; fi
+              printf '%s\n' "$page"
+              echo "::error::ansible-doc printed no '$expected' for the $kind stop_cran.namespace2xml.render installed from the tarball"
+              exit 1
+            done
+          }
+          resolves filter memoize selector delimiter workdir scheme_yaml convention
+          # Asking for the module's page as well as the filter's, because they are separate files
+          # and build_ignore can drop one without touching the other. It does not prove the
+          # module's module_utils came along: ansible-doc reads the docstring out of the source
+          # instead of importing it, which is why the compatibility job makes the load-and-call
+          # claim in a step of its own.
+          resolves module scheme_text scheme_yaml variables dest src
           echo "the installed collection resolves both stop_cran.namespace2xml.render plugins"
 
   # The unit tests are the specification-side half of a two-sided oracle: they hold hand-authored
