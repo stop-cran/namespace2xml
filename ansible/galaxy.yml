@@ -43,9 +43,28 @@
 # composing as before, and warning. The `distribute` role covers the topology neither plugin did:
 # render on the controller and converge on the node, with nothing installed on the node, for
 # fleets that cannot host a .NET runtime or should not each render their own copy.
+#
+# 3.0.1 fixes three defects in the `distribute` role, all found by exploratory testing against
+# real nodes rather than by the suite. The one that decides the severity: a node that stopped
+# answering part way through took the whole host out of the play before the cleanup ran, leaving
+# the controller's staging directory behind with the rendered configuration still in it -- which
+# for any play that renders credentials means plaintext secrets left on disk after a run that
+# looked like an ordinary unreachable-host failure. The role now keeps the host alive long enough
+# to remove the staging directory and only then fails it. That has one visible consequence a play
+# author has to know about: such a host is now reported as **failed** rather than **unreachable**,
+# because there is no way to run cleanup first and still re-raise the original classification.
+# Plays reading the recap -- `max_fail_percentage`, `any_errors_fatal`, `serial` -- should count
+# failures here, not unreachables. The other two: directories below the destination are now all
+# named explicitly, so `namespace2xml_distribute_directory_mode` reaches every one of them and
+# keeps reaching them on later runs instead of applying only to the deepest; and no path component
+# under the destination is followed if it is a symlink, so a link planted on a node cannot redirect
+# rendered configuration outside the directory the play named. A destination that is itself a link
+# stays a supported choice. A patch rather than a minor: no argument was added, removed or
+# renamed, no floor was raised, and every play that was not hitting one of these three defects
+# renders and copies exactly what it did before.
 namespace: stop_cran
 name: namespace2xml
-version: 3.0.0
+version: 3.0.1
 readme: README.md
 
 authors:
