@@ -99,7 +99,7 @@ def test_a_successful_run_forwards_the_tools_diagnostics(monkeypatch, tmp_path):
     output.mkdir()
     (output / "cfg.json").write_text("{}", encoding="utf-8")
 
-    text = filt._run_and_read("stand-in", "input.txt", "scheme.txt", str(output))
+    text = filt._run_and_read("stand-in", ["input.txt"], ["scheme.txt"], str(output))
 
     assert text == "{}"
     assert seen == [WARNING]
@@ -116,7 +116,7 @@ def test_a_failed_run_still_raises_with_the_diagnostic_attached(monkeypatch, tmp
     output.mkdir()
 
     with pytest.raises(n2x.Namespace2XmlError, match="XML002"):
-        filt._run_and_read("stand-in", "input.txt", "scheme.txt", str(output))
+        filt._run_and_read("stand-in", ["input.txt"], ["scheme.txt"], str(output))
 
 
 def test_a_refusal_from_the_shared_code_reaches_a_play_as_a_filter_error(monkeypatch):
@@ -150,7 +150,7 @@ def test_a_run_producing_no_single_output_is_a_failure(monkeypatch, tmp_path):
     output.mkdir()
 
     with pytest.raises(filt.Namespace2XmlError, match="exactly one output file"):
-        filt._run_and_read("stand-in", "input.txt", "scheme.txt", str(output))
+        filt._run_and_read("stand-in", ["input.txt"], ["scheme.txt"], str(output))
 
 
 # --- Section 15.2: is the document being returned the format that was asked for? ----------------
@@ -194,8 +194,8 @@ def _confirm(monkeypatch, tmp_path, run_tool):
     output = tmp_path / "out"
     output.mkdir()
 
-    filt._run_and_read("stand-in", "input.txt", "scheme.txt", str(output))
-    filt._confirm_the_format_asked_for("stand-in", "input.txt", "scheme.txt", str(output),
+    filt._run_and_read("stand-in", ["input.txt"], ["scheme.txt"], str(output))
+    filt._confirm_the_format_asked_for("stand-in", ["input.txt"], ["scheme.txt"], str(output),
                                        str(tmp_path), "cfg.output=xml\n", "xml")
 
 

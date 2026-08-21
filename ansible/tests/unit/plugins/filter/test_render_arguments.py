@@ -12,6 +12,7 @@ never captured from the filter. Where a spelling is pinned, section 19.1 is the 
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import sys
 
@@ -24,6 +25,7 @@ import pytest
 try:
     from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as filt
     from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x
+    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import entries
 except ImportError:  # a checkout that is not inside an ansible_collections tree
     # Through `plugins` -- an implicit namespace package -- rather than by path: the filter
     # reaches module_utils by relative import, and a relative import needs a package. Loading
@@ -35,6 +37,7 @@ except ImportError:  # a checkout that is not inside an ansible_collections tree
 
     from plugins.filter import render as filt  # type: ignore[no-redef]
     from plugins.module_utils import n2x  # type: ignore[no-redef]
+    from plugins.module_utils import entries  # type: ignore[no-redef]
 
 
 @pytest.fixture(autouse=True)
@@ -120,7 +123,7 @@ def test_a_synthesis_only_argument_alongside_an_explicit_scheme_is_refused(argum
     arguments[argument] = value
 
     with pytest.raises(filt.Namespace2XmlError, match="explicit 'scheme'"):
-        filt._refuse_swallowed_arguments("cfg.output=xml\n", "xml", **arguments)
+        filt._refuse_swallowed_arguments(["cfg.output=xml\n"], "xml", **arguments)
 
 
 def test_a_scheme_declaring_a_different_output_than_the_format_asked_for_is_refused():
@@ -130,16 +133,16 @@ def test_a_scheme_declaring_a_different_output_than_the_format_asked_for_is_refu
     compelled argument mean something.
     """
     with pytest.raises(filt.Namespace2XmlError, match="declares output 'json'"):
-        filt._refuse_swallowed_arguments("cfg.output=json\n", "xml", None, None)
+        filt._refuse_swallowed_arguments(["cfg.output=json\n"], "xml", None, None)
 
 
 def test_a_scheme_agreeing_with_the_format_is_accepted():
-    filt._refuse_swallowed_arguments("cfg.output=xml\ncfg.root=configuration\n", "xml", None, None)
+    filt._refuse_swallowed_arguments(["cfg.output=xml\ncfg.root=configuration\n"], "xml", None, None)
 
 
 def test_a_scheme_declaring_no_output_is_left_to_the_tool():
     """Reading little on purpose: silence here is deferred judgement, not approval."""
-    filt._refuse_swallowed_arguments("cfg.appender.*.port.type=int\n", "xml", None, None)
+    filt._refuse_swallowed_arguments(["cfg.appender.*.port.type=int\n"], "xml", None, None)
 
 
 # --- Section 8 record kinds, applied to the scheme this filter reads ----------------------------
@@ -161,13 +164,13 @@ def test_a_record_that_declares_nothing_is_not_read_as_a_declaration(scheme):
     would then be checked against a line the tool never applies. A blank record is ignored for
     the same reason. The parametrised id names the kind under test.
     """
-    filt._refuse_swallowed_arguments(scheme, "xml", None, None)
+    filt._refuse_swallowed_arguments([scheme], "xml", None, None)
 
 
 def test_an_escaped_hash_does_not_begin_a_comment():
     """Section 8 is explicit that '\\#' is not a comment marker, so this record does declare."""
     with pytest.raises(filt.Namespace2XmlError, match="declares output 'json'"):
-        filt._refuse_swallowed_arguments("\\#cfg.output=json\n", "xml", None, None)
+        filt._refuse_swallowed_arguments(["\\#cfg.output=json\n"], "xml", None, None)
 
 
 def test_an_escaped_dot_does_not_create_an_output_part():
@@ -176,7 +179,7 @@ def test_an_escaped_dot_does_not_create_an_output_part():
     The last part of 'cfg.a\\.output' is the single part 'a.output', which is not an output
     declaration. Splitting naively would invent one and refuse a valid scheme.
     """
-    filt._refuse_swallowed_arguments("cfg.a\\.output=json\n", "xml", None, None)
+    filt._refuse_swallowed_arguments(["cfg.a\\.output=json\n"], "xml", None, None)
 
 
 # --- Sections 15 and 16.1: how an output declaration is compared --------------------------------
@@ -201,14 +204,14 @@ def test_an_output_declaration_the_tool_would_accept_is_not_refused_here(declare
     Both spellings of a scheme are checked together. The mapping form carries its own copy of
     this comparison, and a copy is a place the two can quietly stop agreeing.
     """
-    filt._refuse_swallowed_arguments("cfg.output=%s\n" % declared, "xml", None, None)
-    filt._refuse_swallowed_arguments({"cfg": {"output": declared}}, "xml", None, None)
+    filt._refuse_swallowed_arguments(["cfg.output=%s\n" % declared], "xml", None, None)
+    filt._refuse_swallowed_arguments([{"cfg": {"output": declared}}], "xml", None, None)
 
 
 def test_the_format_argument_is_folded_on_its_side_of_the_comparison_too():
     """One clause governs both sides, so folding only the declaration would still refuse."""
-    filt._refuse_swallowed_arguments("cfg.output=xml\n", "XML", None, None)
-    filt._refuse_swallowed_arguments({"cfg": {"output": "xml"}}, "XML", None, None)
+    filt._refuse_swallowed_arguments(["cfg.output=xml\n"], "XML", None, None)
+    filt._refuse_swallowed_arguments([{"cfg": {"output": "xml"}}], "XML", None, None)
 
 
 @pytest.mark.parametrize(
@@ -219,7 +222,7 @@ def test_the_format_argument_is_folded_on_its_side_of_the_comparison_too():
 def test_a_declaration_naming_neither_format_is_still_refused(scheme):
     """Normalizing the comparison must not quietly make it vacuous."""
     with pytest.raises(filt.Namespace2XmlError, match="declares output"):
-        filt._refuse_swallowed_arguments(scheme, "xml", None, None)
+        filt._refuse_swallowed_arguments([scheme], "xml", None, None)
 
 
 def test_a_directive_name_is_matched_case_insensitively_in_a_mapping_too():
@@ -227,7 +230,7 @@ def test_a_directive_name_is_matched_case_insensitively_in_a_mapping_too():
     an 'OUTPUT:' declaration past the cross-check entirely, which is the silent half of the
     same defect."""
     with pytest.raises(filt.Namespace2XmlError, match="declares output 'json'"):
-        filt._refuse_swallowed_arguments({"cfg": {"OUTPUT": "json"}}, "xml", None, None)
+        filt._refuse_swallowed_arguments([{"cfg": {"OUTPUT": "json"}}], "xml", None, None)
 
 
 # --- Identity: the cache key must move when the binary does -------------------------------------
@@ -556,11 +559,11 @@ def test_a_wildcard_selector_survives_a_mapping_scheme_unescaped():
 def test_a_mapping_scheme_declaring_a_different_output_than_the_format_is_refused():
     """The O(fmt) cross-check has to read both spellings, or it silently stops working for one."""
     with pytest.raises(filt.Namespace2XmlError, match="declares output 'json'"):
-        filt._refuse_swallowed_arguments({"cfg": {"output": "json"}}, "xml", None, None)
+        filt._refuse_swallowed_arguments([{"cfg": {"output": "json"}}], "xml", None, None)
 
 
 def test_a_mapping_scheme_agreeing_with_the_format_is_accepted():
-    filt._refuse_swallowed_arguments({"cfg": {"output": "xml"}}, "xml", None, None)
+    filt._refuse_swallowed_arguments([{"cfg": {"output": "xml"}}], "xml", None, None)
 
 
 def test_a_synthesis_only_argument_alongside_a_mapping_scheme_names_the_mapping_spelling():
@@ -568,33 +571,48 @@ def test_a_synthesis_only_argument_alongside_a_mapping_scheme_names_the_mapping_
     cannot apply as written."""
     with pytest.raises(filt.Namespace2XmlError, match="nested under the selector"):
         filt._refuse_swallowed_arguments(
-            {"cfg": {"output": "xml"}}, "xml", "configuration", None)
+            [{"cfg": {"output": "xml"}}], "xml", "configuration", None)
 
 
 def test_supplying_both_scheme_spellings_is_refused():
     """They are one argument with two spellings, so both together leaves the render ambiguous."""
-    with pytest.raises(filt.Namespace2XmlError, match="two spellings"):
-        filt.render({"k": "v"}, "xml", scheme="cfg.output=xml\n",
+    with pytest.raises(filt.Namespace2XmlError, match="spellings of one argument"):
+        filt.render({"k": "v"}, "xml", scheme=[{"text": "cfg.output=xml\n"}],
                     scheme_yaml={"cfg": {"output": "xml"}})
 
 
 # --- The module's name for inline text works here too -------------------------------------------
 #
-# On the `render` module `scheme` is a list of file paths and `scheme_text` is inline text; here
-# `scheme` *is* the inline text. Moving a render between the two therefore meant renaming the
-# argument, which is a rename with no reason a play author could see. `scheme_text` is accepted
-# here as the same argument, so one name works in both places. See #114.
+# On the `render` module `scheme` was a list of file paths and `scheme_text` inline text; here
+# `scheme` *was* the inline text. Moving a render between the two therefore meant renaming the
+# argument, which is a rename with no reason a play author could see. Both now take the same
+# list of entries, and `scheme_text` is kept working as the long way round of writing one. See
+# #114.
 
-def test_the_module_spelling_of_inline_text_reaches_the_render_identically(monkeypatch):
-    """Identical in everything but the name carried along to quote back in a refusal."""
-    seen = []
-    monkeypatch.setattr(filt, "_render", lambda *args: seen.append(args) or "<x/>")
+def test_the_module_spelling_of_inline_text_becomes_the_same_entry():
+    """The deprecated names are that shape written out, so they collapse onto it rather than
+    being carried any further into the render."""
+    assert filt._scheme_entries(None, "cfg.output=xml\n", None) == \
+        ([{"text": "cfg.output=xml\n"}], "scheme_text")
+    assert filt._scheme_entries(None, None, {"cfg": {"output": "xml"}}) == \
+        ([{"data": {"cfg": {"output": "xml"}}}], "scheme_yaml")
 
-    filt.render({"k": "v"}, "xml", scheme="cfg.output=xml\n")
-    filt.render({"k": "v"}, "xml", scheme_text="cfg.output=xml\n")
 
-    assert seen[0][:-1] == seen[1][:-1], "the two spellings must render the same thing"
-    assert (seen[0][-1], seen[1][-1]) == ("scheme", "scheme_text")
+def test_the_name_the_caller_wrote_is_the_one_carried_forward():
+    """Being told to fix 'scheme' when you wrote 'scheme_text' sends you looking for an argument
+    that is not in your playbook, so the spelling travels with the entries."""
+    with pytest.raises(filt.Namespace2XmlError, match="explicit 'scheme_text'"):
+        filt.render({"k": "v"}, "xml", scheme_text="cfg.output=xml\n", root="configuration")
+
+
+def test_inline_text_written_as_a_bare_string_is_refused_with_the_way_to_write_it():
+    """The one deliberate break in the reshape: a bare string names a file everywhere now.
+
+    Guessing between the two readings would be worse than either -- a render that reads the
+    caller's scheme as a path, or their path as a document, and says nothing either way.
+    """
+    with pytest.raises(filt.Namespace2XmlError, match=r"scheme=\[\{'text': \.\.\.\}\]"):
+        filt.render({"k": "v"}, "xml", scheme="cfg.output=xml\n")
 
 
 def test_supplying_both_names_for_the_inline_text_is_refused():
@@ -635,34 +653,34 @@ def test_a_synthesis_only_argument_alongside_a_mapping_scheme_names_the_mapping_
 def test_a_lone_literal_declaration_settles_itself_and_costs_no_second_render():
     """Nothing follows it, so nothing can displace it: the comparison above is already the whole
     answer. This is the shape almost every caller writes, and it must stay free."""
-    assert filt._format_probe("cfg.output=xml\n", "xml", "cfg") is None
+    assert filt._format_probe(["cfg.output=xml\n"], "xml", "cfg") is None
 
 
 def test_competing_declarations_are_put_to_the_tool():
     """Both are 'declared', and a set cannot say which one section 15.2 lets win. The wildcard
     here is last, so it wins, and the render would have been JSON -- exactly the #111 report."""
-    assert filt._format_probe("cfg.output=xml\n*.output=json\n", "xml", "cfg") == \
+    assert filt._format_probe(["cfg.output=xml\n*.output=json\n"], "xml", "cfg") == \
         "cfg.output=xml\n"
 
 
 def test_a_declaration_that_is_a_reference_is_put_to_the_tool_even_when_it_stands_alone():
     """Section 15.1 resolves references inside the tool. Unresolved text names no format at all,
     so reading it can neither accept nor refuse -- it can only ask."""
-    assert filt._format_probe("cfg.filename=xml\ncfg.output=${cfg.filename}\n", "xml", "cfg") \
+    assert filt._format_probe(["cfg.filename=xml\ncfg.output=${cfg.filename}\n"], "xml", "cfg") \
         == "cfg.output=xml\n"
 
 
 def test_an_escaped_marker_is_literal_text_and_does_not_buy_a_second_render():
     r"""``\${`` stands for itself, so there is nothing for the tool to resolve and nothing to
     ask about."""
-    assert filt._format_probe("cfg.output=\\${xml}\n", "xml", "cfg") is None
+    assert filt._format_probe(["cfg.output=\\${xml}\n"], "xml", "cfg") is None
 
 
 def test_the_probe_addresses_the_subtree_the_render_selected():
     """A probe aimed anywhere else would compare two renders that differ for a reason other than
     format, and report a disagreement that is not one. The selector is escaped for the same
     reason every other name part is."""
-    assert filt._format_probe("a.b.output=xml\na.b.output=json\n", "json", "a.b") == \
+    assert filt._format_probe(["a.b.output=xml\na.b.output=json\n"], "json", "a.b") == \
         "a\\.b.output=json\n"
 
 
@@ -671,21 +689,21 @@ def test_a_mapping_scheme_reaches_the_tool_the_same_way():
     probe is a second '--scheme' path instead, which works whatever the first one is spelled in."""
     scheme = {"cfg": {"output": "xml"}, "*": {"output": "json"}}
 
-    assert filt._format_probe(scheme, "xml", "cfg") == "cfg.output=xml\n"
+    assert filt._format_probe([scheme], "xml", "cfg") == "cfg.output=xml\n"
 
 
 def test_a_reference_stands_the_cheap_comparison_down_rather_than_failing_it():
     """The mirror of the #111 defect: comparing unresolved text against the format asked for
     refuses a scheme the tool would have rendered exactly as requested."""
     filt._refuse_swallowed_arguments(
-        "cfg.filename=xml\ncfg.output=${cfg.filename}\n", "json", None, None)
+        ["cfg.filename=xml\ncfg.output=${cfg.filename}\n"], "json", None, None)
 
 
 def test_a_format_named_nowhere_in_the_scheme_is_still_refused_without_running_anything():
     """Precedence cannot promote a format that is not written down, so this stays settled by
     reading -- and stays the fast answer to the typo that prompted the check originally."""
     with pytest.raises(filt.Namespace2XmlError, match="declares output"):
-        filt._refuse_swallowed_arguments("cfg.output=json\n*.output=ini\n", "xml", None, None)
+        filt._refuse_swallowed_arguments(["cfg.output=json\n*.output=ini\n"], "xml", None, None)
 
 
 def test_a_probe_is_refused_for_a_format_outside_section_16_1():
@@ -694,4 +712,131 @@ def test_a_probe_is_refused_for_a_format_outside_section_16_1():
     typo in a scheme the tool never sees the author of, and report the resulting failure as a
     format disagreement."""
     with pytest.raises(filt.Namespace2XmlError, match="section 16.1 output formats"):
-        filt._format_probe("cfg.output=${cfg.filename}\n", "toml", "cfg")
+        filt._format_probe(["cfg.output=${cfg.filename}\n"], "toml", "cfg")
+
+
+# --- Several schemes, layered ------------------------------------------------------------------
+#
+# `--scheme` takes ordered paths and section 15.2 resolves declarations in source order across
+# all of them, so the schemes concatenate rather than compete: a small override layered onto a
+# shared scheme file is the shape this exists for. The checks above therefore read every scheme
+# in order, and what they conclude has to follow the same precedence the tool will apply.
+
+@pytest.fixture(name="schemes_given")
+def _schemes_given(monkeypatch):
+    """Capture the scheme entries a render hands on, without a tool installed.
+
+    Narrower than the stand-ins in the sibling files on purpose: what is under test here is the
+    list that reaches the command line, and nothing else about the run.
+    """
+    seen = []
+    monkeypatch.setattr(n2x, "tool_identity", lambda tool=None: "3.0.0|deadbeef")
+    monkeypatch.setattr(n2x, "resolve", lambda tool: "/stand-in/namespace2xml")
+    monkeypatch.setattr(filt, "_RENDER_CACHE", {})
+    monkeypatch.setattr(
+        filt, "_marshal_and_run",
+        lambda layered, schemes, executable, workdir, probe=None, fmt=None:
+        seen.extend(schemes) or "<x/>")
+
+    return seen
+
+
+def test_every_scheme_reaches_the_tool_in_the_order_written(schemes_given, tmp_path):
+    """One '--scheme' each, in order. Merging them here would be a second implementation of
+    section 15.2, which is the mistake #107 was."""
+    shared = tmp_path / "base.txt"
+    shared.write_text("cfg.output=xml\n", encoding="utf-8")
+
+    filt.render({"k": "v"}, "xml", scheme=[str(shared), {"text": "cfg.root=beans\n"}])
+
+    assert [pathlib.Path(entry.name).name for entry in schemes_given] == \
+        ["base.txt", "scheme-2.txt"]
+
+
+def test_a_declaration_in_a_later_scheme_settles_one_in_an_earlier_one():
+    """Two literal declarations across two schemes are as much a precedence question as two in
+    one file, so the probe has to be bought here too."""
+    assert filt._format_probe(["cfg.output=json\n", "cfg.output=xml\n"], "xml", "cfg") == \
+        "cfg.output=xml\n"
+
+
+def test_a_format_no_scheme_mentions_at_all_is_still_refused_by_reading():
+    """Concatenating the declarations keeps the cheap answer available across several schemes."""
+    with pytest.raises(filt.Namespace2XmlError, match="declares output"):
+        filt._refuse_swallowed_arguments(["cfg.output=json\n", "cfg.root=beans\n"],
+                                         "xml", None, None)
+
+
+def test_a_scheme_that_could_not_be_read_stands_the_comparison_down():
+    """``None`` is "this file may declare anything", not "this file declares nothing".
+
+    Reading it as the latter would let the set of declarations be reported as complete when it
+    is not, and refuse a render the tool would have produced correctly -- the #111 defect
+    arrived at from the other side.
+    """
+    filt._refuse_swallowed_arguments(["cfg.output=json\n", None], "xml", None, None)
+
+
+def test_a_scheme_that_could_not_be_read_buys_the_probe_instead():
+    """Standing the cheap check down leaves the format argument unverified, so the expensive
+    check has to take over rather than the question being dropped."""
+    assert filt._format_probe([None], "xml", "cfg") == "cfg.output=xml\n"
+
+
+def test_a_json_scheme_file_is_one_this_filter_does_not_read(tmp_path):
+    """Section 7.1 lets the tool parse a scheme by extension; the line-oriented reader here
+    speaks only the profile syntax, so it declines rather than finding nothing in JSON."""
+    scheme = tmp_path / "scheme.json"
+    scheme.write_text('{"cfg": {"output": "xml"}}', encoding="utf-8")
+
+    assert filt._read_scheme(str(scheme)) is None
+
+
+def test_the_hint_follows_the_last_scheme_that_can_be_read():
+    """A directive added to an earlier scheme could be displaced by a later one, so the fix has
+    to be spelled for the scheme that would win -- and in the syntax that one is written in."""
+    assert "nested under the selector" in filt._declare_hint(
+        ["cfg.output=xml\n", {"cfg": {"output": "xml"}}], ["root"])
+    assert "<selector>.root=..." in filt._declare_hint(
+        [{"cfg": {"output": "xml"}}, "cfg.output=xml\n"], ["root"])
+
+
+def test_a_data_scheme_is_read_as_the_mapping_and_not_as_the_json_it_became(schemes_given):
+    """The analysis has to run against the mapping the caller wrote.
+
+    ``data`` is encoded to JSON before the tool sees it, and the line-oriented reader finds no
+    declarations in JSON at all. Reading the encoded form would make every ``data`` scheme look
+    unreadable -- which is not an error, so the mistake would surface only as a probe run on
+    every render and a contradiction reported one round trip later than it needed to be.
+    """
+    with pytest.raises(filt.Namespace2XmlError, match="declares output"):
+        filt.render({"k": "v"}, "json", scheme=[{"data": {"cfg": {"output": "XML"}}}])
+
+    assert schemes_given == [], "the contradiction is readable, so nothing should have run"
+
+
+# --- Handing entries to the command line -------------------------------------------------------
+#
+# Everything above stops at the argument list because `_marshal_and_run` is stood in for. These
+# two go the last step, since "a named file is passed where it lies" is a claim about what ends
+# up on the command line and nothing else in this suite ever looks.
+
+def test_a_named_file_is_passed_where_it_lies(tmp_path):
+    """Copying it would work, and would still be wrong: the tool quotes the path it was given
+    in its own diagnostics, and a copy's path names a file deleted before anyone can look."""
+    source = tmp_path / "site.txt"
+    source.write_text("cfg.port=80\n", encoding="utf-8")
+    entry = entries.Entry(path=str(source), text=None, name=str(source))
+
+    assert filt._materialize(entry, str(tmp_path)) == str(source)
+
+
+def test_inline_content_is_written_into_the_directory_that_gets_cleaned_up(tmp_path):
+    """The counterpart: content held in memory has to become a file somewhere, and that
+    somewhere is the per-render directory, so the run leaves nothing behind."""
+    entry = entries.Entry(path=None, text="cfg.port=80\n", name="input.txt")
+
+    written = filt._materialize(entry, str(tmp_path))
+
+    assert os.path.dirname(written) == str(tmp_path)
+    assert open(written, encoding="utf-8").read() == "cfg.port=80\n"

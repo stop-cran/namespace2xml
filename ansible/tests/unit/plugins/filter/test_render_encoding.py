@@ -11,6 +11,7 @@ produced from the data -- needs the binary and lives in
 
 from __future__ import annotations
 
+import ast
 import pathlib
 import sys
 
@@ -23,6 +24,7 @@ import pytest
 try:
     from ansible_collections.stop_cran.namespace2xml.plugins.filter import render as filt
     from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import n2x
+    from ansible_collections.stop_cran.namespace2xml.plugins.module_utils import profile
 except ImportError:  # a checkout that is not inside an ansible_collections tree
     # Through `plugins` -- an implicit namespace package -- rather than by path: the filter
     # reaches module_utils by relative import, and a relative import needs a package. Loading
@@ -34,6 +36,7 @@ except ImportError:  # a checkout that is not inside an ansible_collections tree
 
     from plugins.filter import render as filt  # type: ignore[no-redef]
     from plugins.module_utils import n2x  # type: ignore[no-redef]
+    from plugins.module_utils import profile  # type: ignore[no-redef]
 
 
 def test_the_filter_shares_the_encoders_rather_than_carrying_its_own():
@@ -46,9 +49,39 @@ def test_the_filter_shares_the_encoders_rather_than_carrying_its_own():
 
     Asserted with ``is`` on purpose. Equality of behaviour is what a reintroduced copy would
     also satisfy on the day it was written, which is exactly when the comparison is useless.
+
+    The Section 8.3 encoder proper moved to ``module_utils.profile`` for the same reason the
+    value encoders did, one caller later: a module ships with ``module_utils`` and cannot
+    import a filter, so an encoder held in the filter is reachable from the controller only.
+    Everything the filter still names is a re-export, and these assertions are what says so.
     """
     assert filt.encode_value is n2x.encode_value
     assert filt.encode_scheme_mapping is n2x.encode_scheme_mapping
+    assert filt.flatten is profile.flatten
+    assert filt.encode_name_part is profile.encode_name_part
+    assert filt.encode_xml_name_part is profile.encode_xml_name_part
+
+
+def test_the_shared_encoder_does_not_depend_on_the_controller():
+    """``profile`` has to stay importable where no ansible is installed.
+
+    A module runs on the target host and ships with ``module_utils`` alone, which is the whole
+    reason the encoder moved out of the filter. An ``import ansible...`` added here later would
+    not be caught by the rest of this suite -- it runs on a controller, where the import
+    succeeds -- and would fail on the node instead, at the point of use. Reading the module's
+    own import statements is what catches it, on any machine.
+    """
+    source = pathlib.Path(profile.__file__).read_text(encoding="utf-8")
+
+    imported = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            imported.add(node.module)
+
+    assert not [name for name in imported if name.split(".")[0] == "ansible"], (
+        "the shared encoder must not import ansible: it ships to nodes that have none")
 
 
 # (id, data, hand-authored profile). The profile column is the thing under test.
@@ -138,12 +171,12 @@ def test_a_tuple_is_a_sequence_like_a_list():
 
 
 def test_an_empty_name_part_is_a_parse_error():
-    with pytest.raises(filt.Namespace2XmlError, match="empty name part"):
+    with pytest.raises(n2x.Namespace2XmlError, match="empty name part"):
         filt.encode_name_part("")
 
 
 def test_binary_data_is_refused_rather_than_guessed_at():
-    with pytest.raises(filt.Namespace2XmlError, match="binary data"):
+    with pytest.raises(n2x.Namespace2XmlError, match="binary data"):
         filt.flatten({"blob": b"\x00\x01"}, "cfg")
 
 
@@ -278,7 +311,7 @@ def test_the_selector_is_a_name_rather_than_data_under_either_convention():
 
 
 def test_an_unknown_convention_is_refused_rather_than_defaulted():
-    with pytest.raises(filt.Namespace2XmlError, match="not a key convention"):
+    with pytest.raises(n2x.Namespace2XmlError, match="not a key convention"):
         filt.flatten({"k": "v"}, "cfg", "badgerfish")
 
 
@@ -286,23 +319,23 @@ def test_text_beside_a_child_element_is_refused_because_it_has_no_position():
     # Section 11.4 gives an element's own text the element's path only while it has no child
     # elements. Once it has one the element is mixed, every content node takes an ordered part,
     # and the mapping does not record which one the text was.
-    with pytest.raises(filt.Namespace2XmlError, match="mixed content"):
+    with pytest.raises(n2x.Namespace2XmlError, match="mixed content"):
         filt.flatten({"a": {"#text": "hi", "b": 1}}, "cfg", "xmltodict")
 
 
 def test_text_beside_a_content_token_is_refused_for_the_same_reason():
-    with pytest.raises(filt.Namespace2XmlError, match="mixed content"):
+    with pytest.raises(n2x.Namespace2XmlError, match="mixed content"):
         filt.flatten({"a": {"#text": "hi", "#0": "x"}}, "cfg", "xmltodict")
 
 
 def test_text_beside_an_escaped_literal_child_is_refused_too():
     # '\\@b' is an ordinary element named '@b', not an attribute, so it competes for position.
-    with pytest.raises(filt.Namespace2XmlError, match="mixed content"):
+    with pytest.raises(n2x.Namespace2XmlError, match="mixed content"):
         filt.flatten({"a": {"#text": "hi", "\\@b": 1}}, "cfg", "xmltodict")
 
 
 def test_text_holding_a_container_is_refused():
-    with pytest.raises(filt.Namespace2XmlError, match="own text"):
+    with pytest.raises(n2x.Namespace2XmlError, match="own text"):
         filt.flatten({"a": {"#text": {"b": 1}}}, "cfg", "xmltodict")
 
 
@@ -310,12 +343,12 @@ def test_an_unclosed_namespace_marker_is_refused_here_rather_than_by_the_tool():
     # Section 8 makes marker recognition committing, so the tool would refuse this with
     # PARSE001 naming a synthesized profile in a temporary directory. Refusing here names the
     # key the author actually wrote.
-    with pytest.raises(filt.Namespace2XmlError, match="never closes it"):
+    with pytest.raises(n2x.Namespace2XmlError, match="never closes it"):
         filt.flatten({"Q{urn:p": "v"}, "cfg", "xmltodict")
 
 
 def test_an_undefined_escape_inside_a_uri_is_refused():
-    with pytest.raises(filt.Namespace2XmlError, match="no escape section 11.4 defines"):
+    with pytest.raises(n2x.Namespace2XmlError, match="no escape section 11.4 defines"):
         filt.flatten({"Q{urn:\\p}x": "v"}, "cfg", "xmltodict")
 
 
@@ -324,12 +357,12 @@ def test_a_hash_key_that_is_neither_text_nor_a_canonical_index_is_refused(key):
     # Escaping it would be the silent wrong answer this convention exists to remove: the author
     # wrote a marker. '#01' is refused because section 8.7 counts only the canonical spelling,
     # so accepting it would produce a part that orders nothing.
-    with pytest.raises(filt.Namespace2XmlError, match="reserves for content"):
+    with pytest.raises(n2x.Namespace2XmlError, match="reserves for content"):
         filt.flatten({key: "v"}, "cfg", "xmltodict")
 
 
 def test_an_attribute_with_no_name_is_refused():
-    with pytest.raises(filt.Namespace2XmlError, match="attribute with no name"):
+    with pytest.raises(n2x.Namespace2XmlError, match="attribute with no name"):
         filt.flatten({"@": "v"}, "cfg", "xmltodict")
 
 
@@ -339,16 +372,19 @@ class _Spy:
     def __init__(self, text="RENDERED"):
         self.text = text
         self.calls = 0
+        self.layered = None
+        self.schemes = None
         self.profile = None
-        self.scheme_text = None
-        self.scheme_name = None
 
-    def __call__(self, profile, scheme_text, scheme_name, executable, workdir, probe=None,
+    def __call__(self, layered, schemes, executable, workdir, probe=None,
                  fmt=None):
         self.calls += 1
-        self.profile = profile
-        self.scheme_text = scheme_text
-        self.scheme_name = scheme_name
+        self.layered = layered
+        # The piped data is written last, because section 7.3 merges in command-line order and
+        # section 17.1 lets the later source win. Keeping it under its own name lets a test that
+        # only cares about the flattening say so.
+        self.profile = layered[-1].text
+        self.schemes = schemes
         return self.text
 
 
