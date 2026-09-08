@@ -135,11 +135,16 @@ selector-qualified form such as `app.jsoninputoptions=Strict` is a blocking `SCH
 ## How JSON becomes the overlay
 
 The JSON value at the root of a file becomes that file's contribution. An object at the root
-supplies ordered mapping children under the file's root node; nested objects and arrays continue
-in the same way; every leaf JSON scalar (string, number, Boolean, null) becomes a typed scalar
-payload with the kind §9.1 chose. Empty objects and empty arrays are retained as explicit
-mapping- or sequence-shape contributions (§4.2, §4.4) and travel through to output as `{}` and
-`[]`.
+supplies ordered mapping children at the *top level of the model* — its own keys become the
+first-level name parts, and the file's name contributes nothing to the namespace; nested objects
+and arrays continue in the same way; every leaf JSON scalar (string, number, Boolean, null)
+becomes a typed scalar payload with the kind §9.1 chose. Empty objects and empty arrays are
+retained as explicit mapping- or sequence-shape contributions (§4.2, §4.4) and travel through to
+output as `{}` and `[]`.
+
+So `base.json` holding `{"server": {"host": "localhost"}}` contributes `server.host`, not
+`base.server.host`. The selector that renders it is `server`. The first entry under *Traps* below
+covers what happens when you assume otherwise.
 
 Comments inside JSON are the one thing the reader cannot deliver, because JSON has no comment
 syntax (§9.2). If you need a JSON *input* to carry annotations, this is not the tool for it.
@@ -387,6 +392,16 @@ visible. The warning is emitted; reach for `type=mapping` whenever a JSON numeri
 rather than an index.
 
 ## Traps
+
+**The file's name is not a name part, and the obvious scheme drops data at exit 0.** For a
+`base.json` holding `{"server": {…}, "logging": {…}}` the selectors are `server` and `logging`;
+there is no `base`. Written alone, `base.output=json` warns that `base` selects nothing
+(`WARN009`, §14.1). But add an override on the same wrong path — `base.server.host=prod` — and
+`base` now matches the override's own nodes, the warning stops, and the run writes a well-formed
+`base.json` assembled from the overrides alone. Every key the input supplied and no override
+named is gone. The warning cannot reach the case in which the mistake is actually made, because
+writing the override is what silences it. Render the inputs with `*.output=namespace` and
+`*.root=*` before writing overrides; `docs/usage-methodology.md` §3 makes that a habit.
 
 **`.json` case-insensitive, everything else namespace-parsed.** `config.JSON` reads as JSON;
 `config.json5` reads as a namespace profile and errors on the first `{`. §7.1.

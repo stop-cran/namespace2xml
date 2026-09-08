@@ -85,7 +85,7 @@ namespace2xml -i app.xml -i env/dev.properties -s scheme.properties -o out
 ```
 
 It also has the sharpest edges, because you are now writing paths into a namespace you did not
-design. Three of them are worth knowing before you start, and one habit avoids all three.
+design. Four of them are worth knowing before you start, and one habit avoids all four.
 
 ### Read the model before you override it
 
@@ -95,11 +95,76 @@ document to `namespace` and look at what the paths are actually called:
 
 ```text
 # scheme.properties
-server.output=namespace
+*.output=namespace
+*.root=*
 ```
 
-The answer is frequently not what the XML looked like. This one habit prevents the next three
-problems, and it costs one run.
+The wildcards are the point. At this stage you do not yet know what the top-level names are —
+finding that out is why you are running this. `*` selects every top-level name and writes one
+file per name, so the file names alone answer the question; `*.root=*` then puts the name back
+into each path, so what you read is the fully qualified form an override is written in, ready to
+copy.
+
+The answer is frequently not what the source document looked like. This one habit prevents all
+four of the problems below, and it costs one run.
+
+### The file's name is not part of the namespace, and the obvious scheme drops the rest at exit 0
+
+The first path you write is a selector, and selectors name the model, not the files. An input
+file's name never becomes a name part: the model's top level is the top-level keys of the
+documents themselves. An `app.xml` whose root element is `<server>` is selected by `server`, and
+`app` is only what somebody called the file.
+
+Every reader works this way. A `base.json` holding
+
+```json
+{"server": {"host": "localhost", "port": 8080}, "logging": {"level": "debug"}}
+```
+
+contributes `server.host`, `server.port` and `logging.level`. There is no `base` anywhere in the
+model, and the scheme is `server.output=json`.
+
+Written the obvious way, the mistake announces itself exactly once — and then stops announcing
+it. On its own,
+
+```text
+# scheme.properties
+base.output=json
+```
+
+reports an empty selector:
+
+```text
+warning WARN009 §14.1: 'base' selects nothing, so its output is empty. The file is still
+written; check the selector if that was not intended.
+```
+
+But an override is the whole reason you are here, and it lands on the same wrong path:
+
+```text
+# overlay.properties
+base.server.host=prod.example.com
+```
+
+Now `base` *does* select something — the override's own nodes, and nothing else. The warning
+stops, the run exits `0`, and it writes a well-formed `base.json`:
+
+```json
+{
+  "server": {
+    "host": "prod.example.com"
+  }
+}
+```
+
+`port` and the whole of `logging` are gone, and nothing said so. YAML behaves the same way and
+loses more: the same input as YAML, with the same single override, renders as two lines.
+
+This is the shape of the whole section at its purest — the diagnostic is absent from the only
+case in which the mistake is actually made, because writing the override is what silences it. The
+habit above is the entire defence: the wildcard render names `server` and `logging` as the
+top-level keys, and there is nothing left to guess. Reported as
+[#122](https://github.com/stop-cran/namespace2xml/issues/122).
 
 ### Indentation in the source is data, and it will silently defeat your override
 

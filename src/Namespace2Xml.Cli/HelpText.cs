@@ -128,6 +128,9 @@ internal static class HelpText
 
             app.output=json,yaml
 
+          'app' there is a path in the data, not a file name. See SELECTORS NAME THE DATA
+          below: getting this one wrong drops data at exit 0.
+
           Formats: {Formats}. Names are
           case-insensitive; 'ignore' must appear alone and suppresses output entirely.
 
@@ -143,6 +146,29 @@ internal static class HelpText
           several phases walk the document tree by recursion. Refusing a depth this build
           cannot walk is what keeps a too-deep request a readable error rather than a
           process crash carrying no diagnostic at all.
+
+        SELECTORS NAME THE DATA, NOT THE FILE
+          A selector is a path in the model, and the model's top level is the top-level
+          keys of the input documents. An input file's name never becomes part of the
+          namespace. A base.json whose top-level keys are 'server' and 'logging' gives the
+          paths server.host, server.port and logging.level. There is no 'base', and the
+          scheme is 'server.output=json' whatever the file happens to be called.
+
+          Getting this wrong is quiet. On its own, 'base.output=json' warns that 'base'
+          selects nothing (WARN009). But add an override on the same wrong path — say
+          'base.server.host=prod' — and the selector now matches the override's own nodes,
+          the warning stops, and the run writes a well-formed file assembled from the
+          overrides alone. Every key the input supplied and no override named is gone, at
+          exit 0. The warning cannot reach this case, because writing the override is what
+          silences it.
+
+          To see the real paths, render the inputs with wildcards before writing anything:
+
+            *.output=namespace
+            *.root=*
+
+          That writes one file per top-level name, each holding fully qualified paths in
+          the exact form an override is written in. See docs/usage-methodology.md.
 
         READING XML THAT WAS FORMATTED FOR HUMANS
           Indented XML holds whitespace-only text between element children, and the default

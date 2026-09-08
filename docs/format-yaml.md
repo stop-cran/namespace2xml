@@ -135,6 +135,12 @@ document per stream (§10.3).
 Verified: a stream beginning `---` reports `PARSE001` at line 1 column 1, exits `1`, and produces
 no output.
 
+That one document's own top-level keys become the top level of the model. The input file's name
+contributes nothing to the namespace: a `base.yaml` holding a `server:` and a `logging:` mapping
+contributes `server.…` and `logging.…`, and the selectors that render them are `server` and
+`logging`, never `base`. The first entry under *Traps* below covers what happens when you assume
+otherwise.
+
 ## Wildcard templates supplied as YAML
 
 §10.4 defines a normative capability: a YAML mapping whose keys carry wildcard tokens is a
@@ -426,6 +432,18 @@ matched by `substitute=Key` or `substitute=None` is preserved as-is with no tran
 applied (§13.4). A YAML string matched by neither has every reference in it interpreted.
 
 ## Traps
+
+**The file's name is not a name part, and the obvious scheme drops data at exit 0.** For a
+`base.yaml` holding a `server:` and a `logging:` mapping, the selectors are `server` and
+`logging`; there is no `base`. Written alone, `base.output=yaml` warns that `base` selects nothing
+(`WARN009`, §14.1). But add an override on the same wrong path — `base.server.host=prod` — and
+`base` now matches the override's own nodes, the warning stops, and the run writes a well-formed
+`base.yaml` assembled from the overrides alone. Verified: a five-line input with `server.host`,
+`server.port` and `logging.level` plus one such override renders as two lines — `server:` and one
+`host:` — with `port` and the whole `logging` mapping gone, at exit `0`. The warning cannot reach
+the case in which the mistake is actually made, because writing the override is what silences it.
+Render the inputs with `*.output=namespace` and `*.root=*` before writing overrides;
+`docs/usage-methodology.md` §3 makes that a habit.
 
 **`no`, `yes`, `on`, `off`, `y`, `n` are strings, not Booleans.** §10.1 fixes the Boolean
 resolvers as `true` and `false`, case-insensitively, and nothing else. This is different from
