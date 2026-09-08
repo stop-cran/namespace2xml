@@ -134,7 +134,7 @@ input mode and instead let the diagnostic namespace output represent trailing sp
 
 This route emits `WARN013` for each value written with a trailing space, retains the whitespace
 content tokens, and exposes paths such as `server.#1.host`. Copy those exact `#n` paths into the
-real scheme and keep `PreserveWhitespace` there too.
+production overlay and keep `PreserveWhitespace` in the production scheme too.
 
 Whichever route you choose, use the same XML input mode for discovery and for the scheme you ship.
 The two modes model the same document differently — `server.host` normalized against
