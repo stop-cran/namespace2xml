@@ -164,11 +164,17 @@ internal static class HelpText
 
           To see the real paths, render the inputs with wildcards before writing anything:
 
+            xmlinputoptions=NormalizeFormattingWhitespace
             *.output=namespace
             *.root=*
 
           That writes one file per top-level name, each holding fully qualified paths in
-          the exact form an override is written in. See docs/usage-methodology.md.
+          the exact form an override is written in. The first line is inert for JSON, YAML
+          and properties input, and on XML a human formatted it is what lets the render
+          run at all — see the next section. It takes no selector, because inputs are
+          parsed before output instances exist: '*.xmlinputoptions=...' is a blocking
+          SCHEME001. Keep it in the scheme you ship too, or the paths you just read will
+          not be the ones the real run addresses. See docs/usage-methodology.md.
 
         READING XML THAT WAS FORMATTED FOR HUMANS
           Indented XML holds whitespace-only text between element children, and the default

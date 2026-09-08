@@ -95,6 +95,7 @@ document to `namespace` and look at what the paths are actually called:
 
 ```text
 # scheme.properties
+xmlinputoptions=NormalizeFormattingWhitespace
 *.output=namespace
 *.root=*
 ```
@@ -105,8 +106,24 @@ file per name, so the file names alone answer the question; `*.root=*` then puts
 into each path, so what you read is the fully qualified form an override is written in, ready to
 copy.
 
+The first line is what lets the render run at all when an input is XML that a human formatted.
+Indented XML holds whitespace-only text between its elements, and by default that text is data
+whose values end in whitespace, so the render stops at `NAMESPACE001` (§19.1) and writes nothing
+— the second trap below, met head-on while trying to avoid it. `NormalizeFormattingWhitespace`
+discards that text for one `WARN007` (§11.7). It carries no selector: §16.8 makes
+`*.xmlinputoptions=…` a blocking scheme error, because inputs are parsed before output instances
+exist. For JSON, YAML and properties inputs the line is inert, so these three lines are the same
+three lines whatever you turn out to have.
+
+Keep that line in the scheme you ship, too. The two modes model the same document differently —
+`server.host` normalized against `server.#1.host` preserved — so a path copied from a normalized
+render binds to nothing in a default run, and the override is *added* beside the element it was
+meant to replace rather than replacing it, at exit `0`. Normalizing for the reading run alone
+walks back into that same second trap by a quieter road: no error this time, just an override
+that does not override.
+
 The answer is frequently not what the source document looked like. This one habit prevents all
-four of the problems below, and it costs one run.
+four of the problems below, and it costs one run and one warning.
 
 ### The file's name is not part of the namespace, and the obvious scheme drops the rest at exit 0
 
@@ -201,7 +218,9 @@ r.endpoint.@domain=dev.example.com
 The last line is the override, sitting in a new element of its own beside the real one, which is
 untouched. The spelling was right — `@domain`, not `domain` — and it still missed. This is
 [#40](https://github.com/stop-cran/namespace2xml/issues/40), and it is the reason the first habit
-in this section is to render the model before writing anything.
+in this section renders the model before anything is written, and the reason that render carries
+`xmlinputoptions=NormalizeFormattingWhitespace`. Normalized in the reading run and preserved in
+the writing one is another way to arrive at the output above, having done the reading.
 
 If the document's layout is not itself meaningful — which, for configuration, it usually is not —
 say so once, at the root:
