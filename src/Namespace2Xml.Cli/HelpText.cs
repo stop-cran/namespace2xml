@@ -128,6 +128,9 @@ internal static class HelpText
 
             app.output=json,yaml
 
+          'app' there is a path in the data, not a file name. See SELECTORS NAME THE DATA
+          below: getting this one wrong drops data at exit 0.
+
           Formats: {Formats}. Names are
           case-insensitive; 'ignore' must appear alone and suppresses output entirely.
 
@@ -144,6 +147,50 @@ internal static class HelpText
           cannot walk is what keeps a too-deep request a readable error rather than a
           process crash carrying no diagnostic at all.
 
+        SELECTORS NAME THE DATA, NOT THE FILE
+          A selector is a path in the model. An input file's name never becomes part of
+          the namespace. Mapping members and XML roots expose names; root sequences expose
+          decimal positions. A base.json whose top-level keys are 'server' and 'logging'
+          gives the paths server.host, server.port and logging.level. There is no 'base',
+          and the scheme is 'server.output=json' whatever the file happens to be called.
+
+          Getting this wrong is quiet. On its own, 'base.output=json' warns that 'base'
+          selects nothing (WARN009). But add an override on the same wrong path — say
+          'base.server.host=prod' — and the selector now matches the override's own nodes,
+          the warning stops, and the run writes a well-formed file assembled from the
+          overrides alone. Every key the input supplied and no override named is gone, at
+          exit 0. The warning cannot reach this case, because writing the override is what
+          silences it.
+
+          To see the real paths when XML formatting whitespace is not data, render the
+          inputs with wildcards before writing anything:
+
+            xmlinputoptions=NormalizeFormattingWhitespace
+            *.output=namespace
+            *.root=*
+
+          That writes one file per matched top-level part, each holding fully qualified
+          paths in the exact form an override is written in. Root sequences use positions
+          such as 0 and 1. A bare JSON or YAML root scalar has no part for '*' to match:
+          it emits two WARN009 occurrences and WARN008, exits 0, and writes no file.
+
+          The first line is inert for JSON, YAML and properties input. On XML a human
+          formatted, it lets the render run when that formatting whitespace is disposable
+          — see the next section. It takes no selector, because inputs are parsed before
+          output instances exist: '*.xmlinputoptions=...' is a blocking SCHEME001. Keep
+          normalization in the real scheme only when that is the same trade you intend.
+
+          When XML whitespace is data, keep the default PreserveWhitespace mode and use:
+
+            *.namespaceoutputoptions=AllowTrailingWhitespace
+            *.output=namespace
+            *.root=*
+
+          This emits WARN013 for trailing-space values and exposes content positions such
+          as server.#1.host. Copy those exact paths and keep preservation in the real run.
+          Discovery and production must use the same input mode. See
+          docs/usage-methodology.md.
+
         READING XML THAT WAS FORMATTED FOR HUMANS
           Indented XML holds whitespace-only text between element children, and the default
           'xmlinputoptions=PreserveWhitespace' keeps every text node. Those become content
@@ -157,14 +204,17 @@ internal static class HelpText
           override written r.b=2 is a new node beside r.#1.b rather than a replacement of
           it, and the run still exits 0.
 
-          When the input was formatted for a human to read, ask for the compatibility mode:
+          When the input was formatted for a human to read and that whitespace is not data,
+          ask for the compatibility mode:
 
             xmlinputoptions=NormalizeFormattingWhitespace
 
           It discards whitespace-only text between element children, which makes those
           elements addressable by name. It warns once per document (WARN007) because
           section 11.7 says discarding that text weakens the same-format round-trip
-          guarantee. See docs/format-xml.md and docs/usage-methodology.md.
+          guarantee. If whitespace is data, keep PreserveWhitespace and use the
+          preservation-aware discovery recipe above. See docs/format-xml.md and
+          docs/usage-methodology.md.
 
         EXIT CODES
           0  Success, including success with warnings.
