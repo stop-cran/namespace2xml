@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Namespace2Xml.Contract;
 using Namespace2Xml.Scheme;
@@ -10,6 +11,9 @@ namespace Namespace2Xml.Cli;
 /// </summary>
 internal static class HelpText
 {
+    private const int Width = 80;
+    private const int OptionDescriptionColumn = 38;
+
     internal const string RepositoryUrl = "https://github.com/stop-cran/namespace2xml";
     internal static readonly string SpecificationUrl = DocumentUrl("docs/specification.md");
     internal static readonly string DiagnosticsUrl = DocumentUrl("docs/diagnostics.md");
@@ -64,8 +68,6 @@ internal static class HelpText
     /// </param>
     private static string Wrap(IEnumerable<string> names, string indent)
     {
-        const int Width = 80;
-
         var listed = names.ToList();
         var lines = new List<string>();
         var line = new StringBuilder(indent);
@@ -95,8 +97,110 @@ internal static class HelpText
         return string.Join(Environment.NewLine, lines).TrimStart();
     }
 
-    internal static string Render() =>
-        $"""
+    /// <summary>Renders every cataloged option in one structured help row.</summary>
+    private static string RenderOptionGroup(CommandLineHelpGroup group) =>
+        string.Join(
+            Environment.NewLine,
+            CommandLineOptions.All
+                .Where(option => option.HelpGroup == group)
+                .Select(RenderOption));
+
+    private static string RenderOption(CommandLineOption option)
+    {
+        var spelling = option.Alias is null
+            ? option.Name
+            : $"{option.Alias}, {option.Name}";
+
+        if (option.ValueLabel is not null)
+        {
+            spelling += $" <{option.ValueLabel}>";
+
+            if (option.Arity == CommandLineOptionArity.List)
+            {
+                spelling += "...";
+            }
+        }
+
+        var description = option.Limit is null
+            ? option.Description
+            : $"{option.Description.TrimEnd('.')}. Default: "
+                + $"{option.Limit.FormatValue(ResourceLimits.Defaults)}.";
+
+        return RenderOptionColumns(spelling, description);
+    }
+
+    private static string RenderOptionColumns(string spelling, string description)
+    {
+        var left = "  " + spelling;
+        var descriptions = WrapText(description, Width - OptionDescriptionColumn);
+        var rendered = new StringBuilder();
+
+        if (left.Length >= OptionDescriptionColumn)
+        {
+            rendered.AppendLine(left);
+            rendered.Append(' ', OptionDescriptionColumn).Append(descriptions[0]);
+        }
+        else
+        {
+            rendered.Append(left.PadRight(OptionDescriptionColumn)).Append(descriptions[0]);
+        }
+
+        foreach (var continuation in descriptions.Skip(1))
+        {
+            rendered.AppendLine();
+            rendered.Append(' ', OptionDescriptionColumn).Append(continuation);
+        }
+
+        return rendered.ToString();
+    }
+
+    private static List<string> WrapText(string text, int width)
+    {
+        var lines = new List<string>();
+        var line = new StringBuilder();
+
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        for (var index = 0; index < words.Length; index++)
+        {
+            var word = words[index];
+
+            // A human-readable IEC value is one unit of meaning. Moving the complete value to the
+            // next line is clearer than leaving "256" at the end of one line and "MiB" at the
+            // start of the next.
+            if (index + 1 < words.Length
+                && words[index + 1].TrimEnd('.') is "KiB" or "MiB" or "GiB" or "bytes"
+                && word.All(scalar => char.IsAsciiDigit(scalar) || scalar == ','))
+            {
+                word += " " + words[++index];
+            }
+
+            if (line.Length > 0 && line.Length + 1 + word.Length > width)
+            {
+                lines.Add(line.ToString());
+                line.Clear();
+            }
+
+            if (line.Length > 0)
+            {
+                line.Append(' ');
+            }
+
+            line.Append(word);
+        }
+
+        lines.Add(line.ToString());
+        return lines;
+    }
+
+    internal static string Render()
+    {
+        var requiredOptions = RenderOptionGroup(CommandLineHelpGroup.Required);
+        var commonOptions = RenderOptionGroup(CommandLineHelpGroup.Common);
+        var limitOptions = RenderOptionGroup(CommandLineHelpGroup.Limits);
+        var maxDepthCeiling = LimitValue.MaxDepthCeiling.ToString("N0", CultureInfo.InvariantCulture);
+
+        return $"""
         namespace2xml - deterministic configuration transformer.
 
         Reads ordered namespace profiles, JSON, YAML and XML inputs, applies scheme
@@ -107,21 +211,10 @@ internal static class HelpText
           namespace2xml -i <input files> -s <scheme files> [options]
 
         REQUIRED
-          -i, --input <path>...        Ordered input file paths.
-          -s, --scheme <path>...       Ordered scheme file paths.
+        {requiredOptions}
 
         COMMON
-          -o, --output <dir>           Output root directory. Default: current directory.
-          -v, --variables <entry>...   Namespace entries applied after all input files.
-              --verbosity <level>      trace|debug|information|warning|error|critical|none.
-                                       Default: information.
-              --diagnostics-format <f> text|json. Default: text. 'json' writes the whole
-                                       diagnostic stream to standard error as one canonical
-                                       JSON array and suppresses operational messages.
-              --fail-on-warning        Exit 1 and publish nothing if any warning is emitted.
-                                       Diagnostic verbosity does not alter this policy.
-              --help                   Print this help and exit successfully.
-              --version                Print version information and exit successfully.
+        {commonOptions}
 
         SCHEME BASICS
           A scheme file is a namespace profile whose last name part is a directive. Every
@@ -143,11 +236,16 @@ internal static class HelpText
 
         LIMITS
           Every resource bound is a --max-* option. See the specification, section 6.2.
-          Section 6.2 lets a build document a hard safety ceiling and reject a larger value
-          as CLI001. This build imposes one: --max-depth accepts at most 4096, because
-          several phases walk the document tree by recursion. Refusing a depth this build
-          cannot walk is what keeps a too-deep request a readable error rather than a
-          process crash carrying no diagnostic at all.
+          Count and depth values use [1-9][0-9]*. Byte values use [1-9][0-9]* with
+          an optional case-insensitive KiB, MiB or GiB suffix. Effective defaults:
+
+        {limitOptions}
+
+          Section 6.2 lets a build document a hard safety ceiling and reject a larger
+          value as CLI001. This build imposes one: the --max-depth ceiling is
+          {maxDepthCeiling}, because several phases walk the document tree by recursion.
+          Refusing a depth this build cannot walk keeps a too-deep request a readable
+          error rather than a process crash carrying no diagnostic at all.
 
         SELECTORS NAME THE DATA, NOT THE FILE
           A selector is a path in the model. An input file's name never becomes part of
@@ -257,6 +355,7 @@ internal static class HelpText
           the contract-bundle revision printed by --version.
 
         """.ReplaceLineEndings("\n");
+    }
 
     internal static string RenderVersion() =>
         // One "<field>: <value>" line per field, so a script can read it without a parser.

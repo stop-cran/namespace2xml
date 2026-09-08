@@ -16,14 +16,10 @@ public sealed class CommandLineParserTests
     /// <summary>A minimal well-formed vector, so a test can vary one thing at a time.</summary>
     private static readonly string[] Minimal = ["-i", "in.txt", "-s", "scheme.txt"];
 
-    private static readonly string[] EveryLongOptionTakingAValue =
-    [
-        "--input", "--scheme", "--variables", "--output", "--verbosity", "--diagnostics-format",
-        "--max-input-bytes", "--max-total-input-bytes", "--max-depth", "--max-nodes",
-        "--max-xml-attributes", "--max-comments", "--max-comment-bytes", "--max-wildcard-rules",
-        "--max-wildcard-candidates", "--max-generated", "--max-wildcard-iterations",
-        "--max-reference-depth", "--max-outputs", "--max-total-output-bytes",
-    ];
+    private static IEnumerable<string> EveryLongOptionTakingAValue =>
+        CommandLineOptions.All
+            .Where(option => option.Arity is CommandLineOptionArity.List or CommandLineOptionArity.Single)
+            .Select(option => option.Name);
 
     private static CommandLine ParseOk(params string[] arguments)
     {
@@ -222,6 +218,49 @@ public sealed class CommandLineParserTests
     public void AnUnrecognizedOptionIsRejected() =>
         ParseFail([.. Minimal, "--nonesuch", "x"]).Code.ShouldBe("CLI001");
 
+    [Test]
+    public void ALimitNameTypoIsOneCli001RatherThanAPrefixMatch()
+    {
+        var result = CommandLineParser.Parse([.. Minimal, "--max-dept", "10"]);
+
+        result.Succeeded.ShouldBeFalse();
+        result.CommandLine.ShouldBeNull();
+        result.Diagnostic.ShouldNotBeNull().Code.ShouldBe("CLI001");
+        result.Diagnostic.Message.ShouldContain("'--max-dept'");
+    }
+
+    /// <summary>
+    /// A catalog descriptor is executable metadata, not merely documentation. Adding an option
+    /// without wiring its arity-specific parser path must fail this gate rather than ship an
+    /// accepted-looking help row backed by an exception.
+    /// </summary>
+    [Test]
+    public void EveryCatalogedOptionHasAParserHandler()
+    {
+        foreach (var option in CommandLineOptions.All)
+        {
+            string[] arguments =
+                option.Arity is CommandLineOptionArity.List or CommandLineOptionArity.Single
+                    ? [.. Minimal, option.Name, ValueFor(option)]
+                    : [.. Minimal, option.Name];
+
+            Should.NotThrow(() =>
+            {
+                var result = CommandLineParser.Parse(arguments);
+                result.Succeeded.ShouldBeTrue($"'{option.Name}' has no working parser handler");
+            });
+        }
+
+        static string ValueFor(CommandLineOption option) => option.Name switch
+        {
+            "--verbosity" => "warning",
+            "--diagnostics-format" => "json",
+            _ when option.Limit?.Kind == ResourceLimitKind.Bytes => "7KiB",
+            _ when option.Limit is not null => "7",
+            _ => "x",
+        };
+    }
+
     // ---- valueless operational flags ---------------------------------------------------
 
     [Test]
@@ -340,6 +379,26 @@ public sealed class CommandLineParserTests
     [Test]
     public void ByteLimitsApplyTheirBinaryMultiplier() =>
         ParseOk([.. Minimal, "--max-input-bytes", "3MiB"]).Limits.MaxInputBytes.ShouldBe(3L * 1024 * 1024);
+
+    /// <summary>
+    /// The catalog accessor used to print a default also identifies the property a parser handler
+    /// must update. This catches both a missing limit switch arm and an arm that updates the wrong
+    /// bound without maintaining a second option-name inventory in the tests.
+    /// </summary>
+    [Test]
+    public void EveryCatalogedLimitHasTheMatchingParserHandler()
+    {
+        foreach (var option in CommandLineOptions.All.Where(option => option.Limit is not null))
+        {
+            var value = option.Limit!.Kind == ResourceLimitKind.Bytes ? "7KiB" : "7";
+            var expected = option.Limit.Kind == ResourceLimitKind.Bytes ? 7L * 1024 : 7L;
+            var parsed = ParseOk([.. Minimal, option.Name, value]);
+
+            option.Limit.ReadValue(parsed.Limits).ShouldBe(
+                expected,
+                $"'{option.Name}' did not update the ResourceLimits member declared by its catalog entry");
+        }
+    }
 
     [TestCase("--max-depth", "0")]
     [TestCase("--max-depth", "-1")]

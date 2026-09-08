@@ -29,53 +29,6 @@ namespace Namespace2Xml.Cli;
 /// </remarks>
 public static class CommandLineParser
 {
-    private enum Arity
-    {
-        /// <summary>Informational presence flag whose inline spelling is ignored before validation.</summary>
-        Informational,
-
-        /// <summary>Valueless operational flag whose inline spelling is invalid.</summary>
-        Flag,
-
-        /// <summary>Accepts values until the next option token, concatenating across occurrences.</summary>
-        List,
-
-        /// <summary>Accepts exactly one value; a later occurrence overrides an earlier one.</summary>
-        Single,
-    }
-
-    private sealed record OptionSpec(string Name, string? Alias, Arity Arity, string Anchor = "§6.2");
-
-    private static readonly ImmutableArray<OptionSpec> Options =
-    [
-        new("--input", "-i", Arity.List),
-        new("--scheme", "-s", Arity.List),
-        new("--variables", "-v", Arity.List),
-        new("--output", "-o", Arity.Single),
-        new("--verbosity", null, Arity.Single),
-
-        // Section 6.4.1 states this option's validation itself, so its faults anchor there rather
-        // than at the general grammar.
-        new("--diagnostics-format", null, Arity.Single, "§6.4.1"),
-        new("--fail-on-warning", null, Arity.Flag),
-        new("--max-input-bytes", null, Arity.Single),
-        new("--max-total-input-bytes", null, Arity.Single),
-        new("--max-depth", null, Arity.Single),
-        new("--max-nodes", null, Arity.Single),
-        new("--max-xml-attributes", null, Arity.Single),
-        new("--max-comments", null, Arity.Single),
-        new("--max-comment-bytes", null, Arity.Single),
-        new("--max-wildcard-rules", null, Arity.Single),
-        new("--max-wildcard-candidates", null, Arity.Single),
-        new("--max-generated", null, Arity.Single),
-        new("--max-wildcard-iterations", null, Arity.Single),
-        new("--max-reference-depth", null, Arity.Single),
-        new("--max-outputs", null, Arity.Single),
-        new("--max-total-output-bytes", null, Arity.Single),
-        new("--help", null, Arity.Informational),
-        new("--version", null, Arity.Informational),
-    ];
-
     /// <summary>
     /// Parses an argument vector. Never throws for any vector, including one containing nulls.
     /// </summary>
@@ -90,7 +43,7 @@ public static class CommandLineParser
 
         var state = new ParseState();
 
-        OptionSpec? current = null;
+        CommandLineOption? current = null;
         var currentSatisfied = true;
         var optionsEnded = false;
 
@@ -103,16 +56,17 @@ public static class CommandLineParser
             // end-of-options marker. The two are both CLI001, but they anchor at different clauses.
             if (!optionsEnded && !currentSatisfied && (token == "--" || IsOptionToken(token)))
             {
-                return Failure(current!.Anchor, token == "--"
-                    ? $"'{current.Name}' requires a value, but the next token is the end-of-options marker '--'."
-                    : $"'{current.Name}' requires a value, but the next token is the option '{token}'.");
+                var pending = current!;
+                return Failure(pending.DiagnosticAnchor, token == "--"
+                    ? $"'{pending.Name}' requires a value, but the next token is the end-of-options marker '--'."
+                    : $"'{pending.Name}' requires a value, but the next token is the option '{token}'.");
             }
 
             if (!optionsEnded && token == "--")
             {
                 // Section 6.2: every following token is a value of the immediately preceding
                 // list-valued option, and there must be one.
-                if (current is not { Arity: Arity.List })
+                if (current is not { Arity: CommandLineOptionArity.List })
                 {
                     return Failure("§6.2",
                         "'--' ends option recognition and hands every following token to the immediately "
@@ -133,10 +87,10 @@ public static class CommandLineParser
                 var name = separator < 0 ? token : token[..separator];
                 string? inline = separator < 0 ? null : token[(separator + 1)..];
 
-                var spec = Options.FirstOrDefault(option => option.Name == name || option.Alias == name);
+                var spec = CommandLineOptions.Find(name);
                 if (spec is null)
                 {
-                    var alias = ShortAliasPrefixOf(name);
+                    var alias = CommandLineOptions.ShortAliasPrefixOf(name);
                     return Failure("§6.2", alias is null
                         ? $"'{name}' is not a recognized option. Run 'namespace2xml --help' for "
                             + "the complete list."
@@ -144,13 +98,13 @@ public static class CommandLineParser
                             + $"write '{alias} <value>'.");
                 }
 
-                if (spec.Arity is Arity.Informational or Arity.Flag)
+                if (spec.Arity is CommandLineOptionArity.Informational or CommandLineOptionArity.Flag)
                 {
-                    if (spec.Arity == Arity.Flag)
+                    if (spec.Arity == CommandLineOptionArity.Flag)
                     {
                         if (inline is not null)
                         {
-                            return Failure(spec.Anchor,
+                            return Failure(spec.DiagnosticAnchor,
                                 $"'{spec.Name}' takes no value; write the option without '=...'.");
                         }
 
@@ -166,7 +120,7 @@ public static class CommandLineParser
                 }
 
                 current = spec;
-                currentSatisfied = spec.Arity == Arity.List;
+                currentSatisfied = spec.Arity == CommandLineOptionArity.List;
 
                 if (inline is null)
                 {
@@ -175,14 +129,14 @@ public static class CommandLineParser
 
                 if (state.Accept(spec, inline) is { } inlineFault)
                 {
-                    return Failure(spec.Anchor, inlineFault);
+                    return Failure(spec.DiagnosticAnchor, inlineFault);
                 }
 
                 currentSatisfied = true;
 
                 // A single-valued option is complete; a list option stays current and keeps
                 // consuming, exactly as though the inline value had been a separate token.
-                if (spec.Arity == Arity.Single)
+                if (spec.Arity == CommandLineOptionArity.Single)
                 {
                     current = null;
                 }
@@ -197,12 +151,12 @@ public static class CommandLineParser
 
             if (state.Accept(current, token) is { } fault)
             {
-                return Failure(current.Anchor, fault);
+                return Failure(current.DiagnosticAnchor, fault);
             }
 
             currentSatisfied = true;
 
-            if (current.Arity == Arity.Single)
+            if (current.Arity == CommandLineOptionArity.Single)
             {
                 current = null;
             }
@@ -210,7 +164,7 @@ public static class CommandLineParser
 
         if (!currentSatisfied)
         {
-            return Failure(current!.Anchor,
+            return Failure(current!.DiagnosticAnchor,
                 $"'{current.Name}' reaches the end of the command line still requiring a value.");
         }
 
@@ -225,17 +179,6 @@ public static class CommandLineParser
     /// </summary>
     private static bool IsOptionToken(string token) =>
         token.Length > 1 && token[0] == '-' && token != "--";
-
-    /// <summary>
-    /// The declared short alias a rejected token starts with, when the token has the shape
-    /// <c>-x=…</c>, so the message can name the missing-inline-form rule instead of leaving the
-    /// author to guess why a familiar-looking token was refused.
-    /// </summary>
-    private static string? ShortAliasPrefixOf(string token) =>
-        Options
-            .Select(option => option.Alias)
-            .FirstOrDefault(alias => alias is not null
-                && token.StartsWith(alias + "=", StringComparison.Ordinal));
 
     private static CommandLineResult Failure(string anchor, string message) =>
         new(DiagnosticCodes.Cli001(DiagnosticPhase.Cli, anchor, message).Diagnostic);
@@ -254,7 +197,7 @@ public static class CommandLineParser
         private bool failOnWarning;
 
         /// <summary>Accepts one valueless operational flag.</summary>
-        public void AcceptFlag(OptionSpec spec)
+        public void AcceptFlag(CommandLineOption spec)
         {
             if (spec.Name != "--fail-on-warning")
             {
@@ -265,7 +208,7 @@ public static class CommandLineParser
         }
 
         /// <summary>Accepts one value, returning the fault message when it is not well formed.</summary>
-        public string? Accept(OptionSpec spec, string value)
+        public string? Accept(CommandLineOption spec, string value)
         {
             switch (spec.Name)
             {
@@ -288,6 +231,12 @@ public static class CommandLineParser
                     return AcceptDiagnosticsFormat(value);
 
                 default:
+                    if (spec.Limit is null)
+                    {
+                        throw new InvalidOperationException(
+                            $"No value handler is declared for the option '{spec.Name}'.");
+                    }
+
                     return AcceptLimit(spec.Name, value);
             }
         }
@@ -306,7 +255,7 @@ public static class CommandLineParser
         /// the caller's own quoting dropped. It is rejected here, before any file access, so the
         /// failure carries the option that caused it.
         /// </remarks>
-        private static string? Path(OptionSpec spec, string value, Action accept)
+        private static string? Path(CommandLineOption spec, string value, Action accept)
         {
             if (value.Length == 0)
             {

@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="namespace2xml" />
     <InternalsVisibleTo Include="Namespace2Xml.UnitTests" />
     <InternalsVisibleTo Include="Namespace2Xml.Conformance" />
   </ItemGroup>
