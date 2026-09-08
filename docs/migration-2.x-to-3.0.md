@@ -3848,7 +3848,7 @@ either accepts the input or reports a diagnostic and exits deliberately.
   source, reports that the input option is defined multiple times, and writes no output.
 - Clean behavior: the selected defaults value is overwritten, the support value is reached only
   through a reference, and the hidden value is selected only by `output=ignore`; all three source
-  occurrences count as addressed and no diagnostic stream is written.
+  occurrences count as addressed and the JSON diagnostic array is empty.
 - Why the divergence is specified: 3.0 admits repeated input occurrences and preserves their CLI
   order, which is required to exercise source-level accounting across overlays.
 
