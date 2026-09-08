@@ -12,6 +12,7 @@ namespace2xml_distribute_selector: cfg
 namespace2xml_distribute_convention: escaped
 namespace2xml_distribute_variables: {}
 namespace2xml_distribute_tool: ~
+namespace2xml_distribute_fail_on_warning: false
 
 # Applied to every file this role writes on the node. Left unset, each file arrives with
 # whatever the node's umask gives it, which is what `ansible.builtin.copy` does when it is not

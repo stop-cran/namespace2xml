@@ -173,8 +173,13 @@ This tool is designed to be used by programs, and to be **argued with** by them.
   [docs/diagnostics.md](docs/diagnostics.md).
 - **`--version`** prints one `<field>: <value>` line per field, including the `contract-bundle`
   revision that identifies exactly which specification and diagnostic registry the binary implements.
-- **Exit codes are contractual.** `0` is success, including success with warnings; `1` is failure.
-  Specification Section 6.3 fixes those two and no others. During the `3.0.0-preview` line a third
+- **`--fail-on-warning` makes warning-free output an atomic publication policy.** If any warning
+  is emitted, the tool completes serialization, preserves the original diagnostic stream, exits
+  `1`, and publishes no file. Diagnostic verbosity cannot bypass the policy. This includes
+  `WARN007` when XML formatting whitespace is normalized.
+- **Exit codes are contractual.** `0` is success, including success with warnings by default;
+  `1` is failure or a `--fail-on-warning` publication refusal. Specification Section 6.3 fixes
+  those two and no others. During the `3.0.0-preview` line a third
   code, **`70`**, means *this preview has not implemented the requested work* — the pipeline was
   never entered, no destination was written, and nothing about the input has been judged. An agent
   must treat `70` as "come back later", never as a failure of the configuration it supplied. It

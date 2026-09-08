@@ -3,7 +3,7 @@ namespace Namespace2Xml.Diagnostics;
 /// <summary>Diagnostic severity as fixed by specification Section 22.</summary>
 public enum DiagnosticSeverity
 {
-    /// <summary>A warning. Warnings never change the success exit code.</summary>
+    /// <summary>A non-blocking warning. The opt-in publication policy can still make the invocation fail.</summary>
     Warning,
 
     /// <summary>A blocking error.</summary>

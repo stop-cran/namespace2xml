@@ -149,6 +149,7 @@ the rendered text against what is on the node.
 | `convention` | how mapping keys are read: `escaped` (default) or `xmltodict`, which reads `@`, `Q{…}` and `#` as XML addressing |
 | `delimiter` | output delimiter, for the flat formats |
 | `tool` | path to the binary. Authoritative — a value given here resolves or the filter fails |
+| `fail_on_warning` | reject the render if the tool emits any warning. Default `false` |
 | `memoize` | reuse an identical earlier render in the same worker process. Default `true` |
 | `workdir` | parent for the temporary marshalling directory |
 
@@ -353,6 +354,7 @@ the handful of things that differ on this host, and the node renders its own con
 | `variables` | namespace entries applied after all inputs, one `-v name=value` each. Keys are passed **verbatim** |
 | `dest` | *(required)* the output root directory, passed as `-o` |
 | `tool` | path to the binary on the node |
+| `fail_on_warning` | fail the task if the tool emits any warning. Default `false` |
 
 > **One name, one meaning — since 3.0.** `scheme` is a list of entries in both plugins, and a
 > bare string in it names a file. Before 3.0 the same word meant scheme *text* on the filter and
@@ -431,6 +433,12 @@ Three things about it are easy to get wrong and each fails loudly:
 - Enabling it emits `WARN007`, recording that the same-format round-trip guarantee is weakened.
   The module passes that warning through rather than suppressing it.
 
+Set `fail_on_warning: true` when a play must not accept any warning. The tool completes
+serialization and preserves its original diagnostics, but exits `1` before publishing into the
+module's scratch directory; the task fails and `dest` remains untouched. This is identical in
+normal and check mode, cannot be bypassed by diagnostic verbosity, and means the `WARN007` above
+also refuses the render. The filter exposes the same policy as `fail_on_warning=true`.
+
 One more thing has no diagnostic to teach it: **an XML input's top-level namespace name is its
 document element**. An overlay for `<configuration>` is rooted at `configuration`, and the scheme
 needs `root=configuration` to write the single document element back out.
@@ -481,6 +489,10 @@ makes that deliberate rather than an accident of path handling. Directories are 
 Convergence, check mode and `--diff` come from `ansible.builtin.copy`, so a second run over
 unchanged data reports `changed=0` and a dry run reports exactly what a real run would write.
 The controller-side scratch directory is removed whether the play succeeds or fails.
+
+Set `namespace2xml_distribute_fail_on_warning: true` to apply the same policy through the role.
+When the render emits any warning, the delegated module fails before producing a staged file, so
+the copy step does not run and no managed-node destination is changed.
 
 Full reference — every variable, with defaults:
 

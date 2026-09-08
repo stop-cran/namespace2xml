@@ -1,0 +1,4 @@
+xmlinputoptions=NormalizeFormattingWhitespace
+r.output=xml
+r.filename=guard.xml
+r.root=r

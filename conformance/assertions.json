@@ -1035,6 +1035,7 @@
       "status": "required",
       "assertions": [],
       "fixtures": [
+        "cli-fail-on-warning-version-precedence",
         "cli-help",
         "cli-help-outranks-version",
         "cli-informational-in-value-position",
@@ -1381,18 +1382,20 @@
       "status": "required",
       "assertions": [],
       "fixtures": [
+        "cli-fail-on-warning-version-precedence",
         "cli-version"
       ]
     },
     {
       "item": 86,
-      "text": "The uniform option-token grammar of Section 6.2: the `--name=value` inline form on every long option, the absence of an inline form on short options, a value that is not attached to any option, an option token that ends the argument vector still requiring a value, and `-` as an ordinary value.",
+      "text": "The uniform option-token grammar of Section 6.2: the `--name=value` inline form on every value-bearing long option, the absence of an inline form on short options, a value that is not attached to any option, an option token that ends the argument vector still requiring a value, and `-` as an ordinary value.",
       "milestone": "m1",
       "status": "required",
       "assertions": [],
       "fixtures": [
         "an-empty-path-token-is-rejected",
         "cli-end-of-options-values",
+        "cli-fail-on-warning-after-double-dash-is-data",
         "cli-informational-in-value-position",
         "cli-inline-value-accepted",
         "cli-option-missing-value-rejected",
@@ -1457,6 +1460,24 @@
       "fixtures": [
         "addressed-input-sources-do-not-warn",
         "an-input-source-outside-every-output-selection-warns"
+      ]
+    },
+    {
+      "item": 92,
+      "text": "The opt-in `--fail-on-warning` policy: valueless and repeatable CLI grammar with unchanged informational-mode precedence and default behavior; complete warning retention through serialization; refusal of all publication without changing diagnostic semantics or pre-existing destination bytes; an explicit warning-policy result with `Published = 0` and exit code `1`; and independence from the emitted verbosity threshold.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "cli-fail-on-warning-after-double-dash-is-data",
+        "cli-fail-on-warning-valued-form",
+        "cli-fail-on-warning-version-precedence",
+        "fail-on-warning-after-serialization",
+        "fail-on-warning-clean-repeated",
+        "fail-on-warning-hidden-json-diagnostic",
+        "fail-on-warning-normalized-xml",
+        "fail-on-warning-preserves-existing-destination",
+        "fail-on-warning-retains-later-warnings"
       ]
     }
   ]

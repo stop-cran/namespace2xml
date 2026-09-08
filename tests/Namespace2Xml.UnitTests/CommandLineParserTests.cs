@@ -53,7 +53,8 @@ public sealed class CommandLineParserTests
         line.OutputRoot,
         line.Verbosity.ToString(),
         line.DiagnosticsFormat.ToString(),
-        line.Limits.ToString());
+        line.Limits.ToString(),
+        line.FailOnWarning.ToString(CultureInfo.InvariantCulture));
 
     // ---- required options and defaults -------------------------------------------------
 
@@ -79,6 +80,7 @@ public sealed class CommandLineParserTests
         line.DiagnosticsFormat.ShouldBe(DiagnosticFormat.Text);
         line.Limits.ShouldBe(ResourceLimits.Defaults);
         line.Variables.ShouldBeEmpty();
+        line.FailOnWarning.ShouldBeFalse();
     }
 
     // ---- list options ------------------------------------------------------------------
@@ -220,6 +222,30 @@ public sealed class CommandLineParserTests
     public void AnUnrecognizedOptionIsRejected() =>
         ParseFail([.. Minimal, "--nonesuch", "x"]).Code.ShouldBe("CLI001");
 
+    // ---- valueless operational flags ---------------------------------------------------
+
+    [Test]
+    public void FailOnWarningIsAnIdempotentValuelessFlag()
+    {
+        ParseOk([.. Minimal, "--fail-on-warning"]).FailOnWarning.ShouldBeTrue();
+        ParseOk([.. Minimal, "--fail-on-warning", "--fail-on-warning"]).FailOnWarning.ShouldBeTrue();
+    }
+
+    [TestCase("--fail-on-warning=")]
+    [TestCase("--fail-on-warning=true")]
+    [TestCase("--fail-on-warning=false")]
+    public void FailOnWarningRejectsEveryInlineValue(string argument)
+    {
+        var diagnostic = ParseFail([.. Minimal, argument]);
+
+        diagnostic.Code.ShouldBe("CLI001");
+        diagnostic.Spec.ShouldBe("\u00a76.2");
+    }
+
+    [Test]
+    public void FailOnWarningDoesNotConsumeADetachedValue() =>
+        ParseFail([.. Minimal, "--fail-on-warning", "true"]).Code.ShouldBe("CLI001");
+
     // ---- the end-of-options marker ------------------------------------------------------
 
     [Test]
@@ -229,6 +255,15 @@ public sealed class CommandLineParserTests
 
         line.Inputs.ShouldBe(["a", "-o", "--nonesuch", "--"]);
         line.OutputRoot.ShouldBe(".");
+    }
+
+    [Test]
+    public void FailOnWarningAfterDoubleHyphenIsListData()
+    {
+        var line = ParseOk("-s", "scheme.txt", "-i", "a", "--", "--fail-on-warning");
+
+        line.Inputs.ShouldBe(["a", "--fail-on-warning"]);
+        line.FailOnWarning.ShouldBeFalse();
     }
 
     [Test]

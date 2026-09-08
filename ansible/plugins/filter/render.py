@@ -282,6 +282,15 @@ options:
         global-tools directory. A value given here is authoritative - it resolves or the filter
         fails, so a typo is never masked by a lucky C(PATH) hit.
     type: path
+  fail_on_warning:
+    description:
+      - Refuse the render when the tool reports any warning. The tool still completes
+        serialization, then exits C(1) without publishing the temporary output that this filter
+        would otherwise return.
+      - This is independent of diagnostic verbosity and includes C(WARN007) from
+        C(xmlinputoptions=NormalizeFormattingWhitespace).
+    type: bool
+    default: false
   memoize:
     description:
       - Reuse the result of an identical earlier render within the same worker process.
@@ -921,6 +930,7 @@ def render(
     convention=DEFAULT_CONVENTION,
     scheme_text=None,
     inputs=None,
+    fail_on_warning=False,
 ):
     """Render a dictionary as configuration text in ``fmt``.
 
@@ -952,6 +962,7 @@ def render(
     :param inputs: further inputs layered *under* ``config``, each becoming its own ``-i`` file
         in the order given, in the same entry shape as ``scheme``. Section 7.3 merges in
         command-line order, so ``config`` goes last and wins.
+    :param fail_on_warning: refuse the render when any warning exists, without returning output.
     :returns: the rendered text.
     """
     # This is the collection's one filter, so it is the one place a refusal from the shared
@@ -961,7 +972,7 @@ def render(
     # missing binary reading as a failed task rather than as a bug in this collection.
     try:
         return _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool,
-                       memoize, workdir, convention, scheme_text, inputs)
+                       memoize, workdir, convention, scheme_text, inputs, fail_on_warning)
     except Namespace2XmlError:
         raise
     except _SharedError as error:
@@ -1058,7 +1069,7 @@ def _read_scheme(path):
 
 
 def _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool, memoize,
-            workdir, convention, scheme_text=None, inputs=None):
+            workdir, convention, scheme_text=None, inputs=None, fail_on_warning=False):
     """Do the work of :func:`render`, raising either error class."""
     written, spelling = _scheme_entries(scheme, scheme_text, scheme_yaml)
 
@@ -1086,12 +1097,13 @@ def _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool, m
     key = None
 
     if memoize:
-        key = _cache_key(layered, schemes, fmt, identity)
+        key = _cache_key(layered, schemes, fmt, identity, fail_on_warning)
 
         if key in _RENDER_CACHE:
             return _RENDER_CACHE[key]
 
-    text = _marshal_and_run(layered, schemes, n2x.resolve(tool), workdir, probe, fmt)
+    text = _marshal_and_run(
+        layered, schemes, n2x.resolve(tool), workdir, probe, fmt, fail_on_warning)
 
     if key is not None:
         _RENDER_CACHE[key] = text
@@ -1099,7 +1111,7 @@ def _render(config, fmt, scheme, scheme_yaml, root, selector, delimiter, tool, m
     return text
 
 
-def _cache_key(layered, schemes, fmt, identity):
+def _cache_key(layered, schemes, fmt, identity, fail_on_warning=False):
     """A key for this exact render, or ``None`` when one cannot be built soundly.
 
     The cache lives for a single ``ansible-playbook`` process, and a play is perfectly entitled
@@ -1130,7 +1142,7 @@ def _cache_key(layered, schemes, fmt, identity):
                 digest.update(part.encode("utf-8"))
                 digest.update(b"\x00")
 
-    for part in (fmt, identity):
+    for part in (fmt, identity, "fail-on-warning" if fail_on_warning else "allow-warnings"):
         digest.update(part.encode("utf-8"))
         digest.update(b"\x00")
 
@@ -1147,7 +1159,8 @@ def _file_stamp(path):
     return "size=%d mtime=%d" % (status.st_size, status.st_mtime_ns)
 
 
-def _marshal_and_run(layered, schemes, executable, workdir, probe=None, fmt=None):
+def _marshal_and_run(layered, schemes, executable, workdir, probe=None, fmt=None,
+                     fail_on_warning=False):
     """Write the inline sources, run the tool, read the single output back, and clean up.
 
     A filter has data in memory and the CLI is file-in, directory-out, so every call pays a
@@ -1164,7 +1177,8 @@ def _marshal_and_run(layered, schemes, executable, workdir, probe=None, fmt=None
 
         os.mkdir(output_dir)
 
-        text = _run_and_read(executable, input_paths, scheme_paths, output_dir)
+        text = _run_and_read(
+            executable, input_paths, scheme_paths, output_dir, fail_on_warning)
 
         if probe is not None:
             _confirm_the_format_asked_for(executable, input_paths, scheme_paths, output_dir,
@@ -1272,7 +1286,7 @@ def _warn(text):
             sys.stderr.write("namespace2xml: %s\n" % line)
 
 
-def _argv(input_paths, scheme_paths, output_dir):
+def _argv(input_paths, scheme_paths, output_dir, fail_on_warning=False):
     """The tool's argument vector, with the sources in the order they are meant to merge in.
 
     The order is the whole meaning. Section 7.3 requires CLI source order for merging, wildcard
@@ -1287,18 +1301,22 @@ def _argv(input_paths, scheme_paths, output_dir):
     for path in scheme_paths:
         argv.extend(["-s", path])
 
+    if fail_on_warning:
+        argv.append("--fail-on-warning")
+
     argv.extend(["-o", output_dir])
 
     return argv
 
 
-def _run_and_read(executable, input_paths, scheme_paths, output_dir):
+def _run_and_read(executable, input_paths, scheme_paths, output_dir, fail_on_warning=False):
     """Spawn the tool over prepared files and read the single output back."""
     # `run_tool` raises on a non-zero exit with the tool's own diagnostics folded into the
     # message, and returns stderr on success so a diagnostic about a rule that matched nothing
     # is not swallowed. Both halves of that are the shared behaviour; only the reading back of
     # a single file below is the filter's own.
-    _warn(n2x.run_tool(executable, _argv(input_paths, scheme_paths, output_dir)))
+    _warn(n2x.run_tool(
+        executable, _argv(input_paths, scheme_paths, output_dir, fail_on_warning)))
 
     # "dummy", not "_": ansible-test's pylint profile lists "_" in bad-names, so the
     # conventional Python throwaway fails collection sanity.

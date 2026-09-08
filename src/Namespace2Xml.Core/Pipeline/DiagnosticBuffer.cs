@@ -104,6 +104,9 @@ public sealed class DiagnosticBuffer
     /// <summary>Whether any buffered diagnostic is a blocking error, per Section 15.4.</summary>
     public bool HasBlockingError { get; private set; }
 
+    /// <summary>Whether any buffered diagnostic has warning severity.</summary>
+    public bool HasWarning { get; private set; }
+
     /// <summary>The number of buffered occurrences.</summary>
     public int Count => entries.Count;
 
@@ -128,6 +131,7 @@ public sealed class DiagnosticBuffer
 
         entries[slot] = entry;
         HasBlockingError = HasBlockingError || entry.Diagnostic.Severity == DiagnosticSeverity.Error;
+        HasWarning = HasWarning || entry.Diagnostic.Severity == DiagnosticSeverity.Warning;
         return true;
     }
 

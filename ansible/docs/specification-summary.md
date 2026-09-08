@@ -135,8 +135,15 @@ Exit codes are only two:
 
 | Code | Meaning |
 |---:|---|
-| `0` | Success, including success with warnings. |
-| `1` | Invalid CLI, invalid input, invalid scheme, reference failure, rendering failure, path violation, or publication failure. |
+| `0` | Success, including success with warnings by default. |
+| `1` | Invalid CLI, invalid input, invalid scheme, reference failure, rendering failure, path violation, publication failure, or an opt-in warning-policy refusal. |
+
+`--fail-on-warning` changes publication policy, not diagnostic severity. The tool completes
+serialization and retains the original diagnostic stream, but any warning makes it exit `1`
+without publishing any file. Diagnostic verbosity cannot bypass that decision, and `WARN007`
+from `NormalizeFormattingWhitespace` is included. The filter and module expose the option as
+`fail_on_warning`; the `distribute` role exposes it as
+`namespace2xml_distribute_fail_on_warning`.
 
 Every diagnostic carries a **stable code** — `SCHEME002`, `XML002` and so on. The code is the
 part that does not change between releases and the part worth searching for. Look it up in the

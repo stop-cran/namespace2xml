@@ -105,6 +105,15 @@ def test_variables_follow_the_schemes_and_precede_the_output_root():
     assert argv[-2:] == ["--variables=x.y=1", "--output=/out"]
 
 
+def test_fail_on_warning_precedes_the_output_root_only_when_enabled():
+    ordinary = render_node.build_argv(["a.yml"], ["s"], None, "/out")
+    strict = render_node.build_argv(
+        ["a.yml"], ["s"], None, "/out", fail_on_warning=True)
+
+    assert "--fail-on-warning" not in ordinary
+    assert strict[-2:] == ["--fail-on-warning", "--output=/out"]
+
+
 def test_a_render_with_no_input_is_refused():
     # Names 'inputs', the argument both plugins take. Naming 'src' would send a 3.x author
     # looking for an argument that is only a deprecated alias in their playbook.
@@ -315,6 +324,17 @@ def producing(files, diagnostics=""):
     return run
 
 
+def recording(files, calls):
+    """A producing runner that also preserves each exact argument vector."""
+    delegate = producing(files)
+
+    def run(executable, argv):
+        calls.append(list(argv))
+        return delegate(executable, argv)
+
+    return run
+
+
 @_confined
 def test_a_first_render_writes_and_reports_changed(tmp_path, tool):
     dest = tmp_path / "dest"
@@ -361,6 +381,25 @@ def test_check_mode_reports_the_change_without_making_it(tmp_path, tool):
 
     assert result["changed"] is True
     assert (dest / "out.xml").read_text(encoding="utf-8") == "old"
+
+
+@_confined
+@pytest.mark.parametrize("check_mode", [False, True])
+def test_warning_policy_reaches_the_tool_identically_in_normal_and_check_mode(
+        tmp_path, tool, check_mode):
+    dest = tmp_path / ("dest-check" if check_mode else "dest-normal")
+    dest.mkdir()
+    scratch = tmp_path / ("scratch-check" if check_mode else "scratch-normal")
+    scratch.mkdir()
+    calls = []
+
+    render_node.render(
+        src=[str(write(tmp_path / "in.yml", "a: 1"))], schemes=["s"], dest=str(dest),
+        scratch=str(scratch), check_mode=check_mode,
+        runner=recording({"out.xml": "new"}, calls), fail_on_warning=True)
+
+    assert len(calls) == 1
+    assert calls[0][-2:] == ["--fail-on-warning", "--output=%s" % scratch]
 
 
 @_confined

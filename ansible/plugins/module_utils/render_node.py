@@ -99,7 +99,7 @@ def encode_variable(name, value):
     return "%s=%s" % (name, encode_value(str(value)))
 
 
-def build_argv(src, schemes, variables, out_dir):
+def build_argv(src, schemes, variables, out_dir, fail_on_warning=False):
     """The tool arguments for one render, in specification order.
 
     Order is meaning, not style. Section 15.2 makes a later directive win over an earlier one,
@@ -129,6 +129,9 @@ def build_argv(src, schemes, variables, out_dir):
 
     for name, value in (variables or {}).items():
         argv.append("--variables=%s" % encode_variable(name, value))
+
+    if fail_on_warning:
+        argv.append("--fail-on-warning")
 
     argv.append("--output=%s" % out_dir)
 
@@ -548,7 +551,7 @@ def prepare_dest(dest, create):
 
 
 def render(src, schemes, dest, scratch, variables=None, tool=None, check_mode=False,
-           runner=None, diff_mode=False, unsafe_writes=False):
+           runner=None, diff_mode=False, unsafe_writes=False, fail_on_warning=False):
     """Render into a scratch directory, then converge the destination onto it.
 
     :param src: ordered input file paths on the node.
@@ -561,6 +564,7 @@ def render(src, schemes, dest, scratch, variables=None, tool=None, check_mode=Fa
     :param runner: an override for the tool invocation, for tests.
     :param diff_mode: collect before/after file contents for ``--diff``.
     :param unsafe_writes: allow a non-atomic in-place write where an atomic one is impossible.
+    :param fail_on_warning: refuse publication when the tool reports any warning.
     :returns: a report dictionary.
     """
     # Absolute from here on. RETURN documents 'files' as absolute paths, and 'type: path' only
@@ -575,7 +579,7 @@ def render(src, schemes, dest, scratch, variables=None, tool=None, check_mode=Fa
 
     prepare_dest(dest, create=False)
 
-    argv = build_argv(src, schemes, variables, scratch)
+    argv = build_argv(src, schemes, variables, scratch, fail_on_warning)
     diagnostics = (runner or run_tool)(executable, argv)
 
     produced = discover(scratch)
