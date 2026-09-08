@@ -2,7 +2,7 @@
 
 This is a **summary**, shipped inside the collection so that the rules survive without a network
 connection. It is not the contract. The contract is
-[`docs/specification.md`](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md)
+[`docs/specification.md`](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md)
 in the repository, and where this page and the specification disagree, **the specification wins**.
 
 Every rule stated below as a blockquote is quoted verbatim from the specification and is checked
@@ -147,7 +147,7 @@ from `NormalizeFormattingWhitespace` is included. The filter and module expose t
 
 Every diagnostic carries a **stable code** — `SCHEME002`, `XML002` and so on. The code is the
 part that does not change between releases and the part worth searching for. Look it up in the
-[diagnostics registry](https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md),
+[diagnostics registry](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/diagnostics.md),
 which gives each code its meaning and the specification section that defines it. A copy of that
 registry ships in this collection as `docs/diagnostics.md`, beside this page, so it is readable
 with no network access.
@@ -186,12 +186,12 @@ Rendering is also one-way: neither plugin reads a rendered document back into va
 
 | What | Where |
 |---|---|
-| Full specification (normative) | <https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md> |
-| Diagnostic code registry | Ships here as `docs/diagnostics.md`; online at <https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md> |
-| Known limits of the tool | <https://github.com/stop-cran/namespace2xml/blob/master/KNOWN-LIMITS.md> |
-| This collection's usage guide | <https://github.com/stop-cran/namespace2xml/blob/master/ansible/README.md> |
-| How to report a problem (binding) | <https://github.com/stop-cran/namespace2xml/blob/master/CONTRIBUTING.md#4-the-feedback-channel-binding> |
-| Notes for AI agents working here | <https://github.com/stop-cran/namespace2xml/blob/master/AGENTS.md> |
+| Full specification (normative) | <https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md> |
+| Diagnostic code registry | Ships here as `docs/diagnostics.md`; online at <https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/diagnostics.md> |
+| Known limits of the tool | <https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/KNOWN-LIMITS.md> |
+| This collection's usage guide | <https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/ansible/README.md> |
+| How to report a problem (binding) | <https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/CONTRIBUTING.md#4-the-feedback-channel-binding> |
+| Notes for AI agents working here | <https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/AGENTS.md> |
 | Issue tracker | <https://github.com/stop-cran/namespace2xml/issues> |
 | The .NET tool on NuGet | <https://www.nuget.org/packages/namespace2xml> |
 | Repository | <https://github.com/stop-cran/namespace2xml> |

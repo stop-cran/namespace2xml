@@ -349,22 +349,22 @@ seealso:
       specification and checked against it in CI. It is installed alongside this plugin at
       C(docs/specification-summary.md) inside the collection, so it is readable with no network
       access. Start here; the full specification is 300 KB.
-    link: https://github.com/stop-cran/namespace2xml/blob/master/ansible/docs/specification-summary.md
+    link: https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/ansible/docs/specification-summary.md
   - name: namespace2xml specification
     description: The normative contract this filter encodes against.
-    link: https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md
+    link: https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md
   - name: Diagnostic code registry
     description: >-
       Every code the tool emits, what it means, and the specification clause it enforces. A
       code arriving from this filter, such as C(XML002) or C(WARN009), is looked up here. A
       copy is installed alongside this plugin at C(docs/diagnostics.md) inside the collection,
       so it is readable with no network access.
-    link: https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md
+    link: https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/diagnostics.md
   - name: Reporting a problem
     description: >-
       The report form, the four destinations a report can take, and the rules for
       agent-authored reports. Read this before filing.
-    link: https://github.com/stop-cran/namespace2xml/blob/master/CONTRIBUTING.md#4-the-feedback-channel-binding
+    link: https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/CONTRIBUTING.md#4-the-feedback-channel-binding
   - name: Issue tracker
     description: >-
       The four issue forms. Select the component "Ansible collection" for a fault reached
@@ -372,7 +372,7 @@ seealso:
     link: https://github.com/stop-cran/namespace2xml/issues/new/choose
   - name: Guide for automated agents
     description: Read order, repository map, and the rules an agent follows when reporting here.
-    link: https://github.com/stop-cran/namespace2xml/blob/master/AGENTS.md
+    link: https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/AGENTS.md
   - name: namespace2xml on NuGet
     description: The transformer this filter runs.
     link: https://www.nuget.org/packages/namespace2xml

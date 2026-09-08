@@ -107,13 +107,19 @@ worth more than one that changes control flow, which tends to hang rather than r
 | `conformance/assertions.json` | `tools/sync-assertion-manifest.ps1` |
 | `docs/diagnostics.md` | `tools/sync-docs.ps1` |
 | `docs/migration-2.x-to-3.0.md` | `tools/sync-docs.ps1` |
+| Same-repository `blob`/`tree` refs under `ansible/` | `tools/sync-ansible-doc-links.py` |
 
-Run all five generators after touching `docs/specification.md` **or** the corpus, in the order listed
-in `AGENTS.md`. The `contract-gates` job regenerates them and fails on any difference.
+Run all five specification-derived generators after touching `docs/specification.md` **or** the
+corpus, in the order listed in `AGENTS.md`. The `contract-gates` job regenerates them and fails on
+any difference.
 
 Generators are idempotent, and **idempotent is not correct**. A backtick bug once emitted a raw
 PowerShell hashtable into line 5 of both generated documents, stably, on every run. Read the output
 of a generator you changed; do not merely re-run it and observe that nothing moved.
+
+The Ansible link generator reads its independent version from `ansible/galaxy.yml` and derives
+`ansible-v<version>`. Run it after a collection-version bump or after adding a same-repository link
+anywhere under `ansible/`; never substitute the .NET product version.
 
 ---
 
