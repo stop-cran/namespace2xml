@@ -169,6 +169,10 @@ public static partial class DiagnosticCodes
             "once per path and output instance",
             "Namespace output writes a value ending in a space under `AllowTrailingWhitespace`",
             ["path", "destination"]),
+        new DiagnosticCodeInfo("WARN014", DiagnosticSeverity.Warning,
+            "once per admitted input-source occurrence",
+            "Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target",
+            ["source", "path"]),
     ];
 
     /// <summary><c>CLI001</c> (error) — Invalid command line or option value.</summary>
@@ -894,4 +898,22 @@ public static partial class DiagnosticCodes
         string? destination = null) =>
         Create("WARN013", DiagnosticSeverity.Warning, phase, spec, message,
             cardinalityKey, path: path, destination: destination);
+
+    /// <summary><c>WARN014</c> (warning) — Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target.</summary>
+    /// <param name="phase">Emission phase of this occurrence.</param>
+    /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
+    /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
+    /// <param name="cardinalityKey">Identity of the admitted input-source occurrence this is emitted once per.</param>
+    /// <param name="source">Section 6.4.3 <c>source</c> member.</param>
+    /// <param name="path">Section 6.4.3 <c>path</c> member.</param>
+    /// <remarks>Cardinality: once per admitted input-source occurrence.</remarks>
+    public static DiagnosticOccurrence Warn014(
+        DiagnosticPhase phase,
+        string spec,
+        string message,
+        string cardinalityKey,
+        string? source = null,
+        string? path = null) =>
+        Create("WARN014", DiagnosticSeverity.Warning, phase, spec, message,
+            cardinalityKey, source: source, path: path);
 }

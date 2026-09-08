@@ -1611,6 +1611,30 @@ A selector whose winning declaration is `output=ignore` plans no output instance
 
 "Plans no output instance" is about the output *plan*, and Section 15.2 uses the word `exists` in the other sense: the instance remains a configuration binding target, because Section 16.1 keeps it so that a later declaration can restore it. A directive naming a suppressed instance has therefore bound and does not emit `WARN009`, while the instance still contributes no file, no destination, and no reachability root here. Both are true of the same instance, and a reader who takes either sentence for the whole answer will get the diagnostic stream wrong in one direction or the other.
 
+### 14.5 Unused input-source accounting
+
+After reachable references have resolved successfully and before Section 16 transformations, the tool audits each admitted input-file and `-v` source occurrence against the effective output selections.
+
+The audit runs only when at least one non-ignored concrete output instance has a non-empty selected view before transformation. Non-empty is the inverse of Section 14.1's empty-selection condition: the view has a surviving payload, explicit container presence, descendants, or comments. When no such view exists, `WARN008` and/or `WARN009` describe the output-plan failure and this section emits no warning per input source.
+
+For each source occurrence, apply the union of the run's Section 8.6 permanent masks to that source's contribution independently, then enumerate the canonical paths that the surviving source directly addresses with:
+
+- a scalar or null payload;
+- explicit mapping presence at a non-root path; or
+- explicit sequence presence at a non-root path.
+
+A scalar or null payload at the document root is eligible. Synthetic ancestors created only to contain a descendant, templates and mask declarations, comments by themselves, root mapping or sequence presence by itself, and paths removed by the permanent mask are not eligible. An empty root mapping or sequence and a template-, mask-, or comment-only namespace source therefore do not make that source eligible for this warning.
+
+An effective output selector pattern `P` addresses an eligible source path `E` exactly when Section 14.2's strict prefix test says that `P` selects `E`. The test uses the compiled output declarations after same-selector winner selection, including a winning `output=ignore` declaration. Suppressing a source subtree through such a selector is an explicit acknowledgement and does not warn.
+
+The prefix direction is significant: selector `a` addresses source path `a.b`, while selector `a.b` does not address source path `a`. A source scalar at `a` is not considered used merely because another source populated selected descendant `a.b`.
+
+After Section 14.4 reference resolution succeeds, the canonical target path of every reference reached from a non-ignored selected output root is also an addressed path, including targets reached transitively. A source path is addressed this way only when it equals a successfully resolved canonical target. A simple alias therefore counts only after it resolves to one unambiguous canonical path. A planning step that already has a blocking `REFERENCE*` diagnostic emits no warning from this audit.
+
+An eligible source occurrence for which no eligible path is addressed by either rule emits `WARN014` once. The diagnostic is in the `planning` phase at this section, ordered by the source occurrence's Section 4.7 ordinal. It carries `source` for a file and carries `path` for the first eligible path in deterministic overlay traversal order when that path is non-root. For a `-v` occurrence it omits file-only members and identifies the one-based variable occurrence in the message under Section 8.1. The root-path case omits `path`.
+
+This accounting is about whether the source's data was addressed, not whether it supplied a final winning value. A source is considered used when any one of its eligible paths is selected, even if a later source overwrites every selected value, and when any one is used only as a reachable reference target. It does not report every unused branch of a partly used source, and a selected path remains addressed when Section 16 later removes or rewrites it.
+
 ## 15. Scheme language
 
 Scheme files may use the case-insensitive `.json`, `.yaml`, and `.yml` extensions that Section 7.1 gives input files, and every other extension, including none at all, uses namespace-profile parsing. Their parsed content must project to qualified directive paths and scalar directive values.
@@ -1673,7 +1697,7 @@ The normative processing pipeline is:
 12. Infer locale-independent scalar kinds for remaining untyped namespace payloads that do not contain unresolved references.
 13. Expand wildcard scheme selectors and output declarations against the resulting concrete name graph.
 14. Build concrete output instances and apply strict prefix filtering.
-15. Compute each output instance's transitive reference closure and resolve references within selected closures.
+15. Compute each output instance's transitive reference closure, resolve references within selected closures, and, after successful resolution, perform the Section 14.5 input-source accounting.
 16. Apply path-scoped transformations to each selected output view in this order: `type=ignore`, explicit scalar/XML types, `type=array` or `type=mapping`, `multiline`, `key`, then `root`.
 17. Group fully transformed output contributions by canonical destination path.
 18. Fold same-format destination collisions using `filemerge`, and resolve cross-format overrides.
@@ -3125,6 +3149,7 @@ Warnings include:
 - normalized XML whitespace discarded;
 - native JSON/YAML numeric mapping inferred as a sequence;
 - scheme directive binds to no concrete output instance or survives only beneath an ignored ancestor;
+- input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target;
 - namespace value written with a trailing space by explicit option.
 
 Warnings do not change the success exit code.
@@ -3171,6 +3196,7 @@ The normative diagnostic registry is:
 | `WARN011` | warning | Later unmarked contribution aliases an existing XML component instead of overriding it | once per canonical path |
 | `WARN012` | warning | INI output emits a global-key preamble, which a reader requiring a section header will refuse | once per output instance |
 | `WARN013` | warning | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | once per path and output instance |
+| `WARN014` | warning | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | once per admitted input-source occurrence |
 
 `TYPE001` includes a bare scalar selected for XML without a configured `root`, and a bare scalar selected by the empty root selector for namespace, quoted namespace, or INI, which in that case have no concrete selector part to supply a key. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions, and JSON and YAML mapping-key collisions. Ordering-value overflow and every configured non-wildcard resource-bound violation are `LIMIT001`, matching that code's registry condition and Appendix B row; a wildcard fixed-point, candidate, generated-node, or iteration bound is `WILDCARD002`. Malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`. `NAMESPACE001` is more specific than `SERIALIZE001` for a namespace value the destination's options cannot write, and names the path rather than the output instance alone.
 
@@ -3708,6 +3734,7 @@ An implementation is conforming only when automated black-box tests cover:
 88. INI global-key framing: `WARN012` on a written preamble and its absence when no global key survives, `GlobalSection` hoisting the global keys into a leading section named `global` that a reader requiring a section header accepts, no empty header when the hoisted section would be empty, and the blocking `FLAT001` when a path of two or more parts already projects to that section.
 89. Namespace trailing-whitespace framing: the blocking `NAMESPACE001` for a value that would end its line in a space, `namespaceoutputoptions=AllowTrailingWhitespace` writing that value intact under `WARN013`, leading whitespace passing unreported in both modes, and whitespace outside the Section 24 pair reaching the output literally.
 90. Namespace empty-container sentinels: `{}` and `[]` as whole-value shape contributions, `\{}` and `\[]` as the strings they displace, the near-miss values that stay strings, bidirectional emission including the escape, an empty container coexisting with a later child, and the JSON round trip through namespace that the sentinels make lossless.
+91. Unused input-source accounting: `WARN014` once per admitted source occurrence whose surviving eligible concrete paths are outside every effective output selector and successful reachable reference target, with deterministic source/path attribution; no warning for selected but overwritten data, reachable reference-only support data, deliberate `output=ignore` selection, wholly masked data, ineligible source-only content, or a run with no non-empty non-ignored pre-transformation view.
 
 ## 27. Deferred features
 
@@ -3886,6 +3913,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Later unmarked contribution adds an ordinary component aliasing an existing XML component | `WARN011` |
 | INI output writes a global-key preamble without `GlobalSection` | `WARN012` |
 | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `WARN013` |
+| Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | `WARN014` |
 
 `COLLISION001` has severity error and cardinality once per rejected destination contribution after the first. It is compatibility-stable with the Section 22 registry.
 

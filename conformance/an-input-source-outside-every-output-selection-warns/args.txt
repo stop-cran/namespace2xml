@@ -1,0 +1,6 @@
+-i
+inputs/base.json
+-i
+inputs/override.properties
+-s
+schemes/scheme.txt

@@ -101,6 +101,7 @@ $seedFields = @{
     WARN011      = @('source', 'path')
     WARN012      = @('destination')
     WARN013      = @('path', 'destination')
+    WARN014      = @('source', 'path')
 }
 
 $codes = foreach ($code in $rows.Keys) {

@@ -1443,6 +1443,17 @@
         "a-namespace-value-spells-an-empty-container",
         "namespace-output-spells-an-empty-container"
       ]
+    },
+    {
+      "item": 91,
+      "text": "Unused input-source accounting: `WARN014` once per admitted source occurrence whose surviving eligible concrete paths are outside every effective output selector and successful reachable reference target, with deterministic source/path attribution; no warning for selected but overwritten data, reachable reference-only support data, deliberate `output=ignore` selection, wholly masked data, ineligible source-only content, or a run with no non-empty non-ignored pre-transformation view.",
+      "milestone": "m2",
+      "status": "required",
+      "assertions": [],
+      "fixtures": [
+        "addressed-input-sources-do-not-warn",
+        "an-input-source-outside-every-output-selection-warns"
+      ]
     }
   ]
 }

@@ -772,7 +772,7 @@ public static class PlanningPhase
     private static void WarnWhenNothingSelected(
         OutputInstance instance, OverlayNode selected, DiagnosticBuffer diagnostics)
     {
-        if (!selected.IsEmpty || !selected.Comments.IsEmpty)
+        if (HasSelectedContent(selected))
         {
             return;
         }
@@ -793,9 +793,17 @@ public static class PlanningPhase
             StableOrderingKey.FromSource(instance.DeclarationOrder, 0)));
     }
 
-    /// <summary>Section 15.1 step 15: resolve references within each instance's closure.</summary>
+    /// <summary>Whether a selected view is non-empty under Section 14.1's four-part predicate.</summary>
+    private static bool HasSelectedContent(OverlayNode selected) =>
+        !selected.IsEmpty || !selected.Comments.IsEmpty;
+
+    /// <summary>
+    /// Section 15.1 step 15: resolve references and audit input-source addressing.
+    /// </summary>
     /// <param name="views">Step 14's product.</param>
     /// <param name="model">Step 12's product, which holds every unresolved payload.</param>
+    /// <param name="contributions">Step 5's admitted source contributions.</param>
+    /// <param name="configuration">Step 4's effective compiled output declarations.</param>
     /// <param name="budget">The invocation's Section 23 budgets.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>The views, re-descended into the resolved model.</returns>
@@ -818,10 +826,13 @@ public static class PlanningPhase
     public static StepOutcome<ImmutableArray<OutputView>> ResolveReferences(
         ImmutableArray<OutputView> views,
         OverlayNode model,
+        ImmutableArray<InputContribution> contributions,
+        SchemeConfiguration configuration,
         GlobalBudget budget,
         DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
@@ -829,7 +840,7 @@ public static class PlanningPhase
             .Select(view => view.Instance.Selector.Name?.Parts ?? [])
             .ToImmutableArray();
 
-        var resolved = ReferenceResolver.Resolve(model, roots, budget, diagnostics);
+        var resolution = ReferenceResolver.ResolveWithTargets(model, roots, budget, diagnostics);
 
         if (diagnostics.HasBlockingError)
         {
@@ -841,11 +852,85 @@ public static class PlanningPhase
             .. views.Select(view => view with
             {
                 View = LiftDocumentComments(
-                    resolved, Descend(resolved, view.Instance.Selector.Name)),
+                    resolution.Model, Descend(resolution.Model, view.Instance.Selector.Name)),
             }),
         ];
 
+        WarnWhenSourceIsUnaddressed(
+            views, contributions, configuration, resolution.CanonicalTargets, diagnostics);
+
         return StepOutcome.Produced(rebuilt);
+    }
+
+    /// <summary>Section 14.5's once-per-source <c>WARN014</c>.</summary>
+    private static void WarnWhenSourceIsUnaddressed(
+        ImmutableArray<OutputView> views,
+        ImmutableArray<InputContribution> contributions,
+        SchemeConfiguration configuration,
+        ImmutableHashSet<string> referenceTargets,
+        DiagnosticBuffer diagnostics)
+    {
+        if (!views.Any(view => HasSelectedContent(view.View)))
+        {
+            return;
+        }
+
+        var mask = InputPhase.MasksOf(contributions);
+
+        foreach (var contribution in contributions.OrderBy(item => item.Origin.Ordinal))
+        {
+            var paths = OverlayAddressing.DirectContributionPaths(
+                    mask.Apply(contribution.Contribution.Overlay))
+                .ToImmutableArray();
+
+            if (paths.IsEmpty
+                || paths.Any(path =>
+                    OutputSelectorAddresses(configuration.Outputs, path)
+                    || referenceTargets.Contains(CanonicalPath.Of(path) ?? string.Empty)))
+            {
+                continue;
+            }
+
+            var first = paths[0];
+            var origin = contribution.Origin;
+
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Warn014(
+                    DiagnosticPhase.Planning,
+                    "\u00A714.5",
+                    origin.Say(
+                        "this input source contains concrete data, but none of its paths is "
+                        + "addressed by an output selector or a reachable reference target. Check "
+                        + "whether selectors name the document's data roots rather than its filename."),
+                    origin.SourceKey,
+                    source: origin.File,
+                    path: first.IsEmpty ? null : CanonicalPath.Of(first)),
+                StableOrderingKey.FromSource(origin.Ordinal, 0)));
+        }
+    }
+
+    /// <summary>Whether any effective output selector strictly prefixes one concrete path.</summary>
+    private static bool OutputSelectorAddresses(
+        ImmutableArray<OutputInstance> outputs, ImmutableArray<NamePart> path)
+    {
+        foreach (var output in outputs)
+        {
+            if (output.Selector.Name is not { } selector)
+            {
+                return true;
+            }
+
+            var aligned = Overlay.SchemeAlias.Align(
+                selector.Parts, selector.Parts.Length, path);
+
+            if (WildcardMatch.TryMatchPrefix(
+                selector.Parts, selector.Parts.Length, aligned, out _))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Carries Section 20 document-position comments into one output view.</summary>

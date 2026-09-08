@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "1caae8b7ff90bd197a05bc7d98c482e5a412119365fd205d6053662f1c5525c7"
+    "sha256": "17984685a3a63f52308034361c25c11a180960868706dc36672bdfdac69ff807"
   },
   "authoritativeFor": [
     "code",
@@ -532,6 +532,19 @@
       ],
       "mappings": [
         "Namespace output writes a value ending in a space under `AllowTrailingWhitespace`"
+      ]
+    },
+    {
+      "code": "WARN014",
+      "severity": "warning",
+      "cardinality": "once per admitted input-source occurrence",
+      "condition": "Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target",
+      "fields": [
+        "source",
+        "path"
+      ],
+      "mappings": [
+        "Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target"
       ]
     }
   ]
