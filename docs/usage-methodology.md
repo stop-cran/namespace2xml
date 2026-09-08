@@ -85,13 +85,15 @@ namespace2xml -i app.xml -i env/dev.properties -s scheme.properties -o out
 ```
 
 It also has the sharpest edges, because you are now writing paths into a namespace you did not
-design. Four of them are worth knowing before you start, and one habit avoids all four.
+design. Four of them are worth knowing before you start, and one habit — with two XML modes —
+avoids all four when the document has addressable top-level parts.
 
 ### Read the model before you override it
 
 The tool's own namespace output is the best documentation of a foreign document that exists,
 because it is the model, not a description of it. Before writing a single override, render the
-document to `namespace` and look at what the paths are actually called:
+document to `namespace` and look at what the paths are actually called. For ordinary configuration
+where XML formatting whitespace is not data, use:
 
 ```text
 # scheme.properties
@@ -100,37 +102,57 @@ xmlinputoptions=NormalizeFormattingWhitespace
 *.root=*
 ```
 
-The wildcards are the point. At this stage you do not yet know what the top-level names are —
-finding that out is why you are running this. `*` selects every top-level name and writes one
-file per name, so the file names alone answer the question; `*.root=*` then puts the name back
-into each path, so what you read is the fully qualified form an override is written in, ready to
-copy.
+The wildcards are the point. At this stage you do not yet know what the top-level names or sequence
+positions are — finding that out is why you are running this. `*` selects every child of the model
+root and writes one file per matched part, so the file names alone answer the question;
+`*.root=*` then puts that name or decimal position back into each path, so what you read is the
+fully qualified form an override is written in, ready to copy. Mapping/object members and an XML
+root expose names; a root sequence exposes positions such as `0` and `1`.
 
-The first line is what lets the render run at all when an input is XML that a human formatted.
-Indented XML holds whitespace-only text between its elements, and by default that text is data
-whose values end in whitespace, so the render stops at `NAMESPACE001` (§19.1) and writes nothing
-— the second trap below, met head-on while trying to avoid it. `NormalizeFormattingWhitespace`
-discards that text for one `WARN007` (§11.7). It carries no selector: §16.8 makes
-`*.xmlinputoptions=…` a blocking scheme error, because inputs are parsed before output instances
-exist. For JSON, YAML and properties inputs the line is inert, so these three lines are the same
-three lines whatever you turn out to have.
+A bare JSON or YAML root scalar has no child below the model root for `*` to match. This recipe
+therefore emits two `WARN009` occurrences followed by `WARN008`, exits `0`, and writes no file.
+There is no top-level path for wildcard discovery to report.
 
-Keep that line in the scheme you ship, too. The two modes model the same document differently —
-`server.host` normalized against `server.#1.host` preserved — so a path copied from a normalized
-render binds to nothing in a default run, and the override is *added* beside the element it was
-meant to replace rather than replacing it, at exit `0`. Normalizing for the reading run alone
-walks back into that same second trap by a quieter road: no error this time, just an override
-that does not override.
+The first line is the usual discovery choice only when formatting whitespace is not meaningful. It
+lets the render run when an input is XML that a human formatted: indented XML holds whitespace-only
+text between its elements, and by default that text is data whose values can end in whitespace, so
+the render stops at `NAMESPACE001` (§19.1) and writes nothing — the second trap below, met head-on
+while trying to avoid it. `NormalizeFormattingWhitespace` discards that text for one `WARN007`
+(§11.7). It carries no selector: §16.8 makes `*.xmlinputoptions=…` a blocking scheme error, because
+inputs are parsed before output instances exist. For JSON, YAML and properties inputs the line is
+inert.
+
+If the XML whitespace is meaningful, do not normalize it. Keep the default `PreserveWhitespace`
+input mode and instead let the diagnostic namespace output represent trailing spaces:
+
+```text
+# scheme.properties
+*.namespaceoutputoptions=AllowTrailingWhitespace
+*.output=namespace
+*.root=*
+```
+
+This route emits `WARN013` for each value written with a trailing space, retains the whitespace
+content tokens, and exposes paths such as `server.#1.host`. Copy those exact `#n` paths into the
+real scheme and keep `PreserveWhitespace` there too.
+
+Whichever route you choose, use the same XML input mode for discovery and for the scheme you ship.
+The two modes model the same document differently — `server.host` normalized against
+`server.#1.host` preserved — so a path copied from a normalized render binds to nothing in a
+preserved run, and the override is *added* beside the element it was meant to replace rather than
+replacing it, at exit `0`. Normalizing for the reading run alone walks back into that same second
+trap by a quieter road: no error this time, just an override that does not override.
 
 The answer is frequently not what the source document looked like. This one habit prevents all
-four of the problems below, and it costs one run and one warning.
+four of the problems below for documents with top-level parts, and it costs one discovery run.
+For indented XML, `WARN007` or `WARN013` also makes the chosen whitespace trade explicit.
 
 ### The file's name is not part of the namespace, and the obvious scheme drops the rest at exit 0
 
 The first path you write is a selector, and selectors name the model, not the files. An input
-file's name never becomes a name part: the model's top level is the top-level keys of the
-documents themselves. An `app.xml` whose root element is `<server>` is selected by `server`, and
-`app` is only what somebody called the file.
+file's name never becomes a name part: the model's top level comes from document content —
+mapping/object member names, sequence positions, or an XML root element. An `app.xml` whose root
+element is `<server>` is selected by `server`, and `app` is only what somebody called the file.
 
 Every reader works this way. A `base.json` holding
 
@@ -178,9 +200,9 @@ stops, the run exits `0`, and it writes a well-formed `base.json`:
 loses more: the same input as YAML, with the same single override, renders as two lines.
 
 This is the shape of the whole section at its purest — the diagnostic is absent from the only
-case in which the mistake is actually made, because writing the override is what silences it. The
-habit above is the entire defence: the wildcard render names `server` and `logging` as the
-top-level keys, and there is nothing left to guess. Reported as
+case in which the mistake is actually made, because writing the override is what silences it. For
+this mapping-shaped input, the habit above is the entire defence: the wildcard render names
+`server` and `logging` as the top-level keys, and there is nothing left to guess. Reported as
 [#122](https://github.com/stop-cran/namespace2xml/issues/122).
 
 ### Indentation in the source is data, and it will silently defeat your override
@@ -218,9 +240,10 @@ r.endpoint.@domain=dev.example.com
 The last line is the override, sitting in a new element of its own beside the real one, which is
 untouched. The spelling was right — `@domain`, not `domain` — and it still missed. This is
 [#40](https://github.com/stop-cran/namespace2xml/issues/40), and it is the reason the first habit
-in this section renders the model before anything is written, and the reason that render carries
-`xmlinputoptions=NormalizeFormattingWhitespace`. Normalized in the reading run and preserved in
-the writing one is another way to arrive at the output above, having done the reading.
+in this section renders the model before anything is written. When indentation is not data, its
+normalized route removes the content positions; when whitespace is meaningful, its preserved
+route exposes them. Normalized in the reading run and preserved in the writing one is another way
+to arrive at the output above, having done the reading.
 
 If the document's layout is not itself meaningful — which, for configuration, it usually is not —
 say so once, at the root:
