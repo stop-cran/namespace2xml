@@ -101,6 +101,45 @@ internal static class OverlayAddressing
         }
     }
 
+    /// <summary>
+    /// The concrete paths one source contribution directly addresses, in deterministic order.
+    /// </summary>
+    /// <param name="node">The source contribution's overlay root.</param>
+    /// <returns>
+    /// Scalar/null payload paths and non-root explicit-container paths, each at most once.
+    /// </returns>
+    /// <remarks>
+    /// Section 14.5 audits original source contributions rather than the merged model. A synthetic
+    /// ancestor has descendants but no facet of its own and therefore is not yielded; a nested empty
+    /// mapping or sequence has an explicit facet and is. The root follows the same rule for payloads
+    /// but not containers, because a document's root mapping or sequence presence alone says
+    /// nothing about which data path the author expected an output selector to name.
+    /// </remarks>
+    public static IEnumerable<ImmutableArray<NamePart>> DirectContributionPaths(OverlayNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+
+        return DirectContributionPaths(node, []);
+    }
+
+    private static IEnumerable<ImmutableArray<NamePart>> DirectContributionPaths(
+        OverlayNode node, ImmutableArray<NamePart> path)
+    {
+        if (node.Payload is { IsValue: true }
+            || (!path.IsEmpty && (node.HasExplicitMapping || node.HasExplicitSequence)))
+        {
+            yield return path;
+        }
+
+        foreach (var (name, child) in Addresses(node))
+        {
+            foreach (var found in DirectContributionPaths(child, path.Add(name)))
+            {
+                yield return found;
+            }
+        }
+    }
+
     private static IEnumerable<ImmutableArray<NamePart>> Walk(
         OverlayNode node, ImmutableArray<NamePart> path, int remaining)
     {

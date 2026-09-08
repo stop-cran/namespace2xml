@@ -62,6 +62,24 @@ public sealed class ReferenceResolutionTests
     public void AChainOfReferencesResolvesThrough() =>
         Render("a.k=${a.m}\na.m=${a.n}\na.n=v\n").ShouldBe("k=v\nm=v\nn=v\n");
 
+    [Test]
+    public void AResolvedChainRetainsEveryCanonicalTarget()
+    {
+        var diagnostics = new DiagnosticBuffer();
+        var result = ReferenceResolver.ResolveWithTargets(
+            Model(
+                ("k", Unresolved("${m}")),
+                ("m", Unresolved("${n}")),
+                ("n", ScalarPayload.Untyped("v"))),
+            [ImmutableArray.Create<NamePart>(Ordinary("k"))],
+            new GlobalBudget(new ResourceLimits()),
+            diagnostics);
+
+        diagnostics.Drain().ShouldBeEmpty();
+        result.CanonicalTargets.Order(StringComparer.Ordinal).ShouldBe(["m", "n"]);
+        result.Model.Children[Ordinary("k")].Payload.ShouldNotBeNull().Text.ShouldBe("v");
+    }
+
     /// <summary>
     /// Section 13.1 resolves against the whole model, not against the selected subtree, so an
     /// entry outside every selector is still a legitimate reference target.

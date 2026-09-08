@@ -129,4 +129,38 @@ public class OverlayAddressingTests
         OverlayAddressing.Candidates(Model(), pattern, 2).Select(Text)
             .ShouldBe(["a.x", "a.y"]);
     }
+
+    // ---- Section 14.5 direct source contributions --------------------------------------------
+
+    [Test]
+    public void DirectContributionPathsExcludeSyntheticAncestorsAndRootContainers()
+    {
+        var nested = OverlayNode
+            .Empty(NodeMarks.At(StableOrderingKey.FromSource(0, 1)))
+            .WithChild(Ordinary("value"), Leaf(0, 2));
+        var root = OverlayNode
+            .Empty(NodeMarks.At(StableOrderingKey.First))
+            .WithExplicitMapping(StableOrderingKey.First)
+            .WithChild(Ordinary("nested"), nested);
+
+        OverlayAddressing.DirectContributionPaths(root).Select(Text)
+            .ShouldBe(["nested.value"]);
+    }
+
+    [Test]
+    public void DirectContributionPathsIncludeRootScalarsAndNestedEmptyContainers()
+    {
+        var root = Leaf(0, 0)
+            .WithChild(
+                Ordinary("mapping"),
+                OverlayNode.Empty(NodeMarks.At(StableOrderingKey.FromSource(0, 1)))
+                    .WithExplicitMapping(StableOrderingKey.FromSource(0, 1)))
+            .WithChild(
+                Ordinary("sequence"),
+                OverlayNode.Empty(NodeMarks.At(StableOrderingKey.FromSource(0, 2)))
+                    .WithExplicitSequence(StableOrderingKey.FromSource(0, 2)));
+
+        OverlayAddressing.DirectContributionPaths(root).Select(Text)
+            .ShouldBe(["", "mapping", "sequence"]);
+    }
 }

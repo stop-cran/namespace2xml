@@ -1,0 +1,12 @@
+-i
+inputs/defaults.properties
+-i
+inputs/override.properties
+-i
+inputs/reference.properties
+-i
+inputs/selected.properties
+-i
+inputs/suppressed.properties
+-s
+schemes/scheme.txt

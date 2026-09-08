@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r99+bad2fa36f0a5`.**
+**Contract bundle `r100+9f558a233a01`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -3690,7 +3690,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs 2.4.0 could not process (40)
+## Inputs 2.4.0 could not process (42)
 
 The baseline exited nonzero on every sample of these, so no run of it completed: it refused the
 input, terminated abnormally, or gave up part way through, and each entry below says which. 3.0
@@ -3840,6 +3840,18 @@ either accepts the input or reports a diagnostic and exits deliberately.
   `\*` fixture: `\*` is the escape an author reaches for deliberately, and these five are the ones
   they may already have written without knowing they were escapes.
 
+### `addressed-input-sources-do-not-warn`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 14.5; Section 26 item 91.
+- Legacy observation: under this case's repeated `-i` arguments, 2.4.0 exits 1 before reading any
+  source, reports that the input option is defined multiple times, and writes no output.
+- Clean behavior: the selected defaults value is overwritten, the support value is reached only
+  through a reference, and the hidden value is selected only by `output=ignore`; all three source
+  occurrences count as addressed and the JSON diagnostic array is empty.
+- Why the divergence is specified: 3.0 admits repeated input occurrences and preserves their CLI
+  order, which is required to exercise source-level accounting across overlays.
+
 ### `an-asterisk-in-a-type-value-is-scheme001`
 
 - namespace2xml 2.4.0: **fails**. It exits `-532462766` (0xE0434352, an unhandled CLR
@@ -3929,6 +3941,18 @@ either accepts the input or reports a diagnostic and exits deliberately.
   is not merely to change the exit code but to detect the condition and report it as a stable
   diagnostic. The crash exit code carries no code, no phase, and no spec anchor; an automated
   caller cannot tell it apart from a runtime crash.
+
+### `an-input-source-outside-every-output-selection-warns`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 14.5; Section 22 `WARN014`; Section 26 item 91.
+- Legacy observation: under this case's repeated `-i` arguments, 2.4.0 exits 1 before reading either
+  source, reports that the input option is defined multiple times, and writes no output.
+- Clean behavior: `base.properties` contains only the overlay's `host` value, and the run emits one
+  `WARN014` naming `inputs/base.json` and its first eligible path, `port`.
+- Why the divergence is specified: the source document's own root key is `port`, not `base.port`.
+  The overlay makes the mistaken `base` selector non-empty, so the resulting file is plausible and
+  the existing empty-selection warning cannot identify the omitted source.
 
 ### `an-xml-name-outside-ncname-is-refused`
 

@@ -350,6 +350,207 @@ public sealed class TransformationTests
         sink.Written["app.properties"].ShouldBe(string.Empty);
     }
 
+    // ---- Section 14.5 unused input sources ---------------------------------------------------
+
+    [Test]
+    public void AnUnaddressedInputSourceWarnsWithItsFirstConcretePath()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("base.json", "{\"port\":8080}"),
+                ("overlay.txt", "base.host=localhost\n"),
+                ("scheme.txt", "base.output=namespace\n")),
+            "-i", "base.json", "-i", "overlay.txt", "-s", "scheme.txt");
+
+        var warning = result.Diagnostics.Single(d => d.Code == "WARN014");
+
+        warning.Phase.ShouldBe(DiagnosticPhase.Planning);
+        warning.Source.ShouldBe("base.json");
+        warning.Path.ShouldBe("port");
+        warning.Spec.ShouldBe("\u00A714.5");
+        result.ExitCode.ShouldBe(0);
+        sink.Written["base.properties"].ShouldBe("host=localhost\n");
+    }
+
+    [Test]
+    public void SelectingAnyConcretePathAddressesTheWholeSourceOccurrence()
+    {
+        var (result, _) = Transform(
+            "app.name=selected\noutside.value=not selected\n", "app.output=namespace\n");
+
+        Codes(result).ShouldNotContain("WARN014");
+    }
+
+    [Test]
+    public void ASelectorDoesNotAddressItsStrictAncestor()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("empty.json", "{\"app\":{}}"),
+                ("overlay.txt", "app.child=value\n"),
+                ("scheme.txt", "app.child.output=namespace\n")),
+            "-i", "empty.json", "-i", "overlay.txt", "-s", "scheme.txt");
+
+        var warning = result.Diagnostics.Single(d => d.Code == "WARN014");
+
+        warning.Source.ShouldBe("empty.json");
+        warning.Path.ShouldBe("app");
+    }
+
+    [Test]
+    public void PermanentlyMaskedPathsDoNotMakeASourceEligibleToWarn()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("hidden.txt", "hidden.secret=x\n"),
+                ("mask.txt", "!hidden\n"),
+                ("selected.txt", "app.name=example\n"),
+                ("scheme.txt", "app.output=namespace\n")),
+            "-i", "hidden.txt", "-i", "mask.txt", "-i", "selected.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldNotContain("WARN014");
+    }
+
+    [Test]
+    public void ReachableTransitiveReferenceTargetsAddressTheirSources()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("first.txt", "shared.first=${shared.second}\n"),
+                ("second.txt", "shared.second=value\n"),
+                ("selected.txt", "app.name=${shared.first}\n"),
+                ("scheme.txt", "app.output=namespace\n")),
+            "-i", "first.txt", "-i", "second.txt", "-i", "selected.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldNotContain("WARN014");
+        sink.Written["app.properties"].ShouldBe("name=value\n");
+    }
+
+    [Test]
+    public void AnIgnoredOutputSelectorAcknowledgesItsSource()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("hidden.txt", "hidden.secret=x\n"),
+                ("selected.txt", "app.name=example\n"),
+                ("scheme.txt", "app.output=namespace\nhidden.output=ignore\n")),
+            "-i", "hidden.txt", "-i", "selected.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldNotContain("WARN014");
+    }
+
+    [Test]
+    public void DuplicateUnaddressedFileOccurrencesEachWarn()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("unused.txt", "outside.value=x\n"),
+                ("selected.txt", "app.name=example\n"),
+                ("scheme.txt", "app.output=namespace\n")),
+            "-i", "unused.txt", "-i", "unused.txt", "-i", "selected.txt", "-s", "scheme.txt");
+
+        result.Diagnostics
+            .Where(d => d.Code == "WARN014")
+            .Select(d => d.Source)
+            .ShouldBe(["unused.txt", "unused.txt"]);
+    }
+
+    [Test]
+    public void UnaddressedSourcesWarnInSourceOrder()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("z.txt", "z.value=x\n"),
+                ("a.txt", "a.value=x\n"),
+                ("selected.txt", "app.name=example\n"),
+                ("scheme.txt", "app.output=namespace\n")),
+            "-i", "z.txt", "-i", "a.txt", "-i", "selected.txt", "-s", "scheme.txt");
+
+        result.Diagnostics
+            .Where(d => d.Code == "WARN014")
+            .Select(d => d.Source)
+            .ShouldBe(["z.txt", "a.txt"]);
+    }
+
+    [Test]
+    public void AnUnaddressedVariableIsIdentifiedWithoutAFileSource()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("selected.txt", "app.name=example\n"),
+                ("scheme.txt", "app.output=namespace\n")),
+            "-i", "selected.txt", "-v", "outside.value=x", "-s", "scheme.txt");
+
+        var warning = result.Diagnostics.Single(d => d.Code == "WARN014");
+
+        warning.Source.ShouldBeNull();
+        warning.Path.ShouldBe("outside.value");
+        warning.Message.ShouldStartWith("-v[1]:");
+    }
+
+    [Test]
+    public void AnUnaddressedRootScalarWarnsWithoutAPath()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("scalar.json", "42"),
+                ("selected.txt", "app.name=example\n"),
+                ("scheme.txt", "app.output=namespace\n")),
+            "-i", "scalar.json", "-i", "selected.txt", "-s", "scheme.txt");
+
+        var warning = result.Diagnostics.Single(d => d.Code == "WARN014");
+
+        warning.Source.ShouldBe("scalar.json");
+        warning.Path.ShouldBeNull();
+    }
+
+    [Test]
+    public void AnEmptyRootContainerDoesNotWarn()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("empty.json", "{}"),
+                ("selected.txt", "app.name=example\n"),
+                ("scheme.txt", "app.output=namespace\n")),
+            "-i", "empty.json", "-i", "selected.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldNotContain("WARN014");
+    }
+
+    [Test]
+    public void NoSourceWarningsAreAddedWhenEveryLiveViewIsEmpty()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("outside.txt", "outside.value=x\n"),
+                ("scheme.txt", "app.output=namespace\n")),
+            "-i", "outside.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldBe(["WARN009"]);
+    }
+
     // ---- Section 10.4 template shapes ---------------------------------------------------------
 
     /// <summary>

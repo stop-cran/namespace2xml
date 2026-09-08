@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r99+bad2fa36f0a5`.** 38 codes.
+**Contract bundle `r100+9f558a233a01`.** 39 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -61,6 +61,7 @@ by preference.
 | `WARN011` | warning | once per canonical path | Later unmarked contribution aliases an existing XML component instead of overriding it | `source`, `path` |
 | `WARN012` | warning | once per output instance | INI output emits a global-key preamble, which a reader requiring a section header will refuse | `destination` |
 | `WARN013` | warning | once per path and output instance | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `path`, `destination` |
+| `WARN014` | warning | once per admitted input-source occurrence | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | `source`, `path` |
 
 ## Conditions in detail
 
@@ -294,6 +295,12 @@ Each code below lists the situations the specification maps to it (Appendix B).
 *warning, once per path and output instance.*
 
 - Namespace output writes a value ending in a space under `AllowTrailingWhitespace`
+
+### `WARN014` — Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target
+
+*warning, once per admitted input-source occurrence.*
+
+- Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target
 
 ## Disagreeing with a diagnostic
 

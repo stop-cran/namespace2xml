@@ -7,6 +7,15 @@ using Namespace2Xml.Profiles;
 
 namespace Namespace2Xml.Overlay;
 
+/// <summary>The product of resolving the references reachable from selected output roots.</summary>
+/// <param name="Model">The model with every reachable unresolved payload replaced.</param>
+/// <param name="CanonicalTargets">
+/// Every successfully resolved canonical target path reached directly or transitively.
+/// </param>
+public sealed record ReferenceResolutionResult(
+    OverlayNode Model,
+    ImmutableHashSet<string> CanonicalTargets);
+
 /// <summary>
 /// Section 13: resolving references in the entries an output instance can reach.
 /// </summary>
@@ -35,6 +44,7 @@ public sealed class ReferenceResolver
     private readonly Dictionary<string, ImmutableArray<ImmutableArray<NamePart>>> aliases;
     private readonly Dictionary<string, ScalarPayload?> resolved = new(StringComparer.Ordinal);
     private readonly HashSet<string> reportedCycles = new(StringComparer.Ordinal);
+    private readonly HashSet<string> canonicalTargets = new(StringComparer.Ordinal);
 
     private ReferenceResolver(
         OverlayNode model, DiagnosticBuffer diagnostics, GlobalBudget budget)
@@ -57,6 +67,21 @@ public sealed class ReferenceResolver
         OverlayNode model,
         IEnumerable<ImmutableArray<NamePart>> roots,
         GlobalBudget budget,
+        DiagnosticBuffer diagnostics) =>
+        ResolveWithTargets(model, roots, budget, diagnostics).Model;
+
+    /// <summary>
+    /// Resolves every reachable reference and retains each successfully resolved canonical target.
+    /// </summary>
+    /// <param name="model">The merged model, after step 12.</param>
+    /// <param name="roots">The selected paths of the concrete output instances.</param>
+    /// <param name="budget">The invocation's Section 23 budgets.</param>
+    /// <param name="diagnostics">This step's buffer.</param>
+    /// <returns>The rewritten model and the exact canonical paths its references reached.</returns>
+    public static ReferenceResolutionResult ResolveWithTargets(
+        OverlayNode model,
+        IEnumerable<ImmutableArray<NamePart>> roots,
+        GlobalBudget budget,
         DiagnosticBuffer diagnostics)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -71,7 +96,9 @@ public sealed class ReferenceResolver
             resolver.Reach(root);
         }
 
-        return resolver.Rewrite(model, []);
+        return new ReferenceResolutionResult(
+            resolver.Rewrite(model, []),
+            resolver.canonicalTargets.ToImmutableHashSet(StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -369,6 +396,8 @@ public sealed class ReferenceResolver
             throw new InvalidOperationException(
                 "a memoized referent is either resolved or null.");
         }
+
+        canonicalTargets.Add(CanonicalPath.Of(target) ?? string.Empty);
 
         return referent;
     }
