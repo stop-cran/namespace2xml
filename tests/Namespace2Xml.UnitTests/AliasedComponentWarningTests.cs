@@ -46,6 +46,9 @@ public sealed class AliasedComponentWarningTests
             new DiagnosticBuffer())
         .Overlay;
 
+    private static QualifiedName Name(string text) =>
+        QualifiedNameLexer.Lex(text).Name.ShouldNotBeNull();
+
     private IReadOnlyList<Diagnostic> Merge(params string[] documents)
     {
         new OverlayMerger(MergeStrategyMap.Default, diagnostics)
@@ -88,6 +91,25 @@ public sealed class AliasedComponentWarningTests
     [Test]
     public void AQualifiedElementIsAliasedToo() =>
         Single("a.Q{urn:p}x=1", "a.x=2").Message.ShouldContain("Q{urn:p}x", Case.Sensitive);
+
+    [Test]
+    public void AContentWrappedElementIsAliasedToo()
+    {
+        var warning = Single(
+            "server.#1.host=localhost",
+            "server.host=prod.example.com");
+
+        warning.Code.ShouldBe("WARN011");
+        warning.Path.ShouldBe("server.host");
+        warning.Message.ShouldBe(
+            "'server.host' adds an ordinary component beside 'server.#1.host', which already "
+            + "exists here. Section 11.4 makes a content-wrapped XML element and an unmarked "
+            + "component with the same simple alias different components, so this contribution "
+            + "does not override that one: write 'server.#1.host' to override it. If the '#n' "
+            + "positions come only from formatting whitespace and whitespace is not meaningful, "
+            + "setting 'xmlinputoptions=NormalizeFormattingWhitespace' can expose the ordinary "
+            + "element path instead.");
+    }
 
     /// <summary>
     /// Section 11.4 admits exactly two XML components that share an alias without being the same
@@ -145,6 +167,18 @@ public sealed class AliasedComponentWarningTests
     public void AnAttributeArrivingAfterAnOrdinaryComponentIsNotReported() =>
         Merge("a.x=1", "a.@x=2").ShouldBeEmpty();
 
+    [Test]
+    public void AContentWrappedElementArrivingAfterAnOrdinaryComponentIsNotReported() =>
+        Merge("a.x=1", "a.#1.x=2").ShouldBeEmpty();
+
+    [Test]
+    public void AContentWrappedElementAndOrdinaryComponentInOneSourceAreNotReported() =>
+        Merge("a.#1.x=1\na.x=2").ShouldBeEmpty();
+
+    [Test]
+    public void AnExactContentPathRemedyIsNotReported() =>
+        Merge("a.#1.x=1", "a.#1.x=2").ShouldBeEmpty();
+
     /// <summary>
     /// Section 5.2 lists the sibling kinds as "ordinary component, qualified element, typed
     /// attribute, typed content". A node can carry two XML components of one alias, and Section 24
@@ -169,6 +203,89 @@ public sealed class AliasedComponentWarningTests
         }
     }
 
+    [Test]
+    public void ADirectCandidatePrecedesAContentWrappedCandidate() =>
+        Single(
+            "a.#0.x=content\na.Q{urn:z}x=qualified",
+            "a.x=ordinary")
+        .Message.ShouldContain("'a.Q{urn:z}x'", Case.Sensitive);
+
+    [Test]
+    public void ContentWrappedCandidatesUseNumericTokenOrder() =>
+        Single(
+            "a.#10.x=ten\na.#2.x=two",
+            "a.x=ordinary")
+        .Message.ShouldContain("'a.#2.x'", Case.Sensitive);
+
+    [Test]
+    public void ContentWrappedCandidatesUseNestedElementOrderAfterTokenOrder() =>
+        Single(
+            "a.#1.Q{urn:z}x=z\na.#1.Q{urn:a}x=a",
+            "a.x=ordinary")
+        .Message.ShouldContain("'a.#1.Q{urn:a}x'", Case.Sensitive);
+
+    [Test]
+    public void ReplacingAContentWrapperRemovesItsWarningCandidate()
+    {
+        var strategies = MergeStrategyMap.Create([
+            new KeyValuePair<QualifiedName, MergeStrategy>(Name("a.#1"), MergeStrategy.Replace),
+        ]);
+
+        new OverlayMerger(strategies, diagnostics).MergeAll([
+            Source("a.#1.x=1", 1),
+            Source("a.#1.y=2", 2),
+            Source("a.x=3", 3),
+        ]);
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    [Test]
+    public void AReplacementInTheOrdinaryComponentsContributionRemovesTheWarningCandidate()
+    {
+        var strategies = MergeStrategyMap.Create([
+            new KeyValuePair<QualifiedName, MergeStrategy>(Name("a.#1"), MergeStrategy.Replace),
+        ]);
+
+        var merged = new OverlayMerger(strategies, diagnostics).MergeAll([
+            Source("a.#1.x=1", 1),
+            Source("a.#1.y=2\na.x=3", 2),
+        ]);
+        var a = merged.Children.Values.Single();
+
+        diagnostics.Drain().ShouldBeEmpty();
+        a.Children[new ContentPart(1)].Children
+            .ContainsKey(new OrdinaryPart([new LiteralToken("x")]))
+            .ShouldBeFalse();
+    }
+
+    [Test]
+    public void AReplacementInTheOrdinaryComponentsContributionRemovesADirectWarningCandidate()
+    {
+        var strategies = MergeStrategyMap.Create([
+            new KeyValuePair<QualifiedName, MergeStrategy>(Name("a.@x"), MergeStrategy.Replace),
+        ]);
+
+        new OverlayMerger(strategies, diagnostics).MergeAll([
+            Source("a.@x=1", 1),
+            Source("a.@x=2\na.x=3", 2),
+        ]);
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    [Test]
+    public void APermanentMaskRemovesAContentWrappedWarningCandidate()
+    {
+        var earlier = ExclusionMask.Of([Name("a.#1.x")])
+            .Apply(Source("a.#1.x=1", 1));
+
+        new OverlayMerger(MergeStrategyMap.Default, diagnostics)
+            .MergeAll([earlier, Source("a.x=2", 2)]);
+
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
     /// <summary>
     /// The warning "reports and never changes that model", so both components survive it.
     /// </summary>
@@ -179,5 +296,32 @@ public sealed class AliasedComponentWarningTests
             .MergeAll([Source("a.@x=1", 1), Source("a.x=2", 2)]);
 
         merged.Children.Values.Single().Children.Count.ShouldBe(2);
+    }
+
+    [Test]
+    public void AContentWrappedReportStillAddsItsComponent()
+    {
+        var merged = new OverlayMerger(MergeStrategyMap.Default, diagnostics)
+            .MergeAll([Source("a.#1.x=1", 1), Source("a.x=2", 2)]);
+        var a = merged.Children.Values.Single();
+
+        a.Children.Count.ShouldBe(2);
+        a.Children.ContainsKey(new ContentPart(1)).ShouldBeTrue();
+        a.Children.ContainsKey(new OrdinaryPart([new LiteralToken("x")])).ShouldBeTrue();
+        a.Children[new ContentPart(1)].Children
+            .ContainsKey(new OrdinaryPart([new LiteralToken("x")]))
+            .ShouldBeTrue();
+    }
+
+    [Test]
+    public void AContentWrappedAliasIsNotReportedDuringDestinationFolding()
+    {
+        new OverlayMerger(
+            MergeStrategyMap.Default,
+            diagnostics,
+            context: MergeContext.ForDestination("out.xml"))
+            .MergeAll([Source("a.#1.x=1", 1), Source("a.x=2", 2)]);
+
+        diagnostics.Drain().ShouldBeEmpty();
     }
 }

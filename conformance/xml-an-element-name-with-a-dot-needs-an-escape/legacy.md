@@ -33,6 +33,8 @@
   attribute beside the first. The unescaped `r.system.web.compilation.@debug` names four parts,
   none of which exists, so Section 17.1 creates them; nothing in the specification licenses
   guessing that the author meant the dotted element, and no Section 22 diagnostic covers it.
-  Section 11.4's `WARN011` is explicitly confined to an attribute and a namespace-qualified
-  element of the same simple alias, and a dotted name is neither. The remedy is the escape, and
-  it is documented in `docs/format-xml.md` and `docs/usage-methodology.md`.
+  Section 11.4's `WARN011` is confined to a direct attribute, a direct namespace-qualified
+  element, or an element beneath one `#n` content wrapper that shares the ordinary component's
+  simple alias. A missing dot escape changes the number of path components, so none of those
+  shapes applies. The remedy is the escape, and it is documented in `docs/format-xml.md` and
+  `docs/usage-methodology.md`.

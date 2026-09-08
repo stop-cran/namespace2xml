@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r100+9f558a233a01`.** 39 codes.
+**Contract bundle `r101+4ed0833a324b`.** 39 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces. Codes are stable across releases; messages
@@ -58,7 +58,7 @@ by preference.
 | `WARN008` | warning | once per invocation | Output plan contains no destinations | — |
 | `WARN009` | warning | once per declaration or expanded directive | Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing | `source`, `line`, `column`, `path`, `declaration` |
 | `WARN010` | warning | once per source contribution, canonical mapping path, and output instance | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | `source`, `path`, `destination` |
-| `WARN011` | warning | once per canonical path | Later unmarked contribution aliases an existing XML component instead of overriding it | `source`, `path` |
+| `WARN011` | warning | once per canonical path | Later unmarked contribution aliases an existing XML component or content-token-wrapped element instead of overriding it | `source`, `path` |
 | `WARN012` | warning | once per output instance | INI output emits a global-key preamble, which a reader requiring a section header will refuse | `destination` |
 | `WARN013` | warning | once per path and output instance | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `path`, `destination` |
 | `WARN014` | warning | once per admitted input-source occurrence | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | `source`, `path` |
@@ -278,11 +278,11 @@ Each code below lists the situations the specification maps to it (Appendix B).
 
 - JSON/YAML numeric mapping remains inferred as a sequence
 
-### `WARN011` — Later unmarked contribution aliases an existing XML component instead of overriding it
+### `WARN011` — Later unmarked contribution aliases an existing XML component or content-token-wrapped element instead of overriding it
 
 *warning, once per canonical path.*
 
-- Later unmarked contribution adds an ordinary component aliasing an existing XML component
+- Later unmarked contribution adds an ordinary component beside an aliased XML component or content-token-wrapped element
 
 ### `WARN012` — INI output emits a global-key preamble, which a reader requiring a section header will refuse
 

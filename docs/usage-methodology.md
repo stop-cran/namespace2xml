@@ -140,8 +140,10 @@ Whichever route you choose, use the same XML input mode for discovery and for th
 The two modes model the same document differently — `server.host` normalized against
 `server.#1.host` preserved — so a path copied from a normalized render binds to nothing in a
 preserved run, and the override is *added* beside the element it was meant to replace rather than
-replacing it, at exit `0`. Normalizing for the reading run alone walks back into that same second
-trap by a quieter road: no error this time, just an override that does not override.
+replacing it, at exit `0`. `WARN011` now names both `server.host` and the exact
+`server.#1.host` remedy, but it does not change the model or suppress the sibling-producing output.
+Normalizing for the reading run alone therefore still walks back into the second trap: the warning
+makes the miss visible, but only using one XML mode consistently makes the override bind.
 
 The answer is frequently not what the source document looked like. This one habit prevents all
 four of the problems below for documents with top-level parts, and it costs one discovery run.
@@ -312,7 +314,7 @@ something you did not intend is in the model. The remedy that error names is `ro
 genuinely needs `root`, and adding it makes the signal disappear while the phantom stays. A clean
 exit is not evidence that an address bound.
 
-### An XML attribute is `@name`, and the bare name silently means something else
+### An XML attribute is `@name`, and the bare name creates a sibling
 
 `<endpoint domain="example.com"/>` addresses as `endpoint.@domain`. Writing the override without
 the marker does not fail — it creates an ordinary sibling beside the untouched attribute:
@@ -324,10 +326,13 @@ the marker does not fail — it creates an ordinary sibling beside the untouched
 </b>
 ```
 
-Exit `0`, and an empty diagnostic stream. Like the indentation trap above it fails without saying
-anything, it is what a 2.x profile does when it is moved to 3.0 unchanged — 2.4.0 addressed that
-attribute as `a.b.x` and overrode it — and it is tracked as
-[#56](https://github.com/stop-cran/namespace2xml/issues/56). Write `@domain`.
+The 3.0 run exits `0` and emits `WARN011`, naming the ordinary sibling and the canonical
+`a.b.@x` address that would have overridden instead. The output remains sibling-producing because
+warnings never rewrite the model. In 2.4.0 this failed without saying anything: that release
+addressed the attribute as `a.b.x` and overrode it, which is why an unchanged 2.x profile is a
+migration hazard. The hazard is tracked as
+[#56](https://github.com/stop-cran/namespace2xml/issues/56). Write `a.b.@x` in this example, or
+`endpoint.@domain` for the element above.
 
 The asymmetry worth remembering: a *reference* resolves `${a.x}` to the attribute through the
 Section 13.1 alias index, but an *assignment* to `a.x` does not. Reads forgive the bare name and

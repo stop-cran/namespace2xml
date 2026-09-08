@@ -1,0 +1,2 @@
+server.output=xml
+server.root=server

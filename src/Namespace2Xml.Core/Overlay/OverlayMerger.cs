@@ -229,7 +229,7 @@ public sealed class OverlayMerger
                 continue;
             }
 
-            ReportAliasedComponent(path, name, earlier.Children, child.Marks.Latest);
+            ReportAliasedComponent(path, name, earlier, later, child.Marks.Latest);
             children = children.SetItem(name, child);
         }
 
@@ -798,12 +798,13 @@ public sealed class OverlayMerger
 
     /// <summary>
     /// Section 11.4 <c>WARN011</c>: a later unmarked component that is the simple alias of an XML
-    /// component already present at the node "adds a second, ordinary component; it does not
-    /// override the existing one".
+    /// component already present at the node, directly or beneath a content token, "adds a second,
+    /// ordinary component; it does not override the existing one".
     /// </summary>
     /// <param name="path">The node's path, from the overlay root.</param>
     /// <param name="name">The component the later contribution is adding.</param>
-    /// <param name="existing">The children already merged at the node.</param>
+    /// <param name="earlier">The contributions already merged at the node.</param>
+    /// <param name="later">The complete contribution currently being merged at the node.</param>
     /// <param name="key">The added component's ordering key.</param>
     /// <remarks>
     /// <para>
@@ -824,7 +825,8 @@ public sealed class OverlayMerger
     private void ReportAliasedComponent(
         ImmutableArray<NamePart> path,
         NamePart name,
-        ImmutableDictionary<NamePart, OverlayNode> existing,
+        OverlayNode earlier,
+        OverlayNode later,
         StableOrderingKey key)
     {
         if (context.Phase != DiagnosticPhase.Input
@@ -833,14 +835,18 @@ public sealed class OverlayMerger
             return;
         }
 
-        NamePart? canonical = null;
+        AliasedComponentCandidate? canonical = null;
 
-        foreach (var candidate in existing.Keys)
+        foreach (var candidate in AliasingCandidates(earlier.Children, ordinary))
         {
+            if (!SurvivesLaterMerge(earlier, later, path, candidate.RelativePath))
+            {
+                continue;
+            }
+
             // More than one XML component can alias to one name, so the report names the
             // Section 24 smallest rather than whichever the hash order offered first.
-            if (SimpleAliasOf(candidate) == ordinary
-                && (canonical is null || NamePartOrder.Instance.Compare(candidate, canonical) < 0))
+            if (canonical is null || CompareCandidatePaths(candidate, canonical) < 0)
             {
                 canonical = candidate;
             }
@@ -852,14 +858,22 @@ public sealed class OverlayMerger
         }
 
         var added = PathText(path.Add(name));
-        var overridden = PathText(path.Add(canonical));
+        var overridden = PathText(path.AddRange(canonical.RelativePath));
 
         // The rival decides the clause: Section 11.4 admits an attribute and an element in a
         // namespace as separate simple-alias competitors, and saying "an attribute" for a
         // namespaced element names a component the run does not contain.
-        var rival = canonical is AttributePart
+        var rival = canonical.RelativePath[0] is AttributePart
             ? "an attribute and an element of the same name"
-            : "an element in a namespace and an unmarked component of the same local name";
+            : canonical.IsContentWrapped
+                ? "a content-wrapped XML element and an unmarked component with the same simple alias"
+                : "an element in a namespace and an unmarked component of the same local name";
+
+        var contentRemedy = canonical.IsContentWrapped
+            ? " If the '#n' positions come only from formatting whitespace and whitespace is not "
+                + "meaningful, setting 'xmlinputoptions=NormalizeFormattingWhitespace' can expose "
+                + "the ordinary element path instead."
+            : string.Empty;
 
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Warn011(
@@ -868,10 +882,117 @@ public sealed class OverlayMerger
                 $"'{added}' adds an ordinary component beside '{overridden}', which already "
                 + $"exists here. Section 11.4 makes {rival} "
                 + "different components, so this contribution does not override that one: write "
-                + $"'{overridden}' to override it.",
+                + $"'{overridden}' to override it."
+                + contentRemedy,
                 cardinalityKey: CardinalityKey(added),
                 path: added),
             key));
+    }
+
+    /// <summary>
+    /// Whether an earlier aliasing candidate remains from the earlier contribution after every
+    /// merge effect in the current contribution.
+    /// </summary>
+    /// <param name="earlier">The contributions already merged at the parent path.</param>
+    /// <param name="later">The complete contribution currently being merged at the parent path.</param>
+    /// <param name="parentPath">The parent path, from the overlay root.</param>
+    /// <param name="relativePath">The candidate path relative to the parent.</param>
+    /// <returns>True when the earlier candidate survives as an earlier contribution.</returns>
+    private bool SurvivesLaterMerge(
+        OverlayNode earlier,
+        OverlayNode later,
+        ImmutableArray<NamePart> parentPath,
+        ImmutableArray<NamePart> relativePath)
+    {
+        var earlierNode = earlier;
+        var laterNode = later;
+        var path = parentPath;
+
+        foreach (var part in relativePath)
+        {
+            if (!earlierNode.Children.TryGetValue(part, out var earlierChild))
+            {
+                return false;
+            }
+
+            if (!laterNode.Children.TryGetValue(part, out var laterChild))
+            {
+                return true;
+            }
+
+            path = path.Add(part);
+
+            switch (strategies.For(path))
+            {
+                case MergeStrategy.Replace:
+                    return false;
+
+                case MergeStrategy.Append
+                    when TryReadSequenceContribution(earlierChild, out _)
+                        && TryReadSequenceContribution(laterChild, out _):
+                    // A valid append retains the complete earlier contribution at this path.
+                    return true;
+            }
+
+            earlierNode = earlierChild;
+            laterNode = laterChild;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The complete relative paths of earlier XML components whose simple alias is
+    /// <paramref name="ordinary"/>.
+    /// </summary>
+    private static IEnumerable<AliasedComponentCandidate> AliasingCandidates(
+        ImmutableDictionary<NamePart, OverlayNode> existing,
+        OrdinaryPart ordinary)
+    {
+        foreach (var (part, node) in existing)
+        {
+            if (SimpleAliasOf(part) == ordinary)
+            {
+                yield return new AliasedComponentCandidate([part], IsContentWrapped: false);
+            }
+
+            if (part is not ContentPart)
+            {
+                continue;
+            }
+
+            foreach (var element in node.Children.Keys.OfType<XmlNameComponent>())
+            {
+                if (SimpleElementAliasOf(element) == ordinary)
+                {
+                    yield return new AliasedComponentCandidate(
+                        [part, element],
+                        IsContentWrapped: true);
+                }
+            }
+        }
+    }
+
+    /// <summary>Compares complete candidate paths lexicographically under Section 5.2.</summary>
+    private static int CompareCandidatePaths(
+        AliasedComponentCandidate left,
+        AliasedComponentCandidate right)
+    {
+        var sharedLength = Math.Min(left.RelativePath.Length, right.RelativePath.Length);
+
+        for (var index = 0; index < sharedLength; index++)
+        {
+            var byComponent = NamePartOrder.Instance.Compare(
+                left.RelativePath[index],
+                right.RelativePath[index]);
+
+            if (byComponent != 0)
+            {
+                return byComponent;
+            }
+        }
+
+        return left.RelativePath.Length.CompareTo(right.RelativePath.Length);
     }
 
     /// <summary>
@@ -893,6 +1014,15 @@ public sealed class OverlayMerger
         _ => null,
     };
 
+    /// <summary>The simple alias of an XML element nested beneath a content token.</summary>
+    private static OrdinaryPart SimpleElementAliasOf(XmlNameComponent element) => element switch
+    {
+        QualifiedElementPart qualified => new OrdinaryPart(qualified.Local),
+        OrdinaryPart ordinary => ordinary,
+        _ => throw new InvalidOperationException(
+            $"'{element}' is not an Appendix A.2 XML element component."),
+    };
+
     /// <summary>The ordinary spelling of an XML name component.</summary>
     /// <param name="component">The component.</param>
     /// <returns>The component itself when it is already ordinary, otherwise its local name.</returns>
@@ -903,6 +1033,11 @@ public sealed class OverlayMerger
         _ => throw new InvalidOperationException(
             $"'{component}' is not an Appendix A.2 xml-name-component."),
     };
+
+    /// <summary>One complete canonical rival path considered by <c>WARN011</c>.</summary>
+    private sealed record AliasedComponentCandidate(
+        ImmutableArray<NamePart> RelativePath,
+        bool IsContentWrapped);
 
     private void ReportImplicitConcatenation(
         ImmutableArray<NamePart> path, StableOrderingKey key)
