@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r100+9f558a233a01`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r101+4ed0833a324b`. Dated 2026-08.**
 
 This file tracks the branch, and the branch normally runs ahead of the last published preview:
 `3.0.0-preview.5` carries `r99+bad2fa36f0a5`, `3.0.0-preview.4` carries `r90+e172e0ba4d2a`,
@@ -538,6 +538,17 @@ measured 2.4.0 accepting `r.a.x=dev` against `<a x="base">` and overriding the a
 what makes this a migration hazard and not merely a specification detail. Write `a.@x`.
 [#56 (closed)](https://github.com/stop-cran/namespace2xml/issues/56) owned both halves and both
 have landed.
+
+The implementation originally inspected only those direct typed siblings. Preserved indentation or
+meaningful mixed content can instead put the rival element beneath a content token, such as
+`server.#1.host`; an ordinary `server.host` assignment produced the same sibling-creating outcome
+without `WARN011`. The current contract closes that boundary: the warning names the complete
+content-wrapped path, while an exact `server.#1.host` override and the consistently normalized
+`server.host` form remain warning-free. The behavior is pinned by
+`conformance/xml-an-ordinary-overlay-beside-a-content-wrapped-element-warns`,
+`conformance/xml-an-exact-content-path-overrides-without-warning`,
+`conformance/xml-normalization-makes-an-ordinary-element-path-overridable` and
+`conformance/xml-a-mixed-content-shadow-warns-without-normalizing`.
 
 This entry names no live issue, and that is the third case the preamble's rule allows beside §1.5
 and §4.1: every boundary above is a **decided** one, argued from a clause and pinned by a fixture,

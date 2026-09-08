@@ -159,7 +159,7 @@ public static partial class DiagnosticCodes
             ["source", "path", "destination"]),
         new DiagnosticCodeInfo("WARN011", DiagnosticSeverity.Warning,
             "once per canonical path",
-            "Later unmarked contribution aliases an existing XML component instead of overriding it",
+            "Later unmarked contribution aliases an existing XML component or content-token-wrapped element instead of overriding it",
             ["source", "path"]),
         new DiagnosticCodeInfo("WARN012", DiagnosticSeverity.Warning,
             "once per output instance",
@@ -847,7 +847,7 @@ public static partial class DiagnosticCodes
         Create("WARN010", DiagnosticSeverity.Warning, phase, spec, message,
             cardinalityKey, source: source, path: path, destination: destination);
 
-    /// <summary><c>WARN011</c> (warning) — Later unmarked contribution aliases an existing XML component instead of overriding it.</summary>
+    /// <summary><c>WARN011</c> (warning) — Later unmarked contribution aliases an existing XML component or content-token-wrapped element instead of overriding it.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>

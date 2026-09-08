@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "17984685a3a63f52308034361c25c11a180960868706dc36672bdfdac69ff807"
+    "sha256": "c897bf2a93ac6c1269499b352e387303eedc4601971ef3b019ba49ea95811328"
   },
   "authoritativeFor": [
     "code",
@@ -500,13 +500,13 @@
       "code": "WARN011",
       "severity": "warning",
       "cardinality": "once per canonical path",
-      "condition": "Later unmarked contribution aliases an existing XML component instead of overriding it",
+      "condition": "Later unmarked contribution aliases an existing XML component or content-token-wrapped element instead of overriding it",
       "fields": [
         "source",
         "path"
       ],
       "mappings": [
-        "Later unmarked contribution adds an ordinary component aliasing an existing XML component"
+        "Later unmarked contribution adds an ordinary component beside an aliased XML component or content-token-wrapped element"
       ]
     },
     {

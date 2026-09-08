@@ -1209,7 +1209,15 @@ a.#2.b
 
 Attribute and child-element names therefore never collide.
 
-Because they never collide, a later contribution that writes an unmarked component where an earlier contribution already placed an XML component of the same simple alias adds a second, ordinary component; it does not override the existing one. Exactly two kinds of XML component can stand in that relation: an attribute, `@x`, and an element in a namespace, `Q{uri}x`, whose simple aliases are both `x`. A no-namespace element is not one of them — `Q{}x` and `x` are the same component by the rule above, so an unmarked contribution meeting one overrides it in the ordinary way and there is nothing to report. Neither is a content token, because Section 13.1 removes that part rather than renaming it, so it aliases to its owning element's path and never competes for a name at this node. That is the typed model working as specified, and it is also the shape Sections 13.1 and 15.2 call ambiguous. Each such component emits `WARN011` naming the canonical component already present, because an override that silently became a sibling is indistinguishable in the merged model from a sibling that was intended. The warning reports and never changes that model: writing the contribution canonically — `@x` for the attribute, `Q{}x` for the element — is what expresses the override. Components arriving together in one contribution never warn, since a single XML document may legitimately carry an attribute and a child element of the same name.
+Because they never collide, a later contribution that writes an unmarked component where an earlier contribution already placed an XML component of the same simple alias adds a second, ordinary component; it does not override the existing one. Two direct XML components can stand in that relation: an attribute, `@x`, and an element in a namespace, `Q{uri}x`, whose simple aliases are both `x`. A no-namespace element at that node is not one of them — `Q{}x` and `x` are the same component by the rule above, so an unmarked contribution meeting one overrides it in the ordinary way and there is nothing to report.
+
+A content token does not itself compete for a name at its owning node: Section 13.1 removes that part rather than renaming it. The XML child element beneath the token remains a distinct canonical merge path, however. If an earlier contribution placed an element at `server.#1.host` and a later contribution writes unmarked `server.host`, the later component is added beside the earlier element rather than overriding it. Dropping the content part for format-agnostic lookup gives both paths the same simple alias, `server.host`, but does not make their canonical merge paths equal. This is the same hazardous merge outcome as the direct-component case.
+
+Each such later unmarked ordinary component emits `WARN011`, because an override that silently became a sibling is indistinguishable in the merged model from a sibling that was intended. The warning's path is the later ordinary path through the first divergent component — `server.host` in the example. It names one complete canonical rival path already present and states that no override occurred. For a direct rival it gives the marked component, such as `server.@host` or `server.Q{uri}host`, that would override it. For a content-wrapped rival it gives the complete path, such as `server.#1.host`, that would override it. Content-wrapped prose may additionally advise `xmlinputoptions=NormalizeFormattingWhitespace`, but only conditionally when the `#n` positions represent formatting whitespace and whitespace is not meaningful; the exact canonical path remains the remedy for preservation-sensitive or mixed-content XML.
+
+One added ordinary component may rival several earlier direct or content-wrapped XML components. Emit once for that added canonical path and name the smallest complete relative candidate path. Compare candidate paths lexicographically by the component comparison defined in Section 5.2 after its position-mark rule: direct qualified elements precede direct attributes, which precede content paths; content paths compare their numeric `#n` component before the nested element component. Position marks do not participate in this diagnostic candidate comparison. The result must not depend on mapping enumeration order.
+
+The warning reports and never changes the model. It is directional and belongs only to input merging: an earlier ordinary component does not warn when a later canonical XML component arrives, and destination folding does not emit it again. Components arriving together in one contribution never warn, since a single XML document may legitimately carry components with the same simple alias. An explicitly canonical later component, including `Q{}x`, `@x`, or `#n`, names the intended component and does not warn. A rival removed by replacement or a permanent mask before the ordinary component is merged is absent and does not warn. Output selection and `output=ignore` do not suppress a warning for an input merge that has already occurred.
 
 For element-only repeated children:
 
@@ -3193,7 +3201,7 @@ The normative diagnostic registry is:
 | `WARN008` | warning | Output plan contains no destinations | once per invocation |
 | `WARN009` | warning | Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing | once per declaration or expanded directive |
 | `WARN010` | warning | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | once per source contribution, canonical mapping path, and output instance |
-| `WARN011` | warning | Later unmarked contribution aliases an existing XML component instead of overriding it | once per canonical path |
+| `WARN011` | warning | Later unmarked contribution aliases an existing XML component or content-token-wrapped element instead of overriding it | once per canonical path |
 | `WARN012` | warning | INI output emits a global-key preamble, which a reader requiring a section header will refuse | once per output instance |
 | `WARN013` | warning | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | once per path and output instance |
 | `WARN014` | warning | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | once per admitted input-source occurrence |
@@ -3681,7 +3689,7 @@ An implementation is conforming only when automated black-box tests cover:
 35. Stable ordering-value matching after cross-file concatenation.
 36. Concrete output-instance expansion and wildcard default filenames.
 37. `RestrictedYaml1` scalar and key behavior.
-38. XML canonical addresses for namespaces, attributes, repeated children, and mixed content.
+38. XML canonical addresses for namespaces, attributes, repeated children, and mixed content, including `WARN011` for later ordinary components added beside direct or content-token-wrapped XML rivals.
 39. XML singleton-versus-sequence merge classification across three or more contributions.
 40. Complete output-option replacement and contradictory flag errors.
 41. Flat-key collision detection after delimiter and shell-identifier normalization.
@@ -3910,7 +3918,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Directive binds to no concrete output instance or path, or wildcard output creates no concrete instance | `WARN009` |
 | Concrete output instance selects nothing | `WARN009` |
 | JSON/YAML numeric mapping remains inferred as a sequence | `WARN010` |
-| Later unmarked contribution adds an ordinary component aliasing an existing XML component | `WARN011` |
+| Later unmarked contribution adds an ordinary component beside an aliased XML component or content-token-wrapped element | `WARN011` |
 | INI output writes a global-key preamble without `GlobalSection` | `WARN012` |
 | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `WARN013` |
 | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | `WARN014` |

@@ -662,20 +662,24 @@
     },
     {
       "item": 38,
-      "text": "XML canonical addresses for namespaces, attributes, repeated children, and mixed content.",
+      "text": "XML canonical addresses for namespaces, attributes, repeated children, and mixed content, including `WARN011` for later ordinary components added beside direct or content-token-wrapped XML rivals.",
       "milestone": "m2",
       "status": "required",
       "assertions": [
         "Section 11.4 addresses an attribute as @name and a namespace-qualified name as Q{uri}local resolved from the URI rather than the prefix, and an element owning both text and attributes exposes the text at its own element path with the attributes beneath it.",
         "Repeated same-name children become a Section 5.4 sequence with generated zero-based parts while a single child keeps its name, and mixed content addresses every position as a #n content token which a Section 11.5 comment occupies in its own right.",
-        "Section 11.4 emits WARN011 when a later contribution writes an unmarked component whose simple alias is an XML component already at the node, reporting the sibling it added and the canonical address that would have overridden instead, and withholds it both when the two components arrive in one contribution and when the later one is spelled Q{}local."
+        "Section 11.4 emits WARN011 when a later contribution writes an unmarked component whose simple alias is an earlier direct XML component or content-wrapped XML element, reports the sibling it added and the smallest complete canonical address that would have overridden instead, and withholds the warning for same-contribution components, a later canonical component, replacement, permanent masking, and destination folding."
       ],
       "fixtures": [
         "xml-a-2-x-style-attribute-override-adds-a-sibling-element",
+        "xml-a-mixed-content-shadow-warns-without-normalizing",
+        "xml-an-exact-content-path-overrides-without-warning",
         "xml-an-attribute-from-xml-input-is-overridden-through-its-canonical-address",
         "xml-an-element-name-with-a-dot-needs-an-escape",
+        "xml-an-ordinary-overlay-beside-a-content-wrapped-element-warns",
         "xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component",
-        "xml-canonical-addresses"
+        "xml-canonical-addresses",
+        "xml-normalization-makes-an-ordinary-element-path-overridable"
       ]
     },
     {

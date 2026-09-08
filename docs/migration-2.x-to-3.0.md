@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r100+9f558a233a01`.**
+**Contract bundle `r101+4ed0833a324b`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (162)
+## Observable differences (165)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -3067,6 +3067,20 @@ implemented, its case says so plainly rather than letting the heading imply othe
   projection that applies it anyway passes every corpus case whose overridden paths happen to carry
   no siblings.
 
+### `xml-a-mixed-content-shadow-warns-without-normalizing`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.4 canonical XML addressing and `WARN011`; Section 11.7
+  `PreserveWhitespace`; Section 19.5 XML rendering.
+- Legacy observation: 2.4.0 exits `0`, retains both `<b>` elements, and writes the same logical
+  tree with CRLF line endings rather than the expected LF bytes. Its log contains no warning that
+  `a.b` did not override the content-wrapped `a.#1.b` element.
+- Clean behavior: the run still retains both elements because diagnostics do not rewrite the
+  merged model, but `WARN011` names `a.#1.b` and recommends that exact path. The meaningful text
+  around the element is preserved, so normalization is not offered as an unconditional remedy.
+- The difference is intentional: the warning makes the plausible sibling-producing result visible
+  without changing XML content or discarding meaningful whitespace.
+
 ### `xml-a-reference-does-not-import-a-spelling`
 
 - namespace2xml 2.4.0: **differs**.
@@ -3117,6 +3131,20 @@ implemented, its case says so plainly rather than letting the heading imply othe
   naming its text, and the gap is the observable consequence of Section 11.4's one exception. A run
   of indices with no gap would mean the exposed run had been renumbered out of existence, and a
   directive that silently matched the wrong comment is exactly what the `WARN009` prevents.
+
+### `xml-an-ordinary-overlay-beside-a-content-wrapped-element-warns`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.4 canonical XML addressing and `WARN011`; Section 11.7
+  `PreserveWhitespace`; Section 19.5 XML rendering.
+- Legacy observation: 2.4.0 exits `0`, retains the original content-wrapped `<host>` and appends
+  the ordinary overlay as a sibling `<host>`, then writes the same logical tree with CRLF line
+  endings rather than the expected LF bytes. Its log does not identify the missed override.
+- Clean behavior: the sibling-producing model is unchanged, but `WARN011` names
+  `server.#1.host`, explains that `server.host` did not override it, and offers the exact path or
+  conditional formatting-whitespace normalization as remedies.
+- The difference is intentional: the run must expose this plausible data-loss trap without
+  silently changing either contribution.
 
 ### `xml-canonical-addresses`
 
@@ -3395,6 +3423,20 @@ implemented, its case says so plainly rather than letting the heading imply othe
   reaching the same child at two addresses (`a.b` and one of `a.#n.b`) would make one node
   reachable at two paths. Whether the baseline's specific bytes come from either reading is not
   observable from two divergent files, so the case pins only that both are wrong.
+
+### `xml-normalization-makes-an-ordinary-element-path-overridable`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 11.4 canonical XML addressing and `WARN011`; Section 11.7
+  `NormalizeFormattingWhitespace`; Section 19.5 XML rendering.
+- Legacy observation: 2.4.0 exits `0` and replaces `<host>` after formatting-whitespace
+  normalization, but writes CRLF line endings rather than the expected LF bytes and provides no
+  stable diagnostic explaining the normalization.
+- Clean behavior: normalization exposes the element at `server.host`, the ordinary overlay
+  replaces it without `WARN011`, `WARN007` reports the discarded formatting nodes, and the writer
+  emits the canonical LF bytes.
+- The difference is intentional: the remedy is explicit and diagnosed while preserving the
+  deterministic output-byte contract.
 
 ### `xml-normalize-formatting-whitespace`
 
@@ -3690,7 +3732,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs 2.4.0 could not process (42)
+## Inputs 2.4.0 could not process (43)
 
 The baseline exited nonzero on every sample of these, so no run of it completed: it refused the
 input, terminated abnormally, or gave up part way through, and each entry below says which. 3.0
@@ -4380,9 +4422,25 @@ either accepts the input or reports a diagnostic and exits deliberately.
   attribute beside the first. The unescaped `r.system.web.compilation.@debug` names four parts,
   none of which exists, so Section 17.1 creates them; nothing in the specification licenses
   guessing that the author meant the dotted element, and no Section 22 diagnostic covers it.
-  Section 11.4's `WARN011` is explicitly confined to an attribute and a namespace-qualified
-  element of the same simple alias, and a dotted name is neither. The remedy is the escape, and
-  it is documented in `docs/format-xml.md` and `docs/usage-methodology.md`.
+  Section 11.4's `WARN011` is confined to a direct attribute, a direct namespace-qualified
+  element, or an element beneath one `#n` content wrapper that shares the ordinary component's
+  simple alias. A missing dot escape changes the number of path components, so none of those
+  shapes applies. The remedy is the escape, and it is documented in `docs/format-xml.md` and
+  `docs/usage-methodology.md`.
+
+### `xml-an-exact-content-path-overrides-without-warning`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 11.4 canonical XML addressing; Section 11.7 `PreserveWhitespace`; Section
+  19.5 XML rendering.
+- Legacy observation: 2.4.0 accepts the inputs, then exits nonzero with an unhandled
+  `System.Xml.XmlException` while rendering: `Name cannot begin with the '#' character`. It writes
+  no completed `server.xml`.
+- Clean behavior: `server.#1.host` is the canonical address of the element at content position
+  `#1`; the override replaces that element, preserves the surrounding formatting nodes, emits no
+  `WARN011`, and writes `server.xml`.
+- The difference is intentional: content-token paths must be usable as model addresses rather than
+  leaking into the XML writer as literal element names.
 
 ### `xml-an-unmarked-alias-warns-only-when-it-follows-an-xml-component`
 

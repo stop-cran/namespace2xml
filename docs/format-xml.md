@@ -165,8 +165,10 @@ Verified, and pinned by the `xml-an-element-name-with-a-dot-needs-an-escape` con
 
 No diagnostic reports this, and none is specified. Creating an absent path is ordinary overlay
 behaviour, and nothing distinguishes a mis-escaped address from an intended new element.
-`WARN011` does not reach it either: §11.4 confines that warning to an attribute and a
-namespace-qualified element sharing one simple alias, and a dotted name is neither.
+`WARN011` does not reach it either: §11.4 confines that warning to a direct attribute, a direct
+namespace-qualified element, or an element beneath one `#n` content wrapper that shares the
+ordinary component's simple alias. A missing dot escape changes the number of path components,
+so none of those shapes applies.
 
 One partial signal exists, and the obvious fix for it hides the problem. Without `root`, the
 phantom raises the view's top-level member count and XML refuses the document:
@@ -268,6 +270,20 @@ a.#2.b=two
 The three content tokens are the text run `text`, the namespaced element `<p:b>` and the plain
 `<b>`. `<p:b>`'s attribute lives beneath `#1` via the mixed-content wrapper; the URI is what
 identifies the namespace, not the source's prefix `p`.
+
+That wrapper matters to assignments. If preserved XML contributes `server.#1.host` and a later
+properties input writes `server.host`, the two paths do not merge: the ordinary component is added
+beside the wrapped element. The input merge emits `WARN011` at `server.host`, names
+`server.#1.host` as the exact override path, and leaves both components unchanged. Write that
+complete `#n` path when preserving layout or meaningful mixed content. If the tokens are only
+formatting whitespace and that whitespace is not data, consistently using
+`xmlinputoptions=NormalizeFormattingWhitespace` instead exposes the ordinary `server.host` path;
+the option emits `WARN007` because it weakens the XML round-trip guarantee.
+
+The warning is deliberately directional. A canonical `#n` contribution says exactly what it
+targets and does not warn, nor does a wrapped element that arrives after an ordinary component.
+Components in one contribution do not warn either. Those rules let one XML document carry its
+native shape without diagnosing itself while still catching the hazardous cross-input override.
 
 ### Repeated same-name element children
 
