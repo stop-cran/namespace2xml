@@ -93,6 +93,33 @@
       - (typed_out | from_json).version is string
     fail_msg: "Explicit type=string did not take effect. Actual: {{ typed_out }}"
 
+# The warning policy belongs to the requested render, not to the filter's private format probe.
+# An unmatched declaration therefore exercises the real tool's WARN009 path and must turn an
+# otherwise usable JSON document into a refusal when the caller opts in.
+- name: Refuse a filter render whose scheme raises a warning
+  ansible.builtin.set_fact:
+    strict_out: >-
+      {{ {'version': '3'} | stop_cran.namespace2xml.render(
+           'json',
+           scheme=[{'text': strict_scheme}],
+           fail_on_warning=true) }}
+  vars:
+    strict_scheme: |
+      cfg.output=json
+      cfg.missing.type=string
+  register: strict_filter
+  ignore_errors: true
+
+- name: The filter surfaces the warning-policy refusal unchanged
+  ansible.builtin.assert:
+    that:
+      - strict_filter is failed
+      - "'WARN009' in strict_filter.msg"
+      - strict_out is not defined
+    fail_msg: >-
+      Expected fail_on_warning to refuse the requested render with WARN009.
+      Result: {{ strict_filter }}
+
 # The addressing gap, asserted as a refusal rather than described in prose. A profile name is a
 # name, so under the default convention there is no way to reach an XML attribute, comment or CDATA
 # node through this filter; Section 11.2 rejects the '@' spelling outright. An author who tries the

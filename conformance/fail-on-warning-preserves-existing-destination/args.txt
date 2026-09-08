@@ -1,0 +1,5 @@
+--fail-on-warning
+-i
+inputs/missing.txt
+-s
+schemes/scheme.txt

@@ -74,6 +74,13 @@ argument_specs:
           - An explicit path to the transformer B(on the controller). Left unset, it is searched
             for as the module would.
         type: path
+      namespace2xml_distribute_fail_on_warning:
+        description:
+          - Refuse distribution when the transformer reports any warning. No rendered file is
+            copied to the managed node.
+          - Includes C(WARN007) from C(xmlinputoptions=NormalizeFormattingWhitespace).
+        type: bool
+        default: false
       namespace2xml_distribute_owner:
         description:
           - Owner of every file and directory this role writes on the node.

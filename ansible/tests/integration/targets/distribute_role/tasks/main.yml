@@ -140,6 +140,52 @@
           {{ namespace2xml_distribute_copied.results | selectattr('changed')
              | map(attribute='item') | list }}
 
+    # A strict refusal happens in the delegated render before the role computes paths or copies
+    # files. WARN009 is deliberate here: the declaration matches no admitted value, so the role's
+    # Boolean must reach the real controller-side invocation for this block to fail.
+    - name: A warning-policy refusal stops the role before copy
+      block:
+        - name: Distribute a configuration with an unmatched declaration
+          ansible.builtin.include_role:
+            name: stop_cran.namespace2xml.distribute
+          vars:
+            namespace2xml_distribute_inputs:
+              - text: |
+                  cfg.a=1
+            namespace2xml_distribute_scheme:
+              - data:
+                  cfg:
+                    output: xml
+                    root: cfg
+                    missing:
+                      type: string
+            namespace2xml_distribute_dest: "{{ scratch.path }}/strict-role"
+            namespace2xml_distribute_fail_on_warning: true
+
+        - name: Fail if the role accepted a warned render
+          ansible.builtin.fail:
+            msg: the role copied output after fail_on_warning should have refused it
+
+      rescue:
+        - name: The delegated render reports the original warning
+          ansible.builtin.assert:
+            that:
+              - "'WARN009' in ansible_failed_result.msg"
+            fail_msg: >-
+              Expected the strict delegated render to fail with WARN009.
+              Result: {{ ansible_failed_result }}
+
+    - name: Look for output from the refused role render
+      ansible.builtin.stat:
+        path: "{{ scratch.path }}/strict-role/cfg.xml"
+      register: strict_role_output
+
+    - name: The role copied no refused output
+      ansible.builtin.assert:
+        that:
+          - not strict_role_output.stat.exists
+        fail_msg: the role copied cfg.xml after the warning-policy refusal
+
     # A role whose required variables were merely read where they are used would fail somewhere
     # inside the module, naming an argument rather than the play's mistake. The argument spec
     # exists so the refusal names the variable the play omitted, before anything runs.

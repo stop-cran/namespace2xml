@@ -1,0 +1,3 @@
+app.output=namespace
+app.filename=guard.properties
+app.namespacedelimiter=:

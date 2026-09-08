@@ -375,9 +375,10 @@ class _Spy:
         self.layered = None
         self.schemes = None
         self.profile = None
+        self.fail_on_warning = None
 
     def __call__(self, layered, schemes, executable, workdir, probe=None,
-                 fmt=None):
+                 fmt=None, fail_on_warning=False):
         self.calls += 1
         self.layered = layered
         # The piped data is written last, because section 7.3 merges in command-line order and
@@ -385,6 +386,7 @@ class _Spy:
         # only cares about the flattening say so.
         self.profile = layered[-1].text
         self.schemes = schemes
+        self.fail_on_warning = fail_on_warning
         return self.text
 
 
@@ -423,6 +425,14 @@ def test_the_memo_distinguishes_formats_and_schemes(spy):
     filt.render({"k": "v"}, "yaml")
     filt.render({"k": "v"}, "yaml", root="doc")
     assert spy.calls == 3
+
+
+def test_the_memo_distinguishes_the_warning_policy(spy):
+    filt.render({"k": "v"}, "json")
+    filt.render({"k": "v"}, "json", fail_on_warning=True)
+
+    assert spy.calls == 2
+    assert spy.fail_on_warning is True
 
 
 def test_the_convention_reaches_render_and_changes_what_the_tool_is_given(spy):

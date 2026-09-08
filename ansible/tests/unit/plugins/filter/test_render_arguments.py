@@ -233,6 +233,14 @@ def test_a_directive_name_is_matched_case_insensitively_in_a_mapping_too():
         filt._refuse_swallowed_arguments([{"cfg": {"OUTPUT": "json"}}], "xml", None, None)
 
 
+def test_fail_on_warning_is_added_only_when_enabled():
+    ordinary = filt._argv(["input"], ["scheme"], "out")
+    strict = filt._argv(["input"], ["scheme"], "out", fail_on_warning=True)
+
+    assert "--fail-on-warning" not in ordinary
+    assert strict[-3:] == ["--fail-on-warning", "-o", "out"]
+
+
 # --- Identity: the cache key must move when the binary does -------------------------------------
 
 class _Version:
@@ -735,7 +743,8 @@ def _schemes_given(monkeypatch):
     monkeypatch.setattr(filt, "_RENDER_CACHE", {})
     monkeypatch.setattr(
         filt, "_marshal_and_run",
-        lambda layered, schemes, executable, workdir, probe=None, fmt=None:
+        lambda layered, schemes, executable, workdir, probe=None, fmt=None,
+        fail_on_warning=False:
         seen.extend(schemes) or "<x/>")
 
     return seen

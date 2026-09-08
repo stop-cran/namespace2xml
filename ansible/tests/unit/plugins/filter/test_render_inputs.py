@@ -46,7 +46,7 @@ class _Spy:
         self.layered = None
 
     def __call__(self, layered, schemes, executable, workdir, probe=None,
-                 fmt=None):
+                 fmt=None, fail_on_warning=False):
         self.calls += 1
         self.layered = layered
         self.schemes = schemes

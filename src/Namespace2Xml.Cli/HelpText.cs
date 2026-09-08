@@ -118,6 +118,8 @@ internal static class HelpText
               --diagnostics-format <f> text|json. Default: text. 'json' writes the whole
                                        diagnostic stream to standard error as one canonical
                                        JSON array and suppresses operational messages.
+              --fail-on-warning        Exit 1 and publish nothing if any warning is emitted.
+                                       Diagnostic verbosity does not alter this policy.
               --help                   Print this help and exit successfully.
               --version                Print version information and exit successfully.
 
@@ -214,11 +216,13 @@ internal static class HelpText
           section 11.7 says discarding that text weakens the same-format round-trip
           guarantee. If whitespace is data, keep PreserveWhitespace and use the
           preservation-aware discovery recipe above. See docs/format-xml.md and
-          docs/usage-methodology.md.
+          docs/usage-methodology.md. Because WARN007 is a warning, --fail-on-warning
+          refuses publication when normalization is enabled.
 
         EXIT CODES
-          0  Success, including success with warnings.
-          1  Invalid CLI, input, scheme, reference, rendering, path or publication failure.
+          0  Success, including success with warnings unless --fail-on-warning is set.
+          1  Invalid CLI, input, scheme, reference, rendering, path or publication failure;
+             also a completed render that emitted any warning under --fail-on-warning.
           70 Preview only: this build has not implemented the requested work. Nothing was
              written and nothing about your input was judged. Not a failure of your
              configuration. Released builds return only 0 or 1.
@@ -228,7 +232,10 @@ internal static class HelpText
           source of truth for every behaviour, and every diagnostic carries a stable code
           plus the specification anchor it enforces, so a disagreement can be reported
           precisely rather than described. Run with --diagnostics-format json for
-          machine-readable diagnostics.
+          machine-readable diagnostics. For automation that must reject every warning, add
+          --fail-on-warning: the run still completes serialization and reports the original
+          diagnostic stream, but exits 1 without publishing any file. Lowering verbosity
+          cannot bypass the policy.
 
           Every link below is pinned to this release, so it describes this binary rather
           than a later branch. The document index lists these and the rest, including one

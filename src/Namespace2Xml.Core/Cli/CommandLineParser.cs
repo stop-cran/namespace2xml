@@ -16,9 +16,10 @@ namespace Namespace2Xml.Cli;
 /// machine-readable stream.
 /// </para>
 /// <para>
-/// The grammar is uniform: every long option accepts <c>--name=value</c>, and the parser resolves
-/// the inline form once, before dispatching on the option name, so no option can implement it
-/// differently from the rest.
+/// Value-bearing long options accept <c>--name=value</c>, and the parser resolves the inline form
+/// once, before dispatching on the option name. Valueless operational flags reject every inline
+/// value, including the empty one, while Section 6.1 informational options are recognized by
+/// presence before argument validation.
 /// </para>
 /// <para>
 /// Values are validated where they are accepted rather than after the whole vector has been read,
@@ -30,8 +31,11 @@ public static class CommandLineParser
 {
     private enum Arity
     {
-        /// <summary>Takes no value at all.</summary>
-        None,
+        /// <summary>Informational presence flag whose inline spelling is ignored before validation.</summary>
+        Informational,
+
+        /// <summary>Valueless operational flag whose inline spelling is invalid.</summary>
+        Flag,
 
         /// <summary>Accepts values until the next option token, concatenating across occurrences.</summary>
         List,
@@ -53,6 +57,7 @@ public static class CommandLineParser
         // Section 6.4.1 states this option's validation itself, so its faults anchor there rather
         // than at the general grammar.
         new("--diagnostics-format", null, Arity.Single, "§6.4.1"),
+        new("--fail-on-warning", null, Arity.Flag),
         new("--max-input-bytes", null, Arity.Single),
         new("--max-total-input-bytes", null, Arity.Single),
         new("--max-depth", null, Arity.Single),
@@ -67,8 +72,8 @@ public static class CommandLineParser
         new("--max-reference-depth", null, Arity.Single),
         new("--max-outputs", null, Arity.Single),
         new("--max-total-output-bytes", null, Arity.Single),
-        new("--help", null, Arity.None),
-        new("--version", null, Arity.None),
+        new("--help", null, Arity.Informational),
+        new("--version", null, Arity.Informational),
     ];
 
     /// <summary>
@@ -139,11 +144,22 @@ public static class CommandLineParser
                             + $"write '{alias} <value>'.");
                 }
 
-                if (spec.Arity == Arity.None)
+                if (spec.Arity is Arity.Informational or Arity.Flag)
                 {
-                    // Section 6.1 resolves --help and --version from presence alone, before any
-                    // argument is validated, so an inline value here is ignored rather than
-                    // diagnosed. Reaching this branch means the caller bypassed that check.
+                    if (spec.Arity == Arity.Flag)
+                    {
+                        if (inline is not null)
+                        {
+                            return Failure(spec.Anchor,
+                                $"'{spec.Name}' takes no value; write the option without '=...'.");
+                        }
+
+                        state.AcceptFlag(spec);
+                    }
+
+                    // Section 6.1 resolves informational options from presence alone, before any
+                    // argument is validated, so their inline values are ignored if parsing is
+                    // reached. Operational flags instead reject inline values above.
                     current = null;
                     currentSatisfied = true;
                     continue;
@@ -235,6 +251,18 @@ public static class CommandLineParser
         private Verbosity verbosity = Verbosity.Information;
         private DiagnosticFormat diagnosticsFormat = DiagnosticFormat.Text;
         private ResourceLimits limits = ResourceLimits.Defaults;
+        private bool failOnWarning;
+
+        /// <summary>Accepts one valueless operational flag.</summary>
+        public void AcceptFlag(OptionSpec spec)
+        {
+            if (spec.Name != "--fail-on-warning")
+            {
+                throw new InvalidOperationException($"'{spec.Name}' is not an operational flag.");
+            }
+
+            failOnWarning = true;
+        }
 
         /// <summary>Accepts one value, returning the fault message when it is not well formed.</summary>
         public string? Accept(OptionSpec spec, string value)
@@ -304,7 +332,8 @@ public static class CommandLineParser
             outputRoot,
             verbosity,
             diagnosticsFormat,
-            limits);
+            limits,
+            failOnWarning);
 
         private string? AcceptVerbosity(string value)
         {

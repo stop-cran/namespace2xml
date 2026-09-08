@@ -427,6 +427,10 @@ If a program consumes this tool's output, have it consume the *contract*:
 - the stable diagnostic `code` for control flow, never the message text, which is prose and may be
   reworded;
 - the `spec` anchor on each diagnostic when you need to know *why*;
+- `--fail-on-warning` when publishing a plausible output after any warning is unacceptable. The
+  tool finishes serialization and reports the unchanged, complete diagnostic stream, then exits
+  `1` without publishing any file. This policy is independent of diagnostic verbosity and includes
+  `WARN007` when `NormalizeFormattingWhitespace` was requested;
 - the `contract-bundle` revision from `--version` recorded in your logs, so a future failure can be
   attributed to a contract change rather than guessed at.
 

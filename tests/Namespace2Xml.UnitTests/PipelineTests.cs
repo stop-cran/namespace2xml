@@ -133,6 +133,7 @@ public sealed class DiagnosticBufferTests
         buffer.Drain().ShouldBeEmpty();
         buffer.Count.ShouldBe(0);
         buffer.HasBlockingError.ShouldBeFalse();
+        buffer.HasWarning.ShouldBeFalse();
     }
 
     [Test]
@@ -411,6 +412,7 @@ public sealed class DiagnosticBufferTests
         buffer.Add(Entry("WARN001", DiagnosticPhase.Cli, key: "a", severity: DiagnosticSeverity.Warning));
 
         buffer.HasBlockingError.ShouldBeFalse();
+        buffer.HasWarning.ShouldBeTrue();
     }
 
     [Test]
@@ -421,6 +423,16 @@ public sealed class DiagnosticBufferTests
         buffer.Add(Entry("PARSE001", DiagnosticPhase.Input, key: "b"));
 
         buffer.HasBlockingError.ShouldBeTrue();
+        buffer.HasWarning.ShouldBeTrue();
+    }
+
+    [Test]
+    public void AnErrorDoesNotPretendToBeAWarning()
+    {
+        var buffer = new DiagnosticBuffer();
+        buffer.Add(Entry("PARSE001", DiagnosticPhase.Input, key: "a"));
+
+        buffer.HasWarning.ShouldBeFalse();
     }
 
     [Test]
@@ -456,6 +468,18 @@ public sealed class DiagnosticBufferTests
         target.Merge(source);
 
         target.HasBlockingError.ShouldBeTrue();
+    }
+
+    [Test]
+    public void MergingCarriesTheWarningFlag()
+    {
+        var source = new DiagnosticBuffer();
+        source.Add(Entry("WARN001", DiagnosticPhase.Input, key: "a", severity: DiagnosticSeverity.Warning));
+
+        var target = new DiagnosticBuffer();
+        target.Merge(source);
+
+        target.HasWarning.ShouldBeTrue();
     }
 
     [Test]

@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r101+4ed0833a324b`.**
+**Contract bundle `r105+446ce9c38c5a`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -3732,7 +3732,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs 2.4.0 could not process (43)
+## Inputs 2.4.0 could not process (52)
 
 The baseline exited nonzero on every sample of these, so no run of it completed: it refused the
 input, terminated abnormally, or gave up part way through, and each entry below says which. 3.0
@@ -4017,6 +4017,26 @@ either accepts the input or reports a diagnostic and exits deliberately.
   The crash is not incidental to the divergence — it is evidence that the two readings of `a:b`
   are both live in the baseline, which is precisely why 3.0 refuses to write the name at all.
 
+### `cli-fail-on-warning-after-double-dash-is-data`
+
+- namespace2xml 2.4.0: **fails**. Its command-line grammar does not implement the 3.0 `--` contract.
+- Contract: Section 6.2; Section 26 items 86 and 92.
+- Clean behavior: after `--`, the token is an input path rather than an enabled policy. Its missing
+  path warns, ordinary warning behavior remains exit 0, and the valid source is still published.
+
+### `cli-fail-on-warning-valued-form`
+
+- namespace2xml 2.4.0: **fails**. It does not recognize the 3.0 warning-publication option.
+- Contract: Section 6.2; Section 26 item 92.
+- Clean behavior: a valued spelling of the valueless option is `CLI001`.
+
+### `cli-fail-on-warning-version-precedence`
+
+- namespace2xml 2.4.0: **fails**. Its `--version` mode exits 1 and writes to standard error.
+- Contract: Sections 6.1 and 6.2; Section 26 item 92.
+- Clean behavior: informational pre-scan wins before validation, so the otherwise invalid valued
+  form is ignored and version information is written to standard output with exit 0.
+
 ### `cli-help-outranks-version`
 
 - namespace2xml 2.4.0: **fails**. Given `--version --help` it writes the single line
@@ -4089,6 +4109,49 @@ either accepts the input or reports a diagnostic and exits deliberately.
   `contract-bundle` revision and the specification and registry digests it covers.
 - The difference is intentional: a defect report must be able to name the exact contract the
   observed behavior was measured against, which the legacy banner cannot express.
+
+### `fail-on-warning-after-serialization`
+
+- namespace2xml 2.4.0: **fails**. It does not recognize the 3.0 warning-publication policy.
+- Contract: Sections 19.1 and 21.2; Section 26 item 92.
+- Clean behavior: serialization still discovers `WARN013`, then the policy refuses publication and
+  leaves the existing destination byte-identical.
+
+### `fail-on-warning-clean-repeated`
+
+- namespace2xml 2.4.0: **fails**. It does not recognize the 3.0 warning-publication policy.
+- Contract: Sections 6.2 and 21.2; Section 26 item 92.
+- Clean behavior: repeating the valueless option is idempotent, and a warning-free run publishes
+  the same bytes and exits 0.
+
+### `fail-on-warning-hidden-json-diagnostic`
+
+- namespace2xml 2.4.0: **fails**. It does not recognize the 3.0 warning-publication policy.
+- Contract: Sections 6.2, 6.4.3, and 21.2; Section 26 item 92.
+- Clean behavior: JSON framing emits an empty array at verbosity `none`, but the hidden warnings
+  still refuse publication and produce exit code 1.
+
+### `fail-on-warning-normalized-xml`
+
+- namespace2xml 2.4.0: **fails**. It does not recognize the 3.0 XML normalization or warning
+  publication policies.
+- Contract: Sections 11.7 and 21.2; Section 26 item 92.
+- Clean behavior: normalization still emits `WARN007`; the opt-in warning policy therefore refuses
+  publication and preserves the existing XML destination.
+
+### `fail-on-warning-preserves-existing-destination`
+
+- namespace2xml 2.4.0: **fails**. It does not recognize the 3.0 warning-publication policy.
+- Contract: Sections 7.2, 14.1, and 21.2; Section 26 item 92.
+- Clean behavior: both warnings survive, exit code is 1, and the existing destination remains
+  byte-identical because no publication operation occurs.
+
+### `fail-on-warning-retains-later-warnings`
+
+- namespace2xml 2.4.0: **fails**. It does not recognize the 3.0 warning-publication policy.
+- Contract: Sections 15.3, 15.4, and 21.2; Section 26 item 92.
+- Clean behavior: an early scheme warning does not stop input and planning checks, all three
+  warnings remain ordered by phase, and publication is refused only after serialization.
 
 ### `input-extensions-match-case-insensitively`
 

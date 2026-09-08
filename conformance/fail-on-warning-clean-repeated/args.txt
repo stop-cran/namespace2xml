@@ -1,0 +1,6 @@
+--fail-on-warning
+--fail-on-warning
+-i
+inputs/data.txt
+-s
+schemes/scheme.txt

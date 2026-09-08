@@ -30,6 +30,7 @@
         variables: "{{ namespace2xml_distribute_variables or omit }}"
         dest: "{{ namespace2xml_distribute_staging.path }}"
         tool: "{{ namespace2xml_distribute_tool or omit }}"
+        fail_on_warning: "{{ namespace2xml_distribute_fail_on_warning }}"
       register: namespace2xml_distribute_render
       delegate_to: localhost
       become: false

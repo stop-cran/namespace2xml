@@ -56,8 +56,9 @@ explicitly where the specification does not settle a question.
 ## Machine interface
 
 - Run with `--diagnostics-format json` for the whole diagnostic stream on standard error as one canonical JSON array. Operational messages are suppressed in that mode.
+- Add `--fail-on-warning` when automation must reject every warning. Any warning makes the completed render exit `1` and publish nothing; verbosity does not alter the policy, and `WARN007` triggers it.
 - Run `--version` for `<field>: <value>` lines including `contract-bundle`.
-- Exit code `0` means success, including success with warnings. Exit code `1` means failure.
+- Exit code `0` means success, including success with warnings by default. Exit code `1` means failure or a `--fail-on-warning` publication refusal.
 
 ## Reporting
 

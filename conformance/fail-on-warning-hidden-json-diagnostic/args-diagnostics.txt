@@ -1,0 +1,9 @@
+--diagnostics-format
+json
+--verbosity
+none
+--fail-on-warning
+-i
+inputs/missing.txt
+-s
+schemes/scheme.txt

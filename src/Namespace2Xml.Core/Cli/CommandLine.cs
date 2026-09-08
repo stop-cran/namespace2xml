@@ -16,6 +16,9 @@ namespace Namespace2Xml.Cli;
 /// <param name="Verbosity">Output threshold.</param>
 /// <param name="DiagnosticsFormat">Encoding of the diagnostic stream.</param>
 /// <param name="Limits">Resource bounds.</param>
+/// <param name="FailOnWarning">
+/// Whether a warning after serialization refuses every publication and makes the invocation fail.
+/// </param>
 public sealed record CommandLine(
     ImmutableArray<string> Inputs,
     ImmutableArray<string> Schemes,
@@ -23,4 +26,5 @@ public sealed record CommandLine(
     string OutputRoot,
     Verbosity Verbosity,
     DiagnosticFormat DiagnosticsFormat,
-    ResourceLimits Limits);
+    ResourceLimits Limits,
+    bool FailOnWarning = false);

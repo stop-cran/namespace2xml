@@ -13,11 +13,15 @@ namespace Namespace2Xml.Pipeline;
 /// <param name="State">Where the run stopped.</param>
 /// <param name="Unsupported">The capability that stopped it, when one did.</param>
 /// <param name="Published">How many destinations were written.</param>
+/// <param name="WarningPolicyTriggered">
+/// Whether the enabled Section 21.2 warning policy refused publication.
+/// </param>
 public sealed record TransformationResult(
     ImmutableArray<Diagnostic> Diagnostics,
     PipelineRunState State,
     UnsupportedCapability? Unsupported,
-    int Published)
+    int Published,
+    bool WarningPolicyTriggered = false)
 {
     /// <summary>
     /// The Section 6.3 exit code, or <see langword="null"/> when the run declined and so decided no
@@ -25,12 +29,12 @@ public sealed record TransformationResult(
     /// </summary>
     /// <remarks>
     /// Section 6.3 gives <c>0</c> to a run that completed with no blocking diagnostic and <c>1</c>
-    /// to one that produced any. A warning does not change the code, so the test is on severity and
-    /// not on count.
+    /// to one that produced any. Warnings remain non-blocking, but the opt-in Section 21.2 policy
+    /// can independently make the completed invocation fail.
     /// </remarks>
     public int? ExitCode => State == PipelineRunState.Unsupported
         ? null
-        : Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error) ? 1 : 0;
+        : WarningPolicyTriggered || Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error) ? 1 : 0;
 }
 
 /// <summary>
@@ -242,16 +246,22 @@ public static class Transformation
             (contributions, diagnostics) =>
                 PublicationPhase.Serialize(contributions, budget, diagnostics));
 
+        var warningPolicyTriggered =
+            serialized is not null && command.FailOnWarning && run.Diagnostics.HasWarning;
+
         var published = run.Run(
             PipelineStep.Publish,
             serialized,
             (outputs, diagnostics) =>
-                PublicationPhase.Publish(outputs, command.OutputRoot, diagnostics, sink, log));
+                warningPolicyTriggered
+                    ? StepOutcome.Produced(0)
+                    : PublicationPhase.Publish(outputs, command.OutputRoot, diagnostics, sink, log));
 
         return new TransformationResult(
             run.Diagnostics.Drain(),
             run.State,
             run.Unsupported,
-            published?.Value ?? 0);
+            published?.Value ?? 0,
+            warningPolicyTriggered);
     }
 }

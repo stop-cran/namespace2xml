@@ -1030,12 +1030,121 @@ public sealed class TransformationTests
     }
 
     [Test]
+    public void FailOnWarningRefusesEverySinkCallAndPreservesDiagnostics()
+    {
+        var sink = new Sink();
+        sink.Written["guard.properties"] = "sentinel=unchanged\n";
+        var result = Run(
+            sink,
+            new Sources(("scheme.txt", "app.output=namespace\napp.filename=guard.properties\n")),
+            "--fail-on-warning", "-i", "missing.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldBe(["WARN001", "WARN009"]);
+        result.WarningPolicyTriggered.ShouldBeTrue();
+        result.ExitCode.ShouldBe(1);
+        result.Published.ShouldBe(0);
+        result.State.ShouldBe(PipelineRunState.Finished);
+        sink.Directories.ShouldBeEmpty();
+        sink.Written["guard.properties"].ShouldBe("sentinel=unchanged\n");
+    }
+
+    [Test]
+    public void FailOnWarningWaitsForSerializationWarnings()
+    {
+        var sink = new Sink();
+        sink.Written["guard.properties"] = "sentinel=unchanged\n";
+        var result = Run(
+            sink,
+            new Sources(
+                ("in.txt", "cfg.trail=tail  \n"),
+                ("scheme.txt",
+                    "output=namespace\nfilename=guard.properties\n"
+                    + "namespaceoutputoptions=AllowTrailingWhitespace\n")),
+            "--fail-on-warning", "-i", "in.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldBe(["WARN013"]);
+        result.WarningPolicyTriggered.ShouldBeTrue();
+        result.ExitCode.ShouldBe(1);
+        result.Published.ShouldBe(0);
+        sink.Directories.ShouldBeEmpty();
+        sink.Written["guard.properties"].ShouldBe("sentinel=unchanged\n");
+    }
+
+    [Test]
+    public void FailOnWarningRetainsIndependentlyReachableLaterWarnings()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("scheme.txt",
+                    "app.output=namespace\napp.filename=guard.properties\n"
+                    + "app.namespacedelimiter=:\n")),
+            "--fail-on-warning", "-i", "missing.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldBe(["WARN002", "WARN001", "WARN009"]);
+        result.WarningPolicyTriggered.ShouldBeTrue();
+        result.State.ShouldBe(PipelineRunState.Finished);
+        sink.Written.ShouldBeEmpty();
+    }
+
+    [Test]
+    public void FailOnWarningPublishesWarningFreeBytesUnchanged()
+    {
+        var ordinary = new Sink();
+        var strict = new Sink();
+        var sources = new Sources(
+            ("in.txt", "app.name=example\n"),
+            ("scheme.txt", "app.output=namespace\n"));
+
+        var ordinaryResult = Run(ordinary, sources, "-i", "in.txt", "-s", "scheme.txt");
+        var strictResult = Run(
+            strict,
+            sources,
+            "--fail-on-warning", "-i", "in.txt", "-s", "scheme.txt");
+
+        ordinaryResult.ExitCode.ShouldBe(0);
+        strictResult.ExitCode.ShouldBe(0);
+        strictResult.WarningPolicyTriggered.ShouldBeFalse();
+        strictResult.Published.ShouldBe(ordinaryResult.Published);
+        strict.Written.ShouldBe(ordinary.Written);
+    }
+
+    [Test]
+    public void VerbosityCannotBypassFailOnWarning()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(("scheme.txt", "app.output=namespace\n")),
+            "--fail-on-warning", "--verbosity", "none",
+            "-i", "missing.txt", "-s", "scheme.txt");
+
+        Codes(result).ShouldBe(["WARN001", "WARN009"]);
+        result.WarningPolicyTriggered.ShouldBeTrue();
+        result.ExitCode.ShouldBe(1);
+        sink.Written.ShouldBeEmpty();
+    }
+
+    [Test]
+    public void WarningPolicyIsNotInferredFromZeroPublishedFiles()
+    {
+        var (result, sink) = Transform("app.name=example\n", "app.output=ignore\n");
+
+        result.Published.ShouldBe(0);
+        result.WarningPolicyTriggered.ShouldBeFalse();
+        result.ExitCode.ShouldBe(0);
+        sink.Written.ShouldBeEmpty();
+    }
+
+    [Test]
     public void IgnoreSuppressesTheDestinationEntirely()
     {
         var (result, sink) = Transform("app.name=example\n", "app.output=ignore\n");
 
         result.ExitCode.ShouldBe(0);
         result.Published.ShouldBe(0);
+        result.WarningPolicyTriggered.ShouldBeFalse();
         sink.Written.ShouldBeEmpty();
     }
     [Test]

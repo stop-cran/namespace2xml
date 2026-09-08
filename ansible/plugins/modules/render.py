@@ -247,6 +247,15 @@ options:
         signal for a pre-3.0 build, which accepts these very arguments and would render
         silently under the older contract instead of failing.
     type: path
+  fail_on_warning:
+    description:
+      - Refuse the task when the tool reports any warning. The tool still completes
+        serialization, then exits C(1) without publishing into the module's scratch directory;
+        I(dest) therefore remains untouched in normal and check mode.
+      - This is independent of diagnostic verbosity and includes C(WARN007) from
+        C(xmlinputoptions=NormalizeFormattingWhitespace).
+    type: bool
+    default: false
 extends_documentation_fragment:
   - ansible.builtin.files
 attributes:
@@ -508,6 +517,7 @@ def main():
             variables=dict(type="dict"),
             dest=dict(type="path", required=True),
             tool=dict(type="path"),
+            fail_on_warning=dict(type="bool", default=False),
         ),
         add_file_common_args=True,
         supports_check_mode=True,
@@ -537,6 +547,7 @@ def main():
             check_mode=module.check_mode,
             diff_mode=module._diff,
             unsafe_writes=module.params["unsafe_writes"],
+            fail_on_warning=module.params["fail_on_warning"],
         )
     except Namespace2XmlError as error:
         module.fail_json(msg=str(error))

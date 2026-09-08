@@ -1,0 +1,3 @@
+output=namespace
+filename=guard.properties
+namespaceoutputoptions=AllowTrailingWhitespace

@@ -404,6 +404,7 @@ Presence is decided by scanning the raw token vector for the option token, in ei
 | `-v`, `--variables` | no | Ordered namespace entries applied after all input files. |
 | `--verbosity` | no | `trace`, `debug`, `information`, `warning`, `error`, `critical`, or `none`, case-insensitively. Default: `information`. |
 | `--diagnostics-format` | no | `text` or `json`, case-insensitively. Selects the encoding of the diagnostic stream on standard error. Default: `text`. See Section 6.4. |
+| `--fail-on-warning` | no | Valueless opt-in policy. After all semantic work and serialization, any warning refuses every publication, reports `Published = 0`, and makes the invocation exit `1`. Default: disabled. See Sections 15.1 and 21.2. |
 | `--max-input-bytes` | no | Maximum bytes per input file. Default: 256 MiB. |
 | `--max-total-input-bytes` | no | Maximum total input bytes. Default: 1 GiB. |
 | `--max-depth` | no | Maximum document or qualified-path depth. Default: 512. |
@@ -426,9 +427,10 @@ Repeated `-i`/`--input`, `-s`/`--scheme`, and `-v`/`--variables` occurrences con
 Option tokens are recognized by one uniform grammar, which applies to every option in the table above:
 
 - while option recognition is active, a token beginning with `-`, other than the two tokens `-` and `--`, is an option token; an option token naming an option not in the table above is `CLI001`;
-- a long option may carry its value inline as `--name=value`. The first `=` separates the name from the value, and the remainder is the value verbatim, including an empty remainder and any further `=`. `--name=value` supplies `value` exactly as though it were the token immediately following `--name`, except that an inline value is always a value and is never the `--` end-of-options marker;
+- a value-bearing long option may carry its value inline as `--name=value`. The first `=` separates the name from the value, and the remainder is the value verbatim, including an empty remainder and any further `=`. `--name=value` supplies `value` exactly as though it were the token immediately following `--name`, except that an inline value is always a value and is never the `--` end-of-options marker;
 - short options have no inline form, so the whole of a short-option token is its name. `-i=a` therefore names an option that does not exist and is `CLI001`, rather than silently supplying the value `a` or the value `=a`;
 - `--help` and `--version` take no value. Section 6.1 decides the informational mode from the presence of the option token in either form, before any argument is validated, so an inline value on either is ignored rather than diagnosed;
+- `--fail-on-warning` takes no value. Repeating it is idempotent. Any inline value, including the empty value in `--fail-on-warning=`, is `CLI001`; a following token is not consumed as its value and is parsed normally, so an otherwise unattached detached value is also `CLI001`;
 - any other token is a value of the option currently accepting values. The token `-` is an ordinary value in this version. A value appearing when no option is accepting values is `CLI001`, as is an option token that reaches the end of the argument vector still requiring a value;
 - a list-valued option accepts values until the next option token; every other option accepts exactly one value, and a later occurrence overrides an earlier one.
 
@@ -452,7 +454,7 @@ Verbosity is an output threshold ordered from most to least verbose:
 6. `critical`: critical host/runtime failures only;
 7. `none`: no diagnostic or operational log output.
 
-Normative warning and error conditions still occur and affect processing exactly as specified when hidden by the selected threshold. Verbosity never changes exit codes, output files, resource accounting, or the underlying deterministic diagnostic order. Under `--diagnostics-format json`, `none` still emits the empty array container as specified in Section 6.4.3.
+Normative warning and error conditions still occur and affect processing exactly as specified when hidden by the selected threshold. Verbosity never changes exit codes, output files, resource accounting, or the underlying deterministic diagnostic order. Under `--diagnostics-format json`, `none` still emits the empty array container as specified in Section 6.4.3. In particular, verbosity does not weaken `--fail-on-warning`: `--fail-on-warning --verbosity none --diagnostics-format json` may emit exactly `[]` followed by LF, publish nothing, and exit `1` because the unfiltered diagnostic stream still contains a warning.
 
 `--help` and `--version` write their requested informational text to standard output. All diagnostics and operational trace/debug/information messages write to standard error. Generated configuration content is written only to planned destination files.
 
@@ -461,11 +463,15 @@ Normative warning and error conditions still occur and affect processing exactly
 | Code | Meaning |
 |---:|---|
 | `0` | Success, including success with warnings. |
-| `1` | Invalid CLI, invalid input, invalid scheme, reference failure, rendering failure, path violation, or publication failure. |
+| `1` | Invalid CLI, invalid input, invalid scheme, reference failure, rendering failure, path violation, publication failure, or enabled warning-policy failure. |
 
 No user-caused error may escape only as an unhandled exception.
 
 Cancellation or host termination may use a platform-conventional distinct exit code.
+
+By default warnings still produce exit code `0`. When `--fail-on-warning` is present and the
+Section 21.2 warning-policy gate observes at least one warning, the invocation exits `1` even though
+those diagnostics retain warning severity.
 
 ### 6.4 Diagnostic stream encoding
 
@@ -1712,6 +1718,11 @@ The normative processing pipeline is:
 19. Serialize all planned destinations into immutable in-memory byte buffers.
 20. Publish destinations directly in deterministic order.
 
+When `--fail-on-warning` is enabled, a warning-policy gate runs after step 19 has completed and
+immediately before step 20 can make any publication or sink call. If the complete diagnostic stream
+through step 19 contains a warning, step 20 publishes nothing and the result records
+`Published = 0`; Section 21.2 defines the remaining invariants.
+
 Unless explicitly stated otherwise, scheme paths address the stable pre-transformation paths produced at step 11. `substitute` and literal input `merge` are the explicit earlier-phase exceptions. A transformation does not cause scheme matching to restart against newly created paths.
 
 Within step 16 that addressing holds across the passes: every pass applies its directives at the step-11 addresses, not at the addresses an earlier pass in the same step has left behind. A pass that reshapes a node re-addresses the surviving descendants of that node — `type=array` discards mapping keys in favor of ordering values, `type=mapping` names sequence items by their ordering values, and `key` places each mapping child in a record — and a directive bound beneath such a node is re-addressed together with the value it bound to, exactly as Section 17.5 re-addresses the per-path high-water map. The re-addressing reaches every later reader of a step-16 directive, including the explicit scalar and XML node kinds of Section 16.6, which select a rendering at serialization rather than reshaping the view.
@@ -1774,6 +1785,11 @@ Blocking diagnostics are collected within the pipeline phase in which they are d
 A source that fails parsing, decoding, or a per-source limit contributes no partial overlay. Other independent sources in the same phase may still be parsed so their source-scoped diagnostics can be collected. A failed scheme contributes no partial directives. Transformation and planning errors never produce a partial output instance for a later phase.
 
 Publication is the exception because external side effects have begun: `PATH002` stops publication immediately as specified in Section 21.3.
+
+Warnings are never blocking at their phase boundary. `--fail-on-warning` does not change that rule,
+close a phase early, or promote a warning to an error. The invocation continues through step 19 so
+independently reachable later warnings and serialization diagnostics are retained; only the
+publication decision and final exit status change at the Section 21.2 gate.
 
 ## 16. Scheme directives
 
@@ -3044,7 +3060,7 @@ The implementation must:
 
 Users requiring unrelated output roots should invoke the tool separately or choose a common parent output root.
 
-### 21.2 Global validation gate
+### 21.2 Global validation and warning-policy gates
 
 Before opening or truncating any destination, the tool must:
 
@@ -3057,6 +3073,31 @@ Any parsing, transformation, reference, scheme, collision, or serialization erro
 Output byte buffers consume `--max-total-output-bytes`. This version does not use temporary output files.
 
 The configured output-byte ceiling is also the upper bound on aggregate live serialized buffer payload, excluding implementation overhead. Implementations may document a lower hard safety ceiling and reject a larger CLI value as `CLI001`; they must not silently stream or spill after the validation gate because that would change the specified failure model.
+
+If `--fail-on-warning` is enabled, the tool then applies a second gate after every output has been
+serialized and before making any step 20 publication or sink call:
+
+1. Inspect the complete, unfiltered buffered diagnostic stream produced through step 19.
+2. If no registered diagnostic has warning severity, publish normally.
+3. If any registered diagnostic has warning severity:
+   - do not create the output root, create a directory, open a destination, or call any publication
+     sink operation;
+   - leave every pre-existing destination byte-identical;
+   - retain exactly the diagnostic stream the same invocation produced through step 19 without the
+     option: codes, severities, phases, anchors, structured fields, cardinality, ordering, and prose
+     are unchanged;
+   - do not add a synthetic policy diagnostic and do not promote any warning to error;
+   - report `Published = 0`, record that the warning policy triggered, and exit `1`.
+
+The warning-policy outcome is explicit state; it is not inferred from `Published = 0`. A successful
+zero-destination plan, including one deliberately suppressed with `output=ignore`, can also publish
+zero files. Errors retain their existing semantics. Information and trace messages are operational
+log entries rather than registered warnings and never trigger this gate. Section 6.2 verbosity
+filters only emitted text and cannot bypass the gate.
+
+`NormalizeFormattingWhitespace` intentionally emits `WARN007` by Section 11.7. Therefore an
+invocation that requests that XML normalization and also enables `--fail-on-warning` refuses
+publication unless some earlier error already prevents the invocation from reaching this gate.
 
 ### 21.3 Direct publication
 
@@ -3737,12 +3778,13 @@ An implementation is conforming only when automated black-box tests cover:
 83. Per-occurrence `phase` and `spec` fields for codes that arise in more than one phase.
 84. XML attribute-count limits, absence of any separate entity-expansion budget, and deterministic `LIMIT001` attribution when per-source and global bounds are crossed together.
 85. `--version` contract-bundle reporting and machine-readable field layout, and registry agreement with the Section 22 code-level facts.
-86. The uniform option-token grammar of Section 6.2: the `--name=value` inline form on every long option, the absence of an inline form on short options, a value that is not attached to any option, an option token that ends the argument vector still requiring a value, and `-` as an ordinary value.
+86. The uniform option-token grammar of Section 6.2: the `--name=value` inline form on every value-bearing long option, the absence of an inline form on short options, a value that is not attached to any option, an option token that ends the argument vector still requiring a value, and `-` as an ordinary value.
 87. Marker-carrying JSON and YAML mapping keys: reading an attribute, content, and qualified-element key, the leading-backslash escape and its suppression of marker recognition, `PARSE001` for a key that begins like a marker without completing it, escaping on output, and an XML → JSON → XML round trip that preserves attributes.
 88. INI global-key framing: `WARN012` on a written preamble and its absence when no global key survives, `GlobalSection` hoisting the global keys into a leading section named `global` that a reader requiring a section header accepts, no empty header when the hoisted section would be empty, and the blocking `FLAT001` when a path of two or more parts already projects to that section.
 89. Namespace trailing-whitespace framing: the blocking `NAMESPACE001` for a value that would end its line in a space, `namespaceoutputoptions=AllowTrailingWhitespace` writing that value intact under `WARN013`, leading whitespace passing unreported in both modes, and whitespace outside the Section 24 pair reaching the output literally.
 90. Namespace empty-container sentinels: `{}` and `[]` as whole-value shape contributions, `\{}` and `\[]` as the strings they displace, the near-miss values that stay strings, bidirectional emission including the escape, an empty container coexisting with a later child, and the JSON round trip through namespace that the sentinels make lossless.
 91. Unused input-source accounting: `WARN014` once per admitted source occurrence whose surviving eligible concrete paths are outside every effective output selector and successful reachable reference target, with deterministic source/path attribution; no warning for selected but overwritten data, reachable reference-only support data, deliberate `output=ignore` selection, wholly masked data, ineligible source-only content, or a run with no non-empty non-ignored pre-transformation view.
+92. The opt-in `--fail-on-warning` policy: valueless and repeatable CLI grammar with unchanged informational-mode precedence and default behavior; complete warning retention through serialization; refusal of all publication without changing diagnostic semantics or pre-existing destination bytes; an explicit warning-policy result with `Published = 0` and exit code `1`; and independence from the emitted verbosity threshold.
 
 ## 27. Deferred features
 

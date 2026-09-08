@@ -130,6 +130,11 @@ error as one canonical JSON array conforming to `spec/diagnostic-stream.schema.j
 operational log messages are suppressed entirely, so standard error is pure data. Every diagnostic
 carries a stable `code`, a `phase`, and a `spec` anchor naming the clause it enforces.
 
+For automation that must not accept warnings, add `--fail-on-warning`. The tool still completes
+serialization and emits the unchanged, complete diagnostic stream, but any warning makes it exit
+`1` without invoking publication. Diagnostic verbosity cannot bypass the policy, and `WARN007`
+from `NormalizeFormattingWhitespace` triggers it.
+
 `--version` prints one `<field>: <value>` line per field, including `contract-bundle`. Include that
 revision in every report; a report against an unknown contract revision cannot be acted on.
 

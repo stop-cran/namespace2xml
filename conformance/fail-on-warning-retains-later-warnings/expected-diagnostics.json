@@ -1,0 +1,5 @@
+[
+{"code":"WARN002","severity":"warning","phase":"scheme","source":"schemes/scheme.txt","line":3,"column":1,"declaration":"app.namespacedelimiter","spec":"§15.3"},
+{"code":"WARN001","severity":"warning","phase":"input","source":"inputs/missing.txt","spec":"§7.2"},
+{"code":"WARN009","severity":"warning","phase":"planning","source":"schemes/scheme.txt","line":1,"path":"app","declaration":"app.output","spec":"§14.1"}
+]

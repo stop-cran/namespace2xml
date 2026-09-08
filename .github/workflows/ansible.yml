@@ -241,13 +241,13 @@ jobs:
               exit 1
             done
           }
-          resolves filter memoize selector delimiter workdir scheme_yaml convention
+          resolves filter memoize selector delimiter workdir scheme_yaml convention fail_on_warning
           # Asking for the module's page as well as the filter's, because they are separate files
           # and build_ignore can drop one without touching the other. It does not prove the
           # module's module_utils came along: ansible-doc reads the docstring out of the source
           # instead of importing it, which is why the compatibility job makes the load-and-call
           # claim in a step of its own.
-          resolves module scheme_text scheme_yaml variables dest src
+          resolves module scheme_text scheme_yaml variables dest src fail_on_warning
           echo "the installed collection resolves both stop_cran.namespace2xml.render plugins"
 
   # The unit tests are the specification-side half of a two-sided oracle: they hold hand-authored
@@ -364,7 +364,7 @@ jobs:
           set -euo pipefail
           doc=$(ansible-doc -t filter stop_cran.namespace2xml.render)
           printf '%s\n' "$doc"
-          for expected in memoize selector delimiter workdir scheme_yaml convention; do
+          for expected in memoize selector delimiter workdir scheme_yaml convention fail_on_warning; do
             if ! grep -qF -- "$expected" <<<"$doc"; then
               echo "ansible-doc output does not mention the filter's '$expected' option." >&2
               exit 1
@@ -373,7 +373,7 @@ jobs:
 
           doc=$(ansible-doc -t module stop_cran.namespace2xml.render)
           printf '%s\n' "$doc"
-          for expected in scheme_text scheme_yaml variables dest src; do
+          for expected in scheme_text scheme_yaml variables dest src fail_on_warning; do
             if ! grep -qF -- "$expected" <<<"$doc"; then
               echo "ansible-doc output does not mention the module's '$expected' option." >&2
               exit 1

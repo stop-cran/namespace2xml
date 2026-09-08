@@ -115,6 +115,40 @@
           - "'WARN007' in first.diagnostics"
         fail_msg: "Expected WARN007 in diagnostics. Got: {{ first.diagnostics }}"
 
+    # The same verified WARN007 is also the shortest end-to-end proof that the module forwards
+    # fail_on_warning to the managed-node invocation. The tool refuses before publishing into its
+    # scratch output root, and the module must not turn that refusal into an empty destination.
+    - name: Refuse the same normalized XML render under the warning policy
+      stop_cran.namespace2xml.render:
+        src:
+          - "{{ scratch.path }}/template/logback.xml"
+        scheme_text: |
+          xmlinputoptions=NormalizeFormattingWhitespace
+          configuration.output=xml
+          configuration.filename=logback.xml
+          configuration.root=configuration
+        variables:
+          configuration.root.@level: DEBUG
+        dest: "{{ scratch.path }}/strict"
+        fail_on_warning: true
+      register: strict_module
+      ignore_errors: true
+
+    - name: Look for output from the refused module render
+      ansible.builtin.stat:
+        path: "{{ scratch.path }}/strict/logback.xml"
+      register: strict_module_output
+
+    - name: The module reports WARN007 and publishes nothing
+      ansible.builtin.assert:
+        that:
+          - strict_module is failed
+          - "'WARN007' in strict_module.msg"
+          - not strict_module_output.stat.exists
+        fail_msg: >-
+          Expected fail_on_warning to refuse the module render before publication.
+          Result: {{ strict_module }}
+
     - name: The identity of the binary that ran is reported
       ansible.builtin.assert:
         that:

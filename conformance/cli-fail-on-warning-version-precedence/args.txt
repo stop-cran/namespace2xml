@@ -1,0 +1,2 @@
+--fail-on-warning=true
+--version

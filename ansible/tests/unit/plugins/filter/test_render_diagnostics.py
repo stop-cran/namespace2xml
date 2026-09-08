@@ -245,3 +245,19 @@ def test_a_probe_that_fails_is_a_disagreement_and_its_diagnostic_is_not_relayed(
         _confirm(monkeypatch, tmp_path, run_tool)
 
     assert "TYPE001" not in str(raised.value)
+
+
+def test_warning_policy_applies_to_the_requested_render_but_not_the_format_probe(monkeypatch,
+                                                                                 tmp_path):
+    run_tool, calls = _stand_in_run("cfg.xml", "<cfg/>")
+    monkeypatch.setattr(n2x, "run_tool", run_tool)
+    monkeypatch.setattr(n2x, "support_hint", lambda executable: "")
+
+    result = filt._marshal_and_run(
+        [filt.Entry(path=None, text="cfg.a=1\n", name="input.txt")],
+        [filt.Entry(path=None, text="cfg.output=xml\n", name="scheme.txt")],
+        "stand-in", str(tmp_path), "cfg.output=xml\n", "xml", True)
+
+    assert result == "<cfg/>"
+    assert "--fail-on-warning" in calls[0]
+    assert "--fail-on-warning" not in calls[1]
