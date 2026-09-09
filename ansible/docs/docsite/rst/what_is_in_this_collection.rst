@@ -11,7 +11,7 @@ The public interface is two plugins and one role.
   place, and reports whether anything changed.
 - ``stop_cran.namespace2xml.distribute`` renders on the **controller** and copies the result to
   nodes that cannot host the transformer. It is documented in its own `role README
-  <https://github.com/stop-cran/namespace2xml/blob/master/ansible/roles/distribute/README.md>`_,
+  <https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/ansible/roles/distribute/README.md>`_,
   since roles do not get generated plugin pages.
 
 Both plugins drive the same transformer, `namespace2xml
@@ -22,7 +22,7 @@ module.
 
 Which one to reach for, the arguments each takes, the fidelity limits, and how to report a
 problem are all in the `collection README
-<https://github.com/stop-cran/namespace2xml/blob/master/ansible/README.md>`_. Per-argument
+<https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/ansible/README.md>`_. Per-argument
 reference, including the specification section each argument corresponds to, is on the two
 plugin pages above, or offline:
 
@@ -46,7 +46,7 @@ They are internal helpers — argument marshalling, value escaping, tool resolut
 comparison — shared by the two plugins. **They carry no stability promise**, are not importable
 as a supported interface, and may change in any release. Nothing you write should depend on
 them. Their behaviour is covered by the collection's unit tests, and their source is in the
-`repository <https://github.com/stop-cran/namespace2xml/tree/master/ansible/plugins/module_utils>`_.
+`repository <https://github.com/stop-cran/namespace2xml/tree/ansible-v3.0.2/ansible/plugins/module_utils>`_.
 
 Where the rules come from
 -------------------------
@@ -56,10 +56,10 @@ the plugins' error messages cite it by section number. When a message says "sect
 is a pointer you can follow.
 
 - `Specification summary
-  <https://github.com/stop-cran/namespace2xml/blob/master/ansible/docs/specification-summary.md>`_
+  <https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/ansible/docs/specification-summary.md>`_
   — the short version, aimed at someone using the plugins.
 - `Full specification
-  <https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md>`_ — normative,
+  <https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md>`_ — normative,
   and the thing to quote in a bug report.
 
 Reporting a problem

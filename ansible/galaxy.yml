@@ -62,9 +62,13 @@
 # stays a supported choice. A patch rather than a minor: no argument was added, removed or
 # renamed, no floor was raised, and every play that was not hitting one of these three defects
 # renders and copies exactly what it did before.
+# 3.0.2 changes no plugin behavior. It pins every same-repository documentation link shipped by
+# the collection to this release's `ansible-v*` tag, so an installed, immutable artifact cannot
+# lead a reader to documentation from a later commit. A patch because only documentation and
+# generated collection metadata change.
 namespace: stop_cran
 name: namespace2xml
-version: 3.0.1
+version: 3.0.2
 readme: README.md
 
 authors:
@@ -93,7 +97,7 @@ tags:
 dependencies: {}
 
 repository: https://github.com/stop-cran/namespace2xml
-documentation: https://github.com/stop-cran/namespace2xml/blob/master/ansible/README.md
+documentation: https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/ansible/README.md
 homepage: https://github.com/stop-cran/namespace2xml
 issues: https://github.com/stop-cran/namespace2xml/issues
 

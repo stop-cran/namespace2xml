@@ -5,7 +5,7 @@ controller**, then copy the result to a managed node. The node needs neither .NE
 transformer — only the controller does.
 
 This is the companion to the [`render`
-module](https://github.com/stop-cran/namespace2xml/blob/master/ansible/plugins/modules/render.py),
+module](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/ansible/plugins/modules/render.py),
 which does the opposite: it runs the transformer *on the node*, against files that already live
 there. Both topologies are supported because both are real:
 
@@ -76,9 +76,9 @@ ignored.
 
 Order matters: later entries override earlier ones, so a shared base can be followed by a per-host
 override. See the [module's
-documentation](https://github.com/stop-cran/namespace2xml/blob/master/ansible/plugins/modules/render.py)
+documentation](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/ansible/plugins/modules/render.py)
 for the full description of every entry key, and
-[`docs/specification.md`](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md)
+[`docs/specification.md`](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md)
 for what the transformer does with them.
 
 ## Variables
@@ -198,4 +198,4 @@ else, remove the stale files yourself.
 ## Licence
 
 Apache-2.0. See
-[LICENSE](https://github.com/stop-cran/namespace2xml/blob/master/LICENSE).
+[LICENSE](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/LICENSE).

@@ -123,6 +123,19 @@ Each plugin's argument reference is its own `DOCUMENTATION` block; that is what 
 prints, and it is checked by `ansible-test sanity`. Change the arguments and change that block in
 the same commit.
 
+Every same-repository `blob` or `tree` link shipped under `ansible/` is generated from the
+collection version in `ansible/galaxy.yml`, using the independent `ansible-v<version>` release
+tag. After changing that version or adding a repository link, run:
+
+```
+python tools/sync-ansible-doc-links.py
+python tools/sync-ansible-doc-links.py --check
+```
+
+Do not edit release refs one link at a time or derive them from the .NET tool version. Pull-request
+and tag-release workflows run check mode, and the built-artifact gate checks both `ansible-doc`
+surfaces and `MANIFEST.json`.
+
 ## Machine-readable output
 
 Run the tool with `--diagnostics-format json` to receive the entire diagnostic stream on standard

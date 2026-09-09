@@ -31,6 +31,22 @@ env:
   COLLECTION_TREE: ansible_collections/stop_cran/namespace2xml
 
 jobs:
+  documentation-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Shipped repository links match the collection release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check PyYAML
+          python -m unittest discover -s tools/tests -p 'test_sync_ansible_doc_links.py'
+          python tools/sync-ansible-doc-links.py --check
+
   # ansible-test sanity is what Galaxy and the wider ecosystem judge a collection by, and its most
   # valuable test here is the documentation one: it parses the plugin's DOCUMENTATION, EXAMPLES and
   # RETURN blocks and fails if an option is undocumented, misspelled, or has a type the code does
@@ -177,6 +193,21 @@ jobs:
           set -euo pipefail
           ansible-galaxy collection build ansible --output-path "$RUNNER_TEMP/build" -vv
 
+      - name: The built metadata names this collection release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball=$(find "$RUNNER_TEMP/build" -name '*.tar.gz')
+          release_ref=$(python tools/sync-ansible-doc-links.py --print-ref)
+          actual=$(tar -xOzf "$tarball" MANIFEST.json \
+            | python -c "import json, sys; print(json.load(sys.stdin)['collection_info']['documentation'])")
+          expected="https://github.com/stop-cran/namespace2xml/blob/${release_ref}/ansible/README.md"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::MANIFEST.json documentation is '$actual'; expected '$expected'"
+            exit 1
+          fi
+          echo "MANIFEST.json points to $expected"
+
       - name: Every tracked file reaches the tarball
         shell: bash
         run: |
@@ -240,6 +271,13 @@ jobs:
               echo "::error::ansible-doc printed no '$expected' for the $kind stop_cran.namespace2xml.render installed from the tarball"
               exit 1
             done
+
+            json_page=$(mktemp)
+            ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/installed" \
+              ansible-doc --json -t "$kind" stop_cran.namespace2xml.render > "$json_page"
+            python tools/sync-ansible-doc-links.py \
+              --check-ansible-doc-json "$json_page" \
+              --surface "$kind ansible-doc"
           }
           resolves filter memoize selector delimiter workdir scheme_yaml convention fail_on_warning
           # Asking for the module's page as well as the filter's, because they are separate files
@@ -248,7 +286,7 @@ jobs:
           # instead of importing it, which is why the compatibility job makes the load-and-call
           # claim in a step of its own.
           resolves module scheme_text scheme_yaml variables dest src fail_on_warning
-          echo "the installed collection resolves both stop_cran.namespace2xml.render plugins"
+          echo "the installed collection resolves both plugins with release-pinned documentation"
 
   # The unit tests are the specification-side half of a two-sided oracle: they hold hand-authored
   # profile text from docs/specification.md against what the encoder produces, with the binary

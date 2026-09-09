@@ -69,11 +69,11 @@ behind it, so anything the role does you can also do by hand.
 Ansible can already write XML, in the sense that Jinja can concatenate strings. What it cannot do
 is guarantee the result is well-formed, correctly escaped, and the same document every time. This
 filter hands the problem to a transformer whose behaviour is fixed by a
-[normative specification](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md),
+[normative specification](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md),
 so the rendering is a contract rather than a template you have to review character by character.
 
 That specification is 300 KB and is not shipped here. What is shipped, next to this file, is
-[`docs/specification-summary.md`](https://github.com/stop-cran/namespace2xml/blob/master/ansible/docs/specification-summary.md):
+[`docs/specification-summary.md`](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/ansible/docs/specification-summary.md):
 the rules that decide what the filter does to your data, each one quoted verbatim from the
 specification and checked against it in CI, with links to everything else. Read it if you are
 offline, if you are an agent that needs the contract without fetching 300 KB, or if you want the
@@ -154,7 +154,7 @@ the rendered text against what is on the node.
 | `workdir` | parent for the temporary marshalling directory |
 
 The piped value is applied **last**, so it wins any name an `inputs` entry also sets. That is
-[§16.10](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md) — the last
+[§16.10](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md) — the last
 contribution wins — and it is the ordering that makes `inputs` useful: put the shared defaults
 in `inputs` and pipe the host's overrides.
 
@@ -193,7 +193,7 @@ the name is a fact about the target document rather than about your data — `co
 
 The filter synthesizes the smallest scheme that expresses your arguments. Pass `scheme` for
 anything beyond that — `type`, `substitute`, `merge` and the rest of the
-[scheme rules](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md).
+[scheme rules](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md).
 The selector the scheme declares must match `selector`, and a rule's pattern must match the
 value's full path in the generated profile — `cfg` plus your keys.
 
@@ -220,7 +220,7 @@ string, which names a file, or a mapping carrying exactly one of:
 | `format` | how to parse `text`. Only ever alongside `text` |
 
 The list is ordered, and later beats earlier —
-[§16.10](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md) for
+[§16.10](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md) for
 inputs, §15.2 for schemes. So a small override layers onto a shared file without either of them
 knowing about the other:
 
@@ -236,7 +236,7 @@ scheme:
 ```
 
 `format` belongs to `text` alone, and setting it elsewhere is refused rather than ignored.
-Beside `file` there is nothing for it to do — [§7.1](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md)
+Beside `file` there is nothing for it to do — [§7.1](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md)
 selects the parser from the extension and the file is passed to the tool rather than copied, so
 a `format` here could not be honoured. Beside `data` there is nothing left for it to reach: a
 structure is already being encoded into the tool's own syntax. To parse a file as something its
@@ -249,7 +249,7 @@ inputs:
 ```
 
 The formats are `namespace`, `json`, `yaml` and `xml` for an input, and `namespace`, `json` and
-`yaml` for a scheme — [§15](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md)
+`yaml` for a scheme — [§15](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md)
 does not offer XML for a scheme.
 
 #### Why a structure, and not just text
@@ -382,11 +382,11 @@ ansible-doc -t module stop_cran.namespace2xml.render
 
 The module renders into a scratch directory and compares every produced file against `dest`
 **byte for byte**, writing only the ones that differ. That is exact rather than heuristic because
-[§24](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md) makes the
+[§24](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md) makes the
 tool's output deterministic for identical inputs. `check_mode` and `--diff` fall out of the same
 comparison, so a dry run reports precisely what a real run would do.
 
-Publication follows [§21.1](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md):
+Publication follows [§21.1](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md):
 each file is written through a handle-relative, no-follow open and renamed into place, so a
 symbolic link planted under `dest` is replaced rather than followed, and a write is never seen
 half-finished. The module therefore targets POSIX nodes, and refuses to publish on a platform
@@ -400,7 +400,7 @@ deletes.
 The module **refuses** a render whose output would land on one of its own `src` paths. This is a
 hard error, not a warning, and the reason is worth stating because the alternative failure is
 invisible:
-[§16.10](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md) defines
+[§16.10](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md) defines
 `merge=append` as rebasing each later sequence contribution onto fresh ordering values above the
 current high-water mark. A run that reads back its own output therefore appends to what it just
 appended — `["STDOUT"]`, then `["STDOUT", "FILE"]`, then `["STDOUT", "FILE", "FILE"]` — growing
@@ -429,7 +429,7 @@ Three things about it are easy to get wrong and each fails loudly:
 - It must be written **unqualified**. Input parsing happens before any output instance exists, so
   a selector-qualified input option such as `configuration.xmlinputoptions=…` is a blocking
   `SCHEME001` under
-  [§16.8](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md).
+  [§16.8](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md).
 - Enabling it emits `WARN007`, recording that the same-format round-trip guarantee is weakened.
   The module passes that warning through rather than suppressing it.
 
@@ -482,7 +482,7 @@ one difference that follows from where the render happens: a `file` entry names 
 controller**, because that is the machine doing the reading.
 
 The role produces however many files the scheme declares, and an explicit `filename` carrying a
-`/` creates the subdirectory to hold it — [§16.2](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md)
+`/` creates the subdirectory to hold it — [§16.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md)
 makes that deliberate rather than an accident of path handling. Directories are created with
 `namespace2xml_distribute_directory_mode`.
 
@@ -516,7 +516,7 @@ release. Read this section before adopting the filter for a format where any of 
 ### 1. Types are inferred from value text
 
 Payload types come from how a value is spelled, not from its Python type
-([§18](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#18-scalar-inference)). The
+([§18](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#18-scalar-inference)). The
 string `"true"` and the boolean `true` produce the same record, as do `"3"` and `3`. A version
 number written `version: "3"` renders as the integer `3`.
 
@@ -538,7 +538,7 @@ check the result rather than assuming the rule applied.
 ### 2. Integer keys make their parent a sequence
 
 A name part that is a canonical decimal integer makes its parent a sequence
-([§8.7](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#87-numeric-paths-and-ordered-sequences)). This is
+([§8.7](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#87-numeric-paths-and-ordered-sequences)). This is
 what lets lists round-trip, and it applies to *any* mapping whose keys happen to look like
 indices:
 
@@ -567,11 +567,11 @@ blob: "{{ raw | b64encode }}"
 every key reads back as itself. That guarantee is what costs the addressing: the three name forms
 XML needs are exactly the three the encoder escapes away. So by default the filter renders
 element-only XML, and a `@id` key produces a **blocking `XML002` error** naming
-[§11.2](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#112-supported-xml-subset)
+[§11.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#112-supported-xml-subset)
 rather than a silently wrong document.
 
 Pass `convention: xmltodict` to read the markers instead of escaping them
-([§11.4](https://github.com/stop-cran/namespace2xml/blob/master/docs/specification.md#114-canonical-xml-addressing)).
+([§11.4](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#114-canonical-xml-addressing)).
 The spelling is the one the ecosystem already uses — `xmltodict`, `community.general.to_xml` and
 the badgerfish style all write attributes this way:
 
@@ -692,7 +692,7 @@ Neither suite leaves the controller. `ansible-test units` exercises the plugins 
 `ansible-test integration` runs its targets against `localhost` — so between them they never prove
 the claim the module is actually built on: that it renders a *remote* node's files, from that node's
 own inputs, using a binary installed on that node. That claim is checked by hand before a release,
-with [`tools/integration-rig`](https://github.com/stop-cran/namespace2xml/blob/master/tools/integration-rig/README.md)
+with [`tools/integration-rig`](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/tools/integration-rig/README.md)
 — a real controller and three managed nodes in Docker, connected over real SSH, with the collection
 installed from Galaxy the way an operator installs it. It needs a Docker daemon, so it does not run
 in CI.
@@ -705,7 +705,7 @@ Every diagnostic these plugins surface carries a **stable code** and a **specifi
 naming the clause it enforces, so a disagreement can be reported precisely rather than described.
 The codes are listed in `docs/diagnostics.md`, which ships inside this collection and is also
 online at
-[docs/diagnostics.md](https://github.com/stop-cran/namespace2xml/blob/master/docs/diagnostics.md).
+[docs/diagnostics.md](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/diagnostics.md).
 Both plugins pass the tool's diagnostics through unchanged — neither rewrites or summarises them.
 
 Before filing, ask one question: **what would have to change so this never surprises anyone
@@ -752,7 +752,7 @@ playbook.
 Agent-authored reports are welcome and are held to the same standard as any other: state what was
 verified by running it and what was only inferred, and never file a claim you have not reproduced.
 The full protocol, including the report form and flood control, is in
-[CONTRIBUTING.md](https://github.com/stop-cran/namespace2xml/blob/master/CONTRIBUTING.md#4-the-feedback-channel-binding).
+[CONTRIBUTING.md](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/CONTRIBUTING.md#4-the-feedback-channel-binding).
 A fix PR is welcome too, and it does not have to be complete — a failing test that encodes the
 disagreement is a contribution on its own.
 
