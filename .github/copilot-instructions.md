@@ -100,18 +100,24 @@ worth more than one that changes control flow, which tends to hang rather than r
 
 | File | Generator |
 |---|---|
+| Contents and `spec-*` anchors in `docs/specification.md` | `tools/sync-specification-navigation.ps1` |
+| `spec/specification-navigation.json` | `tools/sync-specification-navigation.ps1` |
 | `spec/diagnostics.registry.json` | `tools/sync-diagnostics-registry.ps1` |
 | `spec/diagnostic-stream.schema.json` | `tools/sync-diagnostics-registry.ps1` |
 | `src/Namespace2Xml.Core/Diagnostics/DiagnosticCodes.g.cs` | `tools/sync-diagnostic-codes.ps1` |
 | `spec/contract-bundle.json` | `tools/sync-contract-bundle.ps1` |
 | `conformance/assertions.json` | `tools/sync-assertion-manifest.ps1` |
 | `docs/diagnostics.md` | `tools/sync-docs.ps1` |
+| `ansible/docs/diagnostics.md` | `tools/sync-docs.ps1` |
 | `docs/migration-2.x-to-3.0.md` | `tools/sync-docs.ps1` |
 | Same-repository `blob`/`tree` refs under `ansible/` | `tools/sync-ansible-doc-links.py` |
 
-Run all five specification-derived generators after touching `docs/specification.md` **or** the
-corpus, in the order listed in `AGENTS.md`. The `contract-gates` job regenerates them and fails on
-any difference.
+Run all six specification-derived generators after touching `docs/specification.md` **or** the
+corpus, in the order listed in `AGENTS.md`. The navigation manifest is the sole machine-readable
+clause inventory: do not reconstruct that inventory with another heading parser. `sync-docs.ps1`
+renders the root and Ansible
+diagnostic pages from one model, with local and immutable link bases respectively. The
+`contract-gates` job regenerates them and fails on any difference.
 
 Generators are idempotent, and **idempotent is not correct**. A backtick bug once emitted a raw
 PowerShell hashtable into line 5 of both generated documents, stably, on every run. Read the output

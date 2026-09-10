@@ -2,14 +2,18 @@
 
 # Diagnostic codes
 
-**Contract bundle `r105+446ce9c38c5a`.** 39 codes.
+**Contract bundle `r106+43b364a4f905`.** 39 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
-the specification anchor for the clause it enforces. Codes are stable across releases; messages
-are prose and may be reworded, so automate against the code and never against the text.
+the specification anchor for the clause it enforces under [Section 22](specification.md#spec-22).
+Codes are stable across releases; messages are prose and may be reworded, so automate against
+the code and never against the text.
 
 Run with `--diagnostics-format json` to receive the whole stream on standard error as one
 canonical JSON array conforming to [`spec/diagnostic-stream.schema.json`](../spec/diagnostic-stream.schema.json).
+
+The `spec` value is selected for each diagnostic occurrence; a code does not have one canonical
+clause. For example, `§6.4.3` resolves to [`§6.4.3`](specification.md#spec-6-4-3).
 
 ## Authority
 
@@ -23,248 +27,282 @@ by preference.
 
 | Code | Severity | Cardinality | Condition | Fields |
 |---|---|---|---|---|
-| `CLI001` | error | once per invocation | Invalid command line or option value | — |
-| `PARSE001` | error | once per failing source | Malformed namespace, JSON, YAML, XML, or scheme syntax | `source`, `line`, `column` |
-| `PARSE002` | error | once per failing source | Invalid or unsupported character encoding | `source`, `line`, `column` |
-| `SCHEME001` | error | once per declaration | Unknown directive, value, or illegal option/type combination | `source`, `line`, `column`, `path`, `declaration` |
-| `SCHEME002` | error | once per expanded declaration | Ambiguous canonical/simple scheme path | `source`, `line`, `column`, `path`, `declaration` |
-| `WILDCARD001` | error | once per rule | Invalid, undefined, or mixed capture outside a reference | `source`, `line`, `column`, `rule` |
-| `WILDCARD002` | error | once per invocation | Nonterminating expansion or wildcard limit | `rule` |
-| `REFERENCE001` | error | once per owning value | Malformed or free-wildcard reference | `source`, `line`, `column`, `path` |
-| `REFERENCE002` | error | once per reachable owning value | Missing reference | `source`, `line`, `column`, `path` |
-| `REFERENCE003` | error | once per canonically distinct reachable cycle | Reference cycle | `source`, `line`, `column`, `path` |
-| `REFERENCE004` | error | once per reachable owning value | Ambiguous reference alias | `source`, `line`, `column`, `path` |
-| `REFERENCE005` | error | once per reachable owning value | Non-scalar reference target | `source`, `line`, `column`, `path` |
-| `TYPE001` | error | once per path and applicable source/output instance | Invalid shape, input merge conflict, root removal, or transformation target | `source`, `line`, `column`, `path`, `declaration`, `destination` |
-| `TYPE002` | warning | once per projected path and destination | Shape conflict resolved by precedence | `source`, `path`, `destination` |
-| `FLAT001` | error | once per projected key and output instance | Distinct logical paths collide after output projection or normalization | `path`, `destination` |
-| `SHELL001` | error | once per projected key and output instance | Invalid quoted-namespace shell identifier | `path`, `destination` |
-| `XML001` | error | once per failing document | DTD, external entity/resource, or prohibited XML feature | `source`, `line`, `column` |
-| `XML002` | error | once per failing node or document | Invalid XML name, namespace, declaration, or canonical address | `source`, `line`, `column`, `path` |
-| `INI001` | error | once per path and output instance | Value or name unsupported by `PortableIni1` options | `path`, `destination` |
-| `NAMESPACE001` | error | once per path and output instance | Value unsupported by the namespace destination's options | `path`, `destination` |
-| `COLLISION001` | error | once per rejected contribution after the first | `filemerge=error` rejects a second contribution to one destination | `declaration`, `destination` |
-| `SERIALIZE001` | error | once per output instance | Output view cannot be serialized under the selected format/options | `destination` |
-| `PATH001` | error | once per destination | Invalid, escaping, or insecure output path | `declaration`, `destination` |
-| `PATH002` | error | once, for the failing destination | Publication/open/write/flush failure | `destination` |
-| `LIMIT001` | error | once per invocation | Non-wildcard resource limit exceeded | `source`, `line`, `column`, `path` |
-| `WARN001` | warning | once per missing-file occurrence on the command line | Missing input or scheme file | `source` |
-| `WARN002` | warning | once per alias category and scheme | Deprecated alias | `source`, `line`, `column`, `declaration` |
-| `WARN003` | warning | once per feature category and output file | Unsupported metadata/comment discarded | `source`, `destination` |
-| `WARN004` | warning | once per sequence path | Native implicit sequences concatenate without explicit merge | `source`, `path` |
-| `WARN005` | warning | once per folded contribution pair | Output destination collision or cross-format override | `destination` |
-| `WARN006` | warning | once per input document | Processing instruction discarded | `source` |
-| `WARN007` | warning | once per input document | XML formatting whitespace discarded | `source` |
-| `WARN008` | warning | once per invocation | Output plan contains no destinations | — |
-| `WARN009` | warning | once per declaration or expanded directive | Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing | `source`, `line`, `column`, `path`, `declaration` |
-| `WARN010` | warning | once per source contribution, canonical mapping path, and output instance | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | `source`, `path`, `destination` |
-| `WARN011` | warning | once per canonical path | Later unmarked contribution aliases an existing XML component or content-token-wrapped element instead of overriding it | `source`, `path` |
-| `WARN012` | warning | once per output instance | INI output emits a global-key preamble, which a reader requiring a section header will refuse | `destination` |
-| `WARN013` | warning | once per path and output instance | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `path`, `destination` |
-| `WARN014` | warning | once per admitted input-source occurrence | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | `source`, `path` |
+| [`CLI001`](#diagnostic-cli001) | error | once per invocation | Invalid command line or option value | — |
+| [`PARSE001`](#diagnostic-parse001) | error | once per failing source | Malformed namespace, JSON, YAML, XML, or scheme syntax | `source`, `line`, `column` |
+| [`PARSE002`](#diagnostic-parse002) | error | once per failing source | Invalid or unsupported character encoding | `source`, `line`, `column` |
+| [`SCHEME001`](#diagnostic-scheme001) | error | once per declaration | Unknown directive, value, or illegal option/type combination | `source`, `line`, `column`, `path`, `declaration` |
+| [`SCHEME002`](#diagnostic-scheme002) | error | once per expanded declaration | Ambiguous canonical/simple scheme path | `source`, `line`, `column`, `path`, `declaration` |
+| [`WILDCARD001`](#diagnostic-wildcard001) | error | once per rule | Invalid, undefined, or mixed capture outside a reference | `source`, `line`, `column`, `rule` |
+| [`WILDCARD002`](#diagnostic-wildcard002) | error | once per invocation | Nonterminating expansion or wildcard limit | `rule` |
+| [`REFERENCE001`](#diagnostic-reference001) | error | once per owning value | Malformed or free-wildcard reference | `source`, `line`, `column`, `path` |
+| [`REFERENCE002`](#diagnostic-reference002) | error | once per reachable owning value | Missing reference | `source`, `line`, `column`, `path` |
+| [`REFERENCE003`](#diagnostic-reference003) | error | once per canonically distinct reachable cycle | Reference cycle | `source`, `line`, `column`, `path` |
+| [`REFERENCE004`](#diagnostic-reference004) | error | once per reachable owning value | Ambiguous reference alias | `source`, `line`, `column`, `path` |
+| [`REFERENCE005`](#diagnostic-reference005) | error | once per reachable owning value | Non-scalar reference target | `source`, `line`, `column`, `path` |
+| [`TYPE001`](#diagnostic-type001) | error | once per path and applicable source/output instance | Invalid shape, input merge conflict, root removal, or transformation target | `source`, `line`, `column`, `path`, `declaration`, `destination` |
+| [`TYPE002`](#diagnostic-type002) | warning | once per projected path and destination | Shape conflict resolved by precedence | `source`, `path`, `destination` |
+| [`FLAT001`](#diagnostic-flat001) | error | once per projected key and output instance | Distinct logical paths collide after output projection or normalization | `path`, `destination` |
+| [`SHELL001`](#diagnostic-shell001) | error | once per projected key and output instance | Invalid quoted-namespace shell identifier | `path`, `destination` |
+| [`XML001`](#diagnostic-xml001) | error | once per failing document | DTD, external entity/resource, or prohibited XML feature | `source`, `line`, `column` |
+| [`XML002`](#diagnostic-xml002) | error | once per failing node or document | Invalid XML name, namespace, declaration, or canonical address | `source`, `line`, `column`, `path` |
+| [`INI001`](#diagnostic-ini001) | error | once per path and output instance | Value or name unsupported by `PortableIni1` options | `path`, `destination` |
+| [`NAMESPACE001`](#diagnostic-namespace001) | error | once per path and output instance | Value unsupported by the namespace destination's options | `path`, `destination` |
+| [`COLLISION001`](#diagnostic-collision001) | error | once per rejected contribution after the first | `filemerge=error` rejects a second contribution to one destination | `declaration`, `destination` |
+| [`SERIALIZE001`](#diagnostic-serialize001) | error | once per output instance | Output view cannot be serialized under the selected format/options | `destination` |
+| [`PATH001`](#diagnostic-path001) | error | once per destination | Invalid, escaping, or insecure output path | `declaration`, `destination` |
+| [`PATH002`](#diagnostic-path002) | error | once, for the failing destination | Publication/open/write/flush failure | `destination` |
+| [`LIMIT001`](#diagnostic-limit001) | error | once per invocation | Non-wildcard resource limit exceeded | `source`, `line`, `column`, `path` |
+| [`WARN001`](#diagnostic-warn001) | warning | once per missing-file occurrence on the command line | Missing input or scheme file | `source` |
+| [`WARN002`](#diagnostic-warn002) | warning | once per alias category and scheme | Deprecated alias | `source`, `line`, `column`, `declaration` |
+| [`WARN003`](#diagnostic-warn003) | warning | once per feature category and output file | Unsupported metadata/comment discarded | `source`, `destination` |
+| [`WARN004`](#diagnostic-warn004) | warning | once per sequence path | Native implicit sequences concatenate without explicit merge | `source`, `path` |
+| [`WARN005`](#diagnostic-warn005) | warning | once per folded contribution pair | Output destination collision or cross-format override | `destination` |
+| [`WARN006`](#diagnostic-warn006) | warning | once per input document | Processing instruction discarded | `source` |
+| [`WARN007`](#diagnostic-warn007) | warning | once per input document | XML formatting whitespace discarded | `source` |
+| [`WARN008`](#diagnostic-warn008) | warning | once per invocation | Output plan contains no destinations | — |
+| [`WARN009`](#diagnostic-warn009) | warning | once per declaration or expanded directive | Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing | `source`, `line`, `column`, `path`, `declaration` |
+| [`WARN010`](#diagnostic-warn010) | warning | once per source contribution, canonical mapping path, and output instance | Native JSON/YAML numeric mapping remains inferred as sequence in an output view | `source`, `path`, `destination` |
+| [`WARN011`](#diagnostic-warn011) | warning | once per canonical path | Later unmarked contribution aliases an existing XML component or content-token-wrapped element instead of overriding it | `source`, `path` |
+| [`WARN012`](#diagnostic-warn012) | warning | once per output instance | INI output emits a global-key preamble, which a reader requiring a section header will refuse | `destination` |
+| [`WARN013`](#diagnostic-warn013) | warning | once per path and output instance | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `path`, `destination` |
+| [`WARN014`](#diagnostic-warn014) | warning | once per admitted input-source occurrence | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | `source`, `path` |
 
 ## Conditions in detail
 
-Each code below lists the situations the specification maps to it (Appendix B).
+Each code below lists the situations the specification maps to it ([Appendix B](specification.md#spec-b)).
 
+<a id="diagnostic-cli001"></a>
 ### `CLI001` — Invalid command line or option value
 
 *error, once per invocation.*
 
 - Unknown CLI option, missing option value, invalid repeated/list syntax, invalid `--` use, invalid limit value, invalid `--diagnostics-format` or `--verbosity` value
 
+<a id="diagnostic-parse001"></a>
 ### `PARSE001` — Malformed namespace, JSON, YAML, XML, or scheme syntax
 
 *error, once per failing source.*
 
 - Malformed namespace record/name, malformed JSON/YAML/XML syntax, duplicate native mapping key, unsupported native document structure
 
+<a id="diagnostic-parse002"></a>
 ### `PARSE002` — Invalid or unsupported character encoding
 
 *error, once per failing source.*
 
 - Invalid byte sequence, unsupported BOM/encoding, XML declaration encoding inconsistent with decoded input
 
+<a id="diagnostic-scheme001"></a>
 ### `SCHEME001` — Unknown directive, value, or illegal option/type combination
 
 *error, once per declaration.*
 
 - Unknown/empty directive, illegal directive value, illegal option combination, `type=array` plus `key`
 
+<a id="diagnostic-scheme002"></a>
 ### `SCHEME002` — Ambiguous canonical/simple scheme path
 
 *error, once per expanded declaration.*
 
 - Ambiguous simple/canonical scheme path
 
+<a id="diagnostic-wildcard001"></a>
 ### `WILDCARD001` — Invalid, undefined, or mixed capture outside a reference
 
 *error, once per rule.*
 
 - Invalid, undefined, or mixed wildcard capture outside a reference
 
+<a id="diagnostic-wildcard002"></a>
 ### `WILDCARD002` — Nonterminating expansion or wildcard limit
 
 *error, once per invocation.*
 
 - Wildcard fixed-point, candidate, generated-node, or iteration limit
 
+<a id="diagnostic-reference001"></a>
 ### `REFERENCE001` — Malformed or free-wildcard reference
 
 *error, once per owning value.*
 
 - Malformed/unterminated reference, legacy bare wildcard in reference, free explicit capture
 
+<a id="diagnostic-reference002"></a>
 ### `REFERENCE002` — Missing reference
 
 *error, once per reachable owning value.*
 
 - Missing exact or alias reference target
 
+<a id="diagnostic-reference003"></a>
 ### `REFERENCE003` — Reference cycle
 
 *error, once per canonically distinct reachable cycle.*
 
 - Canonically distinct reference cycle
 
+<a id="diagnostic-reference004"></a>
 ### `REFERENCE004` — Ambiguous reference alias
 
 *error, once per reachable owning value.*
 
 - More than one canonical scalar for one simple alias
 
+<a id="diagnostic-reference005"></a>
 ### `REFERENCE005` — Non-scalar reference target
 
 *error, once per reachable owning value.*
 
 - Mapping/sequence/comment/non-scalar target or unsupported non-scalar concatenation
 
+<a id="diagnostic-type001"></a>
 ### `TYPE001` — Invalid shape, input merge conflict, root removal, or transformation target
 
 *error, once per path and applicable source/output instance.*
 
 - Invalid transformation target; input `merge=error` conflict; `key` field/value collision; illegal multiline target; invalid XML sequence projection; missing required output root
 
+<a id="diagnostic-type002"></a>
 ### `TYPE002` — Shape conflict resolved by precedence
 
 *warning, once per projected path and destination.*
 
 - Exclusive-shape projection omits a scalar or container contribution
 
+<a id="diagnostic-flat001"></a>
 ### `FLAT001` — Distinct logical paths collide after output projection or normalization
 
 *error, once per projected key and output instance.*
 
 - Distinct paths collide after namespace, quoted-namespace, or INI projection
 
+<a id="diagnostic-shell001"></a>
 ### `SHELL001` — Invalid quoted-namespace shell identifier
 
 *error, once per projected key and output instance.*
 
 - Invalid quoted-namespace identifier or NUL value
 
+<a id="diagnostic-xml001"></a>
 ### `XML001` — DTD, external entity/resource, or prohibited XML feature
 
 *error, once per failing document.*
 
 - DTD, external entity/resource, network retrieval, or prohibited XML feature
 
+<a id="diagnostic-xml002"></a>
 ### `XML002` — Invalid XML name, namespace, declaration, or canonical address
 
 *error, once per failing node or document.*
 
 - Invalid XML name/namespace/canonical address/declaration structure other than byte-encoding disagreement
 
+<a id="diagnostic-ini001"></a>
 ### `INI001` — Value or name unsupported by `PortableIni1` options
 
 *error, once per path and output instance.*
 
 - Value/name/comment cannot be represented by effective `PortableIni1` options
 
+<a id="diagnostic-namespace001"></a>
 ### `NAMESPACE001` — Value unsupported by the namespace destination's options
 
 *error, once per path and output instance.*
 
 - Namespace value ends in a space and no option permits writing it
 
+<a id="diagnostic-collision001"></a>
 ### `COLLISION001` — `filemerge=error` rejects a second contribution to one destination
 
 *error, once per rejected contribution after the first.*
 
 - `filemerge=error` rejects a second destination contribution
 
+<a id="diagnostic-serialize001"></a>
 ### `SERIALIZE001` — Output view cannot be serialized under the selected format/options
 
 *error, once per output instance.*
 
 - Final output model cannot be serialized under its selected format/options
 
+<a id="diagnostic-path001"></a>
 ### `PATH001` — Invalid, escaping, or insecure output path
 
 *error, once per destination.*
 
 - Invalid, escaping, insecure, traversal, portability-key-colliding, or uncontainable destination path
 
+<a id="diagnostic-path002"></a>
 ### `PATH002` — Publication/open/write/flush failure
 
 *error, once, for the failing destination.*
 
 - Destination open, create, write, flush, or close failure after publication starts
 
+<a id="diagnostic-limit001"></a>
 ### `LIMIT001` — Non-wildcard resource limit exceeded
 
 *error, once per invocation.*
 
 - Ordering-value overflow or any non-wildcard resource limit
 
+<a id="diagnostic-warn001"></a>
 ### `WARN001` — Missing input or scheme file
 
 *warning, once per missing-file occurrence on the command line.*
 
 - Missing CLI input/scheme path
 
+<a id="diagnostic-warn002"></a>
 ### `WARN002` — Deprecated alias
 
 *warning, once per alias category and scheme.*
 
 - Deprecated alias
 
+<a id="diagnostic-warn003"></a>
 ### `WARN003` — Unsupported metadata/comment discarded
 
 *warning, once per feature category and output file.*
 
 - Unsupported metadata/comment discarded
 
+<a id="diagnostic-warn004"></a>
 ### `WARN004` — Native implicit sequences concatenate without explicit merge
 
 *warning, once per sequence path.*
 
 - Native implicit sequences concatenate without explicit merge
 
+<a id="diagnostic-warn005"></a>
 ### `WARN005` — Output destination collision or cross-format override
 
 *warning, once per folded contribution pair.*
 
 - Same-destination fold or cross-format replacement
 
+<a id="diagnostic-warn006"></a>
 ### `WARN006` — Processing instruction discarded
 
 *warning, once per input document.*
 
 - XML processing instruction discarded
 
+<a id="diagnostic-warn007"></a>
 ### `WARN007` — XML formatting whitespace discarded
 
 *warning, once per input document.*
 
 - XML formatting whitespace discarded
 
+<a id="diagnostic-warn008"></a>
 ### `WARN008` — Output plan contains no destinations
 
 *warning, once per invocation.*
 
 - Validated output plan contains no destinations
 
+<a id="diagnostic-warn009"></a>
 ### `WARN009` — Scheme directive binds to no concrete output instance or path, wildcard output creates no instance, or a concrete output instance selects nothing
 
 *warning, once per declaration or expanded directive.*
@@ -272,30 +310,35 @@ Each code below lists the situations the specification maps to it (Appendix B).
 - Directive binds to no concrete output instance or path, or wildcard output creates no concrete instance
 - Concrete output instance selects nothing
 
+<a id="diagnostic-warn010"></a>
 ### `WARN010` — Native JSON/YAML numeric mapping remains inferred as sequence in an output view
 
 *warning, once per source contribution, canonical mapping path, and output instance.*
 
 - JSON/YAML numeric mapping remains inferred as a sequence
 
+<a id="diagnostic-warn011"></a>
 ### `WARN011` — Later unmarked contribution aliases an existing XML component or content-token-wrapped element instead of overriding it
 
 *warning, once per canonical path.*
 
 - Later unmarked contribution adds an ordinary component beside an aliased XML component or content-token-wrapped element
 
+<a id="diagnostic-warn012"></a>
 ### `WARN012` — INI output emits a global-key preamble, which a reader requiring a section header will refuse
 
 *warning, once per output instance.*
 
 - INI output writes a global-key preamble without `GlobalSection`
 
+<a id="diagnostic-warn013"></a>
 ### `WARN013` — Namespace output writes a value ending in a space under `AllowTrailingWhitespace`
 
 *warning, once per path and output instance.*
 
 - Namespace output writes a value ending in a space under `AllowTrailingWhitespace`
 
+<a id="diagnostic-warn014"></a>
 ### `WARN014` — Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target
 
 *warning, once per admitted input-source occurrence.*

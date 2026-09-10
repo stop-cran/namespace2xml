@@ -50,7 +50,9 @@ must say, because docs/migration-2.x-to-3.0.md is generated from them.
 
 - [ ] `dotnet build namespace2xml.slnx` and `dotnet test namespace2xml.slnx` pass locally
 - [ ] Derived artifacts regenerated if the specification or corpus changed
-      (`tools/sync-diagnostics-registry.ps1`, `sync-contract-bundle.ps1`, `sync-assertion-manifest.ps1`, `sync-docs.ps1`)
+      (`tools/sync-specification-navigation.ps1`, `sync-diagnostics-registry.ps1`,
+      `sync-diagnostic-codes.ps1`, `sync-contract-bundle.ps1`, `sync-assertion-manifest.ps1`,
+      `sync-docs.ps1`)
 - [ ] `CHANGELOG.md` updated, including what was **removed** and which report caused this
 - [ ] `KNOWN-LIMITS.md` updated if this closes or opens a gap
 - [ ] **C6** — if this touches publication, path handling or the validation gate, the §21 fixtures

@@ -13,6 +13,27 @@ independently.
 
 ## [Unreleased]
 
+### Added
+
+- **Specification clauses and diagnostic codes now have generated, stable links.** The normative
+  specification carries a generated hierarchical contents block and explicit `spec-*` targets,
+  backed by `spec/specification-navigation.json`; the diagnostic reference links every summary code
+  to an explicit `diagnostic-*` detail target and links Section 22, Appendix B, and occurrence-level
+  `spec` examples back to the contract. The packaged Ansible reference is rendered from the same
+  model with immutable collection-tag links, and CI compares the two pages after normalizing only
+  those approved link bases.
+
+  This removes three drift-prone surfaces: ad hoc heading parsing in tests, unlinked diagnostic
+  tables, and a byte-copied Ansible page whose relative links escaped the collection. It was caused
+  by the clean-context agent report that rated specification navigation 2/5 and found agents
+  repeatedly downloading and grepping the 307 KB contract. [#128](https://github.com/stop-cran/namespace2xml/issues/128).
+
+### Changed
+
+- Updated `Microsoft.SourceLink.GitHub` to 10.0.401 after
+  [GHSA-23fw-v26w-5fgq](https://github.com/advisories/GHSA-23fw-v26w-5fgq) made the previous
+  transitive `Microsoft.Build.Tasks.Git` dependency fail the repository's warning-as-error restore.
+
 ## [3.0.0-preview.5] - 2026-08-20
 
 ### Contract

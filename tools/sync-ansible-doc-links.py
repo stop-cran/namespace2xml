@@ -182,6 +182,60 @@ def check_ansible_doc_json(path: Path, release_ref: str, surface: str) -> int:
     return 0
 
 
+def normalize_diagnostic_doc_links(data: bytes, release_ref: str) -> bytes:
+    """Converts approved immutable collection URLs to repository-local doc links."""
+    absolute_base = (
+        f"https://github.com/stop-cran/namespace2xml/blob/{release_ref}/".encode("ascii")
+    )
+    replacements = (
+        (absolute_base + b"docs/specification.md", b"specification.md"),
+        (
+            absolute_base + b"spec/diagnostic-stream.schema.json",
+            b"../spec/diagnostic-stream.schema.json",
+        ),
+        (absolute_base + b"CONTRIBUTING.md", b"../CONTRIBUTING.md"),
+    )
+
+    normalized = data
+    for absolute, local in replacements:
+        if absolute not in normalized:
+            raise ValueError(
+                "Ansible diagnostic documentation is missing approved link base "
+                f"{absolute.decode('ascii')}"
+            )
+        normalized = normalized.replace(absolute, local)
+
+    return normalized
+
+
+def check_diagnostic_docs(
+    root_path: Path,
+    ansible_path: Path,
+    release_ref: str,
+) -> int:
+    """Checks semantic equivalence after normalizing only approved link bases."""
+    try:
+        root_data = root_path.read_bytes()
+        ansible_data = ansible_path.read_bytes()
+        normalized = normalize_diagnostic_doc_links(ansible_data, release_ref)
+    except (OSError, ValueError) as error:
+        print(f"error: {error}")
+        return 1
+
+    if root_data != normalized:
+        print(
+            "error: diagnostic references differ after approved link-base "
+            "normalization"
+        )
+        return 1
+
+    print(
+        "docs/diagnostics.md and ansible/docs/diagnostics.md are equivalent "
+        "apart from approved immutable link bases."
+    )
+    return 0
+
+
 def synchronize(check: bool) -> int:
     """Checks or updates every tracked Ansible text file."""
     try:
@@ -264,6 +318,16 @@ def main() -> int:
         metavar="PATH",
         help="check same-repository links in an ansible-doc --json rendering",
     )
+    mode.add_argument(
+        "--check-diagnostic-docs",
+        type=Path,
+        nargs=2,
+        metavar=("ROOT_PATH", "ANSIBLE_PATH"),
+        help=(
+            "check root and Ansible diagnostic references for equivalence "
+            "after approved link-base normalization"
+        ),
+    )
     parser.add_argument(
         "--surface",
         default="ansible-doc",
@@ -271,7 +335,11 @@ def main() -> int:
     )
     arguments = parser.parse_args()
 
-    if arguments.print_ref or arguments.check_ansible_doc_json:
+    if (
+        arguments.print_ref
+        or arguments.check_ansible_doc_json
+        or arguments.check_diagnostic_docs
+    ):
         try:
             release_ref = collection_ref()
         except (OSError, UnicodeError, ValueError) as error:
@@ -281,6 +349,12 @@ def main() -> int:
         if arguments.print_ref:
             print(release_ref)
             return 0
+        if arguments.check_diagnostic_docs:
+            return check_diagnostic_docs(
+                arguments.check_diagnostic_docs[0],
+                arguments.check_diagnostic_docs[1],
+                release_ref,
+            )
         return check_ansible_doc_json(
             arguments.check_ansible_doc_json,
             release_ref,

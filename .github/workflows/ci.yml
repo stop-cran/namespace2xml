@@ -266,6 +266,17 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Test the contract generators
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check PyYAML
+          python -m unittest discover -s tools/tests -p 'test_sync_*.py'
+      - name: Regenerate specification navigation
+        run: pwsh -NoProfile -File tools/sync-specification-navigation.ps1
       - name: Regenerate the diagnostics registry
         run: pwsh -NoProfile -File tools/sync-diagnostics-registry.ps1
       - name: Regenerate the diagnostic factory surface
@@ -285,8 +296,10 @@ jobs:
           derived=(
             spec
             conformance/assertions.json
+            docs/specification.md
             docs/diagnostics.md
             docs/migration-2.x-to-3.0.md
+            ansible/docs/diagnostics.md
             src/Namespace2Xml.Core/Diagnostics/DiagnosticCodes.g.cs
           )
           if [ -n "$(git status --porcelain -- "${derived[@]}")" ]; then
@@ -339,7 +352,14 @@ jobs:
             echo "::error::docs/specification.md or spec/diagnostics.registry.json changed but spec/contract-bundle.json did not."
             exit 1
           fi
-          echo "contract changed and the bundle revision moved with it"
+
+          base_counter=$(git show "$base:spec/contract-bundle.json" | jq -er '.revisionCounter')
+          head_counter=$(jq -er '.revisionCounter' spec/contract-bundle.json)
+          if [ "$head_counter" -le "$base_counter" ]; then
+            echo "::error::contract revision counter moved from $base_counter to $head_counter; expected a monotonic advance."
+            exit 1
+          fi
+          echo "contract changed and the bundle revision advanced"
 
   # Section 19.6 requires conformance tests to cover every parser the compatibility documentation
   # names, and docs/format-ini.md names two: Python's configparser and npm's ini. Each check reads

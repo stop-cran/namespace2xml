@@ -10,6 +10,9 @@ internal static class RepositoryLayout
 
     internal static string Specification => Path.Combine(Root, "docs", "specification.md");
 
+    internal static string SpecificationNavigation =>
+        Path.Combine(Root, "spec", "specification-navigation.json");
+
     internal static string Registry => Path.Combine(Root, "spec", "diagnostics.registry.json");
 
     internal static string StreamSchema => Path.Combine(Root, "spec", "diagnostic-stream.schema.json");
