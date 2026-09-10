@@ -192,7 +192,10 @@ else, remove the stale files yourself.
 ## Requirements
 
 - ansible-core 2.15 or newer.
-- .NET and [namespace2xml](https://www.nuget.org/packages/namespace2xml) **on the controller**.
+- The .NET 10 SDK and
+  [namespace2xml](https://www.nuget.org/packages/namespace2xml) tool version 3.0 or newer **on the
+  controller**. The SDK is needed for `dotnet tool install` and supplies the .NET 10 runtime the
+  installed `net10.0` tool needs.
 - On the node: a Python interpreter, which Ansible needs anyway. Nothing else.
 
 ## Licence

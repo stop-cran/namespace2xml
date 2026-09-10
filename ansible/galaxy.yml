@@ -64,8 +64,10 @@
 # renders and copies exactly what it did before.
 # 3.0.2 changes no plugin behavior. It pins every same-repository documentation link shipped by
 # the collection to this release's `ansible-v*` tag, so an installed, immutable artifact cannot
-# lead a reader to documentation from a later commit. A patch because only documentation and
-# generated collection metadata change.
+# lead a reader to documentation from a later commit. It also states the .NET 10 SDK floor on
+# every shipped requirements surface, before handing out the install command; an older SDK can
+# reject the valid tool package with a misleading package-invalid error. A patch because only
+# documentation and generated collection metadata change.
 namespace: stop_cran
 name: namespace2xml
 version: 3.0.2

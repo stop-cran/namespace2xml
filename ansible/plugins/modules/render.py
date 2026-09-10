@@ -273,7 +273,8 @@ attributes:
     platforms: posix
 requirements:
   - namespace2xml 3.0 or newer, installed on the managed node
-  - .NET SDK on the managed node, when installing the tool with C(dotnet tool install)
+  - The .NET 10 SDK on the managed node when installing the tool with C(dotnet tool install).
+    The installed tool targets C(net10.0) and requires the .NET 10 runtime, which the SDK supplies.
 notes:
   - The tool must be present on every node this runs against. Install it with
     C(dotnet tool install --global --prerelease namespace2xml). C(--prerelease) is required
