@@ -322,6 +322,8 @@ options:
         C(noexec), small, or not shared with the tool.
     type: path
 requirements:
+  - The .NET 10 SDK on the controller when installing the tool with C(dotnet tool install).
+    The installed tool targets C(net10.0) and requires the .NET 10 runtime, which the SDK supplies.
   - The C(namespace2xml) .NET tool, version 3.0 or later, on the controller.
   - 3.0 is in preview at the time of writing and the newest stable release is 2.4.0, so a plain
     C(dotnet tool install --global namespace2xml) installs a 2.x build. Ask for the preview

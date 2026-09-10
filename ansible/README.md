@@ -84,8 +84,8 @@ short version first.
 | | |
 |---|---|
 | ansible-core | `>=2.15` |
-| Controller | the [`namespace2xml`](https://www.nuget.org/packages/namespace2xml) .NET tool, 3.0 or later — for the **filter** and the **`distribute` role** |
-| Managed nodes | the same tool, plus a .NET SDK to install it — for the **module** only |
+| Controller | the **.NET 10 SDK** to install the [`namespace2xml`](https://www.nuget.org/packages/namespace2xml) .NET tool, **tool version 3.0 or later** — for the **filter** and the **`distribute` role** |
+| Managed nodes | the same .NET 10 SDK and tool — for the **module** only |
 
 The **filter** evaluates on the controller, where templating happens; a play that uses only the
 filter needs neither .NET nor the tool on its target nodes. The **`distribute` role** renders on
@@ -93,6 +93,11 @@ the controller too — it runs the module delegated to `localhost` — so it has
 requirement: controller only. The **module** used directly is the other way round. It runs the
 tool on each node it targets, because its inputs are that node's own files, so the tool has to
 be installed there.
+
+The install commands below must run under the **.NET 10 SDK**. The transformer targets `net10.0`
+and needs the .NET 10 runtime to run; installing the SDK supplies both. On .NET 8,
+`dotnet tool install` can instead report that `DotnetToolSettings.xml` was not found and call the
+package invalid. That message is misleading for this package: use the .NET 10 SDK and retry.
 
 ```bash
 # controller, for the filter
