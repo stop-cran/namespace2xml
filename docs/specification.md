@@ -286,6 +286,31 @@ Cross-format conversion preserves concepts supported by both source and destinat
 
 Unsupported source concepts are discarded during rendering and must produce one summarized warning per output file and feature category. For example, rendering YAML comments to JSON produces one comments-discarded warning, not one warning per comment.
 
+Explicit empty containers are data shapes, not metadata. Their destination behavior is:
+
+| Destination | Explicit empty mapping | Explicit empty sequence |
+|---|---|---|
+| namespace | preserved as `{}` | preserved as `[]` |
+| JSON | preserved | preserved |
+| YAML | preserved | preserved |
+| XML | preserved as an empty element | discarded |
+| quoted namespace | discarded | discarded |
+| INI | discarded | discarded |
+
+When a cell says **discarded**, emit `WARN015` once per final folded destination when one or more
+selected explicit empty-container facets are omitted. Count the facets in the final output view
+after destination folding and exclusive-shape selection, and before serialization. Count nested
+facets and repeated occurrences independently. Count only an authored explicit facet that is empty
+and is the node's winning container shape. Do not count a losing or replaced contribution, an empty
+ancestor introduced only by `root` or another projection operation, or a facet omitted because
+another payload/container shape won; the last case is the applicable `TYPE002` shape loss instead.
+
+The diagnostic carries `destination` and no category-specific structured field. Its localized
+message reports each nonzero category count in the fixed order `empty-mapping`,
+`empty-sequence`. The occurrence has phase `planning` and is anchored at the destination-specific
+projection rule in Section 19. `--fail-on-warning` applies after all such losses have been counted,
+under Section 21.2.
+
 #### Extended namespace round trip
 
 Ordinary `name=value` data cannot represent every XML or YAML concept. A future extended namespace serialization may expose node-kind metadata for round trips through namespace text.
@@ -2866,7 +2891,7 @@ The serializer inserts no blank records before, after, or between entries or com
 
 A node whose projection is an empty mapping emits `qualified.name={}`, and one whose projection is an empty sequence emits `qualified.name=[]`. A scalar whose text is exactly `{}` or `[]` emits `\{}` or `\[]`. This is what makes the Section 8.3 sentinel bidirectional, and it is the only case in which this format emits a key for a path that holds no scalar: a container with children needs no key of its own, because its children carry it.
 
-Section 19.2 and Section 19.6 emit no sentinel and no key for an empty container. A shell assignment and an INI entry are read as text by consumers that have no container concept, so a bracket pair written there would be data rather than shape, and re-reading it would invent a string the source never held. Those formats discard the concept instead, under the cross-format rule in Section 3.3.
+Section 19.2 and Section 19.6 emit no sentinel and no key for an empty container. A shell assignment and an INI entry are read as text by consumers that have no container concept, so a bracket pair written there would be data rather than shape, and re-reading it would invent a string the source never held. Those formats discard the concept instead and emit `WARN015` as Section 3.3 requires.
 
 An entry whose emitted value ends in a space is refused. The condition is blocking `NAMESPACE001`, naming the path and the destination, and is anchored here. Under `namespaceoutputoptions=AllowTrailingWhitespace` the entry is written with its trailing space intact and the condition is `WARN013` instead, at the same cardinality.
 
@@ -2919,6 +2944,10 @@ The serializer inserts no blank records before, after, or between assignments or
 NUL is not representable and is an error.
 
 A null payload emits the text `null`, as in Section 19.1. Quoted namespace is namespace output under shell quoting rather than a different value model, so a consumer reading `NAME='null'` learns what a namespace consumer reading `name=null` learns. Emitting an empty assignment instead would make null indistinguishable from the empty string, which is a different payload.
+
+An explicit empty mapping or sequence emits no assignment because a shell assignment has no
+container concept. Each such selected facet is discarded and contributes to the destination's
+`WARN015` counts under Section 3.3.
 
 When the selected output root is a bare scalar, quoted namespace retains the final concrete selector part as the assignment name. `root` prefixes that name rather than replacing it, as in Section 16.3, and the parts are joined by the delimiter.
 
@@ -3237,6 +3266,14 @@ with `root=cfg` renders conceptually as:
 
 Sequence items are serialized in stable ordering-value order and are densified only in the emitted sibling order. A scalar or null item uses the repeated element's text content by default. A mapping or XML-element item uses the repeated element as its containing element and projects its fields, attributes, and children normally. A sequence-only item that has no named child element projection is `TYPE001`.
 
+An explicit empty sequence has no item from which XML can emit a repeated sibling element. When
+default or `element` projection reaches such a selected sequence, it emits no element and
+contributes to the destination's `empty-sequence` `WARN015` count under Section 3.3. An explicit
+empty mapping remains representable as the one empty element Section 19.5 defines and does not
+contribute. A sequence rejected by another rule as `TYPE001`, or a sequence facet that loses the
+exclusive container-shape contest as `TYPE002`, is not a representational discard and does not
+contribute.
+
 XML is a destination requiring one container shape under Section 17.1, so a node holding both a mapping and a sequence projection emits only the later container contribution and warns. The two projections are indistinguishable once written: a mapping renders as one element bearing its children, and a sequence renders as that same element repeated beside itself, under the same expanded name and in the same position. The mapping's element would therefore read as one more item of the sequence rather than as a mapping, and no reader could recover which of the siblings was which. The diagnostic is `TYPE002`, reported once per projected path and destination and carrying both `path` and `destination`.
 
 An output view whose document root is itself a sequence requires `root` with at least two element components. The preceding components create the single document-element wrapper and the final component names each repeated item. For example, `root=cfg.item` renders a selected root sequence as one `<cfg>` containing repeated `<item>` elements. Without such a root, or with only one root component, rendering is `TYPE001`.
@@ -3289,6 +3326,10 @@ Path projection is normative:
 - for a path with two or more parts, the final part is the key and every preceding part is joined with the configured INI delimiter to form the section name;
 - container-only paths do not emit keys;
 - `root` is applied before this section/key split.
+
+An explicit empty mapping or sequence therefore emits neither a key nor a section. Each such
+selected facet is discarded and contributes to the destination's `WARN015` counts under Section
+3.3.
 
 A Boolean payload emits lowercase `true` or `false`. A null payload emits lowercase `null`, as in
 Section 19.1. Integer and decimal spellings remain the Section 18 canonical locale-independent
@@ -3548,7 +3589,9 @@ Warnings include:
 - native JSON/YAML numeric mapping inferred as a sequence;
 - scheme directive binds to no concrete output instance or survives only beneath an ignored ancestor;
 - input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target;
-- namespace value written with a trailing space by explicit option.
+- namespace value written with a trailing space by explicit option;
+- selected explicit empty containers discarded because the destination has no representation for
+  their container concept.
 
 Warnings do not change the success exit code.
 
@@ -3596,6 +3639,7 @@ The normative diagnostic registry is:
 | `WARN012` | warning | INI output emits a global-key preamble, which a reader requiring a section header will refuse | once per output instance |
 | `WARN013` | warning | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | once per path and output instance |
 | `WARN014` | warning | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | once per admitted input-source occurrence |
+| `WARN015` | warning | Explicit empty mapping or sequence discarded by destination projection | once per final folded destination |
 
 `TYPE001` includes a bare scalar selected for XML without a configured `root`, and a bare scalar selected by the empty root selector for namespace, quoted namespace, or INI, which in that case have no concrete selector part to supply a key. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions, and JSON and YAML mapping-key collisions. Ordering-value overflow and every configured non-wildcard resource-bound violation are `LIMIT001`, matching that code's registry condition and Appendix B row; a wildcard fixed-point, candidate, generated-node, or iteration bound is `WILDCARD002`. Malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`. `NAMESPACE001` is more specific than `SERIALIZE001` for a namespace value the destination's options cannot write, and names the path rather than the output instance alone.
 
@@ -4161,6 +4205,7 @@ An implementation is conforming only when automated black-box tests cover:
 95. Destination file-versus-directory topology: proper path-segment-prefix conflicts are detected from the complete portable plan before I/O, reported as `PATH001` once per descendant with deterministic ordering, folded ASCII case, and longest-ancestor selection, while textual non-segment prefixes and exact-destination folds retain their existing behavior.
 96. Canonical scalar text and INI control handling: YAML, INI, and XML text/attributes spell Boolean and null values in lowercase; INI multiline escaping orders backslash before CR/LF/TAB substitutions; and NUL plus every unsupported C0 control is blocking `INI001` under every applicable option combination.
 97. Generated blank-record bytes: namespace and quoted-namespace output insert no blank records, XML pretty-printing inserts no empty lines, preserved XML whitespace may remain visibly blank, and every nonempty text output retains exactly one final LF.
+98. Explicit empty-container projection: namespace, JSON, YAML, and XML empty mappings remain represented without `WARN015`; quoted namespace and INI report discarded empty mappings and sequences; XML reports discarded empty sequences but not empty mappings; nested and repeated selected empties contribute exact category counts in fixed mapping-then-sequence message order; destination folding counts only final surviving facets; projection-created empty ancestors and facets lost to another shape do not contribute; XML sequences rejected as `TYPE001` do not contribute; and `--fail-on-warning` retains the complete planning diagnostics while refusing every publication.
 
 <a id="spec-27"></a>
 ## 27. Deferred features
@@ -4350,6 +4395,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | INI output writes a global-key preamble without `GlobalSection` | `WARN012` |
 | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `WARN013` |
 | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | `WARN014` |
+| Explicit empty mapping or sequence discarded because the destination has no representation for that container concept | `WARN015` |
 
 `COLLISION001` has severity error and cardinality once per rejected destination contribution after the first. It is compatibility-stable with the Section 22 registry.
 

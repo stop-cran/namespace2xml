@@ -1,0 +1,4 @@
+-i
+inputs/doc.json
+-s
+schemes/scheme.txt

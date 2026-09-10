@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r107+b3f8bd744bfa`.** 40 codes.
+**Contract bundle `r110+d04198b68ed4`.** 41 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces under [Section 22](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-22).
@@ -67,6 +67,7 @@ by preference.
 | [`WARN012`](#diagnostic-warn012) | warning | once per output instance | INI output emits a global-key preamble, which a reader requiring a section header will refuse | `destination` |
 | [`WARN013`](#diagnostic-warn013) | warning | once per path and output instance | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `path`, `destination` |
 | [`WARN014`](#diagnostic-warn014) | warning | once per admitted input-source occurrence | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | `source`, `path` |
+| [`WARN015`](#diagnostic-warn015) | warning | once per final folded destination | Explicit empty mapping or sequence discarded by destination projection | `destination` |
 
 ## Conditions in detail
 
@@ -352,6 +353,13 @@ Each code below lists the situations the specification maps to it ([Appendix B](
 *warning, once per admitted input-source occurrence.*
 
 - Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target
+
+<a id="diagnostic-warn015"></a>
+### `WARN015` — Explicit empty mapping or sequence discarded by destination projection
+
+*warning, once per final folded destination.*
+
+- Explicit empty mapping or sequence discarded because the destination has no representation for that container concept
 
 ## Disagreeing with a diagnostic
 

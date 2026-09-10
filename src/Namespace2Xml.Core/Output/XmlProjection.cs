@@ -39,6 +39,7 @@ public sealed class XmlProjection
 {
     private readonly DiagnosticBuffer diagnostics;
     private readonly DestinationRef? destination;
+    private readonly EmptyContainerLosses emptyContainers = new();
     private readonly IReadOnlyDictionary<string, EffectiveTransform> types;
     private readonly int wrapper;
     private readonly bool preservesCData;
@@ -80,7 +81,75 @@ public sealed class XmlProjection
         ArgumentNullException.ThrowIfNull(view);
 
         ReportShapeConflicts(view, []);
+        ObserveDiscardedEmptySequences(view, root);
 
+        var document = ProjectView(view, root);
+
+        emptyContainers.Report(diagnostics, "\u00A719.5", destination);
+
+        return document;
+    }
+
+    /// <summary>
+    /// Counts every explicit empty sequence the final XML view would omit, independently of the
+    /// fail-fast byte projection.
+    /// </summary>
+    /// <remarks>
+    /// Section 24 requires the complete planning diagnostic set. A sibling that raises
+    /// <c>TYPE001</c>, <c>XML001</c>, or <c>XML002</c> can block publication, but it does not make a
+    /// later independently discardable sequence representable. The traversal therefore mirrors
+    /// XML placement without constructing bytes or raising diagnostics, and excludes only a
+    /// sequence whose own placement rule rejects it instead of discarding it.
+    /// </remarks>
+    private void ObserveDiscardedEmptySequences(
+        OverlayNode view,
+        ImmutableArray<NamePart> root)
+    {
+        if (view.Marks.ContainerIsSequence)
+        {
+            if (root.Length >= 2 && TryName(root[^2], out _))
+            {
+                ObserveNamedElement(root[^1], view, []);
+            }
+
+            return;
+        }
+
+        if (!root.IsDefaultOrEmpty)
+        {
+            if (TryName(root[^1], out _))
+            {
+                ObserveElementContent(view, []);
+            }
+
+            return;
+        }
+
+        if (view.Payload is not null && !view.Marks.RendersAsMapping)
+        {
+            return;
+        }
+
+        var children = view.Marks.RendersAsMapping
+            ? view.OrderedChildren.ToList()
+            : [];
+
+        if (children.Count != 1)
+        {
+            return;
+        }
+
+        var (name, child) = children[0];
+
+        if (TryName(name, out _))
+        {
+            ObserveElementContent(child, [name]);
+        }
+    }
+
+    private XmlDocumentProjection? ProjectView(
+        OverlayNode view, ImmutableArray<NamePart> root)
+    {
         if (view.Marks.ContainerIsSequence)
         {
             return Document(ProjectRootSequence(view, root));
@@ -187,6 +256,110 @@ public sealed class XmlProjection
         }
 
         return TryFill(element, child, [name]) ? element : null;
+    }
+
+    /// <summary>
+    /// Observes losses below content that has already acquired an element in the XML tree.
+    /// </summary>
+    private void ObserveElementContent(
+        OverlayNode node,
+        ImmutableArray<NamePart> path)
+    {
+        var kind = Kind(path);
+
+        if (kind == TypeValue.Attribute
+            || node.Marks.ContainerIsSequence
+            || (node.Payload is null && kind is TypeValue.Text or TypeValue.Cdata)
+            || !node.Marks.ContainerIsMapping)
+        {
+            return;
+        }
+
+        foreach (var (_, unit) in Placed(node, path))
+        {
+            if (unit.IsItem)
+            {
+                if (TryName(unit.Name, out _))
+                {
+                    ObserveElementContent(unit.Node, unit.Path);
+                }
+
+                continue;
+            }
+
+            ObserveChild(unit.Name, unit.Node, unit.Path);
+        }
+    }
+
+    /// <summary>Observes losses below one mapping child under its effective XML placement.</summary>
+    private void ObserveChild(
+        NamePart name,
+        OverlayNode child,
+        ImmutableArray<NamePart> path)
+    {
+        if (Kind(path) is { } kind)
+        {
+            if (kind != TypeValue.Element || name is ContentPart)
+            {
+                return;
+            }
+
+            var promoted = name is AttributePart attribute ? attribute.Name : name;
+            ObserveNamedElement(promoted, child, path);
+            return;
+        }
+
+        switch (name)
+        {
+            case AttributePart:
+                return;
+
+            case ContentPart:
+                ObserveElementContent(child, path);
+                return;
+
+            default:
+                ObserveNamedElement(name, child, path);
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Observes an ordinary or explicitly element-typed child, including repeated sequence
+    /// elements.
+    /// </summary>
+    private void ObserveNamedElement(
+        NamePart name,
+        OverlayNode child,
+        ImmutableArray<NamePart> path)
+    {
+        if (child.Marks.ContainerIsSequence)
+        {
+            if (child.Sequence.IsEmpty)
+            {
+                emptyContainers.ObserveEmptySequence(child);
+                return;
+            }
+
+            if (!TryName(name, out _))
+            {
+                return;
+            }
+
+            foreach (var (value, item) in child.OrderedSequence)
+            {
+                ObserveElementContent(
+                    item.Node,
+                    path.Add(OrderingValues.ToNamePart(value)));
+            }
+
+            return;
+        }
+
+        if (TryName(name, out _))
+        {
+            ObserveElementContent(child, path);
+        }
     }
 
     private XElement? ProjectRootSequence(OverlayNode view, ImmutableArray<NamePart> root)

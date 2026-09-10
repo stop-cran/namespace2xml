@@ -1,0 +1,3 @@
+cfg.output=xml
+cfg.filename=sequence.xml
+cfg.root=root

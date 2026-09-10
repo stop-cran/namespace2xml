@@ -1592,6 +1592,42 @@
         "xml-preserved-whitespace-can-be-visibly-blank",
         "xml-pretty-printing-writes-no-empty-lines"
       ]
+    },
+    {
+      "item": 98,
+      "text": "Explicit empty-container projection: namespace, JSON, YAML, and XML empty mappings remain represented without `WARN015`; quoted namespace and INI report discarded empty mappings and sequences; XML reports discarded empty sequences but not empty mappings; nested and repeated selected empties contribute exact category counts in fixed mapping-then-sequence message order; destination folding counts only final surviving facets; projection-created empty ancestors and facets lost to another shape do not contribute; XML sequences rejected as `TYPE001` do not contribute; and `--fail-on-warning` retains the complete planning diagnostics while refusing every publication.",
+      "milestone": "3.0.0",
+      "status": "required",
+      "assertions": [
+        "Namespace, JSON, and YAML preserve explicit empty mappings and sequences without WARN015.",
+        "XML preserves an explicit empty mapping as an empty element without WARN015 and discards an explicit empty sequence under one destination-scoped WARN015.",
+        "Quoted namespace and INI discard explicit empty mappings and sequences under one WARN015 per final folded destination.",
+        "WARN015 is a planning occurrence anchored to the destination projection clause and carries destination as its only structured field.",
+        "WARN015 message categories are ordered empty-mapping then empty-sequence and report the exact nonzero count for each category.",
+        "Nested and repeated explicit empty facets count independently after destination folding, while replaced contributions and projection-created ancestors do not count.",
+        "A facet that loses the exclusive-shape contest is reported by TYPE002 and does not contribute to WARN015.",
+        "An XML sequence rejected as TYPE001 does not contribute to WARN015.",
+        "Under --fail-on-warning, WARN015 remains in the complete diagnostic stream, every publication is refused, Published is zero, and pre-existing destinations remain byte-identical."
+      ],
+      "fixtures": [
+        "discarded-empty-containers-are-counted-after-folding",
+        "fail-on-warn015-refuses-all-publication",
+        "ini-discards-an-empty-mapping",
+        "ini-discards-an-empty-sequence",
+        "quoted-namespace-discards-an-empty-mapping",
+        "quoted-namespace-discards-an-empty-sequence",
+        "representable-empty-containers-are-preserved-without-warn015",
+        "xml-discards-an-empty-sequence",
+        "xml-sequence-attribute-projection-is-type001"
+      ],
+      "gates": [
+        "FlatProjectionTests.ACarrierLeftEmptyBySelectionEmitsNoSentinelOrWarn015",
+        "FlatProjectionTests.Warn015CountsOnlyTheWinningContainerFacet",
+        "TransformationTests.FailOnWarn015RefusesEveryDestinationBeforeTheFirstSinkCall",
+        "TransformationTests.Warn015CountsTheFinalFoldedViewOnceInFixedCategoryOrder",
+        "TransformationTests.Warn015CountsXmlLossesAfterAnEarlierProjectionError",
+        "TransformationTests.Warn015CountsXmlLossesUnderMixedContentMappings"
+      ]
     }
   ]
 }

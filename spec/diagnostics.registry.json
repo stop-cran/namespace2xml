@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "49bd199a1f5d3f10d3f1e689f30197d2e99e8fb3ebbfe83ec7578bb626f942c2"
+    "sha256": "875137983d3be8603fa5a1f778d566a5a6bad7f5c9b889f470f8c2bf3697ca47"
   },
   "authoritativeFor": [
     "code",
@@ -559,6 +559,18 @@
       ],
       "mappings": [
         "Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target"
+      ]
+    },
+    {
+      "code": "WARN015",
+      "severity": "warning",
+      "cardinality": "once per final folded destination",
+      "condition": "Explicit empty mapping or sequence discarded by destination projection",
+      "fields": [
+        "destination"
+      ],
+      "mappings": [
+        "Explicit empty mapping or sequence discarded because the destination has no representation for that container concept"
       ]
     }
   ]

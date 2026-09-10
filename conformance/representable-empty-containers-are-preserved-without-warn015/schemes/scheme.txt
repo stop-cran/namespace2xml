@@ -1,0 +1,9 @@
+ns.output=namespace
+ns.filename=empty.properties
+json.output=json
+json.filename=empty.json
+yaml.output=yaml
+yaml.filename=empty.yaml
+xml.output=xml
+xml.filename=empty.xml
+xml.root=root

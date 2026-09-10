@@ -177,6 +177,10 @@ public static partial class DiagnosticCodes
             "once per admitted input-source occurrence",
             "Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target",
             ["source", "path"]),
+        new DiagnosticCodeInfo("WARN015", DiagnosticSeverity.Warning,
+            "once per final folded destination",
+            "Explicit empty mapping or sequence discarded by destination projection",
+            ["destination"]),
     ];
 
     /// <summary><c>CLI001</c> (error) — Invalid command line or option value.</summary>
@@ -940,4 +944,20 @@ public static partial class DiagnosticCodes
         string? path = null) =>
         Create("WARN014", DiagnosticSeverity.Warning, phase, spec, message,
             cardinalityKey, source: source, path: path);
+
+    /// <summary><c>WARN015</c> (warning) — Explicit empty mapping or sequence discarded by destination projection.</summary>
+    /// <param name="phase">Emission phase of this occurrence.</param>
+    /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
+    /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
+    /// <param name="cardinalityKey">Identity of the final folded destination this is emitted once per.</param>
+    /// <param name="destination">Section 6.4.3 <c>destination</c> member.</param>
+    /// <remarks>Cardinality: once per final folded destination.</remarks>
+    public static DiagnosticOccurrence Warn015(
+        DiagnosticPhase phase,
+        string spec,
+        string message,
+        string cardinalityKey,
+        string? destination = null) =>
+        Create("WARN015", DiagnosticSeverity.Warning, phase, spec, message,
+            cardinalityKey, destination: destination);
 }

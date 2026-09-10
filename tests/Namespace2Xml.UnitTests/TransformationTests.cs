@@ -53,6 +53,8 @@ public sealed class TransformationTests
 
         public List<string> Directories { get; } = [];
 
+        public List<string> WriteCalls { get; } = [];
+
         /// <summary>An in-memory sink has no filesystem to be escaped from.</summary>
         public bool SupportsSecureContainment => true;
 
@@ -64,6 +66,7 @@ public sealed class TransformationTests
         /// </summary>
         public bool Write(string root, string relative, OutputBuffer buffer)
         {
+            WriteCalls.Add(relative);
             var replaced = Written.ContainsKey(relative);
 
             Written[relative] = new UTF8Encoding(false).GetString(buffer.ToArray());
@@ -1068,6 +1071,145 @@ public sealed class TransformationTests
         result.Published.ShouldBe(0);
         sink.Directories.ShouldBeEmpty();
         sink.Written["guard.properties"].ShouldBe("sentinel=unchanged\n");
+    }
+
+    /// <summary>
+    /// Sections 17.5 and 19.2: destination projection sees only the final folded contribution.
+    /// The replaced contribution and the synthetic <c>root</c> wrapper do not inflate the counts,
+    /// and both nonzero categories are reported in their fixed mapping-before-sequence order.
+    /// </summary>
+    [Test]
+    public void Warn015CountsTheFinalFoldedViewOnceInFixedCategoryOrder()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("first.json", """{"old":{"oldMap":{},"oldSeq":[]}}"""),
+                ("second.json",
+                    """{"final":{"map1":{},"map2":{},"seq1":[],"seq2":[],"nested":{"map3":{},"seq3":[]},"keep":"v"}}"""),
+                ("scheme.txt",
+                    "old.output=quotednamespace\n"
+                    + "old.filename=folded.sh\n"
+                    + "final.output=quotednamespace\n"
+                    + "final.filename=folded.sh\n"
+                    + "final.filemerge=replace\n"
+                    + "final.root=root\n")),
+            "-i", "first.json", "-i", "second.json", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        result.Published.ShouldBe(1);
+        result.Diagnostics.Select(entry => entry.Code).ShouldBe(["WARN005", "WARN015"]);
+
+        var warning = result.Diagnostics.Single(entry => entry.Code == "WARN015");
+
+        warning.Message.ShouldBe(
+            "destination projection discarded explicit empty containers it cannot represent: "
+            + "empty-mapping=3; empty-sequence=3.");
+        warning.Destination.ShouldBe("folded.sh");
+        warning.Spec.ShouldBe("§19.2");
+        sink.Written["folded.sh"].ShouldBe("root_keep='v'\n");
+    }
+
+    /// <summary>
+    /// Sections 19.5 and 24: one blocking XML projection error does not make the complete planning
+    /// diagnostic set depend on sibling order. The rejected sequence itself is excluded, while a
+    /// later independently discarded empty sequence still contributes to <c>WARN015</c>.
+    /// </summary>
+    [TestCase("""{"cfg":{"blocked":[],"lost":[]}}""")]
+    [TestCase("""{"cfg":{"lost":[],"blocked":[]}}""")]
+    public void Warn015CountsXmlLossesAfterAnEarlierProjectionError(string json)
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("doc.json", json),
+                ("scheme.txt",
+                    "cfg.output=xml\n"
+                    + "cfg.filename=out.xml\n"
+                    + "cfg.root=root\n"
+                    + "cfg.blocked.type=attribute\n")),
+            "-i", "doc.json", "-s", "scheme.txt");
+
+        result.Diagnostics.Select(entry => entry.Code).ShouldBe(["TYPE001", "WARN015"]);
+        result.Diagnostics.Single(entry => entry.Code == "WARN015").Message.ShouldBe(
+            "destination projection discarded explicit empty containers it cannot represent: "
+            + "empty-sequence=1.");
+        result.Published.ShouldBe(0);
+        sink.Written.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Sections 17.1 and 19.5: XML retains a mapping facet beneath a later scalar payload as mixed
+    /// content, so the loss observer traverses that facet even though mapping is not the node's
+    /// exclusive rendered shape.
+    /// </summary>
+    [Test]
+    public void Warn015CountsXmlLossesUnderMixedContentMappings()
+    {
+        var sink = new Sink();
+        sink.Written["out.xml"] = "sentinel";
+        var result = Run(
+            sink,
+            new Sources(
+                ("mapping.json", """{"cfg":{"lost":[]}}"""),
+                ("scalar.json", """{"cfg":"value"}"""),
+                ("scheme.txt",
+                    "cfg.output=xml\n"
+                    + "cfg.filename=out.xml\n"
+                    + "cfg.root=root\n")),
+            "--fail-on-warning",
+            "-i", "mapping.json",
+            "-i", "scalar.json",
+            "-s", "scheme.txt");
+
+        Codes(result).ShouldBe(["WARN015"]);
+        result.Diagnostics.Single().Message.ShouldBe(
+            "destination projection discarded explicit empty containers it cannot represent: "
+            + "empty-sequence=1.");
+        result.Diagnostics.Single().Destination.ShouldBe("out.xml");
+        result.Diagnostics.Single().Spec.ShouldBe("§19.5");
+        result.WarningPolicyTriggered.ShouldBeTrue();
+        result.ExitCode.ShouldBe(1);
+        result.Published.ShouldBe(0);
+        sink.Directories.ShouldBeEmpty();
+        sink.WriteCalls.ShouldBeEmpty();
+        sink.Written["out.xml"].ShouldBe("sentinel");
+    }
+
+    /// <summary>
+    /// Sections 21.2 and 21.4: a serialization-time <c>WARN015</c> participates in
+    /// <c>--fail-on-warning</c>, so no sink operation occurs and every pre-existing destination
+    /// remains byte-for-byte unchanged.
+    /// </summary>
+    [Test]
+    public void FailOnWarn015RefusesEveryDestinationBeforeTheFirstSinkCall()
+    {
+        var sink = new Sink();
+        sink.Written["guard.xml"] = "old guard";
+        sink.Written["clean.json"] = "old clean";
+        var result = Run(
+            sink,
+            new Sources(
+                ("doc.json", """{"guard":{"lost":[],"keep":"new"},"clean":{"keep":"new"}}"""),
+                ("scheme.txt",
+                    "guard.output=xml\n"
+                    + "guard.filename=guard.xml\n"
+                    + "guard.root=root\n"
+                    + "clean.output=json\n"
+                    + "clean.filename=clean.json\n")),
+            "--fail-on-warning", "-i", "doc.json", "-s", "scheme.txt");
+
+        result.Diagnostics.Select(entry => entry.Code).ShouldBe(["WARN015"]);
+        result.WarningPolicyTriggered.ShouldBeTrue();
+        result.ExitCode.ShouldBe(1);
+        result.Published.ShouldBe(0);
+        result.State.ShouldBe(PipelineRunState.Finished);
+        sink.Directories.ShouldBeEmpty();
+        sink.WriteCalls.ShouldBeEmpty();
+        sink.Written["guard.xml"].ShouldBe("old guard");
+        sink.Written["clean.json"].ShouldBe("old clean");
     }
 
     [Test]

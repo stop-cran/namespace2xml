@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r107+b3f8bd744bfa`.**
+**Contract bundle `r110+d04198b68ed4`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (189)
+## Observable differences (196)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1609,6 +1609,15 @@ implemented, its case says so plainly rather than letting the heading imply othe
   which reintroduced the raw spelling on this one path when that rejection was added. A rule
   applied by a shared helper is only as good as the number of sites that call it.
 
+### `discarded-empty-containers-are-counted-after-folding`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3, 17.5, and 19.2; Section 26 item 98.
+- Legacy observation: the baseline silently omitted every explicit empty container it selected.
+- Clean behavior: only the final folded destination is diagnosed; its nested and repeated empty
+  mappings and sequences are summarized in one `WARN015`, while the replaced contribution adds no
+  discarded-container count and the synthetic `root` wrapper is not counted.
+
 ### `empty-container-versus-scalar-picks-the-later-shape`
 
 - namespace2xml 2.4.0: **differs**. It picks the *same* shape at every node — `emptywins.x` renders
@@ -1707,6 +1716,20 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: shared array-index state made a fold's result depend on the
   order and shape of contributions rather than on their addressed positions, which is the class
   of defect Section 3.2 exists to remove.
+
+### `ini-discards-an-empty-mapping`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.6; Section 26 item 98.
+- Legacy observation: the baseline silently omitted the explicit empty mapping.
+- Clean behavior: INI still omits the unrepresentable mapping, but reports `WARN015`.
+
+### `ini-discards-an-empty-sequence`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.6; Section 26 item 98.
+- Legacy observation: the baseline silently omitted the explicit empty sequence.
+- Clean behavior: INI still omits the unrepresentable sequence, but reports `WARN015`.
 
 ### `ini-escape-multiline-spelling`
 
@@ -2567,6 +2590,20 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - Clean behavior: the default filename is the whole concrete selector, so the two instances render at `a.0.properties` and `a.1.properties`.
 - Why the difference is intentional: the missing `a.` prefix is the Section 3.2 synthetic-root leak, and the fact that both instances land at all says nothing about whether 2.4.0 addressed the sequence facet at step 9 or reached these items by another path -- the surviving *content* would be identical either way for this data, so the tree comparison here settles filenames rather than addressing. The Section 15.1 step 9 discriminator (a sequence item is addressable through its ordering value) is invisible in the observable this verdict is scored against; it is asserted by the fixture's `expected/` bytes, not by whether the baseline reproduces them for the right reason.
 
+### `quoted-namespace-discards-an-empty-mapping`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.2; Section 26 item 98.
+- Legacy observation: the baseline silently omitted the explicit empty mapping.
+- Clean behavior: quoted namespace still omits the unrepresentable mapping, but reports `WARN015`.
+
+### `quoted-namespace-discards-an-empty-sequence`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.2; Section 26 item 98.
+- Legacy observation: the baseline silently omitted the explicit empty sequence.
+- Clean behavior: quoted namespace still omits the unrepresentable sequence, but reports `WARN015`.
+
 ### `quoted-namespace-hyphen-key-is-shell001`
 
 - namespace2xml 2.4.0: **differs**. It exits 0 rather than the expected 1 and writes
@@ -2612,6 +2649,15 @@ implemented, its case says so plainly rather than letting the heading imply othe
   `FLAT001` naming the view-relative path, and no file is written.
 - The difference is intentional: an output that loses a value is worse than an output that is
   refused, and the collision is a property of the projection rather than of the data.
+
+### `representable-empty-containers-are-preserved-without-warn015`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.1-19.5; Section 26 item 98.
+- Legacy observation: the baseline differs on at least one normalized byte representation.
+- Clean behavior: namespace, JSON, and YAML preserve both empty-container categories, and XML
+  preserves an empty mapping as an empty element; none of these representable shapes emits
+  `WARN015`.
 
 ### `root-wraps-a-bare-scalars-retained-key`
 
@@ -3444,6 +3490,13 @@ implemented, its case says so plainly rather than letting the heading imply othe
   encoding this tool supports, and it is wrong here only because this particular file carries no
   UTF-16 byte-order mark and was therefore decoded as UTF-8. Both sources report, in the Section
   7.3 command-line order, so one run names every disagreeing file.
+
+### `xml-discards-an-empty-sequence`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.5; Section 26 item 98.
+- Legacy observation: the baseline silently omitted the explicit empty sequence.
+- Clean behavior: XML still omits the unrepresentable repeated-sibling sequence, but reports `WARN015`.
 
 ### `xml-filemerge-replace-takes-whole-document`
 
@@ -4832,7 +4885,7 @@ either accepts the input or reports a diagnostic and exits deliberately.
   enum parser recognized; the string reached `Enum.Parse` unvalidated and threw
   `ArgumentException`, which the CLI did not catch. `type=attribute` **is** an XML-specific
   value in 3.0, and it is legal on a scalar. What this case exercises is applying it to a
-  *sequence* — the JSON `["v1","v2"]` at `cfg.tag` — which §19.5 refuses with `TYPE001`.
+  *explicit empty sequence* — the JSON `[]` at `cfg.tag` — which §19.5 refuses with `TYPE001`.
   The baseline never gets that far: the enum parser fails before the sequence is even
   inspected, so the correction here is layered. The unhandled-exception defect must be
   fixed first before the specific `TYPE001` refusal can be observed at all.
@@ -5078,7 +5131,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (52)
+## Same observable result as 2.4.0 (53)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -5643,6 +5696,14 @@ those that name a shared reason are behaviour 3.0 preserved.
   of data, and a case with no input would not distinguish the two.
 - `WARN008` declares no optional Section 6.4.3 members, so the occurrence is exactly the five
   required ones. It is the only diagnostic in the corpus whose whole content is its identity.
+
+### `fail-on-warn015-refuses-all-publication`
+
+- namespace2xml 2.4.0: **agrees** on the expected tree and exit code, but only because it rejects
+  the unknown option before serialization. Its diagnostics and execution semantics differ.
+- Contract: Sections 6.2, 19.5, and 21.2; Section 26 item 98.
+- Clean behavior: serialization discovers `WARN015`, then the warning policy refuses both
+  destinations, reports `Published = 0`, and leaves both existing files byte-identical.
 
 ### `fail-on-warning-after-serialization`
 

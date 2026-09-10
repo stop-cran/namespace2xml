@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r107+b3f8bd744bfa`. Dated 2026-09.**
+**Describes the `v3` branch at contract bundle `r110+d04198b68ed4`. Dated 2026-09.**
 
 This file tracks the branch, and the branch normally runs ahead of the last published preview:
 `3.0.0-preview.5` carries `r99+bad2fa36f0a5`, `3.0.0-preview.4` carries `r90+e172e0ba4d2a`,
@@ -869,6 +869,27 @@ source rather than assumed. The rule only ever adds quotes, so it breaks no read
 Pinned by `yaml-quotes-every-portably-typed-spelling`, which carries a negative half so that
 quoting everything fails it too, and guarded from outside by `tools/check-yaml-interop.{py,js}` —
 two lanes, because an unquoted `0o17` passes the 1.1 lane and fails the 1.2 lane.
+
+### 1.24 *(resolved)* Explicit empty containers could disappear without a diagnostic
+
+Resolved by [#94](https://github.com/stop-cran/namespace2xml/issues/94). Published previews could
+discard an explicitly written empty mapping or sequence while reporting no warning, even though
+§3.3 requires unsupported source concepts to be reported. The registry had no diagnostic for
+discarded structure: `WARN003` was, and remains, restricted to metadata and comments.
+
+The destination matrix is now explicit. Namespace output preserves empty mappings and sequences as
+the `{}` and `[]` sentinels, JSON and YAML preserve both native shapes, and XML preserves an empty
+mapping as an empty element. Quoted namespace and INI cannot represent either shape, and XML cannot
+represent an empty sequence as repeated elements; each now raises one destination-scoped
+`WARN015`, with exact nonzero counts in `empty-mapping` then `empty-sequence` order. The count is
+made from the final folded view and remains complete even when an independent XML projection error
+blocks publication. A carrier, a replaced or losing facet, and an XML sequence that is itself
+rejected as `TYPE001` do not count.
+
+Pinned by the nine acceptance-item 98 fixtures and six direct gates named in
+`conformance/assertions.json`, including
+`TransformationTests.Warn015CountsXmlLossesAfterAnEarlierProjectionError` for the fail-fast
+diagnostic-ordering escape.
 
 ## 2. Acceptance coverage
 

@@ -1,0 +1,6 @@
+-i
+inputs/first.json
+-i
+inputs/second.json
+-s
+schemes/scheme.txt

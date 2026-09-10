@@ -75,6 +75,7 @@ public sealed class FlatProjection
     private readonly FlatFormat format;
     private readonly DiagnosticBuffer diagnostics;
     private readonly DestinationRef? destination;
+    private readonly EmptyContainerLosses emptyContainers = new();
     private readonly List<BoundComment> pending = [];
     private int discardedComments;
 
@@ -116,6 +117,10 @@ public sealed class FlatProjection
         pending.Clear();
 
         CommentNodes.Report(diagnostics, "\u00A720", destination, discardedComments);
+        emptyContainers.Report(
+            diagnostics,
+            format == FlatFormat.QuotedNamespace ? "\u00A719.2" : "\u00A719.6",
+            destination);
 
         var leading = ImmutableArray.CreateBuilder<BoundComment>();
         var trailing = ImmutableArray.CreateBuilder<BoundComment>();
@@ -135,6 +140,11 @@ public sealed class FlatProjection
         ImmutableArray<FlatEntry>.Builder entries,
         bool isRoot = false)
     {
+        if (format != FlatFormat.Namespace)
+        {
+            emptyContainers.Observe(node);
+        }
+
         if (node.Payload is { IsValue: false })
         {
             // A comment node another contribution has given children. Only the comment goes.

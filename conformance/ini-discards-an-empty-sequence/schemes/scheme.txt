@@ -1,0 +1,3 @@
+cfg.output=ini
+cfg.filename=sequence.ini
+cfg.root=section

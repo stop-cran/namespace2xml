@@ -1,0 +1,2 @@
+cfg.output=quotednamespace
+cfg.filename=sequence.sh

@@ -395,7 +395,7 @@ public class FlatProjectionTests
     /// reappear in the output as an empty container.
     /// </remarks>
     [Test]
-    public void ACarrierLeftEmptyBySelectionEmitsNoSentinel()
+    public void ACarrierLeftEmptyBySelectionEmitsNoSentinelOrWarn015()
     {
         var carrier = Container(1)
             .WithChild(Ordinary("gone"), Leaf("x", 1))
@@ -404,6 +404,43 @@ public class FlatProjectionTests
         carrier.Marks.MappingShape.ShouldNotBeNull();
         carrier.Marks.OwnMappingShape.ShouldBeNull();
 
-        Project(Container(1).WithChild(Ordinary("a"), carrier)).ShouldBeEmpty();
+        var view = Container(1).WithChild(Ordinary("a"), carrier);
+
+        Project(view).ShouldBeEmpty();
+        new FlatProjection(FlatFormat.QuotedNamespace, diagnostics)
+            .Project(view, []).Entries.ShouldBeEmpty();
+        diagnostics.Drain().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Sections 17.1 and 19.2: the later container facet wins, so the discarded earlier facet is
+    /// reported by <c>TYPE002</c> rather than being counted by <c>WARN015</c>. The destination
+    /// projection warning therefore contains only the winning empty-sequence category.
+    /// </summary>
+    [Test]
+    public void Warn015CountsOnlyTheWinningContainerFacet()
+    {
+        var early = StableOrderingKey.FromSource(1, 0);
+        var late = StableOrderingKey.FromSource(2, 0);
+        var view = Container(1)
+            .WithChild(
+                Ordinary("a"),
+                Container(1)
+                    .WithExplicitMapping(early)
+                    .WithExplicitSequence(late));
+
+        new FlatProjection(
+            FlatFormat.QuotedNamespace,
+            diagnostics,
+            new DestinationRef("out.sh", 0)).Project(view, []).Entries.ShouldBeEmpty();
+
+        var emitted = diagnostics.Drain();
+
+        emitted.Select(entry => entry.Code).ShouldBe(["TYPE002", "WARN015"]);
+        emitted[0].Path.ShouldBe("a");
+        emitted[1].Message.ShouldBe(
+            "destination projection discarded explicit empty containers it cannot represent: "
+            + "empty-sequence=1.");
+        emitted[1].Destination.ShouldBe("out.sh");
     }
 }

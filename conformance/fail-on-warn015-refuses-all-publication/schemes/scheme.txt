@@ -1,0 +1,5 @@
+guard.output=xml
+guard.filename=guard.xml
+guard.root=root
+clean.output=json
+clean.filename=clean.json
