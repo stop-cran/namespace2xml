@@ -54,10 +54,10 @@ documents are written to a directory rather than returned.
 | Your value | Becomes |
 |---|---|
 | mapping | one record per leaf, keys joined with `.` |
-| list | child names `0`, `1`, `2`, … — see section 5 below |
+| list | child names `0`, `1`, `2`, … — see [section 5 below](#summary-section-5) |
 | empty mapping | the `{}` sentinel, so the element is emitted rather than vanishing |
 | empty list | the `[]` sentinel, likewise |
-| scalar | an encoded section 8.3 value |
+| scalar | an encoded [section 8.3](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-8-3) value |
 
 Every name part and every scalar is escaped before it reaches the tool, so a key containing `.`,
 `=`, `#`, `!`, `@` or a backslash means that literal character and does not become syntax. You do
@@ -67,6 +67,7 @@ one way to corrupt it.
 The root of the generated profile is the `selector` argument, `cfg` by default. It only has to be
 a name you are not otherwise using.
 
+<a id="summary-section-4"></a>
 ## 4. Values are typed by their spelling
 
 For `json` and `yaml` output, an unmarked value is typed by what it looks like:
@@ -79,9 +80,12 @@ JSON-compatible decimal or exponent form becomes a decimal; anything else stays 
 > Thousands separators, locale decimal commas, hexadecimal, `NaN`, and infinities are not inferred.
 
 So a version string such as `1.10` is rendered as a number rather than as a string. To hold a value
-to a type of your choosing, declare it in a scheme with a section 16.6 `type` directive — this is
-the single most common surprise, and it is a specified behaviour rather than a defect.
+to a type of your choosing, declare it in a scheme with a
+[section 16.6](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-16-6)
+`type` directive — this is the single most common surprise, and it is a specified behaviour rather
+than a defect.
 
+<a id="summary-section-5"></a>
 ## 5. Lists become sequences only if the indices are canonical
 
 The filter emits `str(index)`, which is always canonical, so a plain Ansible list is always a
@@ -122,10 +126,12 @@ scheme yourself from untrusted data, you own that problem.
 
 `root` and `delimiter` are refused alongside `scheme`, because they are read only while
 synthesizing one. `fmt` stays required and is checked against the format the scheme really
-produces, so a mismatch is reported rather than quietly ignored. Where §15.2 precedence decides
-that — several `output` declarations, or one written as a `${...}` reference — the check costs a
-second render, because only the tool implements §15.2. See the plugin documentation for the exact
-argument rules.
+produces, so a mismatch is reported rather than quietly ignored. Where
+[§15.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-15-2)
+precedence decides that — several `output` declarations, or one written as a `${...}` reference —
+the check costs a second render, because only the tool implements
+[§15.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-15-2).
+See the plugin documentation for the exact argument rules.
 
 ## 8. Diagnostics and failure
 
@@ -165,20 +171,21 @@ and the workarounds for each; this is the index. They are all consequences of tu
 into profile text, so none of them applies to the module, which sends your files to the tool as
 they are.
 
-1. **Types are inferred from value text** — section 4 above. A string that looks like a number
+1. **Types are inferred from value text** — [section 4 above](#summary-section-4). A string that looks like a number
    becomes one unless a `type` directive says otherwise.
-2. **Integer keys make their parent a sequence** — section 5 above. A mapping whose keys happen to
+2. **Integer keys make their parent a sequence** — [section 5 above](#summary-section-5). A mapping whose keys happen to
    be `0`, `1`, `2` is rendered as a list.
 3. **Binary data is refused.** A value that is not expressible as a profile scalar is an error
    rather than a silent coercion.
 4. **XML attributes, content tokens and qualified names need `convention: xmltodict`.** By default
    the filter escapes `@`, `Q{…}` and `#` into ordinary names, because the default encoding is
    total and every key must read back as itself. Pass `convention=xmltodict` and those markers are
-   read as §11.4 addressing instead — `@id` is an attribute, `Q{urn:p}b` a qualified element,
-   `#text` an element's own text, `#0`/`#1` ordered content. That convention is total too: `\@x`
-   spells the literal name `@x`. `#text` beside a child element is refused rather than positioned
-   by guesswork. The module's `variables` option remains the more direct route when the document
-   is already on the node, because it passes names to the tool verbatim.
+   read as [§11.4](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-11-4)
+   addressing instead — `@id` is an attribute, `Q{urn:p}b` a qualified element, `#text` an
+   element's own text, `#0`/`#1` ordered content. That convention is total too: `\@x` spells the
+   literal name `@x`. `#text` beside a child element is refused rather than positioned by
+   guesswork. The module's `variables` option remains the more direct route when the document is
+   already on the node, because it passes names to the tool verbatim.
 
 Rendering is also one-way: neither plugin reads a rendered document back into variables.
 

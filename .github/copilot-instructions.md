@@ -110,7 +110,7 @@ worth more than one that changes control flow, which tends to hang rather than r
 | `docs/diagnostics.md` | `tools/sync-docs.ps1` |
 | `ansible/docs/diagnostics.md` | `tools/sync-docs.ps1` |
 | `docs/migration-2.x-to-3.0.md` | `tools/sync-docs.ps1` |
-| Same-repository `blob`/`tree` refs under `ansible/` | `tools/sync-ansible-doc-links.py` |
+| Same-repository `blob`/`tree` refs and specification citation targets under `ansible/` | `tools/sync-ansible-doc-links.py` |
 
 Run all six specification-derived generators after touching `docs/specification.md` **or** the
 corpus, in the order listed in `AGENTS.md`. The navigation manifest is the sole machine-readable
@@ -124,7 +124,9 @@ PowerShell hashtable into line 5 of both generated documents, stably, on every r
 of a generator you changed; do not merely re-run it and observe that nothing moved.
 
 The Ansible link generator reads its independent version from `ansible/galaxy.yml` and derives
-`ansible-v<version>`. Run it after a collection-version bump or after adding a same-repository link
+`ansible-v<version>`. It resolves linked clause citations through the generated
+`spec/specification-navigation.json` manifest rather than reparsing specification headings. Run it
+after a collection-version bump or after adding a same-repository or specification-clause link
 anywhere under `ansible/`; never substitute the .NET product version.
 
 ---

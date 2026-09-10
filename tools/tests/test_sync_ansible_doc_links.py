@@ -7,6 +7,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "sync-ansible-doc-links.py"
@@ -71,6 +72,107 @@ class NormalizeLinksTests(unittest.TestCase):
         self.assertEqual(second_pass, normalized)
         self.assertEqual(second_stale, [])
         self.assertEqual(second_count, 3)
+
+
+class SpecificationCitationTests(unittest.TestCase):
+    ANCHORS = {
+        "6.4.3": "spec-6-4-3",
+        "16.10": "spec-16-10",
+        "22": "spec-22",
+        "B": "spec-b",
+    }
+
+    def test_missing_and_derived_fragments_use_generated_stable_anchors(self) -> None:
+        source = (
+            "[§16.10](https://github.com/stop-cran/namespace2xml/blob/"
+            "ansible-v3.0.2/docs/specification.md)\n"
+            "[`§6.4.3`](https://github.com/stop-cran/namespace2xml/blob/"
+            "ansible-v3.0.2/docs/specification.md#643-old-derived-slug)\n"
+            "[Section 22](https://github.com/stop-cran/namespace2xml/blob/"
+            "ansible-v3.0.2/docs/specification.md#spec-22)\n"
+            "[Appendix B](https://github.com/stop-cran/namespace2xml/blob/"
+            "ansible-v3.0.2/docs/specification.md)\n"
+        ).encode("utf-8")
+
+        normalized, stale, count = MODULE.normalize_specification_citations(
+            "ansible/README.md",
+            source,
+            self.ANCHORS,
+        )
+
+        self.assertEqual(count, 4)
+        self.assertEqual(len(stale), 3)
+        self.assertIn(b"[\xc2\xa716.10](", normalized)
+        self.assertIn(b"docs/specification.md#spec-16-10)", normalized)
+        self.assertIn(b"docs/specification.md#spec-6-4-3)", normalized)
+        self.assertIn(b"docs/specification.md#spec-22)", normalized)
+        self.assertIn(b"docs/specification.md#spec-b)", normalized)
+        self.assertNotIn(b"643-old-derived-slug", normalized)
+
+        second, second_stale, second_count = (
+            MODULE.normalize_specification_citations(
+                "ansible/README.md",
+                normalized,
+                self.ANCHORS,
+            )
+        )
+        self.assertEqual(second, normalized)
+        self.assertEqual(second_stale, [])
+        self.assertEqual(second_count, 4)
+
+    def test_unknown_visible_clause_fails_closed(self) -> None:
+        source = (
+            "[§99](https://github.com/stop-cran/namespace2xml/blob/"
+            "ansible-v3.0.2/docs/specification.md)\n"
+        ).encode("utf-8")
+
+        with self.assertRaisesRegex(ValueError, "unknown clause '99'"):
+            MODULE.normalize_specification_citations(
+                "ansible/README.md",
+                source,
+                self.ANCHORS,
+            )
+
+    def test_check_mode_rejects_missing_and_stale_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "README.md"
+            original = (
+                "[§16.10](https://github.com/stop-cran/namespace2xml/blob/"
+                "ansible-v3.0.2/docs/specification.md)\n"
+                "[`§6.4.3`](https://github.com/stop-cran/namespace2xml/blob/"
+                "ansible-v3.0.2/docs/specification.md#643-derived)\n"
+            )
+            path.write_text(original, encoding="utf-8", newline="\n")
+
+            output = io.StringIO()
+            with (
+                mock.patch.object(
+                    MODULE,
+                    "collection_ref",
+                    return_value="ansible-v3.0.2",
+                ),
+                mock.patch.object(
+                    MODULE,
+                    "specification_anchors",
+                    return_value=self.ANCHORS,
+                ),
+                mock.patch.object(
+                    MODULE,
+                    "tracked_ansible_files",
+                    return_value=[("ansible/README.md", path)],
+                ),
+                contextlib.redirect_stdout(output),
+            ):
+                result = MODULE.synchronize(check=True)
+
+            self.assertEqual(result, 1)
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
+            self.assertEqual(
+                output.getvalue().count("stale specification citation target"),
+                2,
+            )
+            self.assertIn("#spec-16-10", output.getvalue())
+            self.assertIn("#spec-6-4-3", output.getvalue())
 
 
 class CollectionVersionTests(unittest.TestCase):

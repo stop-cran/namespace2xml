@@ -163,7 +163,7 @@ bytes against what is on the node.
 | `workdir` | parent for the temporary marshalling directory |
 
 The piped value is applied **last**, so it wins any name an `inputs` entry also sets. That is
-[§16.10](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md) — the last
+[§16.10](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-16-10) — the last
 contribution wins — and it is the ordering that makes `inputs` useful: put the shared defaults
 in `inputs` and pipe the host's overrides.
 
@@ -229,8 +229,9 @@ string, which names a file, or a mapping carrying exactly one of:
 | `format` | how to parse `text`. Only ever alongside `text` |
 
 The list is ordered, and later beats earlier —
-[§16.10](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md) for
-inputs, §15.2 for schemes. So a small override layers onto a shared file without either of them
+[§16.10](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-16-10) for
+inputs, [§15.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-15-2)
+for schemes. So a small override layers onto a shared file without either of them
 knowing about the other:
 
 ```yaml
@@ -245,7 +246,7 @@ scheme:
 ```
 
 `format` belongs to `text` alone, and setting it elsewhere is refused rather than ignored.
-Beside `file` there is nothing for it to do — [§7.1](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md)
+Beside `file` there is nothing for it to do — [§7.1](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-7-1)
 selects the parser from the extension and the file is passed to the tool rather than copied, so
 a `format` here could not be honoured. Beside `data` there is nothing left for it to reach: a
 structure is already being encoded into the tool's own syntax. To parse a file as something its
@@ -258,7 +259,7 @@ inputs:
 ```
 
 The formats are `namespace`, `json`, `yaml` and `xml` for an input, and `namespace`, `json` and
-`yaml` for a scheme — [§15](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md)
+`yaml` for a scheme — [§15](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-15)
 does not offer XML for a scheme.
 
 #### Why a structure, and not just text
@@ -391,11 +392,11 @@ ansible-doc -t module stop_cran.namespace2xml.render
 
 The module renders into a scratch directory and compares every produced file against `dest`
 **byte for byte**, writing only the ones that differ. That is exact rather than heuristic because
-[§24](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md) makes the
+[§24](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-24) makes the
 tool's output deterministic for identical inputs. `check_mode` and `--diff` fall out of the same
 comparison, so a dry run reports precisely what a real run would do.
 
-Publication follows [§21.1](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md):
+Publication follows [§21.1](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-21-1):
 each file is written through a handle-relative, no-follow open and renamed into place, so a
 symbolic link planted under `dest` is replaced rather than followed, and a write is never seen
 half-finished. The module therefore targets POSIX nodes, and refuses to publish on a platform
@@ -409,7 +410,7 @@ deletes.
 The module **refuses** a render whose output would land on one of its own `src` paths. This is a
 hard error, not a warning, and the reason is worth stating because the alternative failure is
 invisible:
-[§16.10](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md) defines
+[§16.10](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-16-10) defines
 `merge=append` as rebasing each later sequence contribution onto fresh ordering values above the
 current high-water mark. A run that reads back its own output therefore appends to what it just
 appended — `["STDOUT"]`, then `["STDOUT", "FILE"]`, then `["STDOUT", "FILE", "FILE"]` — growing
@@ -438,7 +439,7 @@ Three things about it are easy to get wrong and each fails loudly:
 - It must be written **unqualified**. Input parsing happens before any output instance exists, so
   a selector-qualified input option such as `configuration.xmlinputoptions=…` is a blocking
   `SCHEME001` under
-  [§16.8](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md).
+  [§16.8](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-16-8).
 - Enabling it emits `WARN007`, recording that the same-format round-trip guarantee is weakened.
   The module passes that warning through rather than suppressing it.
 
@@ -491,7 +492,7 @@ one difference that follows from where the render happens: a `file` entry names 
 controller**, because that is the machine doing the reading.
 
 The role produces however many files the scheme declares, and an explicit `filename` carrying a
-`/` creates the subdirectory to hold it — [§16.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md)
+`/` creates the subdirectory to hold it — [§16.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-16-2)
 makes that deliberate rather than an accident of path handling. Directories are created with
 `namespace2xml_distribute_directory_mode`.
 
@@ -525,7 +526,7 @@ release. Read this section before adopting the filter for a format where any of 
 ### 1. Types are inferred from value text
 
 Payload types come from how a value is spelled, not from its Python type
-([§18](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#18-scalar-inference)). The
+([§18](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-18)). The
 string `"true"` and the boolean `true` produce the same record, as do `"3"` and `3`. A version
 number written `version: "3"` renders as the integer `3`.
 
@@ -547,7 +548,7 @@ check the result rather than assuming the rule applied.
 ### 2. Integer keys make their parent a sequence
 
 A name part that is a canonical decimal integer makes its parent a sequence
-([§8.7](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#87-numeric-paths-and-ordered-sequences)). This is
+([§8.7](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-8-7)). This is
 what lets lists round-trip, and it applies to *any* mapping whose keys happen to look like
 indices:
 
@@ -576,11 +577,11 @@ blob: "{{ raw | b64encode }}"
 every key reads back as itself. That guarantee is what costs the addressing: the three name forms
 XML needs are exactly the three the encoder escapes away. So by default the filter renders
 element-only XML, and a `@id` key produces a **blocking `XML002` error** naming
-[§11.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#112-supported-xml-subset)
+[§11.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-11-2)
 rather than a silently wrong document.
 
 Pass `convention: xmltodict` to read the markers instead of escaping them
-([§11.4](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#114-canonical-xml-addressing)).
+([§11.4](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-11-4)).
 The spelling is the one the ecosystem already uses — `xmltodict`, `community.general.to_xml` and
 the badgerfish style all write attributes this way:
 
@@ -611,7 +612,9 @@ that line.
 
 Two things it does not do:
 
-- **`#text` beside child elements is refused.** §11.4 puts an element's own text at the element's
+- **`#text` beside child elements is refused.**
+  [§11.4](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-11-4)
+  puts an element's own text at the element's
   path only while it has no child elements; once it has one the element is mixed and every content
   node takes an ordered part. A mapping does not record where the text stood, so write `#0` and
   `#1` explicitly rather than have the filter guess and render successfully with the text on the
