@@ -64,12 +64,18 @@
   ansible.builtin.set_fact:
     json_out: "{{ {'version': '3', 'name': 'demo'} | stop_cran.namespace2xml.render('json') }}"
 
+# Whole-value expressions are native objects on some supported ansible-core releases and text on
+# others. These assertions concern the document's scalar semantics, so normalize either shape.
+- name: Normalize JSON output for semantic assertions
+  ansible.builtin.set_fact:
+    json_value: "{{ json_out if json_out is mapping else (json_out | from_json) }}"
+
 - name: An unquoted-looking scalar is inferred as a JSON number
   ansible.builtin.assert:
     that:
-      - (json_out | from_json).version == 3
-      - (json_out | from_json).version is not string
-      - (json_out | from_json).name == 'demo'
+      - json_value.version == 3
+      - json_value.version is not string
+      - json_value.name == 'demo'
     fail_msg: "JSON type inference changed. Actual: {{ json_out }}"
 
 # ...and the documented way back. The trap this pins is that a scheme rule's pattern must match the
@@ -86,11 +92,15 @@
       cfg.output=json
       cfg.version.type=string
 
+- name: Normalize typed JSON output for semantic assertions
+  ansible.builtin.set_fact:
+    typed_value: "{{ typed_out if typed_out is mapping else (typed_out | from_json) }}"
+
 - name: The explicit type rule wins over inference
   ansible.builtin.assert:
     that:
-      - (typed_out | from_json).version == '3'
-      - (typed_out | from_json).version is string
+      - typed_value.version == '3'
+      - typed_value.version is string
     fail_msg: "Explicit type=string did not take effect. Actual: {{ typed_out }}"
 
 # The warning policy belongs to the requested render, not to the filter's private format probe.
@@ -214,16 +224,67 @@
     suffix: n2x
   register: scratch
 
+# A filter result is ordinary text, but whole-value templating on affected ansible-core releases
+# can reinterpret a JSON expression as a mapping before `copy` receives it. The final `string`
+# filter marks the value as text at that boundary. Without it the JSON leg is compacted and loses
+# its final LF; YAML proves that the format-independent recipe leaves other text unchanged.
+
+- name: Copy structured output through an explicit string boundary
+  ansible.builtin.copy:
+    content: "{{ structured_payload | stop_cran.namespace2xml.render(item) | string }}"
+    dest: "{{ scratch.path }}/structured.{{ item }}"
+    mode: "0644"
+  loop:
+    - json
+    - yaml
+  vars:
+    structured_payload:
+      version: "3"
+      name: demo
+
+- name: Read the copied structured outputs without newline conversion
+  ansible.builtin.slurp:
+    src: "{{ scratch.path }}/structured.{{ item }}"
+  loop:
+    - json
+    - yaml
+  register: copied_structured
+
+- name: Copy wrote the transformer's exact indentation and trailing LF
+  ansible.builtin.assert:
+    that:
+      - (copied_structured.results[0].content | b64decode) == expected_json
+      - (copied_structured.results[1].content | b64decode) == expected_yaml
+    fail_msg: |
+      Filter output changed at the Jinja-to-copy boundary.
+      --- expected JSON ---
+      {{ expected_json }}
+      --- copied JSON ---
+      {{ copied_structured.results[0].content | b64decode }}
+      --- expected YAML ---
+      {{ expected_yaml }}
+      --- copied YAML ---
+      {{ copied_structured.results[1].content | b64decode }}
+  vars:
+    expected_json: |
+      {
+        "version": 3,
+        "name": "demo"
+      }
+    expected_yaml: |
+      version: 3
+      name: demo
+
 - name: Write the rendered document
   ansible.builtin.copy:
-    content: "{{ xml_out }}"
+    content: "{{ xml_out | string }}"
     dest: "{{ scratch.path }}/logback.xml"
     mode: "0644"
   register: first_write
 
 - name: Write it again from a fresh render
   ansible.builtin.copy:
-    content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration', memoize=false) }}"
+    content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration', memoize=false) | string }}"
     dest: "{{ scratch.path }}/logback.xml"
     mode: "0644"
   register: second_write

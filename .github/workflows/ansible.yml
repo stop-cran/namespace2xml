@@ -414,7 +414,7 @@ jobs:
             fi
           done
 
-      - name: The filter loads and runs under this ansible-core
+      - name: The filter loads and the string boundary works under this ansible-core
         shell: bash
         env:
           ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}
@@ -434,6 +434,12 @@ jobs:
           - hosts: localhost
             connection: local
             gather_facts: false
+            vars:
+              rendered_json: |
+                {
+                  "version": 3,
+                  "name": "demo"
+                }
             tasks:
               - name: A bad format must be refused by the filter, not by the tool
                 debug:
@@ -448,6 +454,26 @@ jobs:
                     - "'not-a-format' in (outcome.msg | default(''))"
                     - "'quotednamespace' in (outcome.msg | default(''))"
                   fail_msg: "The filter did not run: {{ outcome.msg | default('no message') }}"
+
+              # This isolates the whole-value templating boundary from the transformer, which the
+              # integration job exercises with the real binary. Removing `| string` makes affected
+              # ansible-core releases reinterpret the JSON as a mapping and `copy` write different
+              # bytes.
+              - name: Copy a rendered document through the documented string boundary
+                copy:
+                  content: "{{ rendered_json | string }}"
+                  dest: /tmp/rendered.json
+
+              - name: Read the copied bytes
+                slurp:
+                  src: /tmp/rendered.json
+                register: copied_json
+
+              - name: The string boundary preserves indentation and the final LF
+                assert:
+                  that:
+                    - (copied_json.content | b64decode) == rendered_json
+                  fail_msg: "copy changed the rendered JSON at the whole-value templating boundary"
           PLAY
           ansible-playbook -i localhost, /tmp/probe.yml
 

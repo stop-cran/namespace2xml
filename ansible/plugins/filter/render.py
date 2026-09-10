@@ -16,6 +16,11 @@ description:
     neither .NET nor the tool; pair this filter with M(ansible.builtin.copy) to place the
     result, which already owns idempotence, check mode, diff, backup, ownership and SELinux
     context.
+  - Keep the render call as the whole M(ansible.builtin.copy) C(content) value and finish it with
+    C(| string). On affected ansible-core releases, whole-value templating can otherwise
+    reinterpret JSON text as a mapping and make C(copy) serialise that mapping instead of writing
+    the transformer's indented, LF-terminated bytes. The explicit string boundary is safe for
+    every output format.
   - Encoding follows the normative specification rather than the tool's observed output.
     Name parts are escaped per section 8.2, values per section 8.3, and a name part that is a
     canonical decimal integer makes its parent a sequence per section 8.7.
@@ -388,7 +393,7 @@ seealso:
 EXAMPLES = r"""
 - name: Render a logback configuration and place it on the target
   ansible.builtin.copy:
-    content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') }}"
+    content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') | string }}"
     dest: /opt/app/logback.xml
     mode: "0644"
   vars:
@@ -412,7 +417,7 @@ EXAMPLES = r"""
 
 - name: Render INI with an explicit scheme that forces a string
   ansible.builtin.copy:
-    content: "{{ settings | stop_cran.namespace2xml.render('ini', scheme=scheme) }}"
+    content: "{{ settings | stop_cran.namespace2xml.render('ini', scheme=scheme) | string }}"
     dest: /etc/app/app.ini
     mode: "0644"
   vars:
@@ -426,7 +431,7 @@ EXAMPLES = r"""
 
 - name: Render an XML-shaped mapping, with attributes and a namespace
   ansible.builtin.copy:
-    content: "{{ doc | stop_cran.namespace2xml.render('xml', root='beans', convention='xmltodict') }}"
+    content: "{{ doc | stop_cran.namespace2xml.render('xml', root='beans', convention='xmltodict') | string }}"
     dest: /opt/app/beans.xml
     mode: "0644"
   vars:
@@ -444,7 +449,7 @@ EXAMPLES = r"""
 
 - name: Layer host overrides over a template the application ships
   ansible.builtin.copy:
-    content: "{{ overrides | stop_cran.namespace2xml.render('xml', root='configuration', inputs=layers) }}"
+    content: "{{ overrides | stop_cran.namespace2xml.render('xml', root='configuration', inputs=layers) | string }}"
     dest: /opt/app/app.xml
     mode: "0644"
   vars:
@@ -473,7 +478,7 @@ EXAMPLES = r"""
 
 - name: Layer a per-host override onto a shared scheme file
   ansible.builtin.copy:
-    content: "{{ settings | stop_cran.namespace2xml.render('xml', scheme=schemes) }}"
+    content: "{{ settings | stop_cran.namespace2xml.render('xml', scheme=schemes) | string }}"
     dest: /opt/app/app.xml
     mode: "0644"
   vars:

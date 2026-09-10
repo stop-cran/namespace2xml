@@ -36,14 +36,14 @@
 
     - name: Render on the controller, place on the node
       ansible.builtin.copy:
-        content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') }}"
+        content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') | string }}"
         dest: /etc/app/logback.xml
         mode: "0644"
       register: placed
 
     - name: Place it again
       ansible.builtin.copy:
-        content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') }}"
+        content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') | string }}"
         dest: /etc/app/logback.xml
         mode: "0644"
       register: replaced
