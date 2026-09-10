@@ -7,7 +7,7 @@ in play variables, on the controller, or from a managed node's own files, on the
 ```yaml
 - name: Render a logback configuration and place it on the target
   ansible.builtin.copy:
-    content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') }}"
+    content: "{{ logback | stop_cran.namespace2xml.render('xml', root='configuration') | string }}"
     dest: /opt/app/logback.xml
     mode: "0644"
   vars:
@@ -132,8 +132,12 @@ ordinary outcome: a module runs in a non-interactive shell that never sourced th
 
 The filter returns text. It does not write files, and it deliberately does not try to: pipe it
 into `ansible.builtin.copy`, which already owns idempotence, check mode, diff, backup, ownership
-and SELinux context. A second run over unchanged data reports `changed=0` because `copy` compares
-the rendered text against what is on the node.
+and SELinux context. Keep the render call as the whole `content` value and finish it with `| string`.
+On affected ansible-core releases, whole-value templating can otherwise reinterpret JSON text as a
+mapping before `copy` receives it, causing `copy` to serialise the mapping instead of writing the
+transformer's indented, LF-terminated bytes. The explicit string boundary is safe for every output
+format. A second run over unchanged data reports `changed=0` because `copy` compares those rendered
+bytes against what is on the node.
 
 ### Arguments
 
@@ -166,7 +170,7 @@ in `inputs` and pipe the host's overrides.
       {{ host_overrides | stop_cran.namespace2xml.render(
            'xml', root='configuration',
            inputs=[{'file': '/srv/defaults/base.properties'},
-                   {'data': group_defaults}]) }}
+                   {'data': group_defaults}]) | string }}
 ```
 
 
@@ -585,7 +589,7 @@ the badgerfish style all write attributes this way:
 
 ```yaml
 - ansible.builtin.copy:
-    content: "{{ doc | stop_cran.namespace2xml.render('xml', root='beans', convention='xmltodict') }}"
+    content: "{{ doc | stop_cran.namespace2xml.render('xml', root='beans', convention='xmltodict') | string }}"
     dest: /opt/app/beans.xml
   vars:
     doc:
