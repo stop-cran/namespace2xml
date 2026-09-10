@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pins same-repository links shipped by the Ansible collection to its release tag."""
+"""Synchronizes generated targets in Ansible collection documentation links."""
 
 from __future__ import annotations
 
@@ -20,24 +20,86 @@ except ImportError:
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 GALAXY_MANIFEST = REPOSITORY_ROOT / "ansible" / "galaxy.yml"
+SPECIFICATION_NAVIGATION = (
+    REPOSITORY_ROOT / "spec" / "specification-navigation.json"
+)
 SYNC_COMMAND = "python tools/sync-ansible-doc-links.py"
 LINK_REF = re.compile(
     rb"(?P<prefix>https://github\.com/stop-cran/namespace2xml/(?:blob|tree)/)"
     rb"(?P<ref>[^/\s<>\"]+)"
     rb"(?P<suffix>/)"
 )
+SPECIFICATION_CITATION = re.compile(
+    rb"\[(?P<label>`?(?:(?:\xc2\xa7)|(?i:section[ ]|appendix[ ]))"
+    rb"(?P<section>(?:[0-9]+(?:\.[0-9]+)*|[A-Z](?:\.[0-9]+)*))`?)\]"
+    rb"\((?P<base>https://github\.com/stop-cran/namespace2xml/blob/"
+    rb"[^/\s<>\"]+/docs/specification\.md)"
+    rb"(?P<fragment>#[^)\s<>\"]+)?\)"
+)
 SAFE_VERSION = re.compile(r"[0-9A-Za-z][0-9A-Za-z.+-]*")
+SAFE_SECTION = re.compile(r"(?:[0-9]+(?:\.[0-9]+)*|[A-Z](?:\.[0-9]+)*)")
+SAFE_SPECIFICATION_ANCHOR = re.compile(
+    r"spec-(?:[0-9]+(?:-[0-9]+)*|[a-z](?:-[0-9]+)*)"
+)
 URL_TERMINATORS = b" \t\r\n<>\"')"
 
 
 @dataclass(frozen=True)
 class StaleLink:
-    """One link whose ref does not match the collection version."""
+    """One generated documentation link target that needs normalization."""
 
     path: str
     line: int
     found: str
     expected: str
+    kind: str = "release ref"
+
+
+def specification_anchors(
+    path: Path = SPECIFICATION_NAVIGATION,
+) -> dict[str, str]:
+    """Loads the generated clause-to-anchor map without reparsing Markdown."""
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"{path} is not valid navigation JSON: {error}") from error
+
+    if (
+        not isinstance(document, dict)
+        or document.get("generatedBy")
+        != "tools/sync-specification-navigation.ps1"
+        or not isinstance(document.get("clauses"), list)
+    ):
+        raise ValueError(
+            f"{path} is not a generated specification-navigation manifest"
+        )
+
+    anchors: dict[str, str] = {}
+    used_anchors: set[str] = set()
+    for clause in document["clauses"]:
+        if not isinstance(clause, dict):
+            raise ValueError(f"{path} contains a non-object clause")
+
+        section = clause.get("section")
+        anchor = clause.get("anchor")
+        if (
+            not isinstance(section, str)
+            or SAFE_SECTION.fullmatch(section) is None
+            or not isinstance(anchor, str)
+            or SAFE_SPECIFICATION_ANCHOR.fullmatch(anchor) is None
+        ):
+            raise ValueError(f"{path} contains an invalid clause")
+        if section in anchors:
+            raise ValueError(f"{path} contains duplicate clause {section!r}")
+        if anchor in used_anchors:
+            raise ValueError(f"{path} contains duplicate anchor {anchor!r}")
+
+        anchors[section] = anchor
+        used_anchors.add(anchor)
+
+    if not anchors:
+        raise ValueError(f"{path} contains no clauses")
+    return anchors
 
 
 def collection_version(path: Path = GALAXY_MANIFEST) -> str:
@@ -132,6 +194,50 @@ def normalize_links(
         lambda match: match.group("prefix") + expected_ref + match.group("suffix"),
         data,
     )
+    return normalized, stale, count
+
+
+def normalize_specification_citations(
+    relative_path: str,
+    data: bytes,
+    anchors: dict[str, str],
+) -> tuple[bytes, list[StaleLink], int]:
+    """Targets visible clause citations at their generated stable anchors."""
+    stale: list[StaleLink] = []
+
+    def replace(match: re.Match[bytes]) -> bytes:
+        section = match.group("section").decode("ascii")
+        anchor = anchors.get(section)
+        if anchor is None:
+            line = data.count(b"\n", 0, match.start()) + 1
+            raise ValueError(
+                f"{relative_path}:{line}: specification citation names "
+                f"unknown clause {section!r}"
+            )
+
+        expected = (
+            b"["
+            + match.group("label")
+            + b"]("
+            + match.group("base")
+            + b"#"
+            + anchor.encode("ascii")
+            + b")"
+        )
+        found = match.group(0)
+        if found != expected:
+            stale.append(
+                StaleLink(
+                    relative_path,
+                    data.count(b"\n", 0, match.start()) + 1,
+                    found.decode("utf-8"),
+                    expected.decode("utf-8"),
+                    "specification citation target",
+                )
+            )
+        return expected
+
+    normalized, count = SPECIFICATION_CITATION.subn(replace, data)
     return normalized, stale, count
 
 
@@ -240,14 +346,17 @@ def synchronize(check: bool) -> int:
     """Checks or updates every tracked Ansible text file."""
     try:
         release_ref = collection_ref()
+        anchors = specification_anchors()
         files = tracked_ansible_files()
     except (OSError, subprocess.CalledProcessError, UnicodeError, ValueError) as error:
         print(f"error: {error}")
         return 1
 
-    all_stale: list[StaleLink] = []
+    stale_refs: list[StaleLink] = []
+    stale_citations: list[StaleLink] = []
     updates: list[tuple[str, Path, bytes]] = []
     link_count = 0
+    citation_count = 0
 
     try:
         for relative_path, path in files:
@@ -255,19 +364,32 @@ def synchronize(check: bool) -> int:
             if b"\0" in data:
                 continue
 
-            normalized, stale, matched = normalize_links(relative_path, data, release_ref)
+            normalized, stale, matched = normalize_links(
+                relative_path,
+                data,
+                release_ref,
+            )
             link_count += matched
-            all_stale.extend(stale)
+            stale_refs.extend(stale)
+
+            normalized, stale, matched = normalize_specification_citations(
+                relative_path,
+                normalized,
+                anchors,
+            )
+            citation_count += matched
+            stale_citations.extend(stale)
 
             if normalized != data:
                 updates.append((relative_path, path, normalized))
-    except (OSError, UnicodeError) as error:
+    except (OSError, UnicodeError, ValueError) as error:
         print(f"error: {error}")
         return 1
 
+    all_stale = [*stale_refs, *stale_citations]
     if check and all_stale:
         for stale in all_stale:
-            print(f"{stale.path}:{stale.line}: stale Ansible documentation link")
+            print(f"{stale.path}:{stale.line}: stale {stale.kind}")
             print(f"  found:    {stale.found}")
             print(f"  expected: {stale.expected}")
         print(f"error: run '{SYNC_COMMAND}' and commit the regenerated links")
@@ -282,13 +404,15 @@ def synchronize(check: bool) -> int:
             return 1
 
         print(
-            f"Pinned {len(all_stale)} link(s) in {len(updates)} file(s) "
-            f"to {release_ref}."
+            f"Normalized {len(stale_refs)} release ref(s) and "
+            f"{len(stale_citations)} specification citation target(s) "
+            f"in {len(updates)} file(s)."
         )
     else:
         print(
             f"All {link_count} same-repository blob/tree link(s) under ansible/ "
-            f"use {release_ref}."
+            f"use {release_ref}; all {citation_count} linked specification "
+            "citation(s) use generated stable anchors."
         )
 
     return 0
@@ -297,8 +421,8 @@ def synchronize(check: bool) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Pin tracked Ansible documentation links to the collection version "
-            "declared in ansible/galaxy.yml."
+            "Pin tracked Ansible links to the collection version and generated "
+            "specification anchors."
         )
     )
     mode = parser.add_mutually_exclusive_group()

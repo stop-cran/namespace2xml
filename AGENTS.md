@@ -131,7 +131,9 @@ the same commit.
 
 Every same-repository `blob` or `tree` link shipped under `ansible/` is generated from the
 collection version in `ansible/galaxy.yml`, using the independent `ansible-v<version>` release
-tag. After changing that version or adding a repository link, run:
+tag. Linked specification citations also resolve through the generated
+`spec/specification-navigation.json` clause map, never GitHub-derived heading slugs. After changing
+that version or adding a repository or specification-clause link, run:
 
 ```
 python tools/sync-ansible-doc-links.py
