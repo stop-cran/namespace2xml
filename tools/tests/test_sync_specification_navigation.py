@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -40,15 +41,25 @@ class SpecificationNavigationTests(unittest.TestCase):
         result = subprocess.run(
             [
                 "pwsh",
+                "-NoLogo",
                 "-NoProfile",
-                "-File",
-                str(SCRIPT),
-                "-RepositoryRoot",
-                str(self.root),
+                "-NonInteractive",
+                "-Command",
+                (
+                    "$ErrorActionPreference = 'Stop'; "
+                    "try { & $env:NAMESPACE2XML_TEST_SCRIPT "
+                    "-RepositoryRoot $env:NAMESPACE2XML_TEST_ROOT } "
+                    "catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }"
+                ),
             ],
             check=False,
             capture_output=True,
             text=True,
+            env={
+                **os.environ,
+                "NAMESPACE2XML_TEST_SCRIPT": str(SCRIPT),
+                "NAMESPACE2XML_TEST_ROOT": str(self.root),
+            },
         )
         if expect_success and result.returncode != 0:
             self.fail(f"generator failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")

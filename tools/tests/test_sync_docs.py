@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -94,16 +95,25 @@ class DiagnosticDocumentationGeneratorTests(unittest.TestCase):
         result = subprocess.run(
             [
                 "pwsh",
+                "-NoLogo",
                 "-NoProfile",
-                "-File",
-                str(self.script),
-                "-RepositoryRoot",
-                str(self.root),
-                "-DiagnosticsOnly",
+                "-NonInteractive",
+                "-Command",
+                (
+                    "$ErrorActionPreference = 'Stop'; "
+                    "try { & $env:NAMESPACE2XML_TEST_SCRIPT "
+                    "-RepositoryRoot $env:NAMESPACE2XML_TEST_ROOT -DiagnosticsOnly } "
+                    "catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }"
+                ),
             ],
             capture_output=True,
             text=True,
             check=False,
+            env={
+                **os.environ,
+                "NAMESPACE2XML_TEST_SCRIPT": str(self.script),
+                "NAMESPACE2XML_TEST_ROOT": str(self.root),
+            },
         )
         if expect_success:
             self.assertEqual(result.returncode, 0, result.stderr)
