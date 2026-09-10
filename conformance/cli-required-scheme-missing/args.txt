@@ -1,0 +1,2 @@
+-i
+inputs/input.namespace

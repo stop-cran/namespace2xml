@@ -279,4 +279,62 @@ public class DestinationFoldTests
         folded.Length.ShouldBe(2);
         folded.Select(contribution => contribution.Key.DeclarationOrder).ShouldBe([0L, 1L]);
     }
+
+    /// <summary>
+    /// Portable comparison can assert the descendant field but intentionally ignores localized
+    /// prose. This gate therefore pins the rule that one descendant behind several ancestors names
+    /// the longest conflicting ancestor in its message.
+    /// </summary>
+    [Test]
+    public void APrefixCollisionNamesTheLongestConflictingAncestor()
+    {
+        var diagnostics = new DiagnosticBuffer();
+
+        PlanningPhase.FoldDestinationCollisions(
+            [
+                Contribution("root", "A", "x", "0", declarationOrder: 0),
+                Contribution("branch", "a/b", "x", "1", declarationOrder: 1),
+                Contribution("leaf", "A/B/c.json", "x", "2", declarationOrder: 2),
+            ],
+            new GlobalBudget(new ResourceLimits()),
+            diagnostics).Faulted.ShouldBeTrue();
+
+        var leaf = diagnostics.Drain().Single(diagnostic =>
+            diagnostic.Destination == "A/B/c.json");
+
+        leaf.Code.ShouldBe("PATH001");
+        leaf.Message.ShouldContain("'a/b'");
+        leaf.Message.ShouldNotContain("'A' is");
+    }
+
+    /// <summary>
+    /// Section 24 orders destination-only diagnostics by the Section 21.3 publication index. A
+    /// cross-format replacement resets that index, so portability-key order and the earliest
+    /// contribution key are both insufficient.
+    /// </summary>
+    [Test]
+    public void PrefixCollisionDiagnosticsUsePostFoldPublicationOrder()
+    {
+        var diagnostics = new DiagnosticBuffer();
+
+        PlanningPhase.FoldDestinationCollisions(
+            [
+                Contribution("a-old", "a/leaf", "x", "0", declarationOrder: 0),
+                Contribution("a-root", "a", "x", "1", declarationOrder: 1),
+                Contribution("b-leaf", "b/leaf", "x", "2", declarationOrder: 2),
+                Contribution("b-root", "b", "x", "3", declarationOrder: 3),
+                Contribution(
+                    "a-new",
+                    "a/leaf",
+                    "x",
+                    "4",
+                    declarationOrder: 4,
+                    format: OutputFormat.Ini),
+            ],
+            new GlobalBudget(new ResourceLimits()),
+            diagnostics).Faulted.ShouldBeTrue();
+
+        diagnostics.Drain().Select(diagnostic => diagnostic.Destination)
+            .ShouldBe(["b/leaf", "a/leaf"]);
+    }
 }

@@ -1,0 +1,4 @@
+-i
+inputs/input.namespace
+-s
+schemes/malformed.json

@@ -1,0 +1,8 @@
+escape.output=ini
+escape.root=escape
+escape.inioutputoptions=EscapeMultiline
+reject.output=ini
+reject.root=reject
+quote.output=ini
+quote.root=quote
+quote.inioutputoptions=QuoteValues

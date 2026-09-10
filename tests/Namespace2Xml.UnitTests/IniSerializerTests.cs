@@ -319,6 +319,20 @@ public class IniSerializerTests
     }
 
     /// <summary>
+    /// Section 19.6 defines escapes for TAB, CR, and LF only. Every other C0 control is therefore
+    /// blocking under each multiline mode, and quoting does not create another escape table.
+    /// </summary>
+    [TestCase(IniOutputOptions.RejectMultiline)]
+    [TestCase(IniOutputOptions.EscapeMultiline)]
+    [TestCase(IniOutputOptions.RejectMultiline | IniOutputOptions.QuoteValues)]
+    public void UnsupportedC0ControlsAreRejectedUnderEveryOption(IniOutputOptions options)
+    {
+        Fails(options, Entry("s.a", "x\u0001y")).ShouldBeTrue();
+
+        SoleCode().ShouldBe("INI001");
+    }
+
+    /// <summary>
     /// Section 19.6: "a value beginning with <c>;</c> or <c>#</c> ... is an error unless
     /// <c>QuoteValues</c> is selected", because an unquoted one reads back as a comment.
     /// </summary>

@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r106+43b364a4f905`. Dated 2026-08.**
+**Describes the `v3` branch at contract bundle `r107+b3f8bd744bfa`. Dated 2026-09.**
 
 This file tracks the branch, and the branch normally runs ahead of the last published preview:
 `3.0.0-preview.5` carries `r99+bad2fa36f0a5`, `3.0.0-preview.4` carries `r90+e172e0ba4d2a`,
@@ -702,7 +702,7 @@ written with that entry second. `a-namespace-header-comment-outlives-its-first-e
 `an-opening-comment-does-not-move-with-its-entry` pin both halves.
 Tracked as [#63 (closed)](https://github.com/stop-cran/namespace2xml/issues/63).
 
-### 1.17 An unpaired surrogate cannot reach an output, and `-v` loses one silently
+### 1.17 An unpaired surrogate cannot reach an output, and the .NET apphost can normalize one before the contract boundary
 
 §16.9 now states the qualifier it was missing, resolving
 [#64 (closed)](https://github.com/stop-cran/namespace2xml/issues/64): non-ASCII text is emitted as
@@ -710,9 +710,12 @@ literal UTF-8 "wherever UTF-8 admits it", and a UTF-16 code unit UTF-8 cannot en
 surrogate — is emitted as a `\uXXXX` escape regardless of the flag, because the alternative is a
 silent U+FFFD that discards the code unit while reporting success.
 
-The entry remains open because the second half of its title is unresolved: the branch is
-unreachable, so nothing pins it, and `-v` still loses a surrogate before the tool sees it. Every
-route into the model was tried. **verified**
+The output branch remains unreachable through a conforming input. Section 6 now defines the
+host-runtime argument-vector boundary and requires an ill-formed Unicode token to be `CLI001`;
+`CommandLineParserTests.AnIllFormedUnicodeHostTokenIsRejected` pins that boundary directly. The
+.NET apphost can still replace an unpaired surrogate before constructing that vector, so `-v`
+cannot distinguish the replacement from a U+FFFD the caller intentionally supplied. Every route
+into the model was tried. **verified**
 
 | Route | Result |
 |---|---|
@@ -721,7 +724,8 @@ route into the model was tried. **verified**
 | YAML `"x\uD800y"` | `PARSE001 §10.1` |
 | Namespace `\u{D800}` in a name | `PARSE001 §8.2` |
 | Namespace `\u{D800}` in a value | Not an escape there; the text stays literal |
-| `-v cfg.a=x<U+D800>y` | Arrives as U+FFFD, exit `0`, no diagnostic |
+| Direct host-vector token containing U+D800 | `CLI001 §6.2` |
+| `-v cfg.a=x<U+D800>y` through the .NET apphost | Arrives as U+FFFD, exit `0`, no diagnostic |
 
 Only the last row loses anything, and the substitution happens before the tool runs: the .NET
 apphost passes its arguments through UTF-8 on the way to managed code, so `Main` is handed a U+FFFD
@@ -730,9 +734,9 @@ by starting the apphost directly with a UTF-16 argument list, which rules out th
 
 It is recorded rather than acted on, because refusing U+FFFD in a variable would reject legitimate
 text and there is no other signal to test. A revisit is warranted only if someone reaches it in
-practice. No conformance fixture is possible while the branch is unreachable, so §16.9's sentence is
-the only thing holding the behaviour; it says so, adding that an implementation "is not required to
-make such text reachable".
+practice. No process-level conformance fixture can distinguish the two spellings while the apphost
+normalizes them; acceptance item 93 and the direct unit gate instead pin the first observable
+contract boundary.
 
 ### 1.18 *(resolved)* `NewLineOnAttributes` and the first attribute
 
@@ -1029,15 +1033,13 @@ unmeasured.
 
 ## 5. Documentation gaps
 
-- The specification does not fix everything the tool decides. The `r69` review found 39 places where
-  `docs/specification.md` is silent, ambiguous or under-determined — the argv character model, the
-  format of the derived artifacts it names, host termination exit codes, warning ordering, several
-  output-format literal spellings — and those are deferred to 3.1 and listed in
-  [#92](https://github.com/stop-cran/namespace2xml/issues/92). **None is a divergence between the
-  document and this build**: the behaviour is defined, deterministic and fixture-pinned in every
-  case. What it means for you is narrower and worth stating plainly: on those points the
-  specification will not let you predict the tool, so read the fixture or ask. A second
-  implementation written from the document alone could legitimately differ.
+- The `r106` audit split the `r69` review's 39 rows into 45 independently checkable claims. This
+  revision closes the stable-relevant remainder: the host-token boundary and list-option arity,
+  invalid input-merge selectors and structured scheme roots, destination file/directory topology,
+  scalar and INI spellings, generated blank-line bytes, and the dotted-key scheme illustration are
+  now specified and pinned. [#92](https://github.com/stop-cran/namespace2xml/issues/92) retains only
+  two 3.1 topics: diagnostic-channel write failure and additive diagnostic-code compatibility.
+  Neither is a divergence between this document and build; they are explicit future contract work.
 - `docs/usage-methodology.md` now carries the layering guidance, a worked cross-format
   specialization pipeline, and the fixture discipline. What is still thin is breadth: one worked
   pipeline is not a cookbook, and the multi-output cases are unwritten.

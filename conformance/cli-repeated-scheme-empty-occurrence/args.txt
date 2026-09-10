@@ -1,0 +1,5 @@
+-i
+inputs/input.namespace
+-s
+schemes/scheme.namespace
+-s

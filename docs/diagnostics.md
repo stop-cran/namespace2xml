@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r106+43b364a4f905`.** 39 codes.
+**Contract bundle `r107+b3f8bd744bfa`.** 40 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces under [Section 22](specification.md#spec-22).
@@ -32,6 +32,7 @@ by preference.
 | [`PARSE002`](#diagnostic-parse002) | error | once per failing source | Invalid or unsupported character encoding | `source`, `line`, `column` |
 | [`SCHEME001`](#diagnostic-scheme001) | error | once per declaration | Unknown directive, value, or illegal option/type combination | `source`, `line`, `column`, `path`, `declaration` |
 | [`SCHEME002`](#diagnostic-scheme002) | error | once per expanded declaration | Ambiguous canonical/simple scheme path | `source`, `line`, `column`, `path`, `declaration` |
+| [`SCHEME003`](#diagnostic-scheme003) | error | once per failing scheme source | Structured scheme root is not a mapping | `source`, `line`, `column` |
 | [`WILDCARD001`](#diagnostic-wildcard001) | error | once per rule | Invalid, undefined, or mixed capture outside a reference | `source`, `line`, `column`, `rule` |
 | [`WILDCARD002`](#diagnostic-wildcard002) | error | once per invocation | Nonterminating expansion or wildcard limit | `rule` |
 | [`REFERENCE001`](#diagnostic-reference001) | error | once per owning value | Malformed or free-wildcard reference | `source`, `line`, `column`, `path` |
@@ -45,11 +46,11 @@ by preference.
 | [`SHELL001`](#diagnostic-shell001) | error | once per projected key and output instance | Invalid quoted-namespace shell identifier | `path`, `destination` |
 | [`XML001`](#diagnostic-xml001) | error | once per failing document | DTD, external entity/resource, or prohibited XML feature | `source`, `line`, `column` |
 | [`XML002`](#diagnostic-xml002) | error | once per failing node or document | Invalid XML name, namespace, declaration, or canonical address | `source`, `line`, `column`, `path` |
-| [`INI001`](#diagnostic-ini001) | error | once per path and output instance | Value or name unsupported by `PortableIni1` options | `path`, `destination` |
+| [`INI001`](#diagnostic-ini001) | error | once per path and output instance | Value, name, or control character unsupported by `PortableIni1` options | `path`, `destination` |
 | [`NAMESPACE001`](#diagnostic-namespace001) | error | once per path and output instance | Value unsupported by the namespace destination's options | `path`, `destination` |
 | [`COLLISION001`](#diagnostic-collision001) | error | once per rejected contribution after the first | `filemerge=error` rejects a second contribution to one destination | `declaration`, `destination` |
 | [`SERIALIZE001`](#diagnostic-serialize001) | error | once per output instance | Output view cannot be serialized under the selected format/options | `destination` |
-| [`PATH001`](#diagnostic-path001) | error | once per destination | Invalid, escaping, or insecure output path | `declaration`, `destination` |
+| [`PATH001`](#diagnostic-path001) | error | once per destination | Invalid, escaping, insecure, or topologically conflicting output path | `declaration`, `destination` |
 | [`PATH002`](#diagnostic-path002) | error | once, for the failing destination | Publication/open/write/flush failure | `destination` |
 | [`LIMIT001`](#diagnostic-limit001) | error | once per invocation | Non-wildcard resource limit exceeded | `source`, `line`, `column`, `path` |
 | [`WARN001`](#diagnostic-warn001) | warning | once per missing-file occurrence on the command line | Missing input or scheme file | `source` |
@@ -105,6 +106,13 @@ Each code below lists the situations the specification maps to it ([Appendix B](
 *error, once per expanded declaration.*
 
 - Ambiguous simple/canonical scheme path
+
+<a id="diagnostic-scheme003"></a>
+### `SCHEME003` — Structured scheme root is not a mapping
+
+*error, once per failing scheme source.*
+
+- Syntactically valid JSON/YAML scheme root is scalar, null, or sequence rather than mapping
 
 <a id="diagnostic-wildcard001"></a>
 ### `WILDCARD001` — Invalid, undefined, or mixed capture outside a reference
@@ -198,11 +206,11 @@ Each code below lists the situations the specification maps to it ([Appendix B](
 - Invalid XML name/namespace/canonical address/declaration structure other than byte-encoding disagreement
 
 <a id="diagnostic-ini001"></a>
-### `INI001` — Value or name unsupported by `PortableIni1` options
+### `INI001` — Value, name, or control character unsupported by `PortableIni1` options
 
 *error, once per path and output instance.*
 
-- Value/name/comment cannot be represented by effective `PortableIni1` options
+- Value/name/comment/control character cannot be represented by effective `PortableIni1` options
 
 <a id="diagnostic-namespace001"></a>
 ### `NAMESPACE001` — Value unsupported by the namespace destination's options
@@ -226,11 +234,11 @@ Each code below lists the situations the specification maps to it ([Appendix B](
 - Final output model cannot be serialized under its selected format/options
 
 <a id="diagnostic-path001"></a>
-### `PATH001` — Invalid, escaping, or insecure output path
+### `PATH001` — Invalid, escaping, insecure, or topologically conflicting output path
 
 *error, once per destination.*
 
-- Invalid, escaping, insecure, traversal, portability-key-colliding, or uncontainable destination path
+- Invalid, escaping, insecure, traversal, portability-key-colliding, proper-segment-prefix-conflicting, or uncontainable destination path
 
 <a id="diagnostic-path002"></a>
 ### `PATH002` — Publication/open/write/flush failure

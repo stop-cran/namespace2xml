@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r106+43b364a4f905`.**
+**Contract bundle `r107+b3f8bd744bfa`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (165)
+## Observable differences (189)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1318,6 +1318,19 @@ implemented, its case says so plainly rather than letting the heading imply othe
   does not identify which of the alternatives 2.4.0 used because the case is written to pin the
   correct answer, not to enumerate the wrong ones.
 
+### `canonical-boolean-null-output-spellings`
+
+- namespace2xml 2.4.0: **differs**. It had no shared typed scalar model or YAML and INI writers.
+- Contract: Sections 19.4, 19.6, 19.8 and Section 26 item 96.
+- Clean behavior: Boolean and null payloads use the same lowercase spelling in YAML, INI, XML
+  element text, and XML attributes.
+
+### `cli-both-required-options-missing`
+
+- namespace2xml 2.4.0: **differs**. Its required-option precedence had no stable contract.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: the absent `input` option is reported before the absent `scheme` option.
+
 ### `cli-diagnostics-stream-on-a-clean-run`
 
 - namespace2xml 2.4.0: **differs**. 2.4.0 has no structured diagnostic stream, so there is nothing
@@ -1339,6 +1352,45 @@ implemented, its case says so plainly rather than letting the heading imply othe
   run. Section 14.1 denies XML the selector-name fallback for a document element, and the input
   has two top-level members, so the scheme supplies `root` explicitly.
 
+### `cli-double-dash-literal-misses-scheme`
+
+- namespace2xml 2.4.0: **differs**. Its post-delimiter option handling had no contract.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: post-`--` `-s` is a literal input value, so the required `scheme` option is absent.
+
+### `cli-double-dash-literal-satisfies-input`
+
+- namespace2xml 2.4.0: **differs**. Its post-delimiter option handling had no contract.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: post-`--` `-s` is a literal input filename and satisfies the pending `input`
+  occurrence.
+
+### `cli-empty-input-before-double-dash`
+
+- namespace2xml 2.4.0: **differs**. Its `--` behavior was delegated and not contracted.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: `--` is not an `input` value, so the occurrence remains empty at end of input.
+
+### `cli-empty-input-before-option`
+
+- namespace2xml 2.4.0: **differs**. It did not specify independent list-occurrence arity.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: the empty `input` occurrence is `CLI001`.
+
+### `cli-empty-scheme-at-end`
+
+- namespace2xml 2.4.0: **differs**. It did not specify independent list-occurrence arity.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: the empty `scheme` occurrence is `CLI001`.
+
+### `cli-host-token-containing-spaces`
+
+- namespace2xml 2.4.0: **differs**. Its delegated command-line parser had no specified
+  host-argument boundary.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: the two path arguments remain individual tokens even though each contains a
+  space.
+
 ### `cli-option-missing-value-rejected`
 
 - namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
@@ -1349,6 +1401,30 @@ implemented, its case says so plainly rather than letting the heading imply othe
   nonzero status, with no stable code and no machine-readable stream.
 - Clean behavior: an option token that reaches the end of the argument vector still requiring a
   value is `CLI001` with exit 1, reported in the requested encoding.
+
+### `cli-repeated-input-empty-occurrence`
+
+- namespace2xml 2.4.0: **differs**. It did not specify per-occurrence list arity.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: a later empty `input` occurrence cannot borrow a value from an earlier one.
+
+### `cli-repeated-scheme-empty-occurrence`
+
+- namespace2xml 2.4.0: **differs**. It did not specify per-occurrence list arity.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: a later empty `scheme` occurrence cannot borrow a value from an earlier one.
+
+### `cli-required-input-missing`
+
+- namespace2xml 2.4.0: **differs**. Its required-option failures had no stable diagnostic contract.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: missing `input` is `CLI001`.
+
+### `cli-required-scheme-missing`
+
+- namespace2xml 2.4.0: **differs**. Its required-option failures had no stable diagnostic contract.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: missing `scheme` is `CLI001`.
 
 ### `cli-short-option-inline-rejected`
 
@@ -1467,6 +1543,26 @@ implemented, its case says so plainly rather than letting the heading imply othe
   divergence names the file's bytes rather than a legacy mechanism; the case does not attempt to
   reconstruct which component the baseline actually reached for.
 
+### `destination-proper-prefix-collisions`
+
+- namespace2xml 2.4.0: **differs**. It had no complete-plan portable destination topology check.
+- Contract: Section 17.5 and Section 26 item 95.
+- Clean behavior: each descendant receives one `PATH001`, including case-folded descendants and a
+  descendant behind more than one conflicting ancestor.
+
+### `destination-proper-prefix-collisions-reversed`
+
+- namespace2xml 2.4.0: **differs**. It had no declaration-order-independent destination topology
+  check.
+- Contract: Section 17.5 and Section 26 item 95.
+- Clean behavior: reversing declarations does not change the ordered `PATH001` stream.
+
+### `destination-textual-prefix-is-not-topological`
+
+- namespace2xml 2.4.0: **differs**. It had no segment-aware portable destination topology contract.
+- Contract: Section 17.5 and Section 26 item 95.
+- Clean behavior: `a` is not a segment prefix of `ab/file`.
+
 ### `destinations-differing-only-by-case-collide`
 
 - namespace2xml 2.4.0: **differs**. On Linux the baseline sees the two `filename` values as
@@ -1583,6 +1679,14 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: captures come from data outside the scheme's control, and
   encoding-after-substitution is the safety guarantee the specification is written for.
 
+### `flat-output-writes-no-blank-records`
+
+- namespace2xml 2.4.0: **differs**. Quoted-namespace output and comment placement were not part of
+  its contract.
+- Contract: Sections 19.1, 19.2, 20, and Section 26 item 97.
+- Clean behavior: adjacent entries and comments occupy adjacent physical records, with one final
+  LF and no inserted blank record.
+
 ### `folded-implicit-items-rebase-above-the-destination-mark`
 
 - namespace2xml 2.4.0: **differs**. The baseline writes `out.properties` with different content
@@ -1603,6 +1707,12 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: shared array-index state made a fold's result depend on the
   order and shape of contributions rather than on their addressed positions, which is the class
   of defect Section 3.2 exists to remove.
+
+### `ini-escape-multiline-spelling`
+
+- namespace2xml 2.4.0: **differs**. It had no INI output.
+- Contract: Section 19.6 and Section 26 item 96.
+- Clean behavior: backslashes double before CR, LF, and TAB receive their named escapes.
 
 ### `ini-escapemultiline-doubles-a-backslash-with-or-without-quoting`
 
@@ -1738,6 +1848,19 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - It is also an input to `tools/check-ini-interop.js`, which reads the quoting back through a
   parser that unquotes, and to `tools/check-ini-interop.py`, which names it out of envelope because
   `configparser` does not.
+
+### `ini-unsupported-c0-controls`
+
+- namespace2xml 2.4.0: **differs**. It had no INI output or C0-control contract.
+- Contract: Section 19.6 and Section 26 item 96.
+- Clean behavior: unsupported non-NUL C0 controls are `INI001` under each multiline and quoting
+  mode.
+
+### `input-merge-selector-syntax-is-rejected`
+
+- namespace2xml 2.4.0: **differs**. It had no input-merge selector grammar.
+- Contract: Section 16.10 and Section 26 item 94.
+- Clean behavior: wildcard and unescaped reference syntax are rejected once per declaration.
 
 ### `json-and-yaml-render-one-exclusive-shape`
 
@@ -1961,6 +2084,13 @@ implemented, its case says so plainly rather than letting the heading imply othe
   earlier complete flag set" makes an override total, and it makes the mode-group default
   restoration explicit so that dropping one flag never leaves a group in an undefined
   state.
+
+### `malformed-structured-scheme-remains-parse001`
+
+- namespace2xml 2.4.0: **differs**. It had no structured scheme format.
+- Contract: Sections 9.2 and 15 and Section 26 item 94.
+- Clean behavior: malformed structured syntax remains `PARSE001`, distinct from semantic
+  `SCHEME003`.
 
 ### `mask-clears-shape-marks`
 
@@ -2622,6 +2752,20 @@ implemented, its case says so plainly rather than letting the heading imply othe
   `root` value.
 - The difference is intentional: a structured format can spell a scalar document, so requiring a
   key would invent a name the source never had.
+
+### `structured-scheme-empty-mapping-roots`
+
+- namespace2xml 2.4.0: **differs**. It had no structured scheme format.
+- Contract: Section 15 and Section 26 item 94.
+- Clean behavior: valid empty mappings contribute no directives and only the empty-plan warning
+  remains.
+
+### `structured-scheme-nonmapping-roots`
+
+- namespace2xml 2.4.0: **differs**. It had no typed JSON/YAML scheme-root contract.
+- Contract: Section 15 and Section 26 item 94.
+- Clean behavior: each valid nonmapping root is `SCHEME003`; the valid sibling source is checked in
+  the same phase but no output is published after the blocking failures.
 
 ### `substitute-key-preserves-a-native-string-exactly`
 
@@ -3476,6 +3620,21 @@ implemented, its case says so plainly rather than letting the heading imply othe
 
   Emitting it ahead of the first child instead would read as a comment about `a`, which is not
   where the author put it, and is the reassignment Section 11.5 exists to prevent.
+
+### `xml-preserved-whitespace-can-be-visibly-blank`
+
+- namespace2xml 2.4.0: **differs**. It had no distinction between generated formatting and
+  preserved XML whitespace.
+- Contract: Sections 11.4, 19.8, 24, and Section 26 item 97.
+- Clean behavior: a visually blank line survives only because it is input content, not because the
+  formatter inserted it.
+
+### `xml-pretty-printing-writes-no-empty-lines`
+
+- namespace2xml 2.4.0: **differs**. Its XML bytes were not fixed by a complete rendering contract.
+- Contract: Sections 19.8, 24, and Section 26 item 97.
+- Clean behavior: pretty-printing uses two-space indentation, no empty lines, and exactly one final
+  LF.
 
 ### `xml-sequence-classification-spans-three-contributions`
 

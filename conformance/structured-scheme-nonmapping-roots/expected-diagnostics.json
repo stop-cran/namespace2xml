@@ -1,0 +1,8 @@
+[
+{"code":"SCHEME003","severity":"error","phase":"scheme","source":"schemes/scalar.json","line":1,"column":1,"spec":"§15"},
+{"code":"SCHEME003","severity":"error","phase":"scheme","source":"schemes/null.json","line":1,"column":1,"spec":"§15"},
+{"code":"SCHEME003","severity":"error","phase":"scheme","source":"schemes/sequence.json","line":1,"column":1,"spec":"§15"},
+{"code":"SCHEME003","severity":"error","phase":"scheme","source":"schemes/scalar.yaml","line":1,"column":1,"spec":"§15"},
+{"code":"SCHEME003","severity":"error","phase":"scheme","source":"schemes/null.yaml","line":1,"column":1,"spec":"§15"},
+{"code":"SCHEME003","severity":"error","phase":"scheme","source":"schemes/sequence.yaml","line":1,"column":1,"spec":"§15"}
+]

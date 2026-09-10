@@ -118,21 +118,48 @@ public class StructuredSchemeReaderTests
     }
 
     /// <summary>
-    /// Section 15 requires content that projects to "qualified directive paths". A root scalar or a
-    /// root sequence has no path, so it spells no declaration and supplies none to report.
+    /// Section 15 gives a valid nonmapping root its own semantic code, including the root source
+    /// coordinates, while leaving declaration and path absent because no declaration exists.
     /// </summary>
     /// <param name="document">The scheme document.</param>
     [TestCase(""" "x" """)]
+    [TestCase("null")]
     [TestCase("""[1,2]""")]
-    public void ARootThatIsNotAMappingIsScheme001WithNoDeclaration(string document)
+    public void NonMappingRootsAreScheme003WithRootLocation(string document)
     {
         Read(document).Entries.ShouldBeEmpty();
 
         var occurrence = diagnostics.Drain().ShouldHaveSingleItem();
 
-        occurrence.Code.ShouldBe("SCHEME001");
+        occurrence.Code.ShouldBe("SCHEME003");
+        occurrence.Source.ShouldBe("scheme.json");
+        occurrence.Line.ShouldBe(1);
+        occurrence.Column.ShouldBe(1);
         occurrence.Declaration.ShouldBeNull();
         occurrence.Path.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Section 15 scopes SCHEME003 to the scheme-source occurrence, so repeating one path on the
+    /// command line retains both diagnostics even though their public source members are equal.
+    /// </summary>
+    [Test]
+    public void RepeatedNonMappingSourcePathRetainsOneDiagnosticPerOccurrence()
+    {
+        Read("null", sourceOrdinal: 0).Entries.ShouldBeEmpty();
+        Read("null", sourceOrdinal: 1).Entries.ShouldBeEmpty();
+
+        diagnostics.Drain().Select(occurrence => occurrence.Code)
+            .ShouldBe(["SCHEME003", "SCHEME003"]);
+    }
+
+    /// <summary>A valid empty mapping is a scheme with zero declarations, not an invalid root.</summary>
+    [Test]
+    public void AnEmptyMappingContributesNoDirectivesOrDiagnostics()
+    {
+        Read("{}").Entries.ShouldBeEmpty();
+
+        diagnostics.Drain().ShouldBeEmpty();
     }
 
     /// <summary>
@@ -214,20 +241,20 @@ public class StructuredSchemeReaderTests
             .Declaration.ShouldBe("a.b.c.output");
     }
 
-    private SchemeContribution Read(string document)
+    private SchemeContribution Read(string document, long sourceOrdinal = 0)
     {
-        var origin = ProfileSource.OfFile("scheme.json");
+        var origin = ProfileSource.OfFile("scheme.json", sourceOrdinal);
         var node = JsonInputReader.Read(
             document,
             ResourceLimits.Defaults,
-            new SourceBudget(ResourceLimits.Defaults, 0),
+            new SourceBudget(ResourceLimits.Defaults, sourceOrdinal),
             origin,
             DiagnosticPhase.Scheme,
             diagnostics,
-            StableOrderingKey.FromSource(0, 0));
+            StableOrderingKey.FromSource(sourceOrdinal, 0));
 
         node.ShouldNotBeNull();
 
-        return StructuredSchemeReader.Read(node, 0, "scheme.json", diagnostics);
+        return StructuredSchemeReader.Read(node, sourceOrdinal, "scheme.json", diagnostics);
     }
 }

@@ -1,0 +1,6 @@
+-s
+schemes/scheme.namespace
+--diagnostics-format
+json
+-i
+--

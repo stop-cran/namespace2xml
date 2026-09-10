@@ -1,0 +1,6 @@
+yaml.output=yaml
+ini.output=ini
+ini.root=ini
+xml.output=xml
+xml.root=xml
+xml.attribute.type=attribute

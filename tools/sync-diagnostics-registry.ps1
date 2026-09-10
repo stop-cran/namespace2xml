@@ -68,6 +68,7 @@ $seedFields = @{
     PARSE002     = @('source', 'line', 'column')
     SCHEME001    = @('source', 'line', 'column', 'path', 'declaration')
     SCHEME002    = @('source', 'line', 'column', 'path', 'declaration')
+    SCHEME003    = @('source', 'line', 'column')
     WILDCARD001  = @('source', 'line', 'column', 'path', 'rule')
     WILDCARD002  = @('rule')
     REFERENCE001 = @('source', 'line', 'column', 'path')

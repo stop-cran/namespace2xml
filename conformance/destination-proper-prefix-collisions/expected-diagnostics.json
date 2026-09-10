@@ -1,0 +1,5 @@
+[
+{"code":"PATH001","severity":"error","phase":"planning","destination":"tree/branch","spec":"§17.5"},
+{"code":"PATH001","severity":"error","phase":"planning","destination":"tree/branch/one.json","spec":"§17.5"},
+{"code":"PATH001","severity":"error","phase":"planning","destination":"TREE/two.json","spec":"§17.5"}
+]

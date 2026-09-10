@@ -1479,6 +1479,119 @@
         "fail-on-warning-preserves-existing-destination",
         "fail-on-warning-retains-later-warnings"
       ]
+    },
+    {
+      "item": 93,
+      "text": "The host-token boundary and required list-option arity: tokens containing spaces, quotes, or backslashes remain single unchanged values; every repeated input and scheme occurrence is nonempty; post-`--` tokens are literal values; missing required options have deterministic precedence; informational modes bypass malformed operational forms; and an ill-formed Unicode host token is `CLI001`.",
+      "milestone": "3.0.0",
+      "status": "required",
+      "assertions": [
+        "The parser consumes the host runtime's ordered Unicode strings without splitting a token on spaces, quotes, or backslashes.",
+        "Every input and scheme occurrence contributes at least one value, independently of every other occurrence.",
+        "After a list option, a bare double dash is not a value and every later token is a literal value of that option.",
+        "Missing required options are diagnosed after token faults in input-before-scheme order.",
+        "Help and version bypass operational validation.",
+        "An ill-formed UTF-16 host token is CLI001."
+      ],
+      "fixtures": [
+        "cli-both-required-options-missing",
+        "cli-double-dash-literal-misses-scheme",
+        "cli-double-dash-literal-satisfies-input",
+        "cli-empty-input-before-double-dash",
+        "cli-empty-input-before-option",
+        "cli-empty-scheme-at-end",
+        "cli-host-token-containing-spaces",
+        "cli-repeated-input-empty-occurrence",
+        "cli-repeated-scheme-empty-occurrence",
+        "cli-required-input-missing",
+        "cli-required-scheme-missing"
+      ],
+      "gates": [
+        "CommandLineParserTests.AnIllFormedUnicodeHostTokenIsCli001",
+        "CommandLineParserTests.HostTokensAreNeverRetokenized",
+        "CommandLineParserTests.InformationalModesBypassEveryMalformedOperationalForm",
+        "CommandLineParserTests.RequiredListOccurrenceFaultsHaveDeterministicPrecedence"
+      ]
+    },
+    {
+      "item": 94,
+      "text": "Scheme declaration shape: input `merge` selectors containing wildcard or reference syntax are `SCHEME001` once per declaration; structured scalar, null, and sequence roots are `SCHEME003` once per scheme-source occurrence; empty mapping roots are valid; malformed structured syntax remains `PARSE001`; and independent sources still collect same-phase diagnostics without contributing partial directives.",
+      "milestone": "3.0.0",
+      "status": "required",
+      "assertions": [
+        "An input merge selector containing wildcard or reference syntax is SCHEME001 once per declaration and contributes no directive.",
+        "A valid JSON or YAML scalar, null, or sequence root is SCHEME003 once per scheme-source occurrence with root source coordinates.",
+        "A valid empty JSON or YAML mapping root contributes zero directives without SCHEME003.",
+        "Malformed structured scheme syntax remains PARSE001.",
+        "Independent scheme sources are checked in the same phase and a failing source contributes no partial directives."
+      ],
+      "fixtures": [
+        "input-merge-selector-syntax-is-rejected",
+        "malformed-structured-scheme-remains-parse001",
+        "structured-scheme-empty-mapping-roots",
+        "structured-scheme-nonmapping-roots"
+      ],
+      "gates": [
+        "StructuredSchemeReaderTests.NonMappingRootsAreScheme003WithRootLocation",
+        "StructuredSchemeReaderTests.RepeatedNonMappingSourcePathRetainsOneDiagnosticPerOccurrence"
+      ]
+    },
+    {
+      "item": 95,
+      "text": "Destination file-versus-directory topology: proper path-segment-prefix conflicts are detected from the complete portable plan before I/O, reported as `PATH001` once per descendant with deterministic ordering, folded ASCII case, and longest-ancestor selection, while textual non-segment prefixes and exact-destination folds retain their existing behavior.",
+      "milestone": "3.0.0",
+      "status": "required",
+      "assertions": [
+        "A complete planned destination that is a proper segment prefix of another produces PATH001 for the descendant before I/O.",
+        "Prefix comparison uses portable-segment encoding and ASCII-letter folding.",
+        "Each descendant receives one occurrence and its message names the longest conflicting ancestor.",
+        "Diagnostic ordering is independent of declaration order.",
+        "A textual prefix ending inside a segment is not a topology conflict.",
+        "Exact portability-key collisions retain their existing PATH001 behavior."
+      ],
+      "fixtures": [
+        "destination-proper-prefix-collisions",
+        "destination-proper-prefix-collisions-reversed",
+        "destination-textual-prefix-is-not-topological",
+        "destinations-differing-only-by-case-collide"
+      ],
+      "gates": [
+        "DestinationFoldTests.APrefixCollisionNamesTheLongestConflictingAncestor",
+        "DestinationFoldTests.PrefixCollisionDiagnosticsUsePostFoldPublicationOrder"
+      ]
+    },
+    {
+      "item": 96,
+      "text": "Canonical scalar text and INI control handling: YAML, INI, and XML text/attributes spell Boolean and null values in lowercase; INI multiline escaping orders backslash before CR/LF/TAB substitutions; and NUL plus every unsupported C0 control is blocking `INI001` under every applicable option combination.",
+      "milestone": "3.0.0",
+      "status": "required",
+      "assertions": [
+        "YAML, INI, and XML text and attributes spell typed Boolean and null values as lowercase true, false, and null.",
+        "INI EscapeMultiline doubles backslashes before spelling CR, LF, and TAB as backslash escapes.",
+        "NUL and every unsupported C0 control are INI001 under EscapeMultiline and RejectMultiline, including QuoteValues."
+      ],
+      "fixtures": [
+        "canonical-boolean-null-output-spellings",
+        "ini-escape-multiline-spelling",
+        "ini-unsupported-c0-controls"
+      ]
+    },
+    {
+      "item": 97,
+      "text": "Generated blank-record bytes: namespace and quoted-namespace output insert no blank records, XML pretty-printing inserts no empty lines, preserved XML whitespace may remain visibly blank, and every nonempty text output retains exactly one final LF.",
+      "milestone": "3.0.0",
+      "status": "required",
+      "assertions": [
+        "Namespace and quoted-namespace serializers insert no blank records between adjacent entries or comments.",
+        "XML pretty-printing inserts no empty lines between nested or sibling content.",
+        "Whitespace preserved from XML input may intentionally produce a visually blank line.",
+        "Every nonempty text output ends in exactly one LF."
+      ],
+      "fixtures": [
+        "flat-output-writes-no-blank-records",
+        "xml-preserved-whitespace-can-be-visibly-blank",
+        "xml-pretty-printing-writes-no-empty-lines"
+      ]
     }
   ]
 }

@@ -1,0 +1,2 @@
+-s
+schemes/scheme.namespace

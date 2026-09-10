@@ -1,0 +1,4 @@
+*.merge=true
+x.${selector}.merge=true
+x.*.${selector}.merge=true
+x.output=namespace

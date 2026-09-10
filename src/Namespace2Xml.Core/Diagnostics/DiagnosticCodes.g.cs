@@ -37,6 +37,10 @@ public static partial class DiagnosticCodes
             "once per expanded declaration",
             "Ambiguous canonical/simple scheme path",
             ["source", "line", "column", "path", "declaration"]),
+        new DiagnosticCodeInfo("SCHEME003", DiagnosticSeverity.Error,
+            "once per failing scheme source",
+            "Structured scheme root is not a mapping",
+            ["source", "line", "column"]),
         new DiagnosticCodeInfo("WILDCARD001", DiagnosticSeverity.Error,
             "once per rule",
             "Invalid, undefined, or mixed capture outside a reference",
@@ -91,7 +95,7 @@ public static partial class DiagnosticCodes
             ["source", "line", "column", "path"]),
         new DiagnosticCodeInfo("INI001", DiagnosticSeverity.Error,
             "once per path and output instance",
-            "Value or name unsupported by `PortableIni1` options",
+            "Value, name, or control character unsupported by `PortableIni1` options",
             ["path", "destination"]),
         new DiagnosticCodeInfo("NAMESPACE001", DiagnosticSeverity.Error,
             "once per path and output instance",
@@ -107,7 +111,7 @@ public static partial class DiagnosticCodes
             ["destination"]),
         new DiagnosticCodeInfo("PATH001", DiagnosticSeverity.Error,
             "once per destination",
-            "Invalid, escaping, or insecure output path",
+            "Invalid, escaping, insecure, or topologically conflicting output path",
             ["declaration", "destination"]),
         new DiagnosticCodeInfo("PATH002", DiagnosticSeverity.Error,
             "once, for the failing destination",
@@ -274,6 +278,26 @@ public static partial class DiagnosticCodes
         string? declaration = null) =>
         Create("SCHEME002", DiagnosticSeverity.Error, phase, spec, message,
             cardinalityKey, source: source, line: line, column: column, path: path, declaration: declaration);
+
+    /// <summary><c>SCHEME003</c> (error) — Structured scheme root is not a mapping.</summary>
+    /// <param name="phase">Emission phase of this occurrence.</param>
+    /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
+    /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
+    /// <param name="cardinalityKey">Identity of the failing scheme source this is emitted once per.</param>
+    /// <param name="source">Section 6.4.3 <c>source</c> member.</param>
+    /// <param name="line">Section 6.4.3 <c>line</c> member.</param>
+    /// <param name="column">Section 6.4.3 <c>column</c> member.</param>
+    /// <remarks>Cardinality: once per failing scheme source.</remarks>
+    public static DiagnosticOccurrence Scheme003(
+        DiagnosticPhase phase,
+        string spec,
+        string message,
+        string cardinalityKey,
+        string? source = null,
+        int? line = null,
+        int? column = null) =>
+        Create("SCHEME003", DiagnosticSeverity.Error, phase, spec, message,
+            cardinalityKey, source: source, line: line, column: column);
 
     /// <summary><c>WILDCARD001</c> (error) — Invalid, undefined, or mixed capture outside a reference.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
@@ -545,7 +569,7 @@ public static partial class DiagnosticCodes
         Create("XML002", DiagnosticSeverity.Error, phase, spec, message,
             cardinalityKey, source: source, line: line, column: column, path: path);
 
-    /// <summary><c>INI001</c> (error) — Value or name unsupported by `PortableIni1` options.</summary>
+    /// <summary><c>INI001</c> (error) — Value, name, or control character unsupported by `PortableIni1` options.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
@@ -615,7 +639,7 @@ public static partial class DiagnosticCodes
         Create("SERIALIZE001", DiagnosticSeverity.Error, phase, spec, message,
             cardinalityKey, destination: destination);
 
-    /// <summary><c>PATH001</c> (error) — Invalid, escaping, or insecure output path.</summary>
+    /// <summary><c>PATH001</c> (error) — Invalid, escaping, insecure, or topologically conflicting output path.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>
     /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
     /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>

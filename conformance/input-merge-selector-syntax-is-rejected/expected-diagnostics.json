@@ -1,0 +1,5 @@
+[
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/scheme.namespace","line":1,"column":1,"path":"*","declaration":"*.merge","spec":"§16.10"},
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/scheme.namespace","line":2,"column":1,"path":"x.\\${selector\\}","declaration":"x.${selector}.merge","spec":"§16.10"},
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/scheme.namespace","line":3,"column":1,"path":"x.*.\\${selector\\}","declaration":"x.*.${selector}.merge","spec":"§16.10"}
+]

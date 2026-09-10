@@ -101,6 +101,48 @@ public sealed class CommandLineParserTests
     public void VariablesAreAListOption() =>
         ParseOk([.. Minimal, "-v", "a=1", "b=2"]).Variables.ShouldBe(["a=1", "b=2"]);
 
+    /// <summary>
+    /// Section 6.2 starts at the host argument vector. Characters that a shell might otherwise
+    /// interpret are data inside one host token and the tool never tokenizes them again.
+    /// </summary>
+    [Test]
+    public void HostTokensAreNeverRetokenized()
+    {
+        const string input = "folder with space\\name\"quoted";
+        const string scheme = "scheme with space\\name'quoted";
+
+        var line = ParseOk("-i", input, "-s", scheme);
+
+        line.Inputs.ShouldBe([input]);
+        line.Schemes.ShouldBe([scheme]);
+    }
+
+    /// <summary>
+    /// A .NET string can carry an unpaired surrogate even though no strict UTF-8 argument file
+    /// can. Section 6.2 makes that host-boundary fault observable as one CLI diagnostic.
+    /// </summary>
+    [Test]
+    public void AnIllFormedUnicodeHostTokenIsCli001()
+    {
+        var diagnostic = ParseFail("-i", "\ud800", "-s", "scheme.txt");
+
+        diagnostic.Code.ShouldBe("CLI001");
+        diagnostic.Message.ShouldContain("Unicode");
+    }
+
+    /// <summary>
+    /// Each list occurrence owns its own arity fault. The first fault in token order wins, and the
+    /// post-token required-option check retains input-before-scheme order.
+    /// </summary>
+    [Test]
+    public void RequiredListOccurrenceFaultsHaveDeterministicPrecedence()
+    {
+        ParseFail("-i", "-s", "scheme.txt").Message.ShouldContain("'--input'");
+        ParseFail("-s", "-i", "input.txt").Message.ShouldContain("'--scheme'");
+        ParseFail("-i", "input.txt", "-i", "-s", "scheme.txt").Message.ShouldContain("'--input'");
+        ParseFail("--fail-on-warning").Message.ShouldContain("'--input'");
+    }
+
     // ---- single-valued options ---------------------------------------------------------
 
     [Test]
@@ -314,6 +356,17 @@ public sealed class CommandLineParserTests
         ParseFail("-i", "a", "-s", "scheme.txt", "-o", "out", "--", "x").Code.ShouldBe("CLI001");
 
     [Test]
+    public void ABareDoubleHyphenCannotSatisfyAPendingSingleValuedOption()
+    {
+        var diagnostic = ParseFail("-i", "a", "-s", "scheme.txt", "-o", "--", "x");
+
+        diagnostic.Code.ShouldBe("CLI001");
+        diagnostic.Spec.ShouldBe("\u00a76.2");
+        diagnostic.Message.ShouldContain("'--output' requires a value");
+        diagnostic.Message.ShouldContain("end-of-options marker");
+    }
+
+    [Test]
     public void ABareDoubleHyphenWithNoPrecedingOptionIsRejected() =>
         ParseFail("--", "a").Code.ShouldBe("CLI001");
 
@@ -328,6 +381,35 @@ public sealed class CommandLineParserTests
     {
         ParseOk("--help", "-i", "a", "-s", "scheme.txt").Inputs.ShouldBe(["a"]);
         ParseOk("--version", "-i", "a", "-s", "scheme.txt").Inputs.ShouldBe(["a"]);
+    }
+
+    /// <summary>
+    /// Section 6.1 resolves informational modes before operational parsing. Each malformed form is
+    /// therefore irrelevant when help or version appears before the end-of-options marker.
+    /// </summary>
+    [Test]
+    public void InformationalModesBypassEveryMalformedOperationalForm()
+    {
+        string[][] malformed =
+        [
+            [],
+            ["-i"],
+            ["-s"],
+            ["-i", "-s", "scheme.txt"],
+            ["-s", "scheme.txt", "-i"],
+            ["-i", "one", "-i", "-s", "scheme.txt"],
+            ["-s", "one", "-s"],
+            ["-i", "--"],
+        ];
+
+        foreach (var mode in new[] { "--help", "--version" })
+        {
+            foreach (var suffix in malformed)
+            {
+                DiagnosticsFormatPreScan.ResolveInformationalMode([mode, .. suffix])
+                    .ShouldBe(mode == "--help" ? InformationalMode.Help : InformationalMode.Version);
+            }
+        }
     }
 
     // ---- enumerated values ---------------------------------------------------------------

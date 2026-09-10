@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "d82bb2af83e9b97a1fa7067f384c1ede13f9001706da79d431558994202a3927"
+    "sha256": "49bd199a1f5d3f10d3f1e689f30197d2e99e8fb3ebbfe83ec7578bb626f942c2"
   },
   "authoritativeFor": [
     "code",
@@ -85,6 +85,20 @@
       ],
       "mappings": [
         "Ambiguous simple/canonical scheme path"
+      ]
+    },
+    {
+      "code": "SCHEME003",
+      "severity": "error",
+      "cardinality": "once per failing scheme source",
+      "condition": "Structured scheme root is not a mapping",
+      "fields": [
+        "source",
+        "line",
+        "column"
+      ],
+      "mappings": [
+        "Syntactically valid JSON/YAML scheme root is scalar, null, or sequence rather than mapping"
       ]
     },
     {
@@ -279,13 +293,13 @@
       "code": "INI001",
       "severity": "error",
       "cardinality": "once per path and output instance",
-      "condition": "Value or name unsupported by `PortableIni1` options",
+      "condition": "Value, name, or control character unsupported by `PortableIni1` options",
       "fields": [
         "path",
         "destination"
       ],
       "mappings": [
-        "Value/name/comment cannot be represented by effective `PortableIni1` options"
+        "Value/name/comment/control character cannot be represented by effective `PortableIni1` options"
       ]
     },
     {
@@ -330,13 +344,13 @@
       "code": "PATH001",
       "severity": "error",
       "cardinality": "once per destination",
-      "condition": "Invalid, escaping, or insecure output path",
+      "condition": "Invalid, escaping, insecure, or topologically conflicting output path",
       "fields": [
         "declaration",
         "destination"
       ],
       "mappings": [
-        "Invalid, escaping, insecure, traversal, portability-key-colliding, or uncontainable destination path"
+        "Invalid, escaping, insecure, traversal, portability-key-colliding, proper-segment-prefix-conflicting, or uncontainable destination path"
       ]
     },
     {

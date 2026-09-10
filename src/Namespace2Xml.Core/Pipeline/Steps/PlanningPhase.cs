@@ -1142,7 +1142,6 @@ public static class PlanningPhase
         // blocking PATH001 collision rather than a merge." The check is on the whole plan rather
         // than per destination, because the colliding pair is by definition two destinations.
         var byPortability = new Dictionary<string, DestinationContribution>(StringComparer.Ordinal);
-
         foreach (var contribution in contributions.OrderBy(c => c.Key))
         {
             if (byPortability.TryGetValue(contribution.Path.PortabilityKey, out var earlier)
@@ -1165,6 +1164,8 @@ public static class PlanningPhase
 
             byPortability.TryAdd(contribution.Path.PortabilityKey, contribution);
         }
+
+        ReportDestinationTopology(contributions, diagnostics);
 
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<ImmutableArray<DestinationContribution>>()
@@ -1348,6 +1349,13 @@ public static class PlanningPhase
         ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
+        ReportDestinationTopology(contributions, diagnostics);
+
+        if (diagnostics.HasBlockingError)
+        {
+            return StepOutcome.Failed<ImmutableArray<DestinationContribution>>();
+        }
+
         var folded = new Dictionary<string, DestinationContribution>(StringComparer.Ordinal);
         var order = new List<string>();
         var pending = new List<(string Canonical, DiagnosticOccurrence Occurrence)>();
@@ -1407,6 +1415,96 @@ public static class PlanningPhase
             ? StepOutcome.Failed<ImmutableArray<DestinationContribution>>()
             : StepOutcome.Produced(
                 ImmutableArray.CreateRange(order.Select(canonical => folded[canonical])));
+    }
+
+    /// <summary>
+    /// Reports destinations for which a planned file is also required to be an ancestor directory.
+    /// </summary>
+    private static void ReportDestinationTopology(
+        ImmutableArray<DestinationContribution> contributions,
+        DiagnosticBuffer diagnostics)
+    {
+        // A portability key with multiple canonical spellings is already an exact folded collision.
+        // Exclude it from this rule so one destination does not acquire two PATH001 occurrences.
+        var topology = contributions
+            .GroupBy(contribution => contribution.Path.PortabilityKey, StringComparer.Ordinal)
+            .Where(group => group
+                .Select(contribution => contribution.Path.Canonical)
+                .Distinct(StringComparer.Ordinal)
+                .Take(2)
+                .Count() == 1)
+            .Select(group => new KeyValuePair<string, DestinationContribution>(
+                group.Key,
+                PublicationRepresentative(group)))
+            .ToArray();
+
+        var destinationOrder = DestinationContribution
+            .InPublicationOrder(topology.Select(pair => pair.Value))
+            .Select((contribution, index) => (contribution.Path.PortabilityKey, index))
+            .ToDictionary(pair => pair.PortabilityKey, pair => pair.index, StringComparer.Ordinal);
+
+        foreach (var descendant in topology)
+        {
+            KeyValuePair<string, DestinationContribution>? longest = null;
+
+            foreach (var ancestor in topology)
+            {
+                if (ancestor.Key.Length >= descendant.Key.Length
+                    || !descendant.Key.StartsWith(
+                        ancestor.Key + "/", StringComparison.Ordinal)
+                    || longest is { } held && held.Key.Length >= ancestor.Key.Length)
+                {
+                    continue;
+                }
+
+                longest = ancestor;
+            }
+
+            if (longest is not { } conflict)
+            {
+                continue;
+            }
+
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Path001(
+                    DiagnosticPhase.Planning,
+                    "§17.5",
+                    $"'{descendant.Value.Path.Canonical}' requires "
+                    + $"'{conflict.Value.Path.Canonical}' to be a directory, but that destination "
+                    + "is also a file.",
+                    cardinalityKey: descendant.Key,
+                    destination: descendant.Value.Path.Canonical),
+                DestinationOrder: destinationOrder[descendant.Key]));
+        }
+    }
+
+    /// <summary>
+    /// Computes the contribution whose publication key an exact destination would retain after
+    /// Section 17.5 folding, without performing the model merge that topology failure precludes.
+    /// </summary>
+    private static DestinationContribution PublicationRepresentative(
+        IEnumerable<DestinationContribution> contributions)
+    {
+        using var ordered = contributions.OrderBy(contribution => contribution.Key).GetEnumerator();
+
+        if (!ordered.MoveNext())
+        {
+            throw new ArgumentException("At least one destination contribution is required.", nameof(contributions));
+        }
+
+        var retained = ordered.Current;
+
+        while (ordered.MoveNext())
+        {
+            var later = ordered.Current;
+
+            if (retained.View.Format != later.View.Format)
+            {
+                retained = later;
+            }
+        }
+
+        return retained;
     }
 
     /// <summary>

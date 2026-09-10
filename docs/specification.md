@@ -555,6 +555,16 @@ During wildcard, ignore, reference, and scheme matching, a sequence exposes its 
 <a id="spec-6"></a>
 ## 6. Command-line interface
 
+The product contract begins with the ordered vector of Unicode argument strings supplied to the
+program by its host runtime. Shell tokenization, quote removal, wildcard expansion, environment
+expansion, and conversion from a platform-native command-line representation into that vector are
+outside this contract. Every supplied string is already one token: the tool does not split it again
+on whitespace, quotes, backslashes, or any other character, and it performs no globbing.
+
+Each token must be well-formed Unicode. An ill-formed host string is `CLI001`. Thus a token whose
+value is `a b.json` is one path, and literal `"` or `\` characters in a token remain data rather
+than becoming quoting or escaping syntax.
+
 <a id="spec-6-1"></a>
 ### 6.1 Invocation
 
@@ -597,7 +607,9 @@ Presence is decided by scanning the raw token vector for the option token, in ei
 | `--help` | no | Print help and exit successfully. |
 | `--version` | no | Print version and exit successfully. |
 
-Repeated `-i`/`--input`, `-s`/`--scheme`, and `-v`/`--variables` occurrences concatenate their values in exact command-line token order. A `--` token ends option recognition; every following token is consumed only as a value of the immediately preceding list-valued option, and using `--` without such an option is `CLI001`.
+Repeated `-i`/`--input`, `-s`/`--scheme`, and `-v`/`--variables` occurrences concatenate their values in exact command-line token order. Operational mode requires at least one input value and at least one scheme value. In addition, every `-i`/`--input` and `-s`/`--scheme` occurrence must contribute at least one value even when another occurrence of the same option is nonempty. The end of the vector or another option token immediately after such an occurrence is `CLI001`.
+
+A `--` token ends option recognition; it is not itself a value, and every following token is consumed only as a value of the immediately preceding list-valued option. No following token is parsed as an option. Using `--` without such an option is `CLI001`. An occurrence may therefore obtain its first value after the marker: `-i --` is empty and invalid, while `-s scheme.namespace -i -- -s` gives the input occurrence the literal path `-s`.
 
 Option tokens are recognized by one uniform grammar, which applies to every option in the table above:
 
@@ -607,7 +619,14 @@ Option tokens are recognized by one uniform grammar, which applies to every opti
 - `--help` and `--version` take no value. Section 6.1 decides the informational mode from the presence of the option token in either form, before any argument is validated, so an inline value on either is ignored rather than diagnosed;
 - `--fail-on-warning` takes no value. Repeating it is idempotent. Any inline value, including the empty value in `--fail-on-warning=`, is `CLI001`; a following token is not consumed as its value and is parsed normally, so an otherwise unattached detached value is also `CLI001`;
 - any other token is a value of the option currently accepting values. The token `-` is an ordinary value in this version. A value appearing when no option is accepting values is `CLI001`, as is an option token that reaches the end of the argument vector still requiring a value;
-- a list-valued option accepts values until the next option token; every other option accepts exactly one value, and a later occurrence overrides an earlier one.
+- a list-valued option accepts values until the next option token and, for `input` and `scheme`,
+  every occurrence accepts at least one; every other option accepts exactly one value, and a later
+  occurrence overrides an earlier one.
+
+CLI validation reports the first token fault in left-to-right order. If token scanning succeeds,
+required-option absence is checked in table order, `input` before `scheme`. Because `CLI001` is once
+per invocation, that deterministic first fault is the occurrence emitted. `--help` and `--version`
+retain the Section 6.1 precedence and bypass all operational validation.
 
 The inline form is available to every long option rather than to `--diagnostics-format` alone. A grammar with one exception has to be stated twice, tested twice, and explained twice, and the exception would fall on the one option whose parsing already happens twice under Section 6.4.1.
 
@@ -1113,6 +1132,10 @@ Within that one part, unescaped `*` and `*[identifier]` tokens retain their wild
 
 String scalar values use the same strict reference and value-escape lexer as namespace values unless a matching `substitute` directive disables interpretation.
 
+When a JSON document is used as a scheme under Section 15, its root must be an object. An empty
+object is a valid scheme containing no directives; a scalar, null, or array root is the semantic
+scheme-shape error `SCHEME003`, rather than a JSON syntax error.
+
 <a id="spec-9-2"></a>
 ### 9.2 Unsupported features
 
@@ -1169,6 +1192,10 @@ A component whose text is `<<` is therefore written quoted on YAML output, as Se
 These rules, rather than an underlying library's advertised YAML 1.1 or 1.2 mode, are normative. Any parser may be used only if it is configured or wrapped to produce exactly `RestrictedYaml1` behavior.
 
 The differences from namespace scalar inference are intentional: plain YAML `+1`, `.5`, and `1.` remain strings because they are not JSON-compatible numbers, while any ASCII case spelling of `true` or `false`, including `tRuE`, is Boolean.
+
+When a YAML document is used as a scheme under Section 15, its root must be a mapping. An empty
+mapping is a valid scheme containing no directives; a scalar, null, or sequence root is the semantic
+scheme-shape error `SCHEME003`, rather than a YAML syntax error.
 
 <a id="spec-10-2"></a>
 ### 10.2 Deliberately unsupported features
@@ -1880,9 +1907,22 @@ This accounting is about whether the source's data was addressed, not whether it
 <a id="spec-15"></a>
 ## 15. Scheme language
 
-Scheme files may use the case-insensitive `.json`, `.yaml`, and `.yml` extensions that Section 7.1 gives input files, and every other extension, including none at all, uses namespace-profile parsing. Their parsed content must project to qualified directive paths and scalar directive values.
+Scheme files may use the case-insensitive `.json`, `.yaml`, and `.yml` extensions that Section 7.1 gives input files, and every other extension, including none at all, uses namespace-profile parsing. Their parsed content must project to qualified directive paths and scalar directive values. Sections 9.1 and 10.4 govern native structured keys: each mapping key contributes one qualified-name part, so nesting creates a multi-part directive path and a dot inside one native key remains literal.
 
-A directive value that is a sequence is `SCHEME001`, not a set of indexed directives. Section 5.4's rule that a sequence exposes its ordering values as decimal name parts governs *matching* — wildcards, ignore, references, and scheme selectors — and so applies to the path side of a scheme entry. It does not apply to the value side, where Section 15 requires a nonempty scalar. Reading `cfg.output: [json, yaml]` as `cfg.output.0` and `cfg.output.1` would report two unknown-directive errors naming paths the author never wrote, and would quietly make a JSON scheme file mean something different from the namespace file `cfg.output=json,yaml` that expresses the same intent. The comma-separated scalar is the spelling for a multi-valued directive in every format.
+A directive value that is a sequence is `SCHEME001`, not a set of indexed directives. For example:
+
+```yaml
+cfg:
+  output: [json, yaml]
+```
+
+Section 5.4's rule that a sequence exposes its ordering values as decimal name parts governs *matching* — wildcards, ignore, references, and scheme selectors — and so applies to the path side of a scheme entry. It does not apply to the value side, where Section 15 requires a nonempty scalar. Reading that sequence as `cfg.output.0` and `cfg.output.1` would report two unknown-directive errors naming paths the author never wrote, and would quietly make a YAML scheme file mean something different from the namespace file `cfg.output=json,yaml` that expresses the same intent. The comma-separated scalar is the spelling for a multi-valued directive in every format.
+
+A syntactically valid JSON or YAML scheme document must have a mapping root. A scalar, null, or
+sequence root is `SCHEME003` once per failing scheme-source occurrence, carrying `source` and its
+deterministic root `line` and `column` but no invented `path` or `declaration`. An empty mapping root
+is valid and contributes no directives. Malformed JSON or YAML remains `PARSE001`; syntax failure
+and semantic scheme shape are distinct conditions.
 
 Namespace-profile scheme files are the canonical and recommended representation.
 
@@ -1930,7 +1970,12 @@ The normative processing pipeline is:
 1. Parse scheme syntax using secure format defaults and resolve references among scheme entries. Scheme references cannot target input data. A scheme reference resolves against the directive entries of the scheme set and nothing else: its target is another scheme entry's value, addressed by that entry's qualified directive path, so `cfg.filename=${cfg.output}` is legal and yields that directive's resolved text. A reference naming a path that is not a scheme entry is `REFERENCE002` in the `scheme` phase, reported as an unrecognized directive at the named path rather than as input data that happens to be absent, because at step 1 no input has been read and the two cannot be told apart. A reference chain that returns to its own start is `REFERENCE003` in the `scheme` phase, anchored at Section 13.1, and names the whole cycle so that no directive in it is reported as merely unresolvable. These two are reported per owning directive rather than under the Section 13 "once per reachable owning value" rule, because reachability is a Section 14.4 property computed at step 13 and does not yet exist here.
 2. Compile root-level input options.
 3. Compile `substitute` path patterns. These patterns may contain name wildcards but no references.
-4. Compile literal-path input `merge` directives. Input `merge` paths must not contain wildcards or references. `filemerge` is not consulted during input processing.
+4. Compile literal-path input `merge` directives. The selector on each input `merge` declaration
+   must be one literal qualified path and must not contain wildcard or `${...}` reference syntax.
+   Either or both forbidden forms emit one blocking `SCHEME001` for that declaration, carrying
+   `source`, declaration `line` and `column`, the offending `path`, and the complete `declaration`.
+   The failing declaration contributes no directive. `filemerge` is not consulted during input
+   processing.
 5. Parse input documents into typed overlays without applying namespace escape decoding to native structured strings.
 6. Lex and validate reference and value-wildcard syntax in strings according to the precompiled `substitute` patterns. A `substitute` pattern matches an entry's declared pre-expansion path; a generated entry inherits the mode resolved for its template. Reference targets are not resolved until step 15.
 7. Extract wildcard template entries from concrete JSON, YAML, and namespace contributions, and permanent namespace `!` exclusion masks from namespace contributions. XML input cannot define a wildcard template because XML names are parsed as XML names rather than namespace wildcard syntax.
@@ -2015,7 +2060,7 @@ The following aliases remain accepted with one warning per scheme:
 
 Blocking diagnostics are collected within the pipeline phase in which they are detected, subject to the registry cardinalities in Section 22. A phase completes every independent check that does not depend on a failed result, buffers its deterministic diagnostic set, and then aborts before the next phase when any blocking diagnostic exists.
 
-A source that fails parsing, decoding, or a per-source limit contributes no partial overlay. Other independent sources in the same phase may still be parsed so their source-scoped diagnostics can be collected. A failed scheme contributes no partial directives. Transformation and planning errors never produce a partial output instance for a later phase.
+A source that fails parsing, decoding, or a per-source limit contributes no partial overlay. Other independent sources in the same phase may still be parsed so their source-scoped diagnostics can be collected. A structured scheme whose root is not a mapping contributes no directives, and an input `merge` declaration containing wildcard or reference syntax contributes no directive. Other declarations and other independent scheme sources are still checked in the same phase. A failed scheme contributes no partial directives to a later phase. Transformation and planning errors never produce a partial output instance for a later phase.
 
 Publication is the exception because external side effects have begun: `PATH002` stops publication immediately as specified in Section 21.3.
 
@@ -2668,6 +2713,20 @@ A canonical destination path is the portable-encoded relative path with `/` sepa
 
 For cross-platform collision detection, also compute a portability key by uppercasing ASCII letters in the canonical path. Because portable segment encoding makes every non-ASCII byte an uppercase `%HH` sequence, this comparison is platform-independent. Two nonidentical canonical paths with the same portability key are a blocking `PATH001` collision rather than a merge. Byte-identical canonical paths continue through the deterministic collision fold below.
 
+After the complete output plan is known and before serialization, directory creation, file opening,
+staging, or publication, compare the complete destination segment vectors under that same
+portability key. A blocking file-versus-directory topology conflict exists when one planned
+destination is a proper path-segment prefix of another. A textual prefix ending inside a segment,
+such as `a` and `ab/file.json`, is not a conflict.
+
+Emit `PATH001` once for each descendant destination having such a prefix. Its `destination` is the
+descendant, and its message names the longest conflicting proper-prefix destination. When several
+ancestors prefix one descendant, only that longest ancestor is named; when one ancestor has several
+descendants, each descendant gets its own occurrence. The comparison uses portable-segment encoding
+followed by ASCII-letter folding only and introduces no Unicode normalization. It consumes the
+complete plan, so source or declaration order cannot change the diagnostic set or produce
+filesystem side effects.
+
 Every sequence item retains explicit or implicit provenance into this fold. Each sequence path in a destination accumulator has its own high-water mark:
 
 - an implicit item from a later output contribution is rebased onto the next fresh destination ordering value;
@@ -2803,6 +2862,8 @@ Values use the inverse of the namespace value lexer:
 
 Physical output entries are always one line. Multiline scalar data is represented through escapes, never literal record-breaking line terminators.
 
+The serializer inserts no blank records before, after, or between entries or comments.
+
 A node whose projection is an empty mapping emits `qualified.name={}`, and one whose projection is an empty sequence emits `qualified.name=[]`. A scalar whose text is exactly `{}` or `[]` emits `\{}` or `\[]`. This is what makes the Section 8.3 sentinel bidirectional, and it is the only case in which this format emits a key for a path that holds no scalar: a container with children needs no key of its own, because its children carry it.
 
 Section 19.2 and Section 19.6 emit no sentinel and no key for an empty container. A shell assignment and an INI entry are read as text by consumers that have no container concept, so a bracket pair written there would be data rather than shape, and re-reading it would invent a string the source never held. Those formats discard the concept instead, under the cross-format rule in Section 3.3.
@@ -2852,6 +2913,8 @@ NAME='can'\''t'
 ```
 
 This preserves spaces, `$`, backticks, double quotes, backslashes, exclamation marks, and line breaks without expansion.
+
+The serializer inserts no blank records before, after, or between assignments or comments.
 
 NUL is not representable and is an error.
 
@@ -2937,6 +3000,9 @@ YAML output:
 - does not emit `---`;
 - does not preserve original quote style, tag syntax, anchors, aliases, or folded-versus-literal source style;
 - applies structural merge before serialization.
+
+Typed Boolean scalars emit lowercase `true` or `false`, and null emits lowercase `null`.
+Integer and decimal spellings remain the Section 18 canonical locale-independent forms.
 
 A literal block scalar reproduces its content from its indentation and chomping indicator alone, which is not enough for every multiline value. A line with trailing whitespace, a CR line break, a control character outside YAML's `c-printable`, and a first non-empty line that is itself indented are each altered or lost by a block scalar, and Section 3.3 requires a same-format round trip to preserve them. A value ending in a blank line needs the `|+` indicator, whose block ends with two line breaks and so cannot satisfy Section 24's requirement that a text output end with exactly one LF.
 
@@ -3039,6 +3105,10 @@ XML output:
 - uses UTF-8;
 - includes an XML declaration under the default `Declaration` option and omits it under `NoDeclaration`;
 - uses normalized indentation outside mixed content by default.
+
+Boolean text and attribute values emit lowercase `true` or `false`, and null text and attribute
+values emit lowercase `null`. Integer and decimal spellings remain the Section 18 canonical
+locale-independent forms.
 
 #### XML output bytes
 
@@ -3143,6 +3213,9 @@ around it, and a comment whose parent holds only elements and comments is writte
 their indentation. Content containing LF is written with that LF literal and no re-indentation,
 since indenting it would alter the comment.
 
+Pretty-printing inserts no empty lines. A visually blank line is permitted only where preserved
+whitespace is actual input data; indentation and comment layout do not manufacture one.
+
 #### XML sequence projection
 
 XML has no anonymous sequence node. A sequence-valued mapping child therefore renders as repeated sibling elements whose expanded name is the sequence path's final element component.
@@ -3201,7 +3274,9 @@ INI output targets a conservative interoperable subset:
 - section and key names must match `[A-Za-z0-9_.:-]+` after delimiter joining;
 - section and key names containing `[`, `]`, `=`, comment markers, whitespace, or control characters are errors;
 - default values are unquoted single-line UTF-8 text;
-- NUL, CR, and LF in a value are errors under `RejectMultiline`;
+- NUL and every other C0 control except TAB, CR, and LF are errors under every multiline strategy;
+- CR and LF in a value are errors under `RejectMultiline`; TAB remains ordinary whitespace subject
+  to the unquoted leading/trailing rule;
 - a value beginning with `;` or `#`, or having leading/trailing whitespace, is an error unless `QuoteValues` is selected;
 - `QuoteValues` emits double-quoted values, escaping `\` as `\\` and `"` as `\"`;
 - `EscapeMultiline` additionally emits LF as `\n`, CR as `\r`, and tab as `\t`;
@@ -3215,7 +3290,15 @@ Path projection is normative:
 - container-only paths do not emit keys;
 - `root` is applied before this section/key split.
 
-A null payload emits the text `null`, as in Section 19.1. `PortableIni1` has no null literal, and an empty value is a legal empty string, so spelling null as an empty value would write two distinct payloads as one line.
+A Boolean payload emits lowercase `true` or `false`. A null payload emits lowercase `null`, as in
+Section 19.1. Integer and decimal spellings remain the Section 18 canonical locale-independent
+forms. `PortableIni1` has no null literal, and an empty value is a legal empty string, so spelling
+null as an empty value would write two distinct payloads as one line.
+
+Under `EscapeMultiline`, CR, LF, and TAB emit `\r`, `\n`, and `\t` after literal backslashes have
+been doubled. NUL and every other unsupported C0 control are blocking `INI001`; they are never
+written literally, removed, or converted to a generic Unicode escape. The same C0 refusal applies
+under `RejectMultiline`, including when `QuoteValues` is selected.
 
 An overlay may emit both a scalar INI key and descendant sections when their projected identities are distinct. For example, a scalar at `a.x` and a descendant at `a.x.z` may emit key `x` in section `[a]` and key `z` in section `[a:x]`. No shape warning is emitted merely because one logical path supplies both projections. A genuine post-projection key or section collision is blocking `FLAT001`.
 
@@ -3478,6 +3561,7 @@ The normative diagnostic registry is:
 | `PARSE002` | error | Invalid or unsupported character encoding | once per failing source |
 | `SCHEME001` | error | Unknown directive, value, or illegal option/type combination | once per declaration |
 | `SCHEME002` | error | Ambiguous canonical/simple scheme path | once per expanded declaration |
+| `SCHEME003` | error | Structured scheme root is not a mapping | once per failing scheme source |
 | `WILDCARD001` | error | Invalid, undefined, or mixed capture outside a reference | once per rule |
 | `WILDCARD002` | error | Nonterminating expansion or wildcard limit | once per invocation |
 | `REFERENCE001` | error | Malformed or free-wildcard reference | once per owning value |
@@ -3491,11 +3575,11 @@ The normative diagnostic registry is:
 | `SHELL001` | error | Invalid quoted-namespace shell identifier | once per projected key and output instance |
 | `XML001` | error | DTD, external entity/resource, or prohibited XML feature | once per failing document |
 | `XML002` | error | Invalid XML name, namespace, declaration, or canonical address | once per failing node or document |
-| `INI001` | error | Value or name unsupported by `PortableIni1` options | once per path and output instance |
+| `INI001` | error | Value, name, or control character unsupported by `PortableIni1` options | once per path and output instance |
 | `NAMESPACE001` | error | Value unsupported by the namespace destination's options | once per path and output instance |
 | `COLLISION001` | error | `filemerge=error` rejects a second contribution to one destination | once per rejected contribution after the first |
 | `SERIALIZE001` | error | Output view cannot be serialized under the selected format/options | once per output instance |
-| `PATH001` | error | Invalid, escaping, or insecure output path | once per destination |
+| `PATH001` | error | Invalid, escaping, insecure, or topologically conflicting output path | once per destination |
 | `PATH002` | error | Publication/open/write/flush failure | once, for the failing destination |
 | `LIMIT001` | error | Non-wildcard resource limit exceeded | once per invocation |
 | `WARN001` | warning | Missing input or scheme file | once per missing-file occurrence on the command line |
@@ -3638,6 +3722,9 @@ All text outputs:
 - use LF as the physical line terminator;
 - end with exactly one LF;
 - contain no line ending in a space or a TAB, except where a Section 16.9 output option explicitly relaxes the rule for one destination.
+
+Namespace and quoted-namespace output insert no blank records. XML pretty-printing inserts no empty
+lines; a visually blank XML line is permitted only when preserved whitespace is content.
 
 The last of these is not presentational. Trailing whitespace is invisible in every editor, is stripped silently by many of them and by a good deal of tooling, and would therefore be the one class of byte in a specified output that a consumer could destroy without noticing — precisely the outcome the byte rules exist to prevent.
 
@@ -4069,6 +4156,11 @@ An implementation is conforming only when automated black-box tests cover:
 90. Namespace empty-container sentinels: `{}` and `[]` as whole-value shape contributions, `\{}` and `\[]` as the strings they displace, the near-miss values that stay strings, bidirectional emission including the escape, an empty container coexisting with a later child, and the JSON round trip through namespace that the sentinels make lossless.
 91. Unused input-source accounting: `WARN014` once per admitted source occurrence whose surviving eligible concrete paths are outside every effective output selector and successful reachable reference target, with deterministic source/path attribution; no warning for selected but overwritten data, reachable reference-only support data, deliberate `output=ignore` selection, wholly masked data, ineligible source-only content, or a run with no non-empty non-ignored pre-transformation view.
 92. The opt-in `--fail-on-warning` policy: valueless and repeatable CLI grammar with unchanged informational-mode precedence and default behavior; complete warning retention through serialization; refusal of all publication without changing diagnostic semantics or pre-existing destination bytes; an explicit warning-policy result with `Published = 0` and exit code `1`; and independence from the emitted verbosity threshold.
+93. The host-token boundary and required list-option arity: tokens containing spaces, quotes, or backslashes remain single unchanged values; every repeated input and scheme occurrence is nonempty; post-`--` tokens are literal values; missing required options have deterministic precedence; informational modes bypass malformed operational forms; and an ill-formed Unicode host token is `CLI001`.
+94. Scheme declaration shape: input `merge` selectors containing wildcard or reference syntax are `SCHEME001` once per declaration; structured scalar, null, and sequence roots are `SCHEME003` once per scheme-source occurrence; empty mapping roots are valid; malformed structured syntax remains `PARSE001`; and independent sources still collect same-phase diagnostics without contributing partial directives.
+95. Destination file-versus-directory topology: proper path-segment-prefix conflicts are detected from the complete portable plan before I/O, reported as `PATH001` once per descendant with deterministic ordering, folded ASCII case, and longest-ancestor selection, while textual non-segment prefixes and exact-destination folds retain their existing behavior.
+96. Canonical scalar text and INI control handling: YAML, INI, and XML text/attributes spell Boolean and null values in lowercase; INI multiline escaping orders backslash before CR/LF/TAB substitutions; and NUL plus every unsupported C0 control is blocking `INI001` under every applicable option combination.
+97. Generated blank-record bytes: namespace and quoted-namespace output insert no blank records, XML pretty-printing inserts no empty lines, preserved XML whitespace may remain visibly blank, and every nonempty text output retains exactly one final LF.
 
 <a id="spec-27"></a>
 ## 27. Deferred features
@@ -4222,6 +4314,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Invalid byte sequence, unsupported BOM/encoding, XML declaration encoding inconsistent with decoded input | `PARSE002` |
 | Unknown/empty directive, illegal directive value, illegal option combination, `type=array` plus `key` | `SCHEME001` |
 | Ambiguous simple/canonical scheme path | `SCHEME002` |
+| Syntactically valid JSON/YAML scheme root is scalar, null, or sequence rather than mapping | `SCHEME003` |
 | Invalid, undefined, or mixed wildcard capture outside a reference | `WILDCARD001` |
 | Wildcard fixed-point, candidate, generated-node, or iteration limit | `WILDCARD002` |
 | Malformed/unterminated reference, legacy bare wildcard in reference, free explicit capture | `REFERENCE001` |
@@ -4235,11 +4328,11 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Invalid quoted-namespace identifier or NUL value | `SHELL001` |
 | DTD, external entity/resource, network retrieval, or prohibited XML feature | `XML001` |
 | Invalid XML name/namespace/canonical address/declaration structure other than byte-encoding disagreement | `XML002` |
-| Value/name/comment cannot be represented by effective `PortableIni1` options | `INI001` |
+| Value/name/comment/control character cannot be represented by effective `PortableIni1` options | `INI001` |
 | Namespace value ends in a space and no option permits writing it | `NAMESPACE001` |
 | `filemerge=error` rejects a second destination contribution | `COLLISION001` |
 | Final output model cannot be serialized under its selected format/options | `SERIALIZE001` |
-| Invalid, escaping, insecure, traversal, portability-key-colliding, or uncontainable destination path | `PATH001` |
+| Invalid, escaping, insecure, traversal, portability-key-colliding, proper-segment-prefix-conflicting, or uncontainable destination path | `PATH001` |
 | Destination open, create, write, flush, or close failure after publication starts | `PATH002` |
 | Ordering-value overflow or any non-wildcard resource limit | `LIMIT001` |
 | Missing CLI input/scheme path | `WARN001` |

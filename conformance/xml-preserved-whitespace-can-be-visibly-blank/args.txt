@@ -1,0 +1,4 @@
+-i
+inputs/root.xml
+-s
+schemes/scheme.namespace

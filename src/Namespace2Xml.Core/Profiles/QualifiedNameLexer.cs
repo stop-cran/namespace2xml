@@ -78,8 +78,9 @@ public static class QualifiedNameLexer
     /// suppresses marker recognition for the whole part, which is what makes a literal
     /// marker-shaped key expressible. Everywhere else a backslash emits itself and consumes
     /// nothing, the Appendix A.5 rule for text a native parser has already decoded, so a key such
-    /// as <c>C:\dir</c> needs no escaping. The one older exception stands: an unescaped <c>*</c> or
-    /// <c>*[identifier]</c> is a wildcard token "for compatibility", and <c>\*</c> suppresses it.
+    /// as <c>C:\dir</c> needs no escaping. The two exceptions are <c>\${</c>, which emits literal
+    /// <c>${</c>, and the older wildcard compatibility rule: an unescaped <c>*</c> or
+    /// <c>*[identifier]</c> is a wildcard token, and <c>\*</c> suppresses it.
     /// </para>
     /// </remarks>
     public static QualifiedNameResult LexNativePart(string text)
@@ -244,6 +245,16 @@ public static class QualifiedNameLexer
 
         while (index < text.Length)
         {
+            if (text[index] == '\\'
+                && index + 2 < text.Length
+                && text[index + 1] == '$'
+                && text[index + 2] == '{')
+            {
+                literal.Append("${");
+                index += 3;
+                continue;
+            }
+
             if (text[index] == '\\' && index + 1 < text.Length && text[index + 1] == '*')
             {
                 literal.Append('*');
@@ -279,6 +290,111 @@ public static class QualifiedNameLexer
 
         return new QualifiedNameResult(
             new QualifiedName([new OrdinaryPart(tokens.ToImmutable())]));
+    }
+
+    /// <summary>
+    /// Whether written name text contains unescaped <c>${</c> outside a <c>Q{...}</c> URI.
+    /// </summary>
+    /// <param name="text">The profile spelling or native decoded key.</param>
+    /// <param name="native">
+    /// Whether Appendix A.5 native escapes apply instead of Appendix A.2 profile escapes.
+    /// </param>
+    public static bool ContainsUnescapedReferenceSyntax(string text, bool native)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        var componentStart = true;
+        var qualifiedAfterAttribute = false;
+
+        for (var index = 0; index < text.Length;)
+        {
+            if (text[index] == '\\')
+            {
+                if (native)
+                {
+                    if (index + 2 < text.Length
+                        && text[index + 1] == '$'
+                        && text[index + 2] == '{')
+                    {
+                        index += 3;
+                    }
+                    else if (index + 1 < text.Length && text[index + 1] == '*')
+                    {
+                        index += 2;
+                    }
+                    else
+                    {
+                        index++;
+                    }
+                }
+                else if (index + 1 < text.Length && text[index + 1] == 'u')
+                {
+                    var closing = text.IndexOf('}', index + 2);
+                    index = closing < 0 ? text.Length : closing + 1;
+                }
+                else
+                {
+                    index = Math.Min(index + 2, text.Length);
+                }
+
+                componentStart = false;
+                qualifiedAfterAttribute = false;
+                continue;
+            }
+
+            if (text[index] == '$'
+                && index + 1 < text.Length
+                && text[index + 1] == '{')
+            {
+                return true;
+            }
+
+            if ((componentStart || qualifiedAfterAttribute)
+                && text[index] == 'Q'
+                && index + 1 < text.Length
+                && text[index + 1] == '{')
+            {
+                index += 2;
+
+                while (index < text.Length)
+                {
+                    if (text[index] == '\\' && index + 1 < text.Length)
+                    {
+                        index += 2;
+                    }
+                    else if (text[index++] == '}')
+                    {
+                        break;
+                    }
+                }
+
+                componentStart = false;
+                qualifiedAfterAttribute = false;
+                continue;
+            }
+
+            if (componentStart && text[index] == '@')
+            {
+                componentStart = false;
+                qualifiedAfterAttribute = true;
+                index++;
+                continue;
+            }
+
+            if (!native && text[index] == '.')
+            {
+                componentStart = true;
+                qualifiedAfterAttribute = false;
+                index++;
+                continue;
+            }
+
+            componentStart = false;
+            qualifiedAfterAttribute = false;
+            index++;
+        }
+
+        return false;
     }
 
     private static QualifiedNameResult Lex(string text, ref int index, bool inReference)

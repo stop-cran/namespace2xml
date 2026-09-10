@@ -280,6 +280,28 @@ public static class SchemeCompiler
         {
             var entry = ordered[index];
 
+            if (entry.Directive == SchemeDirective.Merge
+                && ((entry.Selector is { } mergeSelector
+                        && QualifiedNameLexer.ContainsWildcard(mergeSelector))
+                    || entry.SelectorContainsReferenceSyntax))
+            {
+                diagnostics.Add(new BufferedDiagnostic(
+                    DiagnosticCodes.Scheme001(
+                        DiagnosticPhase.Scheme,
+                        "§16.10",
+                        "'merge' accepts only a literal input path; wildcards and reference syntax "
+                        + "are not permitted in its selector.",
+                        cardinalityKey:
+                            $"{entry.Source}:{entry.Line}:{entry.Column}:{entry.Order}",
+                        source: entry.Source,
+                        line: entry.Line,
+                        column: entry.Column,
+                        path: CanonicalPath.Of(entry.Selector),
+                        declaration: entry.Declaration),
+                    entry.Order));
+                continue;
+            }
+
             if (entry.Value.ContainsReference)
             {
                 // Section 15.1 step 1 resolves scheme-internal references before anything reads a
@@ -1210,20 +1232,6 @@ public static class SchemeCompiler
         DiagnosticBuffer diagnostics,
         ImmutableArray<InputMerge>.Builder merges)
     {
-        // Section 16.10: "Input 'merge' directives required at pipeline step 4 must use literal
-        // paths and must not contain wildcards or references." A reference-bearing value was
-        // deferred before reaching here; a wildcard in the path is rejected here.
-        if (entry.Selector is { } path && QualifiedNameLexer.ContainsWildcard(path))
-        {
-            Reject(
-                entry,
-                diagnostics,
-                "\u00A716.10",
-                "an input 'merge' path is required at pipeline step 4, before any name graph "
-                + "exists to expand a wildcard against.");
-            return;
-        }
-
         if (CompileStrategy(entry, diagnostics) is { } strategy)
         {
             merges.Add(new InputMerge(entry.Selector, strategy));

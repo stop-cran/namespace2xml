@@ -530,6 +530,10 @@ public sealed class QualifiedNameLexerTests
         DescribeNative("a.b.c").ShouldBe("ord('a.b.c')");
 
     [Test]
+    public void NativeReferenceEscapeEmitsLiteralTextWithoutRescanning() =>
+        DescribeNative(@"x\${literal}").ShouldBe("ord('x${literal}')");
+
+    [Test]
     public void ANativeUnicodeEscapeIsLiteralText() =>
         DescribeNative("a\\u{41}b").ShouldBe("ord('a\\u{41}b')");
 
