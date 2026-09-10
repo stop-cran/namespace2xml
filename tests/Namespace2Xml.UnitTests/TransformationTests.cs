@@ -1,6 +1,9 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Output;
@@ -96,6 +99,236 @@ public sealed class TransformationTests
 
     private static ImmutableArray<string> Codes(TransformationResult result) =>
         [.. result.Diagnostics.Select(d => d.Code)];
+
+    /// <summary>
+    /// Section 11.5 propagates the complete input envelope to every selected output instance,
+    /// regardless of which subtree supplies that instance's element content.
+    /// </summary>
+    [Test]
+    public void EveryOutputInstanceReceivesTheCompleteXmlEnvelope()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("input.xml",
+                    "<!--leading--><r><left><a>1</a></left><right><b>2</b></right></r>"
+                    + "<!--trailing-->"),
+                ("scheme.txt",
+                    "r.left.output=xml\n"
+                    + "r.left.root=doc\n"
+                    + "r.left.filename=left.xml\n"
+                    + "r.right.output=xml\n"
+                    + "r.right.root=doc\n"
+                    + "r.right.filename=right.xml\n")),
+            "-i", "input.xml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        result.Diagnostics.ShouldBeEmpty();
+        sink.Written.Keys.Order(StringComparer.Ordinal).ShouldBe(["left.xml", "right.xml"]);
+
+        foreach (var output in sink.Written.Values)
+        {
+            var document = XDocument.Parse(output, LoadOptions.PreserveWhitespace);
+            document.Nodes().OfType<XComment>().Select(comment => comment.Value)
+                .ShouldBe(["leading", "trailing"]);
+            document.Root!.Name.LocalName.ShouldBe("doc");
+        }
+
+        sink.Written["left.xml"].ShouldContain("<a>1</a>");
+        sink.Written["right.xml"].ShouldContain("<b>2</b>");
+    }
+
+    /// <summary>
+    /// Sections 11.4 and 26 item 99 require XML shape reconciliation to preserve the complete
+    /// source envelope when an element-only contribution is rebuilt into the merged mixed shape.
+    /// </summary>
+    [Test]
+    public void XmlShapeReconciliationPreservesEverySourceEnvelope()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("first.xml",
+                    "<!--first-leading--><r><a>1</a></r><!--first-trailing-->"),
+                ("second.xml",
+                    "<!--second-leading--><r>text<b>2</b></r><!--second-trailing-->"),
+                ("scheme.txt",
+                    "r.output=xml\n"
+                    + "r.root=r\n"
+                    + "r.filename=reconciled.xml\n")),
+            "-i", "first.xml", "-i", "second.xml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        result.Diagnostics.ShouldBeEmpty();
+
+        var document = XDocument.Parse(
+            sink.Written["reconciled.xml"],
+            LoadOptions.PreserveWhitespace);
+        document.Nodes().OfType<XComment>().Select(comment => comment.Value)
+            .ShouldBe([
+                "first-leading",
+                "second-leading",
+                "first-trailing",
+                "second-trailing",
+            ]);
+    }
+
+    /// <summary>
+    /// Sections 8.5, 14.1, and 26 item 99 distinguish unaddressable envelope metadata from selected
+    /// overlay content: the envelope is rendered, but it does not hide a selector that found nothing.
+    /// </summary>
+    [Test]
+    public void EnvelopeMetadataDoesNotSuppressAnEmptySelectionWarning()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("input.xml", "<!--leading--><r><present>1</present></r><!--trailing-->"),
+                ("scheme.txt",
+                    "r.missing.output=xml\n"
+                    + "r.missing.root=doc\n"
+                    + "r.missing.filename=empty.xml\n")),
+            "-i", "input.xml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        result.Diagnostics.ShouldHaveSingleItem().Code.ShouldBe("WARN009");
+
+        var document = XDocument.Parse(
+            sink.Written["empty.xml"],
+            LoadOptions.PreserveWhitespace);
+        document.Nodes().OfType<XComment>().Select(comment => comment.Value)
+            .ShouldBe(["leading", "trailing"]);
+        document.Root!.Name.LocalName.ShouldBe("doc");
+        document.Root.IsEmpty.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Sections 3 and 19.3 require one destination-scoped warning for all XML comment loss in one
+    /// non-XML output, combining internal content comments and both envelope positions.
+    /// </summary>
+    [Test]
+    public void NonXmlOutputCoalescesContentAndEnvelopeCommentLoss()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("input.xml", "<!--leading--><r><a>1</a><!--internal--></r><!--trailing-->"),
+                ("scheme.txt", "r.output=json\nr.root=r\n")),
+            "-i", "input.xml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        var warning = result.Diagnostics.ShouldHaveSingleItem();
+        warning.Code.ShouldBe("WARN003");
+        warning.Message.ShouldBe(
+            "only XML renders XML content or document-envelope comments, so 3 XML comment(s) "
+            + "in this output were discarded.");
+        warning.Destination.ShouldBe("r.json");
+        warning.Source.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Permanent regression for issue #24 using the reporter's exact attachment:
+    /// https://github.com/user-attachments/files/30691932/logback.xml,
+    /// SHA-256 f3f1bad107807dc2fae8e8674c077eef109311a6feb43aab4ae60db7a44bc3d9.
+    /// Section 26 item 99 requires the previously dropped leading comment to survive with the
+    /// seven internal comments, while the issue's structural acceptance counts remain unchanged.
+    /// </summary>
+    [Test]
+    public void Issue24RealLogbackPreservesAllEightCommentsAndStructure()
+    {
+        var path = Path.Combine(
+            RepositoryLayout.Root,
+            "tests",
+            "Namespace2Xml.UnitTests",
+            "TestData",
+            "issue-24-logback.xml");
+        var inputBytes = File.ReadAllBytes(path);
+        Convert.ToHexString(SHA256.HashData(inputBytes)).ToLowerInvariant().ShouldBe(
+            "f3f1bad107807dc2fae8e8674c077eef109311a6feb43aab4ae60db7a44bc3d9");
+        inputBytes.Length.ShouldBe(33_002);
+
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("logback.xml", inputBytes),
+                ("scheme.txt", new UTF8Encoding(false).GetBytes(
+                    "configuration.output=xml\n"
+                    + "configuration.root=configuration\n"
+                    + "configuration.filename=logback.xml\n"))),
+            "-i", "logback.xml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        result.Published.ShouldBe(1);
+        result.Diagnostics.ShouldBeEmpty();
+
+        var inputText = new UTF8Encoding(false, true).GetString(inputBytes);
+        var outputText = sink.Written["logback.xml"];
+        var input = XDocument.Parse(inputText, LoadOptions.PreserveWhitespace);
+        var output = XDocument.Parse(outputText, LoadOptions.PreserveWhitespace);
+
+        var inputComments = input.DescendantNodes().OfType<XComment>()
+            .Select(comment => comment.Value).ToArray();
+        var outputComments = output.DescendantNodes().OfType<XComment>()
+            .Select(comment => comment.Value).ToArray();
+        inputComments.Length.ShouldBe(8);
+        outputComments.ShouldBe(inputComments);
+        output.Nodes().OfType<XComment>().Select(comment => comment.Value)
+            .ShouldBe([" // @formatter:off "]);
+
+        AssertNamedElements(input, output, "appender", "name", 33);
+        AssertNamedElements(input, output, "logger", "name", 42);
+        AssertNamedElements(input, output, "property", "name", 7);
+
+        var inputReferences = ReferenceParentage(input).Order(StringComparer.Ordinal).ToArray();
+        var outputReferences = ReferenceParentage(output).Order(StringComparer.Ordinal).ToArray();
+        inputReferences.Length.ShouldBe(39);
+        outputReferences.ShouldBe(inputReferences);
+
+        var expectedBytes = Regex.Replace(
+            inputText.Replace(
+                "encoding=\"UTF-8\"",
+                "encoding=\"utf-8\"",
+                StringComparison.Ordinal),
+            @"(?<!\s)/>",
+            " />");
+        outputText.ShouldBe(expectedBytes);
+    }
+
+    private static void AssertNamedElements(
+        XDocument input,
+        XDocument output,
+        string element,
+        string attribute,
+        int count)
+    {
+        var expected = input.Descendants(element)
+            .Select(node => node.Attribute(attribute)!.Value)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var actual = output.Descendants(element)
+            .Select(node => node.Attribute(attribute)!.Value)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        expected.Length.ShouldBe(count);
+        actual.ShouldBe(expected);
+    }
+
+    private static IEnumerable<string> ReferenceParentage(XDocument document) =>
+        document.Descendants("appender-ref").Select(reference =>
+        {
+            var parent = reference.Parent.ShouldNotBeNull();
+            var owner = parent.Name.LocalName == "root"
+                ? "root"
+                : $"{parent.Name.LocalName}:{parent.Attribute("name")?.Value}";
+
+            return $"{owner}->{reference.Attribute("ref")!.Value}";
+        });
 
     // ---- The complete path -------------------------------------------------------------------
 

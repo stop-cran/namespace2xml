@@ -1628,6 +1628,43 @@
         "TransformationTests.Warn015CountsXmlLossesAfterAnEarlierProjectionError",
         "TransformationTests.Warn015CountsXmlLossesUnderMixedContentMappings"
       ]
+    },
+    {
+      "item": 99,
+      "text": "XML document-envelope comments: comments before and after the document element are retained as unaddressable document-leading and document-trailing metadata in lexical and source-occurrence order; every output instance receives the complete envelope without that metadata making an otherwise empty selection non-empty or suppressing `WARN009`; destination folding retains one copy per stable source occurrence per final file; XML writes the comments outside every selected or configured-root element; non-XML output discards content and envelope XML comments under one destination-scoped `xml-comments` `WARN003`; comment-count and decoded-comment-byte budgets include envelope comments while `--max-nodes` does not; and selectors, references, wildcards, directives, masks, and internal XML comment addressing remain unaffected.",
+      "milestone": "3.0.0",
+      "status": "required",
+      "assertions": [
+        "Comments before and after the XML document element survive as document-leading and document-trailing envelope metadata in lexical and source-occurrence order.",
+        "XML envelope comments receive no path and cannot be selected, referenced, transformed, masked, ignored, rooted, or addressed by a wildcard.",
+        "Every concrete output instance receives the complete envelope independently of its selected subtree.",
+        "Envelope metadata does not make an otherwise empty selected view non-empty or suppress WARN009; if publication proceeds, the complete envelope still participates in the XML output.",
+        "A final destination receives each stable source envelope occurrence exactly once after same-format accumulation or cross-format replacement.",
+        "XML writes envelope comments after the declaration and before the document element or after the document element, outside any configured root wrapper.",
+        "Every non-XML destination discards XML content and envelope comments under one destination-scoped xml-comments WARN003 with no source field and the exact combined count.",
+        "Envelope comments consume --max-comments and --max-comment-bytes but do not consume --max-nodes.",
+        "Internal XML comments remain ordered content nodes with their existing #n addressing and rendering behavior."
+      ],
+      "fixtures": [
+        "xml-envelope-comments-survive-on-both-sides",
+        "xml-envelope-comments-follow-every-output-instance",
+        "xml-envelope-comments-union-at-one-destination",
+        "xml-envelope-comments-stay-outside-configured-root",
+        "non-xml-coalesces-content-and-envelope-comment-loss"
+      ],
+      "gates": [
+        "DestinationFoldTests.EnvelopeCommentsAreUnionedByStableSourceOccurrence",
+        "DestinationFoldTests.CrossFormatReplacementCarriesTheIncomingCompleteEnvelope",
+        "TransformationTests.EveryOutputInstanceReceivesTheCompleteXmlEnvelope",
+        "TransformationTests.EnvelopeMetadataDoesNotSuppressAnEmptySelectionWarning",
+        "TransformationTests.Issue24RealLogbackPreservesAllEightCommentsAndStructure",
+        "TransformationTests.NonXmlOutputCoalescesContentAndEnvelopeCommentLoss",
+        "TransformationTests.XmlShapeReconciliationPreservesEverySourceEnvelope",
+        "XmlInputReaderTests.EnvelopeCommentsConsumeCommentBudgetsButNotNodeBudget",
+        "XmlInputReaderTests.EnvelopeCommentsHaveNoOverlayAddress",
+        "XmlProjectionTests.EnvelopeAndOrdinaryDocumentCommentsShareStableOrdering",
+        "XmlProjectionTests.EnvelopeCommentsStayOutsideAConfiguredRoot"
+      ]
     }
   ]
 }

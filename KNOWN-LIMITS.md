@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes the `v3` branch at contract bundle `r110+d04198b68ed4`. Dated 2026-09.**
+**Describes the `v3` branch at contract bundle `r111+f9a5583c6485`. Dated 2026-09.**
 
 This file tracks the branch, and the branch normally runs ahead of the last published preview:
 `3.0.0-preview.5` carries `r99+bad2fa36f0a5`, `3.0.0-preview.4` carries `r90+e172e0ba4d2a`,
@@ -224,23 +224,33 @@ projection with JSON and YAML. These cases are declined or unfinished within it.
   run. **verified**
 
 - **Comments are retained**, and this entry records what that costs elsewhere rather than a gap.
-  §11.5 keeps them "as ordered comment nodes", explicitly not "forced into a 'leading comment for
-  the next value' representation because a comment may occur between mixed-content nodes or after
-  the final child", and §4.5 says the same from the other side: "standalone XML comments remain
-  ordered content nodes and are not reassigned to adjacent values". A comment therefore takes an
-  ordinary §11.4 content token — `<a>t<!--c-->u</a>` addresses its text runs as `#0` and `#2` with
-  the comment at `#1` — and is never a §4.5 bound comment. §17.4's "comments alone do not make a
-  parent mixed-content" holds too, so `<a><b/><!--c--><d/></a>` keeps element-name addressing for
-  `b` and `d` and puts the comment at `a.#1`.
+  §11.5 keeps an internal comment "as an ordered content comment node", explicitly not "forced
+  into a 'leading comment for the next value' representation because a comment may occur between
+  mixed-content nodes or after the final child", and §4.5 says the same from the other side:
+  "XML content comments remain ordered content nodes and are not reassigned to adjacent values".
+  An internal comment therefore takes an ordinary §11.4 content token —
+  `<a>t<!--c-->u</a>` addresses its text runs as `#0` and `#2` with the comment at `#1` — and is
+  never a §4.5 bound comment. §17.4's "comments alone do not make a parent mixed-content" holds
+  too, so `<a><b/><!--c--><d/></a>` keeps element-name addressing for `b` and `d` and puts the
+  comment at `a.#1`.
 
-  What this costs is every format except XML. §19.5 is the only renderer that "emits retained XML
-  comments"; §19.3 "renders comments nowhere", and although §19.4 emits YAML comments "in
-  normalized positions" and §20 emits namespace comments "where their association can be
-  represented", a comment holding a content-token slot is associated with no value — giving it one
-  is the reassignment §11.5 and §4.5 both forbid. So **an XML comment survives an XML-to-XML run
-  and nothing else**, and every other destination reports one summarized §3 `WARN003` naming how
-  many it dropped. That warning is counted under its own feature category, separate from the §4.5
-  bound comments a YAML or INI source contributes, because the two are different source concepts.
+  A comment outside the document element is different: §11.5 retains it "separately as
+  document-envelope metadata". It stays document-leading or document-trailing, has no synthetic
+  `#n` path, and cannot be selected, referenced, transformed, ignored, rooted, or masked. Every
+  concrete output receives the complete envelope; XML places it outside the selected or
+  configured-root element, and destination folds retain one copy per source occurrence. Envelope
+  comments share the comment-count and decoded-comment-byte budgets with internal comments but do
+  not consume `--max-nodes`.
+
+  What both XML-comment kinds cost is every format except XML. §19.5 is the only renderer that
+  "emits retained XML content and document-envelope comments"; §19.3 "renders comments nowhere",
+  and although §19.4 and §20 render non-XML comments where their value association is
+  representable, an XML comment has no such association. Giving it one is the reassignment §11.5
+  and §4.5 both forbid. So **an XML comment survives an XML-to-XML run and nothing else**, and
+  every other destination reports one summarized §3 `WARN003` in the `xml-comments` category,
+  counting discarded internal and envelope comments together. That category is separate from the
+  §4.5 bound comments a YAML or INI source contributes, because they are different source
+  concepts.
 
   One reduction remains inside XML itself, and it is narrower than an earlier revision of this
   entry claimed. That revision said `type=ignore` and the §11.4 conversions "reach a comment in
@@ -872,7 +882,7 @@ two lanes, because an unquoted `0o17` passes the 1.1 lane and fails the 1.2 lane
 
 ### 1.24 *(resolved)* Explicit empty containers could disappear without a diagnostic
 
-Resolved by [#94](https://github.com/stop-cran/namespace2xml/issues/94). Published previews could
+Resolved by [#94 (closed)](https://github.com/stop-cran/namespace2xml/issues/94). Published previews could
 discard an explicitly written empty mapping or sequence while reporting no warning, even though
 §3.3 requires unsupported source concepts to be reported. The registry had no diagnostic for
 discarded structure: `WARN003` was, and remains, restricted to metadata and comments.

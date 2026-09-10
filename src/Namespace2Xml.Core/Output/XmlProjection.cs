@@ -75,15 +75,19 @@ public sealed class XmlProjection
     /// <summary>Projects one view, or null when Section 14.1 refuses it.</summary>
     /// <param name="view">The selected output view.</param>
     /// <param name="root">The Section 16.3 root parts, empty when undeclared.</param>
+    /// <param name="envelopeComments">Section 11.5 comments outside the document element.</param>
     /// <returns>The document, or null when a blocking type error was raised.</returns>
-    public XmlDocumentProjection? Project(OverlayNode view, ImmutableArray<NamePart> root)
+    public XmlDocumentProjection? Project(
+        OverlayNode view,
+        ImmutableArray<NamePart> root,
+        ImmutableArray<XmlEnvelopeComment> envelopeComments = default)
     {
         ArgumentNullException.ThrowIfNull(view);
 
         ReportShapeConflicts(view, []);
         ObserveDiscardedEmptySequences(view, root);
 
-        var document = ProjectView(view, root);
+        var document = ProjectView(view, root, envelopeComments);
 
         emptyContainers.Report(diagnostics, "\u00A719.5", destination);
 
@@ -148,11 +152,13 @@ public sealed class XmlProjection
     }
 
     private XmlDocumentProjection? ProjectView(
-        OverlayNode view, ImmutableArray<NamePart> root)
+        OverlayNode view,
+        ImmutableArray<NamePart> root,
+        ImmutableArray<XmlEnvelopeComment> envelopeComments)
     {
         if (view.Marks.ContainerIsSequence)
         {
-            return Document(ProjectRootSequence(view, root));
+            return Document(ProjectRootSequence(view, root), envelopeComments: envelopeComments);
         }
 
         if (root.IsDefaultOrEmpty)
@@ -161,7 +167,7 @@ public sealed class XmlProjection
             // stands for the view itself and its own comments have nowhere inside the tree to go.
             // Section 20 still places them "at the start and the end" of the instance, and XML
             // allows comments before and after the document element, so that is where they go.
-            return Document(ProjectImplicitRoot(view), view);
+            return Document(ProjectImplicitRoot(view), view, envelopeComments);
         }
 
         // Section 16.3: "root=x.y ... XML emits <x><y>...</y></x>". The innermost root part owns
@@ -191,7 +197,7 @@ public sealed class XmlProjection
             element = outer;
         }
 
-        return Document(element);
+        return Document(element, envelopeComments: envelopeComments);
     }
 
     /// <summary>Wraps a projected element, hoisting the comments no element could hold.</summary>
@@ -199,27 +205,50 @@ public sealed class XmlProjection
     /// <param name="view">
     /// The view whose comments have no element of their own, or null when an element holds them.
     /// </param>
+    /// <param name="envelopeComments">Comments retained outside the document element.</param>
     /// <returns>The document, or null when <paramref name="element"/> is null.</returns>
-    private static XmlDocumentProjection? Document(XElement? element, OverlayNode? view = null)
+    private static XmlDocumentProjection? Document(
+        XElement? element,
+        OverlayNode? view = null,
+        ImmutableArray<XmlEnvelopeComment> envelopeComments = default)
     {
         if (element is null)
         {
             return null;
         }
 
-        if (view is null)
-        {
-            return new XmlDocumentProjection([], element, []);
-        }
-
         return new XmlDocumentProjection(
-            [.. Comments(view, leading: true)], element, [.. Comments(view, leading: false)]);
+            [.. Comments(view, envelopeComments, leading: true)],
+            element,
+            [.. Comments(view, envelopeComments, leading: false)]);
     }
 
-    private static IEnumerable<XComment> Comments(OverlayNode view, bool leading) =>
-        view.OrderedComments
-            .Where(comment => (comment.Placement != CommentPlacement.Trailing) == leading)
+    private static IEnumerable<XComment> Comments(
+        OverlayNode? view,
+        ImmutableArray<XmlEnvelopeComment> envelopeComments,
+        bool leading)
+    {
+        var bound = view is null
+            ? []
+            : view.OrderedComments
+                .Where(comment => (comment.Placement != CommentPlacement.Trailing) == leading)
+                .Select(comment => new OrderedComment(comment.Text, comment.Order));
+
+        var envelope = envelopeComments.IsDefaultOrEmpty
+            ? []
+            : envelopeComments
+                .Where(comment =>
+                    (comment.Placement == XmlEnvelopePlacement.Leading) == leading)
+                .Select(comment => new OrderedComment(comment.Text, comment.Order));
+
+        return bound
+            .Concat(envelope)
+            .OrderBy(comment => comment.Order)
+            .ThenBy(comment => comment.Text, StringComparer.Ordinal)
             .Select(comment => new XComment(comment.Text));
+    }
+
+    private readonly record struct OrderedComment(string Text, StableOrderingKey Order);
 
     private XElement? ProjectImplicitRoot(OverlayNode view)
     {
@@ -383,7 +412,7 @@ public sealed class XmlProjection
 
         // The wrapper stands for the view, so Section 20's start-and-end placement is inside it,
         // exactly as it is for a mapping view under an explicit root.
-        foreach (var comment in Comments(view, leading: true))
+        foreach (var comment in Comments(view, [], leading: true))
         {
             wrapper.Add(comment);
         }
@@ -393,7 +422,7 @@ public sealed class XmlProjection
             return null;
         }
 
-        foreach (var comment in Comments(view, leading: false))
+        foreach (var comment in Comments(view, [], leading: false))
         {
             wrapper.Add(comment);
         }

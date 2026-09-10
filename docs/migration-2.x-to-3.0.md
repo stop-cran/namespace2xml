@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r110+d04198b68ed4`.**
+**Contract bundle `r111+f9a5583c6485`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (196)
+## Observable differences (201)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -2547,6 +2547,13 @@ implemented, its case says so plainly rather than letting the heading imply othe
   sign — a Windows path or a shell template, say — and does so silently, since the corrupted text
   is still valid output.
 
+### `non-xml-coalesces-content-and-envelope-comment-loss`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 4.5, 20, and 26 item 99.
+- Legacy observation: outer XML comments were discarded silently before projection.
+- Clean behavior: the non-XML destination counts two envelope comments and one internal content comment in one destination-scoped `xml-comments` `WARN003`.
+
 ### `one-destination-folds-by-format-before-match-order`
 
 - namespace2xml 2.4.0: **differs**. The baseline writes `out.conf` with different content than
@@ -3497,6 +3504,34 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - Contract: Sections 3.3 and 19.5; Section 26 item 98.
 - Legacy observation: the baseline silently omitted the explicit empty sequence.
 - Clean behavior: XML still omits the unrepresentable repeated-sibling sequence, but reports `WARN015`.
+
+### `xml-envelope-comments-follow-every-output-instance`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 11.5, 19.5, and 26 item 99.
+- Legacy observation: document-envelope comments were discarded before output planning.
+- Clean behavior: every concrete output instance receives the complete envelope even when it selects only one subtree.
+
+### `xml-envelope-comments-stay-outside-configured-root`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 11.5, 19.5, and 26 item 99.
+- Legacy observation: document-envelope comments were discarded.
+- Clean behavior: envelope placement is outside the document element and is unaffected by the configured wrapper root.
+
+### `xml-envelope-comments-survive-on-both-sides`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 4.5, 4.6, 11.5, 19.5, and 26 item 99.
+- Legacy observation: comments outside the document element were discarded.
+- Clean behavior: every source occurrence remains in its leading or trailing document position, while the internal comment remains an ordered content node.
+
+### `xml-envelope-comments-union-at-one-destination`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 11.5 and 26 item 99.
+- Legacy observation: document-envelope comments were discarded.
+- Clean behavior: destination folding unions the envelope by stable source occurrence, so each comment appears once rather than once per contributing selector.
 
 ### `xml-filemerge-replace-takes-whole-document`
 

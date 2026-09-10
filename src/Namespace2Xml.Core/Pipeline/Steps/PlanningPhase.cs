@@ -53,6 +53,12 @@ public sealed record OutputView(
     /// that no scheme path can address.
     /// </remarks>
     public ImmutableArray<NamePart> AppliedRoot { get; init; } = [];
+
+    /// <summary>
+    /// The complete Section 11.5 XML document envelope, separate from the selected overlay so no
+    /// selector or transformation can address it.
+    /// </summary>
+    public ImmutableArray<XmlEnvelopeComment> XmlEnvelopeComments { get; init; } = [];
 }
 
 /// <summary>One output view bound to the destination it will be written to.</summary>
@@ -847,12 +853,18 @@ public static class PlanningPhase
             return StepOutcome.Failed<ImmutableArray<OutputView>>();
         }
 
+        var envelopeComments = contributions
+            .SelectMany(contribution => contribution.Contribution.XmlEnvelopeComments)
+            .OrderBy(comment => comment.Order)
+            .ToImmutableArray();
+
         ImmutableArray<OutputView> rebuilt =
         [
             .. views.Select(view => view with
             {
                 View = LiftDocumentComments(
                     resolution.Model, Descend(resolution.Model, view.Instance.Selector.Name)),
+                XmlEnvelopeComments = envelopeComments,
             }),
         ];
 
@@ -1689,9 +1701,24 @@ public static class PlanningPhase
             {
                 View = merger.Merge(accumulated.View.View, later.View.View),
                 Types = MergeTypes(accumulated.View.Types, later.View.Types),
+                XmlEnvelopeComments = MergeEnvelopeComments(
+                    accumulated.View.XmlEnvelopeComments,
+                    later.View.XmlEnvelopeComments),
             },
         };
     }
+
+    /// <summary>Unions a folded destination's XML envelope by stable source occurrence.</summary>
+    private static ImmutableArray<XmlEnvelopeComment> MergeEnvelopeComments(
+        ImmutableArray<XmlEnvelopeComment> accumulated,
+        ImmutableArray<XmlEnvelopeComment> later) =>
+        [..
+            accumulated
+                .Concat(later)
+                .GroupBy(comment => comment.Order)
+                .Select(group => group.First())
+                .OrderBy(comment => comment.Order)
+        ];
 
     /// <summary>
     /// Unions two contributions' Section 15.2 transform tables for a same-format destination fold.

@@ -153,7 +153,7 @@ public static class PublicationPhase
         {
             var delimiter = view.Instance.Delimiter ?? FlatKeyProjector.DefaultDelimiter(flat);
             var projected = new FlatProjection(flat, diagnostics, destination)
-                .Project(view.View, view.Root);
+                .Project(view.View, view.Root, view.XmlEnvelopeComments.Length);
             var keyed = new FlatKeyProjector(flat, delimiter, diagnostics, destination).Project(projected);
 
             // INI takes the whole document: Section 20 places its document-leading comments before
@@ -175,7 +175,7 @@ public static class PublicationPhase
                     view.Types,
                     view.AppliedRoot.Length,
                     view.Instance.XmlOptions)
-                .Project(view.View, view.Root);
+                .Project(view.View, view.Root, view.XmlEnvelopeComments);
 
             return xml is not null
                 && new XmlSerializer(view.Instance.XmlOptions, diagnostics, destination)
@@ -195,7 +195,7 @@ public static class PublicationPhase
                 view.Types,
                 view.AppliedRoot.Length,
                 destination)
-            .Project(view.View, view.Root);
+            .Project(view.View, view.Root, view.XmlEnvelopeComments.Length);
 
         return view.Format == OutputFormat.Json
             ? new JsonSerializer(view.Instance.JsonOptions, diagnostics, destination)

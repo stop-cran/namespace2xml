@@ -51,7 +51,16 @@ public static class StructuredProfileReader
             sourceOrdinal, source, substitutes, diagnostics, nativeMappings);
         var overlay = projection.Build(root, []);
 
-        return new ProfileContribution(overlay, [], projection.Templates);
+        return new ProfileContribution(overlay, [], projection.Templates)
+        {
+            XmlEnvelopeComments =
+            [
+                .. root.XmlEnvelopeComments.Select(comment => new XmlEnvelopeComment(
+                    comment.Text,
+                    comment.Placement,
+                    StableOrderingKey.FromSource(sourceOrdinal, comment.TraversalOrdinal))),
+            ],
+        };
     }
 
     private sealed class Projection(

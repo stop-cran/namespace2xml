@@ -236,6 +236,7 @@ internal static class XmlClassification
                 Comments = mapping.Comments,
                 ContentToken = mapping.ContentToken,
                 Scalar = mapping.Scalar,
+                XmlEnvelopeComments = mapping.XmlEnvelopeComments,
             }
             : mapping;
     }
@@ -309,6 +310,7 @@ internal static class XmlClassification
         {
             Comments = mapping.Comments,
             ContentToken = mapping.ContentToken,
+            XmlEnvelopeComments = mapping.XmlEnvelopeComments,
         };
     }
 

@@ -990,6 +990,52 @@ public class XmlInputReaderTests
     }
 
     /// <summary>
+    /// Sections 11.5 and 23 count envelope comments against both comment bounds, including decoded
+    /// UTF-8 bytes, but exclude them from the overlay-node bound.
+    /// </summary>
+    [Test]
+    public void EnvelopeCommentsConsumeCommentBudgetsButNotNodeBudget()
+    {
+        const string document = "<!--ab--><a/><!--\U0001F600-->";
+
+        var tally = Charged(document);
+        tally.Comments.ShouldBe(2);
+        tally.CommentBytes.ShouldBe(6);
+        tally.Nodes.ShouldBe(1);
+
+        var comments = new GlobalBudget(
+            ResourceLimits.Defaults with { MaxComments = 1 });
+        comments.TryAdmit(tally, 0, out var commentsFault).ShouldBeFalse();
+        commentsFault!.Value.Bound.ShouldBe(ResourceBound.MaxComments);
+
+        var bytes = new GlobalBudget(
+            ResourceLimits.Defaults with { MaxCommentBytes = 5 });
+        bytes.TryAdmit(tally, 0, out var bytesFault).ShouldBeFalse();
+        bytesFault!.Value.Bound.ShouldBe(ResourceBound.MaxCommentBytes);
+
+        Crossed(
+            document,
+            ResourceLimits.Defaults with { MaxNodes = 1 })
+            .ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Section 11.5 stores comments outside the document element only in the document envelope.
+    /// They therefore have no synthetic <c>#n</c> path while internal comments keep theirs.
+    /// </summary>
+    [Test]
+    public void EnvelopeCommentsHaveNoOverlayAddress()
+    {
+        const string document = "<!--before--><a><!--inside--><b>1</b></a><!--after-->";
+
+        var root = Read(document);
+
+        root.XmlEnvelopeComments.Select(comment => comment.Text)
+            .ShouldBe(["before", "after"]);
+        Paths(document).ShouldBe(["a.b=1", "a.#0=<!--inside-->"]);
+    }
+
+    /// <summary>
     /// Section 11.7's default mode: "<c>PreserveWhitespace</c> retains every text node."
     /// </summary>
     [Test]

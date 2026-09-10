@@ -134,6 +134,18 @@ public class DestinationFoldTests
         return outcome.Value;
     }
 
+    private static XmlEnvelopeComment Envelope(
+        string text, XmlEnvelopePlacement placement, int source, int item) =>
+        new(text, placement, StableOrderingKey.FromSource(source, item));
+
+    private static DestinationContribution WithEnvelope(
+        DestinationContribution contribution,
+        params XmlEnvelopeComment[] comments) =>
+        contribution with
+        {
+            View = contribution.View with { XmlEnvelopeComments = [.. comments] },
+        };
+
     /// <summary>
     /// Section 17.5: "Same-format <c>replace</c> preserves the earliest prior publication key even
     /// when no prior sequence high-water state exists".
@@ -186,6 +198,64 @@ public class DestinationFoldTests
 
         folded.Length.ShouldBe(1);
         folded[0].Key.DeclarationOrder.ShouldBe(7);
+    }
+
+    /// <summary>
+    /// Sections 8.5 and 17.5 union envelope metadata by source occurrence when same-format output
+    /// instances converge. A repeated view of one source occurrence must not duplicate it.
+    /// </summary>
+    [Test]
+    public void EnvelopeCommentsAreUnionedByStableSourceOccurrence()
+    {
+        var diagnostics = new DiagnosticBuffer();
+        var shared = Envelope("shared", XmlEnvelopePlacement.Leading, source: 0, item: 7);
+
+        var folded = Fold(
+            diagnostics,
+            WithEnvelope(
+                Contribution("a", "out.xml", "a", "1", declarationOrder: 0, format: OutputFormat.Xml),
+                shared,
+                Envelope("first-only", XmlEnvelopePlacement.Trailing, source: 0, item: 9)),
+            WithEnvelope(
+                Contribution("b", "out.xml", "b", "2", declarationOrder: 1, format: OutputFormat.Xml),
+                shared,
+                Envelope("second-only", XmlEnvelopePlacement.Trailing, source: 1, item: 3)));
+
+        folded.Length.ShouldBe(1);
+        folded[0].View.XmlEnvelopeComments
+            .Select(comment => (comment.Text, comment.Placement, comment.Order))
+            .ShouldBe(
+            [
+                ("shared", XmlEnvelopePlacement.Leading, StableOrderingKey.FromSource(0, 7)),
+                ("first-only", XmlEnvelopePlacement.Trailing, StableOrderingKey.FromSource(0, 9)),
+                ("second-only", XmlEnvelopePlacement.Trailing, StableOrderingKey.FromSource(1, 3)),
+            ]);
+    }
+
+    /// <summary>
+    /// A cross-format collision replaces the old plan wholesale, but Section 8.5 guarantees that
+    /// the incoming view already carries the complete source envelope.
+    /// </summary>
+    [Test]
+    public void CrossFormatReplacementCarriesTheIncomingCompleteEnvelope()
+    {
+        var diagnostics = new DiagnosticBuffer();
+        var first = Envelope("first", XmlEnvelopePlacement.Leading, source: 0, item: 1);
+        var second = Envelope("second", XmlEnvelopePlacement.Trailing, source: 1, item: 9);
+
+        var folded = Fold(
+            diagnostics,
+            WithEnvelope(
+                Contribution("a", "out.conf", "a", "old", declarationOrder: 0),
+                Envelope("stale", XmlEnvelopePlacement.Leading, source: 0, item: 0)),
+            WithEnvelope(
+                Contribution("b", "out.conf", "b", "new", declarationOrder: 1, format: OutputFormat.Xml),
+                first,
+                second));
+
+        folded.Length.ShouldBe(1);
+        folded[0].View.Format.ShouldBe(OutputFormat.Xml);
+        folded[0].View.XmlEnvelopeComments.ShouldBe([first, second]);
     }
 
     /// <summary>

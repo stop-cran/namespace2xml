@@ -49,17 +49,21 @@ public sealed record ProfileEntry(
 /// merged model is the only place step 15 has to look.
 /// </para>
 /// <para>
-/// There is likewise no separate list of document-trailing comments. Section 4.5 gives them "no
-/// value owner", which the overlay expresses by binding them to the root of
-/// <paramref name="Overlay"/>; a list beside the overlay would have to be threaded through merging
-/// and view selection to reach an output, and a channel that reaches no output silently loses the
-/// comments it carries.
+/// There is likewise no separate list of non-XML document-trailing comments. Section 4.5 gives
+/// them "no value owner", which the overlay expresses by binding them to the root of
+/// <paramref name="Overlay"/>. XML document-envelope comments are different: Section 11.5 makes
+/// them unaddressable metadata, so <see cref="XmlEnvelopeComments"/> carries them beside the
+/// overlay through planning without exposing them to overlay operations.
 /// </para>
 /// </remarks>
 public sealed record ProfileContribution(
     OverlayNode Overlay,
     ImmutableArray<ProfileMask> Masks,
-    ImmutableArray<ProfileEntry> Templates);
+    ImmutableArray<ProfileEntry> Templates)
+{
+    /// <summary>Section 11.5 XML document-envelope comments in stable source order.</summary>
+    public ImmutableArray<XmlEnvelopeComment> XmlEnvelopeComments { get; init; } = [];
+}
 
 /// <summary>
 /// Reads classified Section 8.1 records into a Section 4.2 overlay.

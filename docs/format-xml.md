@@ -364,18 +364,33 @@ element and fails as `TYPE001` (§19.5, §14.1) until `root` supplies one.
 
 ## XML comments
 
-XML comments are retained as ordered document nodes (§11.5). They are not forced into a
-"leading comment for the next value" representation because a comment may occur between
-mixed-content nodes or after the final child. Standalone XML comments remain ordered content
-nodes and are not reassigned to adjacent values (§4.5, final bullet).
+§11.5 retains two distinct kinds of XML comment:
 
-Where an output format supports comment nodes as first-class nodes, XML comments are emitted in
-place. §20 summarizes the cross-format behaviour: XML output emits ordered XML comments;
-namespace, quoted-namespace and YAML output normalize; JSON discards with a summarized
-`WARN003`; INI emits only when `SemicolonComments` or `HashComments` is selected in
-`inioutputoptions`, otherwise discards with a summarized `WARN003`. When rendering a non-XML
-comment as XML, invalid comment sequences are normalized deterministically: every `--` is
-separated as `- -`, and a terminal `-` receives one trailing space (§20).
+- a comment inside the document element is an ordered content node. It occupies a `#n` content
+  position and can be addressed there, including by `type=ignore`;
+- a comment before or after the document element is unaddressable document-envelope metadata.
+  It remains document-leading or document-trailing and never receives a synthetic `#n` path.
+  Selectors, references, wildcard matching, path directives, `ignore`, and `root` cannot address
+  or move it.
+
+Every concrete output instance receives the complete envelope, even when it selects only one
+subtree. An otherwise empty selection still emits `WARN009`; envelope metadata is not selected
+content and does not suppress that warning. If publication proceeds, XML writes leading envelope
+comments after the declaration and before the document element, and trailing envelope comments
+after the element. A configured `root` wraps only the selected view, so the envelope stays
+outside it. Same-format destination folds retain one copy of each stable source occurrence in
+source order; cross-format replacement takes the later contribution's complete envelope.
+
+Both content and envelope XML comments survive XML output. No non-XML format can represent
+either kind without inventing a value association, so JSON, YAML, namespace, quoted namespace,
+and INI discard them. One destination file emits one `WARN003` in the `xml-comments` category,
+whose count combines all discarded content and envelope comments. This differs from non-XML
+bound comments, which follow their own destination-specific rendering rules.
+
+All XML comments count against `--max-comments` and `--max-decoded-comment-bytes`. Only internal
+content comments count against `--max-nodes`; envelope metadata does not. When rendering a
+non-XML comment as XML, invalid comment sequences are normalized deterministically: every `--`
+is separated as `- -`, and a terminal `-` receives one trailing space (§20).
 
 ## CDATA
 
@@ -664,7 +679,7 @@ time cases respectively.
 
 ## Comments across formats
 
-§20 sums up the cross-format comment behaviour:
+§20 sums up the behaviour of non-XML bound comments:
 
 | Destination | Comment behaviour |
 |---|---|
@@ -677,6 +692,10 @@ time cases respectively.
 Cross-format association follows source order: comments before the first payload are
 document-leading; comments between two payloads become leading comments of the following
 payload; comments after the final payload are document-trailing (§20).
+
+XML comments do not use that association model. Internal XML content comments and external XML
+document-envelope comments are preserved only by XML destinations; every non-XML destination
+discards both under one summarized `xml-comments` `WARN003`, as described above.
 
 ## Scalar inference and references
 

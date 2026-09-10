@@ -91,6 +91,8 @@ public static class XmlInputReader
         SourceLines lines)
     {
         private readonly Stack<Frame> frames = new();
+        private readonly ImmutableArray<StructuredXmlEnvelopeComment>.Builder envelopeComments =
+            ImmutableArray.CreateBuilder<StructuredXmlEnvelopeComment>();
         private StructuredNode? root;
         private long order;
         private long elements;
@@ -177,7 +179,10 @@ public static class XmlInputReader
                     key));
             }
 
-            return root;
+            return root with
+            {
+                XmlEnvelopeComments = envelopeComments.ToImmutable(),
+            };
         }
 
         /// <summary>The Section 11.1 parser posture.</summary>
@@ -427,7 +432,7 @@ public static class XmlInputReader
             return true;
         }
 
-        /// <summary>Retains a comment as a Section 11.5 ordered content node.</summary>
+        /// <summary>Retains a comment as Section 11.5 content or document-envelope metadata.</summary>
         /// <param name="value">The comment's text, as the parser decoded it.</param>
         /// <param name="at">The parser's position reporter.</param>
         /// <remarks>
@@ -449,6 +454,10 @@ public static class XmlInputReader
 
             if (frames.Count == 0)
             {
+                envelopeComments.Add(new StructuredXmlEnvelopeComment(
+                    value,
+                    root is null ? XmlEnvelopePlacement.Leading : XmlEnvelopePlacement.Trailing,
+                    order));
                 return true;
             }
 

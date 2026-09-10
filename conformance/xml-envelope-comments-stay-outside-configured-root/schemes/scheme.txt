@@ -1,0 +1,2 @@
+r.selected.output=xml
+r.selected.root=wrapper

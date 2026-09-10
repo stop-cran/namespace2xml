@@ -436,7 +436,7 @@ A non-XML comment records:
 
 Exact whitespace surrounding a comment in the *source* need not be preserved: leading and trailing spaces and tabs around the text are not part of it, and the marker never is. What each destination then writes is fixed by that format's output-byte rules in Section 19, not left to the writer, because Section 24 requires two implementations to agree on it.
 
-An XML comment is not a non-XML comment and this does not apply to it. Section 11.5 retains it as an ordered content node whose content is the text between `<!--` and `-->`, and Section 19.5 writes that content back unchanged. Spaces and tabs inside it are part of the content and survive, because every conforming XML parser reports comment content without normalizing them; preserving them is not a stronger promise than the format already makes, it is declining to discard what the parser supplies. Line endings are the exception Section 3.3 already names, for the reason given in Section 19.5.
+An XML comment is not a non-XML comment and the association rules above do not apply to it. Section 11.5 distinguishes two positions. A comment inside the document element is retained as an ordered content node. A comment outside the document element is retained as document-envelope metadata, classified as document-leading before the element and document-trailing after it. Both carry the text between `<!--` and `-->`; Section 19.5 writes that content back unchanged. Spaces and tabs inside it are part of the content and survive, because every conforming XML parser reports comment content without normalizing them; preserving them is not a stronger promise than the format already makes, it is declining to discard what the parser supplies. Line endings are the exception Section 3.3 already names, for the reason given in Section 19.5.
 
 Normalized association rules are:
 
@@ -451,7 +451,8 @@ Normalized association rules are:
 - permanent ignore masks remove the matching path and all comments bound to it;
 - output-view `type=ignore` hides the matching path and its bound comments in that output instance;
 - comments on a wildcard template are cloned onto each generated contribution in match order;
-- standalone XML comments remain ordered content nodes and are not reassigned to adjacent values.
+- XML content comments remain ordered content nodes and are not reassigned to adjacent values;
+- XML document-envelope comments retain only their leading or trailing document position and are never assigned a value owner.
 
 When a transformation re-addresses a value—such as `key` record construction, mixed-key `type=array`, input or destination `append`, or another rebase—comments bound to the source path or sequence item move with that value to its new address. Document-position comments do not move.
 
@@ -467,6 +468,8 @@ XML content requires these additional ordered node kinds:
 - text;
 - CDATA;
 - comment.
+
+An XML document also records comments outside its document element as a separate ordered envelope. Each envelope comment records its content, source ordering key, and leading or trailing document position. Envelope comments are metadata rather than overlay nodes: they have no qualified path or sequence ordering value, consume the comment-count and decoded-comment-byte budgets but do not consume `--max-nodes`, and remain outside the selected or wrapped document-element subtree.
 
 An XML element records:
 
@@ -1000,6 +1003,8 @@ Substitution-mode path patterns are compiled from the raw scheme before structur
 
 A namespace comment is a physical line whose first non-whitespace character is an unescaped `#`. A `#` that is not the first non-space/tab scalar of a record never begins a comment; whether it is ordinary text or a Section 8.2 typed marker is decided by Section 8.2, which makes `a.#1` a content token rather than an ordinary name.
 
+These association rules govern namespace comments only. They neither create nor address the XML document-envelope metadata of Sections 4.6 and 11.5.
+
 The comment's text is the remainder of the record after that `#`, with leading and trailing spaces and tabs removed; Section 4.5 does not require surrounding whitespace to survive. The marker is not part of the text. Section 16.9 selects an output comment marker independently of the input, and Section 20 prefixes every emitted physical line with `# `, so text that kept its input marker would be emitted twice over, and a comment read from `#` would reach an INI destination that selected `;` as `; #...`. Any further `#` scalars belong to the text, because only the first one is a marker.
 
 Consecutive comments are associated with the next entry, with one exception: comments preceding the first entry of a source are document-leading, as Section 20 classifies the first position for every format. Trailing comments with no following entry remain document-trailing comments. A source that forms no entry at all has no contribution for a comment to trail, so its whole run is the opening run and is document-leading.
@@ -1525,9 +1530,13 @@ When converting a non-XML mapping to XML, the document element does not come fro
 <a id="spec-11-5"></a>
 ### 11.5 XML comments
 
-XML comments are retained as ordered comment nodes.
+An XML comment inside the document element is retained as an ordered content comment node.
 
-They are not forced into a "leading comment for the next value" representation because a comment may occur between mixed-content nodes or after the final child.
+It is not forced into a "leading comment for the next value" representation because a comment may occur between mixed-content nodes or after the final child.
+
+An XML comment outside the document element is retained separately as document-envelope metadata. A comment before the document element is document-leading and a comment after it is document-trailing. Envelope comments preserve lexical order within one source and source-occurrence order across sources. They receive no synthetic content-token or `#n` path: selectors, references, wildcard matching, path directives, `ignore`, and `root` cannot address, transform, mask, or move them.
+
+Every concrete output instance receives the complete ordered XML envelope independently of the subtree it selects. When distinct instances write distinct files, each file receives that complete envelope. When several instances fold into one final destination, their envelope collections are unioned by stable source-occurrence identity in source order, so each source envelope comment appears exactly once in that final file rather than once per contributing instance. Same-format accumulation retains that union; cross-format replacement carries the later contribution's complete envelope.
 
 <a id="spec-11-6"></a>
 ### 11.6 CDATA
@@ -1861,7 +1870,7 @@ A concrete output instance created by a literal declaration or wildcard expansio
 
 A wildcard output declaration that produces no concrete selector instance emits `WARN009` and creates no file. Explicit empty mapping or sequence presence is not a zero-entry selection.
 
-A concrete output instance whose selected view contains nothing also emits `WARN009`, and still produces its file as described above. The instance is a planned output either way, so this is a warning rather than an error and the exit code is unaffected; what it removes is the silence. A literal selector that matches no data and a wildcard selector that matches no data are the same authoring mistake, and Section 14.1 otherwise reports only the second: the first produces a well-formed, deployable, empty document and no diagnostic, so a mistyped selector is indistinguishable from a deliberately empty one at every later stage. An intentionally empty output is still expressible and still exits `0`; it now says so in the stream. Explicit empty mapping or sequence presence is content for this purpose, exactly as it is for the wildcard rule above, so a deliberately declared empty container does not warn.
+A concrete output instance whose selected view contains nothing also emits `WARN009`, and still produces its file as described above. The instance is a planned output either way, so this is a warning rather than an error and the exit code is unaffected; what it removes is the silence. A literal selector that matches no data and a wildcard selector that matches no data are the same authoring mistake, and Section 14.1 otherwise reports only the second: the first produces a well-formed, deployable, empty document and no diagnostic, so a mistyped selector is indistinguishable from a deliberately empty one at every later stage. An intentionally empty output is still expressible and still exits `0`; it now says so in the stream. Explicit empty mapping or sequence presence is content for this purpose, exactly as it is for the wildcard rule above, so a deliberately declared empty container does not warn. XML document-envelope metadata is not part of the selected view and therefore does not make an otherwise empty selection non-empty or suppress this warning. Section 8.5 still assigns the complete envelope to the planned output, and, unless warning policy refuses publication, an XML file whose configured `root` supplies its document element renders that envelope normally.
 
 If the empty root selector selects a bare scalar, JSON and YAML may emit a scalar document. XML, namespace, quoted namespace, and INI require an explicit `root`; otherwise rendering is a blocking type error because no key or element identity exists.
 
@@ -3127,7 +3136,7 @@ XML output:
 - preserves expanded names and required namespace declarations;
 - preserves ordered attributes and content;
 - preserves mixed content without inserting indentation inside it;
-- emits retained XML comments;
+- emits retained XML content and document-envelope comments;
 - emits retained CDATA when configured;
 - applies `element`, `attribute`, `text`, and `cdata` types;
 - applies structural merge before serialization;
@@ -3219,11 +3228,14 @@ where no reference is recognized. A comment containing CR therefore reads back w
 within the latitude Section 3.3 already grants — "line endings ... need not be preserved" — and it
 is a property of XML rather than a choice made here.
 
-A comment bound to a value is written immediately before that value's content, inside the element
-that carries it, and a comment bound to no value is written at document level: a document-leading
-comment after the XML declaration and before the document element, and a document-trailing comment
-after the document element. A comment content node read from XML keeps the position its ordering
-value gives it among the element and comment nodes it sits among, under Section 11.4.
+A non-XML comment bound to a value is written immediately before that value's content, inside the
+element that carries it. A non-XML comment bound to no value is written at document level: a
+document-leading comment after the XML declaration and before the document element, and a
+document-trailing comment after the document element. XML document-envelope comments use those
+same document-level positions regardless of the selected subtree or a configured `root`; they
+remain outside every wrapper element. All document-level comments retain source order. An XML
+content comment keeps the position its ordering value gives it among the element and comment nodes
+it sits among, under Section 11.4.
 
 A scalar exposed at an element path under Section 11.4 is written at the position its retained ordering value gives it, among the element and comment nodes the element carries, exactly as though it were a content node: `<a><!--c-->1</a>` emits as `<a><!--c-->1</a>`, and `<a>1<!--c--></a>` emits as `<a>1<!--c--></a>`. Mixed content already places every run this way, because there each run is a content node with an ordering value of its own.
 
@@ -3411,9 +3423,9 @@ Cross-format comment association follows source order:
 - inline YAML comments remain attached to their payload;
 - when several source documents merge, document-leading comments precede that source's first surviving contribution and document-trailing comments follow its final surviving contribution.
 
-Converting a *value-bound* comment between formats uses these associations: a namespace, INI or YAML comment reaching an XML destination becomes an XML comment adjacent to the value it is bound to, and a YAML inline comment reaching a flat destination becomes the full-line comment described above. The conversion runs into XML and between the non-XML formats, and never out of XML, because Section 11.5 leaves XML no value-bound comment to convert: every comment an XML source contributes is an ordered content node.
+Converting a *value-bound* comment between formats uses these associations: a namespace, INI or YAML comment reaching an XML destination becomes an XML comment adjacent to the value it is bound to, and a YAML inline comment reaching a flat destination becomes the full-line comment described above. The conversion runs into XML and between the non-XML formats, and never out of XML, because Section 11.5 leaves XML no value-bound comment to convert: an XML comment is either an ordered content node or document-envelope metadata.
 
-An XML comment therefore does not convert. Section 4.5 keeps it an ordered content node that is "not reassigned to adjacent values", so it has no value association for the rules above to carry, and no non-XML destination can place it. It is therefore discarded by every non-XML destination, with the one summarized `WARN003` per output file and feature category that Section 7 requires of any discarded source concept. This is the asymmetry the model implies rather than an omission: a comment that was never bound to a value cannot acquire a binding by being written somewhere else, and inventing one would attach the author's note to whichever value happened to follow it.
+An XML comment therefore does not convert. Section 4.5 keeps a content comment as an ordered node and an envelope comment as a document-level position; neither has a value association for the rules above to carry, and no non-XML destination can place either kind. Every non-XML destination therefore discards both kinds under the single `xml-comments` feature category. One final output file containing any number of content comments, envelope comments, or both emits exactly one summarized `WARN003`, carrying `destination` and no `source`, whose count is the total number discarded after destination folding. This is the asymmetry the model implies rather than an omission: a comment that was never bound to a value cannot acquire a binding by being written somewhere else, and inventing one would attach the author's note to whichever value happened to follow it.
 
 One consequence is worth stating, because Section 19.4 and Section 19.6 would otherwise look incomplete. An XML comment is the only comment whose text may contain a line break: Section 8.1 rule 2 makes a namespace or INI comment a single record, which is a single line, a YAML comment ends at end of line, and two adjacent comment lines are two comments rather than one comment of two lines. Since no XML comment reaches a non-XML destination, multiline comment text cannot reach YAML or INI output, and neither section states a rule for splitting it — there is no case for such a rule to govern, and a rule written for an unreachable case is one no fixture can hold to account. The rule below states the split for namespace and quoted-namespace output anyway, because there it is a safety property rather than a rendering choice, and a safety property should not rest on an argument about reachability.
 
@@ -4206,6 +4218,7 @@ An implementation is conforming only when automated black-box tests cover:
 96. Canonical scalar text and INI control handling: YAML, INI, and XML text/attributes spell Boolean and null values in lowercase; INI multiline escaping orders backslash before CR/LF/TAB substitutions; and NUL plus every unsupported C0 control is blocking `INI001` under every applicable option combination.
 97. Generated blank-record bytes: namespace and quoted-namespace output insert no blank records, XML pretty-printing inserts no empty lines, preserved XML whitespace may remain visibly blank, and every nonempty text output retains exactly one final LF.
 98. Explicit empty-container projection: namespace, JSON, YAML, and XML empty mappings remain represented without `WARN015`; quoted namespace and INI report discarded empty mappings and sequences; XML reports discarded empty sequences but not empty mappings; nested and repeated selected empties contribute exact category counts in fixed mapping-then-sequence message order; destination folding counts only final surviving facets; projection-created empty ancestors and facets lost to another shape do not contribute; XML sequences rejected as `TYPE001` do not contribute; and `--fail-on-warning` retains the complete planning diagnostics while refusing every publication.
+99. XML document-envelope comments: comments before and after the document element are retained as unaddressable document-leading and document-trailing metadata in lexical and source-occurrence order; every output instance receives the complete envelope without that metadata making an otherwise empty selection non-empty or suppressing `WARN009`; destination folding retains one copy per stable source occurrence per final file; XML writes the comments outside every selected or configured-root element; non-XML output discards content and envelope XML comments under one destination-scoped `xml-comments` `WARN003`; comment-count and decoded-comment-byte budgets include envelope comments while `--max-nodes` does not; and selectors, references, wildcards, directives, masks, and internal XML comment addressing remain unaffected.
 
 <a id="spec-27"></a>
 ## 27. Deferred features
