@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -9,6 +10,11 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parents[1] / "sync-specification-navigation.ps1"
 BEGIN = "<!-- BEGIN GENERATED SPECIFICATION CONTENTS -->"
 END = "<!-- END GENERATED SPECIFICATION CONTENTS -->"
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def error_text(result: subprocess.CompletedProcess[str]) -> str:
+    return " ".join(ANSI_ESCAPE.sub("", result.stderr).split())
 
 
 class SpecificationNavigationTests(unittest.TestCase):
@@ -136,12 +142,15 @@ class SpecificationNavigationTests(unittest.TestCase):
                     )
                 self.write_specification(body)
                 result = self.run_generator(expect_success=False)
-                self.assertIn(f"duplicate specification clause '{duplicate}'", result.stderr)
+                self.assertIn(
+                    f"duplicate specification clause '{duplicate}'",
+                    error_text(result),
+                )
 
     def test_manual_or_duplicate_reserved_anchor_fails_closed(self) -> None:
         self.write_specification('<a id="spec-manual"></a>\n## 1. Purpose')
         result = self.run_generator(expect_success=False)
-        self.assertIn("reserved anchor 'spec-manual'", result.stderr)
+        self.assertIn("reserved anchor 'spec-manual'", error_text(result))
 
         self.write_specification("## 1. Purpose")
         self.run_generator()
@@ -156,8 +165,8 @@ class SpecificationNavigationTests(unittest.TestCase):
             newline="\n",
         )
         result = self.run_generator(expect_success=False)
-        self.assertIn("generated anchor 'spec-1'", result.stderr)
-        self.assertIn("than once", result.stderr)
+        self.assertIn("generated anchor 'spec-1'", error_text(result))
+        self.assertIn("than once", error_text(result))
 
     def test_missing_duplicate_nested_and_reversed_markers_fail_closed(self) -> None:
         invalid_blocks = {
@@ -174,7 +183,7 @@ class SpecificationNavigationTests(unittest.TestCase):
                     newline="\n",
                 )
                 result = self.run_generator(expect_success=False)
-                self.assertIn("generated contents block", result.stderr)
+                self.assertIn("generated contents block", error_text(result))
 
     def test_marker_examples_inside_fences_are_not_generator_markers(self) -> None:
         self.write_specification(
@@ -205,7 +214,7 @@ class SpecificationNavigationTests(unittest.TestCase):
 
         result = self.run_generator(expect_success=False)
 
-        self.assertIn("clauses must use H2 through H4", result.stderr)
+        self.assertIn("clauses must use H2 through H4", error_text(result))
 
     def test_regeneration_restores_contents_and_adds_a_new_subsection(self) -> None:
         self.write_specification("## 1. Purpose\n\n### 1.1 Existing")

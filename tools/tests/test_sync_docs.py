@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -8,6 +9,11 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "sync-docs.ps1"
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def error_text(result: subprocess.CompletedProcess[str]) -> str:
+    return " ".join(ANSI_ESCAPE.sub("", result.stderr).split())
 
 
 class DiagnosticDocumentationGeneratorTests(unittest.TestCase):
@@ -138,7 +144,7 @@ class DiagnosticDocumentationGeneratorTests(unittest.TestCase):
 
         self.assertIn(
             "duplicate detail anchor 'diagnostic-test001'",
-            result.stderr,
+            error_text(result),
         )
 
     def test_missing_linked_specification_clause_fails_closed(self) -> None:
@@ -148,7 +154,7 @@ class DiagnosticDocumentationGeneratorTests(unittest.TestCase):
 
         self.assertIn(
             "specification-navigation.json does not contain clause 'B'",
-            result.stderr,
+            error_text(result),
         )
 
     def test_collection_version_change_updates_pinned_diagnostic_links(self) -> None:

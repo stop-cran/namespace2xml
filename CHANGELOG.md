@@ -28,6 +28,12 @@ independently.
   by the clean-context agent report that rated specification navigation 2/5 and found agents
   repeatedly downloading and grepping the 307 KB contract. [#128](https://github.com/stop-cran/namespace2xml/issues/128).
 
+### Changed
+
+- Updated `Microsoft.SourceLink.GitHub` to 10.0.401 after
+  [GHSA-23fw-v26w-5fgq](https://github.com/advisories/GHSA-23fw-v26w-5fgq) made the previous
+  transitive `Microsoft.Build.Tasks.Git` dependency fail the repository's warning-as-error restore.
+
 ## [3.0.0-preview.5] - 2026-08-20
 
 ### Contract
