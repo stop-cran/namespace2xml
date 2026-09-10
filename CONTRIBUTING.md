@@ -308,16 +308,21 @@ in a tool whose contract is byte-identical output, the analyser warnings that ma
 sensitive comparison, unchecked arithmetic in limit accounting — are correctness bugs wearing a
 warning's clothes.
 
-After editing `docs/specification.md`, regenerate the derived artifacts. Run all five, in this order
-— the codes come from the registry, the bundle hashes the registry, and the docs read the bundle:
+After editing `docs/specification.md`, regenerate the derived artifacts. Run all six, in this order
+— navigation owns clause parsing, the codes come from the registry, the bundle hashes the
+navigated specification and registry, and the docs read the bundle:
 
 ```
+pwsh -NoProfile -File tools/sync-specification-navigation.ps1
 pwsh -NoProfile -File tools/sync-diagnostics-registry.ps1
 pwsh -NoProfile -File tools/sync-diagnostic-codes.ps1
 pwsh -NoProfile -File tools/sync-contract-bundle.ps1
 pwsh -NoProfile -File tools/sync-assertion-manifest.ps1
 pwsh -NoProfile -File tools/sync-docs.ps1
 ```
+
+The last command renders both diagnostic references from one model: repository-local links in
+`docs/diagnostics.md`, and immutable collection-tag links in `ansible/docs/diagnostics.md`.
 
 Adding or changing a conformance fixture needs `sync-assertion-manifest.ps1` and `sync-docs.ps1`,
 because coverage and the migration notes are both derived from the corpus.

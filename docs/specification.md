@@ -4,6 +4,160 @@
 **Compatibility target:** namespace2xml 2.4.0, except behavior classified as undefined, nondeterministic, unsafe, or explicitly changed below  
 **Prepared:** 2026-08-04
 
+<!-- BEGIN GENERATED SPECIFICATION CONTENTS -->
+## Contents
+
+- [1. Purpose](#spec-1)
+- [2. Normative language](#spec-2)
+- [3. Compatibility policy](#spec-3)
+  - [3.1 Preserved behavior](#spec-3-1)
+  - [3.2 Deliberately corrected behavior](#spec-3-2)
+  - [3.3 Round-trip guarantees](#spec-3-3)
+- [4. Ordered typed document model](#spec-4)
+  - [4.1 Document](#spec-4-1)
+  - [4.2 Overlay nodes](#spec-4-2)
+  - [4.3 Scalar kinds](#spec-4-3)
+  - [4.4 Shape contributions](#spec-4-4)
+  - [4.5 Comments](#spec-4-5)
+  - [4.6 XML nodes](#spec-4-6)
+  - [4.7 Identity and order](#spec-4-7)
+- [5. Universal ordering and precedence](#spec-5)
+  - [5.1 Source order](#spec-5-1)
+  - [5.2 Mapping order after override](#spec-5-2)
+  - [5.3 Generated-entry order](#spec-5-3)
+  - [5.4 Sequence order](#spec-5-4)
+- [6. Command-line interface](#spec-6)
+  - [6.1 Invocation](#spec-6-1)
+  - [6.2 Options](#spec-6-2)
+  - [6.3 Exit codes](#spec-6-3)
+  - [6.4 Diagnostic stream encoding](#spec-6-4)
+    - [6.4.1 Format pre-scan](#spec-6-4-1)
+    - [6.4.2 `text` encoding](#spec-6-4-2)
+    - [6.4.3 `json` encoding](#spec-6-4-3)
+- [7. Input discovery and reading](#spec-7)
+  - [7.1 File extensions](#spec-7-1)
+  - [7.2 Missing files](#spec-7-2)
+  - [7.3 Parsing concurrency](#spec-7-3)
+  - [7.4 Character encoding](#spec-7-4)
+- [8. Namespace profile language](#spec-8)
+  - [8.1 Entry](#spec-8-1)
+  - [8.2 Qualified names](#spec-8-2)
+  - [8.3 Value escapes](#spec-8-3)
+  - [8.4 References](#spec-8-4)
+  - [8.5 Comments](#spec-8-5)
+  - [8.6 Ignore entries](#spec-8-6)
+  - [8.7 Numeric paths and ordered sequences](#spec-8-7)
+- [9. JSON input](#spec-9)
+  - [9.1 Supported features](#spec-9-1)
+  - [9.2 Unsupported features](#spec-9-2)
+  - [9.3 Duplicate keys](#spec-9-3)
+- [10. YAML input](#spec-10)
+  - [10.1 Supported features](#spec-10-1)
+  - [10.2 Deliberately unsupported features](#spec-10-2)
+  - [10.3 Multiple documents](#spec-10-3)
+  - [10.4 Wildcard templates supplied as YAML](#spec-10-4)
+- [11. XML input](#spec-11)
+  - [11.1 Secure parser configuration](#spec-11-1)
+  - [11.2 Supported XML subset](#spec-11-2)
+  - [11.3 Mixed content](#spec-11-3)
+  - [11.4 Canonical XML addressing](#spec-11-4)
+  - [11.5 XML comments](#spec-11-5)
+  - [11.6 CDATA](#spec-11-6)
+  - [11.7 Whitespace](#spec-11-7)
+  - [11.8 Unsupported XML features](#spec-11-8)
+- [12. Wildcard templates](#spec-12)
+  - [12.1 Legacy captures](#spec-12-1)
+  - [12.2 Explicit captures](#spec-12-2)
+  - [12.3 Matching scope](#spec-12-3)
+  - [12.4 Fixed-point evaluation](#spec-12-4)
+  - [12.5 Duplicate generated names](#spec-12-5)
+- [13. References](#spec-13)
+  - [13.1 Resolution](#spec-13-1)
+  - [13.2 Type forwarding](#spec-13-2)
+  - [13.3 Non-scalar references](#spec-13-3)
+  - [13.4 Disabled substitution](#spec-13-4)
+- [14. Output filtering](#spec-14)
+  - [14.1 Concrete output instances](#spec-14-1)
+  - [14.2 Strict prefix semantics](#spec-14-2)
+  - [14.3 Templates](#spec-14-3)
+  - [14.4 Reference closure](#spec-14-4)
+  - [14.5 Unused input-source accounting](#spec-14-5)
+- [15. Scheme language](#spec-15)
+  - [15.1 Scheme loading phases](#spec-15-1)
+  - [15.2 Directive precedence](#spec-15-2)
+  - [15.3 Deprecated aliases](#spec-15-3)
+  - [15.4 Blocking-error recovery](#spec-15-4)
+- [16. Scheme directives](#spec-16)
+  - [16.1 `output`](#spec-16-1)
+  - [16.2 `filename`](#spec-16-2)
+  - [16.3 `root`](#spec-16-3)
+  - [16.4 `delimiter`](#spec-16-4)
+  - [16.5 `key`](#spec-16-5)
+  - [16.6 `type`](#spec-16-6)
+  - [16.7 `substitute`](#spec-16-7)
+  - [16.8 Format input options](#spec-16-8)
+  - [16.9 Format output options](#spec-16-9)
+  - [16.10 `merge`](#spec-16-10)
+  - [16.11 `filemerge`](#spec-16-11)
+- [17. Merge semantics](#spec-17)
+  - [17.1 General deep merge](#spec-17-1)
+  - [17.2 Arrays](#spec-17-2)
+  - [17.3 JSON and YAML](#spec-17-3)
+  - [17.4 XML](#spec-17-4)
+  - [17.5 File-level collisions](#spec-17-5)
+- [18. Scalar inference](#spec-18)
+- [19. Output format rules](#spec-19)
+  - [19.1 Namespace](#spec-19-1)
+  - [19.2 Quoted namespace](#spec-19-2)
+  - [19.3 JSON](#spec-19-3)
+  - [19.4 YAML](#spec-19-4)
+  - [19.5 XML](#spec-19-5)
+  - [19.6 INI](#spec-19-6)
+- [20. Comments across formats](#spec-20)
+- [21. Output planning, paths, and publication](#spec-21)
+  - [21.1 Output-root confinement](#spec-21-1)
+  - [21.2 Global validation and warning-policy gates](#spec-21-2)
+  - [21.3 Direct publication](#spec-21-3)
+  - [21.4 Existing files](#spec-21-4)
+- [22. Diagnostics](#spec-22)
+- [23. Complexity and resource limits](#spec-23)
+- [24. Determinism requirements](#spec-24)
+- [25. Backward-compatibility examples](#spec-25)
+  - [25.1 Value override](#spec-25-1)
+  - [25.2 Output ignore override](#spec-25-2)
+  - [25.3 Array concatenation](#spec-25-3)
+  - [25.4 YAML wildcard enrichment](#spec-25-4)
+  - [25.5 Typed reference](#spec-25-5)
+  - [25.6 Strict literal reference-looking text](#spec-25-6)
+  - [25.7 Uniform root](#spec-25-7)
+  - [25.8 Scalar and descendant overlay](#spec-25-8)
+  - [25.9 Explicit ordering values and mapping escape](#spec-25-9)
+  - [25.10 Logical-path comments across override](#spec-25-10)
+  - [25.11 Permanent ignore mask](#spec-25-11)
+  - [25.12 Stable matching versus dense rendering](#spec-25-12)
+  - [25.13 XML sequence projection](#spec-25-13)
+  - [25.14 XML singleton promotion](#spec-25-14)
+- [26. Acceptance requirements](#spec-26)
+- [27. Deferred features](#spec-27)
+- [Appendix A. Namespace and reference grammar](#spec-a)
+  - [A.1 Physical records](#spec-a-1)
+  - [A.2 Qualified names](#spec-a-2)
+  - [A.3 Namespace values](#spec-a-3)
+  - [A.4 References](#spec-a-4)
+  - [A.5 Decoded native-string escape transducer](#spec-a-5)
+  - [A.6 Output delimiter disambiguation](#spec-a-6)
+- [Appendix B. Normative diagnostic mapping](#spec-b)
+- [Appendix C. Conformance fixture format](#spec-c)
+  - [C.1 `args.txt`](#spec-c-1)
+  - [C.2 Inputs and schemes](#spec-c-2)
+  - [C.3 Expected output tree](#spec-c-3)
+  - [C.4 Expected diagnostics](#spec-c-4)
+  - [C.5 Exit code, standard output, and requirement traceability](#spec-c-5)
+  - [C.6 Legacy differential metadata](#spec-c-6)
+  - [C.7 Determinism runs](#spec-c-7)
+<!-- END GENERATED SPECIFICATION CONTENTS -->
+
+<a id="spec-1"></a>
 ## 1. Purpose
 
 The product is a deterministic command-line configuration transformer.
@@ -27,6 +181,7 @@ The supported formats are:
 - XML;
 - INI.
 
+<a id="spec-2"></a>
 ## 2. Normative language
 
 The words **must**, **must not**, **should**, and **may** are normative.
@@ -59,8 +214,10 @@ YAML 1.1 is not supported either, and this matters more than the XML case becaus
 
 **Every case-insensitive comparison in this document is ASCII case folding.** A character outside U+0041–U+005A and U+0061–U+007A compares equal only to itself. Section 16.5 says this of the scheme language; it holds equally of input file extensions in Section 7.1, option values in Section 6.2, and the `null` literal in Section 18, none of which repeat it. The rule is deliberately not the case-insensitive comparison a general-purpose library offers: U+017F LATIN SMALL LETTER LONG S uppercases to `S` under invariant casing, and U+212A KELVIN SIGN is a `K` to a reader, so a Unicode-aware fold would accept `ſtring` for the type name `string` and `1KiB` written with U+212A. Both are refused. Every keyword vocabulary in this document is ASCII, and admitting a homoglyph into one would make a directive's meaning depend on which casing table an implementation happened to link.
 
+<a id="spec-3"></a>
 ## 3. Compatibility policy
 
+<a id="spec-3-1"></a>
 ### 3.1 Preserved behavior
 
 The replacement must preserve:
@@ -79,6 +236,7 @@ The replacement must preserve:
 - missing-file warning-and-ignore behavior;
 - deprecated aliases listed in this specification.
 
+<a id="spec-3-2"></a>
 ### 3.2 Deliberately corrected behavior
 
 The replacement must not preserve legacy behavior that was:
@@ -101,6 +259,7 @@ The replacement must not preserve legacy behavior that was:
 
 Such cases are governed by the explicit rules below.
 
+<a id="spec-3-3"></a>
 ### 3.3 Round-trip guarantees
 
 The product defines three different guarantees.
@@ -133,10 +292,12 @@ Ordinary `name=value` data cannot represent every XML or YAML concept. A future 
 
 This version does not standardize that metadata syntax. Ordinary namespace output is therefore a data projection, not a lossless serialization of every source-format feature.
 
+<a id="spec-4"></a>
 ## 4. Ordered typed document model
 
 The implementation must use an ordered typed model rather than converting every source immediately into untyped namespace strings.
 
+<a id="spec-4-1"></a>
 ### 4.1 Document
 
 A document contains:
@@ -146,6 +307,7 @@ A document contains:
 - source identity and source ordering;
 - format-specific metadata within the supported subset.
 
+<a id="spec-4-2"></a>
 ### 4.2 Overlay nodes
 
 The common model is an ordered tree of **overlay nodes**.
@@ -178,6 +340,7 @@ An output format decides whether that overlay is directly representable:
 
 Mapping, sequence, scalar, and null are therefore projections of an overlay node, not mutually exclusive internal node kinds.
 
+<a id="spec-4-3"></a>
 ### 4.3 Scalar kinds
 
 A scalar records both its value and its kind:
@@ -190,6 +353,7 @@ A scalar records both its value and its kind:
 
 A namespace-profile scalar initially has the kind `untyped string`. Scalar inference converts it according to Section 18 unless reference resolution or an explicit rule determines its kind.
 
+<a id="spec-4-4"></a>
 ### 4.4 Shape contributions
 
 Each payload, child mapping, or sequence contribution has its own immutable **position mark**, derived from the stable ordering key in Section 4.7.
@@ -235,6 +399,7 @@ The generated descendant is later than the scalar because the rule occurs later.
 - JSON and YAML render `x` as an object containing `z`, omit scalar `1`, and warn;
 - reversing source order makes the later scalar win in JSON and YAML.
 
+<a id="spec-4-5"></a>
 ### 4.5 Comments
 
 A non-XML comment records:
@@ -267,6 +432,7 @@ When a transformation re-addresses a value—such as `key` record construction, 
 
 A transformation that collapses several values into one—`multiline` is the only one—moves the comments of every consumed value onto the single result, keeping source order. It needs no placement rule of its own: those comments now accumulate at one path, and the rule above for several inline comments at one path already says which of them stays inline. Nothing is discarded and nothing is reported, because a collapse changes where a note sits rather than whether it survives.
 
+<a id="spec-4-6"></a>
 ### 4.6 XML nodes
 
 XML content requires these additional ordered node kinds:
@@ -287,6 +453,7 @@ An XML element records:
 
 XML processing instructions, document type declarations, entity declarations, and other node kinds not listed above are unsupported in this version.
 
+<a id="spec-4-7"></a>
 ### 4.7 Identity and order
 
 Every source item and generated item must have a stable ordering key derived from:
@@ -301,12 +468,14 @@ The key is the ordered tuple of those five components. Each is a nonnegative int
 
 The implementation may parse files concurrently, but concurrency must not alter this ordering key or any externally visible result.
 
+<a id="spec-5"></a>
 ## 5. Universal ordering and precedence
 
 The same precedence principle applies to data entries, scheme entries, wildcard-generated entries, output declarations, and file-level collisions:
 
 > Whatever occurs later in the declared source order has higher precedence.
 
+<a id="spec-5-1"></a>
 ### 5.1 Source order
 
 Source order is:
@@ -330,6 +499,7 @@ suppresses `a0`.
 
 Reversing those lines causes the later wildcard declaration to restore XML output for `a0`.
 
+<a id="spec-5-2"></a>
 ### 5.2 Mapping order after override
 
 Mapping order follows the position mark of each surviving winning logical path.
@@ -342,6 +512,7 @@ The position mark is the Section 4.7 stable ordering key, so that key is already
 
 The same rule applies to comments: refreshing an ancestor's shape-mark through a descendant does not move that ancestor or comments bound to the ancestor path.
 
+<a id="spec-5-3"></a>
 ### 5.3 Generated-entry order
 
 A wildcard rule is evaluated at the rule's source position.
@@ -352,6 +523,7 @@ Generated entries:
 - are ordered by the source order of their matches;
 - use their deterministic generation ordinal to break ties.
 
+<a id="spec-5-4"></a>
 ### 5.4 Sequence order
 
 Sequence order is semantic and is represented by stable signed 64-bit integer **ordering values** in the range `0` through `9,223,372,036,854,775,807`.
@@ -380,8 +552,10 @@ When `append` rebases an explicit item from a later contribution, process items 
 
 During wildcard, ignore, reference, and scheme matching, a sequence exposes its stable ordering values as decimal name parts. These are real logical addresses for the run, not temporary dense ordinals.
 
+<a id="spec-6"></a>
 ## 6. Command-line interface
 
+<a id="spec-6-1"></a>
 ### 6.1 Invocation
 
 ```text
@@ -394,6 +568,7 @@ The executable may use a new product name, but it must provide a compatibility c
 
 Presence is decided by scanning the raw token vector for the option token, in either the bare or the inline form, up to the first `--`. That scan applies no other part of the grammar; in particular it does not work out which tokens are option values, because working that out is validation, and this decision precedes validation. So `namespace2xml --diagnostics-format --version` prints version information and exits `0` rather than reporting a missing value. The alternative would give one token two incompatible readings at once — a value to the informational scan, and an option token to the Section 6.2 rule that a detached value may not be an option token — and an implementation cannot be checked against a rule that contradicts itself. After `--` no token is an option, so `--version` there is an ordinary value and selects no mode.
 
+<a id="spec-6-2"></a>
 ### 6.2 Options
 
 | Option | Required | Meaning |
@@ -458,6 +633,7 @@ Normative warning and error conditions still occur and affect processing exactly
 
 `--help` and `--version` write their requested informational text to standard output. All diagnostics and operational trace/debug/information messages write to standard error. Generated configuration content is written only to planned destination files.
 
+<a id="spec-6-3"></a>
 ### 6.3 Exit codes
 
 | Code | Meaning |
@@ -473,10 +649,12 @@ By default warnings still produce exit code `0`. When `--fail-on-warning` is pre
 Section 21.2 warning-policy gate observes at least one warning, the invocation exits `1` even though
 those diagnostics retain warning severity.
 
+<a id="spec-6-4"></a>
 ### 6.4 Diagnostic stream encoding
 
 `--diagnostics-format` selects the encoding of the diagnostic stream written to standard error. It never changes which diagnostics occur, their fields, their cardinality, their order, processing, generated output files, resource accounting, or exit codes. It is an encoding switch over the stream already specified by Sections 15.4, 22, and 24.
 
+<a id="spec-6-4-1"></a>
 #### 6.4.1 Format pre-scan
 
 The selected encoding must be known before any other argument is validated, so that an invalid command line can itself be reported in the requested encoding. Implementations therefore perform a total pre-scan over the raw argument vector. The pre-scan always terminates, always resolves exactly one encoding, and never emits a diagnostic:
@@ -493,10 +671,12 @@ Ordinary option parsing then validates the option normally. A missing value, or 
 
 Informational output is never encoded as JSON in this version. `--version` output is nevertheless machine-readable: it contains one `<field>: <value>` line per field, using LF terminators, and includes at least a `version` field and a `contract-bundle` field as defined in Section 22.
 
+<a id="spec-6-4-2"></a>
 #### 6.4.2 `text` encoding
 
 `text` is the default and preserves the established human-readable stream. Diagnostics and enabled operational trace, debug, and information messages are interleaved on standard error. Each phase's buffered diagnostic set is written at that phase boundary in Section 24 order. Prose is localizable and is not part of byte-identical determinism.
 
+<a id="spec-6-4-3"></a>
 #### 6.4.3 `json` encoding
 
 Under `json`:
@@ -568,8 +748,10 @@ The array is described by the following closed schema, which is normative. `addi
 
 `path` is a canonical qualified path under Appendix A: the name parts joined with `.`, each part spelled as Section 19.1 spells a namespace name, with no `root` applied and no output-format projection. A part containing the delimiter carries it escaped by the Section 16.4 `\u{HEX}` rule, so the joined string parses back to the same parts. The path names the node the rule was enforced against, not the component that failed — a report that named only the component would identify what is wrong without identifying where, which in a run over a large model is not actionable.
 
+<a id="spec-7"></a>
 ## 7. Input discovery and reading
 
+<a id="spec-7-1"></a>
 ### 7.1 File extensions
 
 Input file extensions are matched case-insensitively:
@@ -593,6 +775,7 @@ Format support matrix:
 
 `.ini`, `.sh`, and other unrecognized extensions continue to select namespace-profile input for compatibility. Native INI and shell input are outside this version.
 
+<a id="spec-7-2"></a>
 ### 7.2 Missing files
 
 A missing input or scheme file:
@@ -609,6 +792,7 @@ One check precedes this one. Section 15 rejects a scheme file named with the `.x
 
 Another check precedes both. An empty token supplied to `-i`, `-s`, `-v`, or `-o` is a blocking `CLI001` at Section 6.2 option-value validation, before any path is resolved. The empty token names nothing: it cannot be tested for existence, so it is neither the missing file this section forgives nor the I/O failure it blocks on, and it is indistinguishable from an option whose value the caller's own quoting silently dropped — the overwhelmingly common way one arrives. Reporting it against the option that received it names the mistake where it was made. This is a command-line failure rather than a source failure, so it is `CLI001` and not `PARSE001`, and it is diagnosed even for `-o`, which resolves no source at all.
 
+<a id="spec-7-3"></a>
 ### 7.3 Parsing concurrency
 
 Files may be read and parsed concurrently.
@@ -619,6 +803,7 @@ Concurrent parsers maintain per-source counts only. A parser must not be able to
 
 After all independently readable sources finish their parse attempt, global input budgets are evaluated deterministically over one ordered input stream: all scheme files in `-s` order, then all input files in `-i` order, then command-line variables in `-v` token order, matching the consumption order Section 23 gives `--max-total-input-bytes`. The first source whose cumulative contribution would cross a global bound receives `LIMIT001`; that source and every later source in that stream contribute no parsed model, including later sources of a different kind. Per-file byte limits and per-document depth limits are enforced within each source and are never cumulative across sources.
 
+<a id="spec-7-4"></a>
 ### 7.4 Character encoding
 
 UTF-8 is the default input encoding.
@@ -639,8 +824,10 @@ A recognized byte-order mark is an encoding signature and not text. Decoding con
 
 A byte-order mark is an encoding of U+FEFF, and U+FEFF has exactly five encodings. All five are named above: three are recognized and two are prohibited. The unrecognized case therefore has no members, and a conforming implementation carries no signature table beyond those five. Introducers for other encodings, notably UTF-7's `2B 2F 76` and the UTF-1, UTF-EBCDIC, SCSU, BOCU-1, and GB18030 signatures, are not byte-order marks and receive no special treatment: each is either ordinary UTF-8 text or an invalid byte sequence under the rules already stated. No input is ever decoded as anything other than UTF-8, UTF-16LE, or UTF-16BE.
 
+<a id="spec-8"></a>
 ## 8. Namespace profile language
 
+<a id="spec-8-1"></a>
 ### 8.1 Entry
 
 ```text
@@ -671,6 +858,7 @@ Each `--variables` argument is exactly one namespace record. It accepts ordinary
 
 A diagnostic reporting a condition inside a command-line variable omits `source`, and therefore also omits `line` and `column`. The Section 6.4.3 `source` member names an input or scheme file, and a variable is neither; a synthetic file name there would be indistinguishable from a real one. The variable is identified in the diagnostic's message by its one-based position in `-v` token order, and its Section 4.7 ordering key still places it after every input file, so the stream order is unaffected.
 
+<a id="spec-8-2"></a>
 ### 8.2 Qualified names
 
 An unescaped `.` separates name parts.
@@ -707,6 +895,7 @@ Numeric identifiers such as `*[0]` are valid.
 
 An empty name part is a blocking parse error. A qualified name must not begin or end with an unescaped delimiter or contain consecutive unescaped delimiters.
 
+<a id="spec-8-3"></a>
 ### 8.3 Value escapes
 
 An entry value consisting of exactly the two characters `{}` is not a scalar. It is an explicit empty-mapping presence contribution at that path under Section 4.2, and a value consisting of exactly `[]` is an empty-sequence contribution. A value consisting of exactly `\{}` or `\[]` is the two-character string `{}` or `[]`.
@@ -741,6 +930,7 @@ Within an interpreted JSON, YAML, or XML string that has already been decoded by
 - every other backslash emits that backslash alone and consumes only it, so the following scalar is processed normally;
 - no substring rescanning or second general `\\` decoding pass occurs.
 
+<a id="spec-8-4"></a>
 ### 8.4 References
 
 An unescaped reference is:
@@ -761,6 +951,7 @@ or use a matching `substitute=Key` or `substitute=None` scheme rule.
 
 Substitution-mode path patterns are compiled from the raw scheme before structured string values are interpreted. They may contain name wildcards but must not contain references or depend on generated data.
 
+<a id="spec-8-5"></a>
 ### 8.5 Comments
 
 A namespace comment is a physical line whose first non-whitespace character is an unescaped `#`. A `#` that is not the first non-space/tab scalar of a record never begins a comment; whether it is ordinary text or a Section 8.2 typed marker is decided by Section 8.2, which makes `a.#1` a content token rather than an ordinary name.
@@ -777,6 +968,7 @@ Only an entry ends a run of comments. A record ignored under Section 8.1 rule 1,
 
 The association is made with the following entry's logical qualified path before overrides are evaluated. It therefore survives replacement of that path and moves to the winning contribution's output position as specified in Sections 4.5 and 5.2.
 
+<a id="spec-8-6"></a>
 ### 8.6 Ignore entries
 
 ```text
@@ -817,6 +1009,7 @@ Native JSON, YAML, and XML input have no tombstone syntax in this version. Keys 
 
 Use a namespace-profile `!pattern` entry or a scheme `type=ignore` directive for removal. This keeps awkward control syntax in the scheme rather than overloading native data formats.
 
+<a id="spec-8-7"></a>
 ### 8.7 Numeric paths and ordered sequences
 
 A nonempty namespace or structured mapping is classified as sequence-inferable when, after permanent masks and wildcard generation, all its surviving concrete child names are canonical nonnegative decimal ordering values. “Surviving” means not suppressed by a permanent mask. Projection as an explicitly indexed sequence occurs at pipeline step 11.
@@ -892,8 +1085,10 @@ Numeric-map inference occurs once, after wildcard generation and permanent ignor
 
 When multiple sources contribute native implicit sequences at one path and no explicit `merge` directive applies, emit one compatibility warning explaining that implicit items concatenate while explicit ordering values patch.
 
+<a id="spec-9"></a>
 ## 9. JSON input
 
+<a id="spec-9-1"></a>
 ### 9.1 Supported features
 
 JSON input supports:
@@ -918,20 +1113,24 @@ Within that one part, unescaped `*` and `*[identifier]` tokens retain their wild
 
 String scalar values use the same strict reference and value-escape lexer as namespace values unless a matching `substitute` directive disables interpretation.
 
+<a id="spec-9-2"></a>
 ### 9.2 Unsupported features
 
 JSON comments are not supported.
 
 Trailing commas, duplicate object keys, non-finite numbers, and other nonstandard extensions are errors unless a future `jsoninputoptions` value explicitly enables them.
 
+<a id="spec-9-3"></a>
 ### 9.3 Duplicate keys
 
 Standard mode rejects duplicate keys within one JSON object.
 
 This avoids parser-dependent behavior and accidental hidden overrides.
 
+<a id="spec-10"></a>
 ## 10. YAML input
 
+<a id="spec-10-1"></a>
 ### 10.1 Supported features
 
 YAML input supports:
@@ -971,6 +1170,7 @@ These rules, rather than an underlying library's advertised YAML 1.1 or 1.2 mode
 
 The differences from namespace scalar inference are intentional: plain YAML `+1`, `.5`, and `1.` remain strings because they are not JSON-compatible numbers, while any ASCII case spelling of `true` or `false`, including `tRuE`, is Boolean.
 
+<a id="spec-10-2"></a>
 ### 10.2 Deliberately unsupported features
 
 This version does not preserve:
@@ -989,6 +1189,7 @@ Anchors, aliases, and every explicit tag token—including standard `!!` tags, v
 
 Future input options may define additional safe tag behavior; no tag is accepted implicitly.
 
+<a id="spec-10-3"></a>
 ### 10.3 Multiple documents
 
 Multiple YAML documents in one input stream are not supported in this version.
@@ -997,6 +1198,7 @@ Encountering any explicit document marker is an error.
 
 A stream holding *no* document node is the symmetric case and is also an error: a YAML source is exactly one value, and a stream that is empty, or holds only comments and blank lines, supplies none. It is a `PARSE001` source error under Section 10.1 rather than an empty contribution, because the two readings are not distinguishable afterwards — a source that contributes nothing and a source that was never valid produce the same merged model, and only one of them is a mistake worth naming. A source deliberately reduced to nothing is expressed by omitting it from `-i`, or by an empty mapping `{}`, which *is* one document node.
 
+<a id="spec-10-4"></a>
 ### 10.4 Wildcard templates supplied as YAML
 
 YAML mapping keys must be strings. Each key becomes one qualified-name part under the Section 9.1 native-key rules: dots and `\u{HEX}` remain literal, the Section 11.4 markers apply to a key beginning with an unescaped `@`, `#`, or `Q{`, and a leading backslash escapes one of those and suppresses marker recognition. Elsewhere a backslash remains literal.
@@ -1086,8 +1288,10 @@ a:
 
 The argument order matters to this example and the example does not settle it. Mapping-sibling order is governed by Section 5.3 and the Section 4.7 ordering key alone: a generated entry inherits its rule's precedence position, so it sorts against a concrete sibling by the position of the **rule**, not by the moment of generation. Supplying the template first therefore renders `c` ahead of `b`. This example prints the data file first so that its printed result reads naturally; nothing in it overrides Section 5.3.
 
+<a id="spec-11"></a>
 ## 11. XML input
 
+<a id="spec-11-1"></a>
 ### 11.1 Secure parser configuration
 
 XML parsing must:
@@ -1116,6 +1320,7 @@ Entity expansion needs no budget of its own, and an implementation must not impo
 
 `LIMIT001` remains once per invocation. When more than one per-source or global bound is crossed in the parse phase, the reported occurrence is the earliest under CLI source order as defined in Section 7.3, then document order within that source, then element order, then the bound name compared as unsigned UTF-8 bytes. Attribution is therefore independent of parser worker scheduling.
 
+<a id="spec-11-2"></a>
 ### 11.2 Supported XML subset
 
 XML input supports:
@@ -1144,6 +1349,7 @@ Input decoding is controlled exclusively by Section 7.4. If an XML declaration c
 
 Processing instructions are discarded with a summarized warning.
 
+<a id="spec-11-3"></a>
 ### 11.3 Mixed content
 
 Element content is retained as an ordered sequence.
@@ -1170,6 +1376,7 @@ a.#2=text2
 
 but that ordinary projection alone is not sufficient to reconstruct node kinds. Same-format XML processing uses the typed model directly.
 
+<a id="spec-11-4"></a>
 ### 11.4 Canonical XML addressing
 
 Scheme selectors and references use this XML path projection:
@@ -1263,12 +1470,14 @@ The element-path scalar and its sole text/CDATA content-token scalar are two can
 
 When converting a non-XML mapping to XML, the document element does not come from the selector. Section 14.1 removes the concrete selector prefix unconditionally and for all six formats, so what remains beneath it is the selected view, and XML requires that view to hold exactly one top-level member: that member becomes the document element. A view holding none, or more than one, names no element, and `root` must supply one — which is why a root-level selector, whose view is usually the whole model, almost always specifies `root`. Section 16.3 governs how `root` wraps the view, and Section 19.5 raises `TYPE001` when neither route yields an element.
 
+<a id="spec-11-5"></a>
 ### 11.5 XML comments
 
 XML comments are retained as ordered comment nodes.
 
 They are not forced into a "leading comment for the next value" representation because a comment may occur between mixed-content nodes or after the final child.
 
+<a id="spec-11-6"></a>
 ### 11.6 CDATA
 
 CDATA is retained as a distinct XML node kind.
@@ -1279,6 +1488,7 @@ If CDATA content contains `]]>`, the writer must split it into a valid sequence 
 
 On input, adjacent CDATA segments created solely by safe output splitting are coalesced into one logical CDATA run. Adjacent ordinary text is coalesced separately. CDATA and ordinary text are not coalesced with each other.
 
+<a id="spec-11-7"></a>
 ### 11.7 Whitespace
 
 The default XML input mode is `PreserveWhitespace`.
@@ -1296,6 +1506,7 @@ The option `PreserveWhitespace` retains every text node.
 
 Because XML has no universal test for insignificant whitespace without a schema or DTD, enabling `NormalizeFormattingWhitespace` weakens the normalized same-format round-trip guarantee and emits one warning per input document when whitespace is discarded.
 
+<a id="spec-11-8"></a>
 ### 11.8 Unsupported XML features
 
 The following are outside this version's preservation contract:
@@ -1310,8 +1521,10 @@ The following are outside this version's preservation contract:
 - exact empty-element spelling;
 - exact attribute quote style.
 
+<a id="spec-12"></a>
 ## 12. Wildcard templates
 
+<a id="spec-12-1"></a>
 ### 12.1 Legacy captures
 
 An unescaped `*` matches zero or more characters within one qualified-name part.
@@ -1336,6 +1549,7 @@ A `type` value and an `output` value are excluded from capture substitution. Sec
 
 A legacy unnamed capture inside a `${...}` reference is not supported and is `REFERENCE001`. References from templates must use explicit named or numbered captures.
 
+<a id="spec-12-2"></a>
 ### 12.2 Explicit captures
 
 An explicit capture is:
@@ -1367,6 +1581,7 @@ An unbound capture *inside* a reference is the one capture condition that is not
 
 Capture text inserted into a generated name is literal text inside one name part. It is never re-lexed as delimiter, wildcard, reference, or escape syntax.
 
+<a id="spec-12-3"></a>
 ### 12.3 Matching scope
 
 A wildcard matches only within one name part and never crosses a namespace delimiter.
@@ -1403,6 +1618,7 @@ When a generated suffix targets a sequence item, it is deep-merged into that ite
 
 Template-bearing JSON or YAML branches are extracted entry-by-entry. Only entries whose qualified path contains a wildcard token are removed from the concrete contribution. Literal siblings remain ordinary concrete data.
 
+<a id="spec-12-4"></a>
 ### 12.4 Fixed-point evaluation
 
 Wildcard evaluation occurs after all concrete input contributions have been merged and all sequences have been concatenated.
@@ -1444,14 +1660,17 @@ The implementation must:
 - report the rules responsible for the limit;
 - never depend on hash-map iteration order.
 
+<a id="spec-12-5"></a>
 ### 12.5 Duplicate generated names
 
 Generated entries participate in normal source-order precedence.
 
 If several rules produce the same name, the later rule wins. If one rule produces the same name more than once, the later deterministic match ordinal wins.
 
+<a id="spec-13"></a>
 ## 13. References
 
+<a id="spec-13-1"></a>
 ### 13.1 Resolution
 
 References resolve after wildcard generation and ordinary data merging.
@@ -1487,6 +1706,7 @@ For example, an XML attribute and unqualified child element both named `x` make 
 
 A canonical reference directly addressing an XML comment path fails as a non-scalar reference.
 
+<a id="spec-13-2"></a>
 ### 13.2 Type forwarding
 
 If a value consists of exactly one reference and no literal text, it inherits the referenced scalar kind and value.
@@ -1517,6 +1737,7 @@ Canonical interpolation text is:
 
 An exact reference later matched by `type=string` is rendered as a string without changing the referenced source value.
 
+<a id="spec-13-3"></a>
 ### 13.3 Non-scalar references
 
 Mapping, sequence, XML element, comment, and other structured-node references are unsupported and are blocking reference errors.
@@ -1525,6 +1746,7 @@ Free wildcard references such as `${a.*}` are blocking errors. A reference insid
 
 A capture the owning template does not bind is a free capture, and this section governs it rather than Section 12.2: the code is `REFERENCE001`, reported once per reachable owning value in the planning phase, and Section 14.4 suppresses it where no concrete output instance reaches that value. Appendix B states the same division by scoping `WILDCARD001` to a capture outside a reference.
 
+<a id="spec-13-4"></a>
 ### 13.4 Disabled substitution
 
 `substitute=Key` disables reference and wildcard interpretation in values while retaining wildcard interpretation in names.
@@ -1535,8 +1757,10 @@ Namespace-profile lexical escapes are decoded regardless of substitution mode be
 
 Native JSON, YAML, and XML strings matched by `Key` or `None` are preserved exactly after native format decoding; no transformer escape decoding is applied.
 
+<a id="spec-14"></a>
 ## 14. Output filtering
 
+<a id="spec-14-1"></a>
 ### 14.1 Concrete output instances
 
 An `output` selector containing no wildcards creates exactly one concrete output instance even when no data path currently matches its literal prefix.
@@ -1593,6 +1817,7 @@ The rule above is about the selected view, and it turns on the selector being em
 
 This is not a format keeping a prefix that Section 14.1 removed. The removal above is unconditional and applies to all six formats. What the three flat formats then do is *supply* a key for a value that would otherwise have none, and the name they supply is the one the author last wrote. They can do this and the other three cannot because a flat format's output is a set of qualified names, so a key it supplies is ordinary content — Section 16.3 says so where it explains that `root` prefixes such a key rather than replacing it. So `cfg=5` published as JSON under the `cfg` selector is the document `5`, not `{"cfg": 5}`, while the same selection published as INI is the global key `cfg=5` and as namespace is the entry `cfg=5`.
 
+<a id="spec-14-2"></a>
 ### 14.2 Strict prefix semantics
 
 An output selector pattern `P` selects a concrete name `E` only when:
@@ -1607,10 +1832,12 @@ Examples:
 - `a.*` selects `a.x` and `a.x.y`;
 - the empty root selector selects everything.
 
+<a id="spec-14-3"></a>
 ### 14.3 Templates
 
 A template entry is retained when it can produce at least one concrete name under a selected prefix.
 
+<a id="spec-14-4"></a>
 ### 14.4 Reference closure
 
 After concrete output instances are known, direct output filtering is applied to the already generated name graph. All entries reached transitively through references from selected entries are retained for evaluation.
@@ -1625,6 +1852,7 @@ A selector whose winning declaration is `output=ignore` plans no output instance
 
 "Plans no output instance" is about the output *plan*, and Section 15.2 uses the word `exists` in the other sense: the instance remains a configuration binding target, because Section 16.1 keeps it so that a later declaration can restore it. A directive naming a suppressed instance has therefore bound and does not emit `WARN009`, while the instance still contributes no file, no destination, and no reachability root here. Both are true of the same instance, and a reader who takes either sentence for the whole answer will get the diagnostic stream wrong in one direction or the other.
 
+<a id="spec-14-5"></a>
 ### 14.5 Unused input-source accounting
 
 After reachable references have resolved successfully and before Section 16 transformations, the tool audits each admitted input-file and `-v` source occurrence against the effective output selections.
@@ -1649,6 +1877,7 @@ An eligible source occurrence for which no eligible path is addressed by either 
 
 This accounting is about whether the source's data was addressed, not whether it supplied a final winning value. A source is considered used when any one of its eligible paths is selected, even if a later source overwrites every selected value, and when any one is used only as a reachable reference target. It does not report every unused branch of a partly used source, and a selected path remains addressed when Section 16 later removes or rewrites it.
 
+<a id="spec-15"></a>
 ## 15. Scheme language
 
 Scheme files may use the case-insensitive `.json`, `.yaml`, and `.yml` extensions that Section 7.1 gives input files, and every other extension, including none at all, uses namespace-profile parsing. Their parsed content must project to qualified directive paths and scalar directive values.
@@ -1693,6 +1922,7 @@ A namespace-profile scheme file contains only entries and comments. A Section 8.
 
 Every recognized directive requires a nonempty scalar value after format parsing. An empty value, null, container value, unknown directive value, or illegal option/type combination is `SCHEME001`.
 
+<a id="spec-15-1"></a>
 ### 15.1 Scheme loading phases
 
 The normative processing pipeline is:
@@ -1735,6 +1965,7 @@ This phase order is acyclic. Data-dependent references or wildcards are prohibit
 
 Within one step-16 pass, where directives of the same kind bind at a node and at one of its descendants, the descendant is applied first: the pass proceeds deepest-first. Every directive therefore sees the subtree its own address named at step 11, and no directive is handed a shape another directive built in the same pass. The alternative strands work silently — a `key` at a node turns its children into sequence items, so an outermost-first pass would delete the very path a descendant directive bound to, and an author who wrote both would get neither the descendant's reshaping nor a warning, because the directive did match something at step 11. Deepest-first composes instead: `a.type=array` together with `a.x.type=array` converts `x` and then converts `a`, which is what writing both plainly asks for. Order between directives of the same kind at the *same* path remains the Section 16.5 tie-break, and order between kinds remains the pass order above.
 
+<a id="spec-15-2"></a>
 ### 15.2 Directive precedence
 
 All scheme directives follow source order only.
@@ -1769,6 +2000,7 @@ Ignore mechanisms are intentionally distinct:
 | `type=ignore` | one output instance's selected view | later non-ignore `type` at the same path | no | omit a section from one rendered view |
 | `output=ignore` | one concrete output instance | later non-ignore `output` declaration | no | suppress a wildcard-generated or otherwise unwanted file |
 
+<a id="spec-15-3"></a>
 ### 15.3 Deprecated aliases
 
 The following aliases remain accepted with one warning per scheme:
@@ -1778,6 +2010,7 @@ The following aliases remain accepted with one warning per scheme:
 - `xmloptions` for `xmloutputoptions`;
 - legacy type values `xmlns` and `xmlnssuffix`, treated as no-ops.
 
+<a id="spec-15-4"></a>
 ### 15.4 Blocking-error recovery
 
 Blocking diagnostics are collected within the pipeline phase in which they are detected, subject to the registry cardinalities in Section 22. A phase completes every independent check that does not depend on a failed result, buffers its deterministic diagnostic set, and then aborts before the next phase when any blocking diagnostic exists.
@@ -1791,8 +2024,10 @@ close a phase early, or promote a warning to an error. The invocation continues 
 independently reachable later warnings and serialization diagnostics are retained; only the
 publication decision and final exit status change at the Section 21.2 gate.
 
+<a id="spec-16"></a>
 ## 16. Scheme directives
 
+<a id="spec-16-1"></a>
 ### 16.1 `output`
 
 ```text
@@ -1819,6 +2054,7 @@ A later `output` declaration replaces the complete earlier output-format set for
 
 `ignore` must appear alone in its declaration. It participates in ordinary source-order override: a later non-ignore declaration can restore output, and a later `ignore` declaration can suppress it again.
 
+<a id="spec-16-2"></a>
 ### 16.2 `filename`
 
 ```text
@@ -1866,6 +2102,7 @@ Default file names:
 
 `<selector>` means the dot-joined concrete selector after encoding each selector part with the portable rules and additionally encoding literal `.` as `%2E` inside a part. It is always one filename segment, and different selector-part sequences cannot collapse merely because a part contained a dot.
 
+<a id="spec-16-3"></a>
 ### 16.3 `root`
 
 ```text
@@ -1890,6 +2127,7 @@ For `root=x.y`:
 
 Wildcard captures may be substituted into root name parts, per output instance, under the Section 12.1 rule that governs every scheme directive value. `jobs.*.root=*` therefore wraps each concrete instance's content in an element named after that instance's own capture. A capture matches within one qualified-name part, so substituted text cannot introduce a further nesting level.
 
+<a id="spec-16-4"></a>
 ### 16.4 `delimiter`
 
 ```text
@@ -1924,6 +2162,7 @@ Namespace, quoted-namespace, and INI output are destinations requiring one conta
 
 Here, identifier normalization means only shell-identifier validation under Section 19.2 and INI name validation under Section 19.6. It performs no case folding or character replacement.
 
+<a id="spec-16-5"></a>
 ### 16.5 `key`
 
 ```text
@@ -2000,6 +2239,7 @@ Applying `key` to a sequence-only or scalar-only target is `TYPE001`.
 
 An effective `type=array` and `key` at the same path is therefore an illegal option combination and raises `SCHEME001`; implementations must not silently choose an order or reinterpret the resulting sequence as a mapping.
 
+<a id="spec-16-6"></a>
 ### 16.6 `type`
 
 ```text
@@ -2144,6 +2384,7 @@ It is specifically not `TYPE001`. Section 21.2 gates publication on the whole ru
 
 `string` names no format and is governed by its own clause above.
 
+<a id="spec-16-7"></a>
 ### 16.7 `substitute`
 
 ```text
@@ -2169,6 +2410,7 @@ Section 15.1 step 6 matches this directive's pattern against "an entry's declare
 
 A Section 8.6 exclusion mask is not an entry and is not governed by this directive. Its pattern is interpreted as written whatever mode is effective at the paths it names, because a mask carries no value and step 6 speaks only of an entry's declared path.
 
+<a id="spec-16-8"></a>
 ### 16.8 Format input options
 
 Root-level input options use comma-separated names:
@@ -2202,6 +2444,7 @@ No JSON-comment option exists in this version.
 
 Selector-qualified input-option directives are blocking scheme errors because input parsing occurs before output instances exist.
 
+<a id="spec-16-9"></a>
 ### 16.9 Format output options
 
 For every output-options directive, the later complete directive replaces the earlier complete flag set. Flags from separate declarations do not accumulate. When a replacement omits every flag from a mutually exclusive mode group, that group's documented default is reapplied.
@@ -2316,6 +2559,7 @@ Default: `RejectMultiline`. Comments are discarded unless `SemicolonComments` or
 
 `GlobalSection` belongs to no exclusive pair. Its absence is not a choice between two spellings of one decision but the dialect's stated default, in the same way as `QuoteValues`.
 
+<a id="spec-16-10"></a>
 ### 16.10 `merge`
 
 ```text
@@ -2339,6 +2583,7 @@ A contribution is **at path `P`** when it contributes a payload, explicit contai
 
 Input `merge` directives required at pipeline step 4 must use literal paths and must not contain wildcards or references.
 
+<a id="spec-16-11"></a>
 ### 16.11 `filemerge`
 
 ```text
@@ -2358,8 +2603,10 @@ Wildcard-qualified `filemerge` selectors are supported and are expanded with the
 
 `filemerge=error` is not sticky. A later matching declaration may replace it with another complete `filemerge` value under universal source-order precedence; omitting `filemerge` on that later declaration uses the default `deep`.
 
+<a id="spec-17"></a>
 ## 17. Merge semantics
 
+<a id="spec-17-1"></a>
 ### 17.1 General deep merge
 
 For two contributions `earlier` and `later`:
@@ -2371,6 +2618,7 @@ For two contributions `earlier` and `later`:
 - mapping plus sequence contribution at one node: retain both container projections in the overlay; a destination requiring one container shape uses the later container contribution and warns;
 - non-XML comments bind to logical paths rather than individual scalar or shape contributions; they accumulate and survive merge whenever their logical path survives. Shape-conflict projection attaches them to the surviving projection. They are omitted only when the logical path is absent from that output through permanent masking, non-selection, `type=ignore`, or replacement of an ancestor that removes the path.
 
+<a id="spec-17-2"></a>
 ### 17.2 Arrays
 
 Arrays use the stable ordering-value model from Sections 5.4 and 8.7.
@@ -2381,12 +2629,14 @@ Explicit canonical numeric mapping keys are run-global ordering values at their 
 
 `merge=replace` removes the earlier visible sequence projection but does not lower the path's allocation high-water mark. Later automatic allocation therefore never reuses removed values; later explicit contributions may intentionally address a prior value unless permanently suppressed.
 
+<a id="spec-17-3"></a>
 ### 17.3 JSON and YAML
 
 JSON and YAML use the general merge rules directly.
 
 Raw serialized documents are never appended byte-for-byte.
 
+<a id="spec-17-4"></a>
 ### 17.4 XML
 
 XML uses the same principles adapted to XML node kinds.
@@ -2411,6 +2661,7 @@ When XML destination-fold intent is ambiguous, `filemerge=replace` provides dete
 
 When the effective destination `filemerge` strategy is `replace`, the later element's complete value—attributes, content tokens, comments, and children—replaces the earlier element. Singleton/sequence classification and recursive child merging are not applied to the replaced earlier element.
 
+<a id="spec-17-5"></a>
 ### 17.5 File-level collisions
 
 A canonical destination path is the portable-encoded relative path with `/` separators, no `.` or `..` segments, and no redundant separators. All output contributions are grouped by byte-identical canonical destination path before rendering.
@@ -2464,6 +2715,7 @@ If contributions have different output formats, the later contribution replaces 
 
 Cross-format collision is not a blocking error.
 
+<a id="spec-18"></a>
 ## 18. Scalar inference
 
 Scalar inference for untyped namespace values is locale-independent.
@@ -2496,8 +2748,10 @@ Thus decimal `1.0` remains `1.0`, decimal negative zero becomes `-0.0`, and the 
 
 Canonical decimal text and base-10 integer text are used by every output format and by interpolation. Numeric source spelling is never retained.
 
+<a id="spec-19"></a>
 ## 19. Output format rules
 
+<a id="spec-19-1"></a>
 ### 19.1 Namespace
 
 Namespace output emits ordered scalar projections:
@@ -2577,6 +2831,7 @@ XML node kinds such as ordinary text versus CDATA are not represented in ordinar
 
 When the selected output root is a bare scalar, namespace output retains the final concrete selector part as the emitted key. `root` prefixes that key rather than replacing it, as in Section 16.3.
 
+<a id="spec-19-2"></a>
 ### 19.2 Quoted namespace
 
 `quotednamespace` is defined as POSIX shell assignment output without `export`.
@@ -2604,6 +2859,7 @@ A null payload emits the text `null`, as in Section 19.1. Quoted namespace is na
 
 When the selected output root is a bare scalar, quoted namespace retains the final concrete selector part as the assignment name. `root` prefixes that name rather than replacing it, as in Section 16.3, and the parts are joined by the delimiter.
 
+<a id="spec-19-3"></a>
 ### 19.3 JSON
 
 JSON output:
@@ -2669,6 +2925,7 @@ A mapping key carries the Section 11.4 markers, so an attribute component `x` is
 
 Distinct logical paths must never both emit a member of one mapping under the same key. Escaping removes the ordinary case, so a collision now requires two components that are distinct in the model and spell one key regardless — but emitting both would produce a duplicate-key document that Section 9.3 forbids and that this specification's own reader rejects, so a mapping-key collision after projection is blocking `FLAT001`. A later contribution to the *same* logical path is an override under Section 4.4 and is never a collision; both colliding paths remain separately addressable, so an input may override either one to resolve the conflict.
 
+<a id="spec-19-4"></a>
 ### 19.4 YAML
 
 YAML output:
@@ -2766,6 +3023,7 @@ Comments have their own layout, and it is fixed here for the same reason the sca
 
 The comment text itself is written verbatim after that marker. It cannot contain LF: Section 4.5 admits no multi-line non-XML comment, and the one comment form that can — the standalone XML comment of Section 11.5 — never reaches a YAML destination, being discarded under Section 20.
 
+<a id="spec-19-5"></a>
 ### 19.5 XML
 
 XML output:
@@ -2925,6 +3183,7 @@ Generic payload text, child elements, CDATA, and comments occupy ordered XML con
 
 Unsupported comments or metadata converted from another format are discarded with summarized warnings.
 
+<a id="spec-19-6"></a>
 ### 19.6 INI
 
 INI output targets a conservative interoperable subset:
@@ -3000,6 +3259,7 @@ The rules above fix which lines are written and in which order. Their layout on 
 
 A blank line before each section header is the more conventional layout and every INI parser ignores it, so the choice here is presentational rather than semantic. It is made in favour of writing nothing, because a rule that writes no blank lines has no edge at the first section, no edge at an empty preamble, and no interaction with the comment rule, while a rule that writes one has three. An implementation that finds the output hard to read may not add spacing: the bytes are the contract.
 
+<a id="spec-20"></a>
 ## 20. Comments across formats
 
 Comments are preserved when both the source and destination support the common comment association:
@@ -3039,8 +3299,10 @@ For namespace and quoted-namespace output, comment text is normalized to LF and 
 
 When rendering a non-XML comment as XML, invalid XML comment sequences are normalized deterministically: every `--` is separated as `- -`, and a terminal `-` receives one trailing space.
 
+<a id="spec-21"></a>
 ## 21. Output planning, paths, and publication
 
+<a id="spec-21-1"></a>
 ### 21.1 Output-root confinement
 
 Every output path must remain inside `--output`.
@@ -3060,6 +3322,7 @@ The implementation must:
 
 Users requiring unrelated output roots should invoke the tool separately or choose a common parent output root.
 
+<a id="spec-21-2"></a>
 ### 21.2 Global validation and warning-policy gates
 
 Before opening or truncating any destination, the tool must:
@@ -3099,6 +3362,7 @@ filters only emitted text and cannot bypass the gate.
 invocation that requests that XML normalization and also enables `--fail-on-warning` refuses
 publication unless some earlier error already prevents the invocation from reaching this gate.
 
+<a id="spec-21-3"></a>
 ### 21.3 Direct publication
 
 After the validation gate:
@@ -3117,12 +3381,14 @@ The output root is considered semantically owned by one CLI invocation during pu
 
 The tool makes no atomic-publication guarantee. Its guarantee is instead that all semantic work and serialization complete before the first destination is opened.
 
+<a id="spec-21-4"></a>
 ### 21.4 Existing files
 
 Replacing an existing destination is allowed and is logged at information level.
 
 Replacing or merging because of two output declarations emits a warning as described under file collisions.
 
+<a id="spec-22"></a>
 ## 22. Diagnostics
 
 Every diagnostic must include, where applicable:
@@ -3284,6 +3550,7 @@ Deriving the identity from the artifacts rather than assigning it is what makes 
 
 `--version` reports the whole identifier as its `contract-bundle` field, so that a consumer, including an automated one, can determine exactly which contract a given binary implements and can cite it when reporting a defect.
 
+<a id="spec-23"></a>
 ## 23. Complexity and resource limits
 
 Let:
@@ -3352,6 +3619,7 @@ Configurable limits include:
 - output count;
 - output bytes.
 
+<a id="spec-24"></a>
 ## 24. Determinism requirements
 
 Given identical:
@@ -3409,8 +3677,10 @@ Results must not depend on:
 
 Logical line endings inside scalar data are LF. Serializers escape or encode them according to their format.
 
+<a id="spec-25"></a>
 ## 25. Backward-compatibility examples
 
+<a id="spec-25-1"></a>
 ### 25.1 Value override
 
 Input 1:
@@ -3431,6 +3701,7 @@ Result:
 a.x=2
 ```
 
+<a id="spec-25-2"></a>
 ### 25.2 Output ignore override
 
 Scheme:
@@ -3442,6 +3713,7 @@ a0.output=ignore
 
 Outputs XML for matching roots except `a0`.
 
+<a id="spec-25-3"></a>
 ### 25.3 Array concatenation
 
 Input 1:
@@ -3468,6 +3740,7 @@ a:
   - x: 3
 ```
 
+<a id="spec-25-4"></a>
 ### 25.4 YAML wildcard enrichment
 
 Input 1:
@@ -3496,6 +3769,7 @@ a:
     c: XXX
 ```
 
+<a id="spec-25-5"></a>
 ### 25.5 Typed reference
 
 JSON input:
@@ -3521,6 +3795,7 @@ JSON output contains:
 }
 ```
 
+<a id="spec-25-6"></a>
 ### 25.6 Strict literal reference-looking text
 
 Input:
@@ -3535,6 +3810,7 @@ Resulting scalar:
 ${yyyy-MM-dd SEVERITY MESSAGE}
 ```
 
+<a id="spec-25-7"></a>
 ### 25.7 Uniform root
 
 Scheme:
@@ -3546,6 +3822,7 @@ a.root=config.application
 
 All four outputs contain the equivalent `config.application` wrapper path.
 
+<a id="spec-25-8"></a>
 ### 25.8 Scalar and descendant overlay
 
 Input, in this source order:
@@ -3572,6 +3849,7 @@ a:
 
 The omitted scalar produces one shape-conflict warning. If `a.x=1` appears after the wildcard rule, the scalar shape wins instead.
 
+<a id="spec-25-9"></a>
 ### 25.9 Explicit ordering values and mapping escape
 
 Input:
@@ -3602,6 +3880,7 @@ a:
 
 Conversely, `type=array` converts an ordered mapping with nonnumeric keys to a sequence in mapping order.
 
+<a id="spec-25-10"></a>
 ### 25.10 Logical-path comments across override
 
 Input:
@@ -3631,6 +3910,7 @@ describe the file and would not move with `a` at all. Writing one entry ahead of
 8.5 means by "a source whose first entry needs a comment of its own must be written with that entry
 second", and without it this example would demonstrate the opposite of the rule it is here to show.
 
+<a id="spec-25-11"></a>
 ### 25.11 Permanent ignore mask
 
 Input:
@@ -3643,6 +3923,7 @@ b.*.z=9
 
 The generated `b.p.z` is suppressed. A later concrete or generated `b.p.z` remains suppressed for the rest of the run.
 
+<a id="spec-25-12"></a>
 ### 25.12 Stable matching versus dense rendering
 
 Input:
@@ -3658,6 +3939,7 @@ The surviving stable ordering values are `0` and `2`. A scheme directive or refe
 
 Namespace or INI sequence projection may render the surviving items densely as visible positions `0` and `1`. Dense output positions are serialization artifacts and never become new scheme, wildcard, or reference addresses.
 
+<a id="spec-25-13"></a>
 ### 25.13 XML sequence projection
 
 Input:
@@ -3685,10 +3967,12 @@ Output:
 
 If the selected output value itself is the sequence, `root=cfg.item` creates one `<cfg>` document element and repeated `<item>` children. `root=cfg` alone is insufficient because it would not provide distinct wrapper and item names.
 
+<a id="spec-25-14"></a>
 ### 25.14 XML singleton promotion
 
 One XML child `<a><b>one</b></a>` exposes element/scalar path `a.b`. After another contribution adds a second `<b>`, canonical paths become `a.b.0` and `a.b.1`. The old `a.b` path is not silently redirected to either item.
 
+<a id="spec-26"></a>
 ## 26. Acceptance requirements
 
 An implementation is conforming only when automated black-box tests cover:
@@ -3786,6 +4070,7 @@ An implementation is conforming only when automated black-box tests cover:
 91. Unused input-source accounting: `WARN014` once per admitted source occurrence whose surviving eligible concrete paths are outside every effective output selector and successful reachable reference target, with deterministic source/path attribution; no warning for selected but overwritten data, reachable reference-only support data, deliberate `output=ignore` selection, wholly masked data, ineligible source-only content, or a run with no non-empty non-ignored pre-transformation view.
 92. The opt-in `--fail-on-warning` policy: valueless and repeatable CLI grammar with unchanged informational-mode precedence and default behavior; complete warning retention through serialization; refusal of all publication without changing diagnostic semantics or pre-existing destination bytes; an explicit warning-policy result with `Published = 0` and exit code `1`; and independence from the emitted verbosity threshold.
 
+<a id="spec-27"></a>
 ## 27. Deferred features
 
 The following are intentionally deferred and must not be implemented implicitly:
@@ -3808,6 +4093,7 @@ The following are intentionally deferred and must not be implemented implicitly:
 
 Adding a deferred feature requires an explicit specification update and compatibility tests.
 
+<a id="spec-a"></a>
 ## Appendix A. Namespace and reference grammar
 
 This appendix is normative. It uses ABNF notation from RFC 5234 with the following Unicode extension:
@@ -3816,6 +4102,7 @@ This appendix is normative. It uses ABNF notation from RFC 5234 with the followi
 - semantic predicates written below the grammar remain normative where pure ABNF cannot express escape context or typed-component recognition;
 - parsing is performed on decoded Unicode text after Section 7.4 encoding validation.
 
+<a id="spec-a-1"></a>
 ### A.1 Physical records
 
 ```abnf
@@ -3837,6 +4124,7 @@ A separating `=` is defined in Section 8.1: an unescaped `=` outside a `Q{...}` 
 
 `U+0085`, `U+2028`, and `U+2029` are `record-scalar`, not `line-end`.
 
+<a id="spec-a-2"></a>
 ### A.2 Qualified names
 
 ```abnf
@@ -3876,6 +4164,7 @@ Semantic requirements:
 - an escaped leading marker creates an ordinary component;
 - wildcard tokens are legal only in contexts whose effective `substitute` mode enables name interpretation. Where that mode is `None`, an unescaped `*` is instead an `ordinary-scalar` carrying its own literal character, which is how Section 13.4's "`substitute=None` disables interpretation in names" is realized in this grammar; the two exclusions above are complementary, so an unescaped `*` is always exactly one of the two and never unparseable.
 
+<a id="spec-a-3"></a>
 ### A.3 Namespace values
 
 ```abnf
@@ -3895,6 +4184,7 @@ A trailing backslash with no following scalar matches `value-scalar` and emits i
 
 The Section 8.3 container sentinels are recognized before this tokenization begins and are not part of it. A value is compared as raw text against `{}`, `[]`, `\{}`, and `\[]` first; only a value matching none of the four reaches the productions above.
 
+<a id="spec-a-4"></a>
 ### A.4 References
 
 ```abnf
@@ -3904,6 +4194,7 @@ reference-name  = qname
 
 The closing brace is the first unescaped `}` outside a `Q{...}` URI. Wildcard syntax in `reference-name` is legal only for explicit captures bound by the owning template. A legacy bare `*`, malformed name, free capture, or missing terminator is `REFERENCE001`.
 
+<a id="spec-a-5"></a>
 ### A.5 Decoded native-string escape transducer
 
 JSON, YAML, and XML strings have already been decoded by their native parser and do not use `namespace-value` ABNF. They use this deterministic transducer:
@@ -3914,10 +4205,12 @@ JSON, YAML, and XML strings have already been decoded by their native parser and
 4. any other backslash emits itself and consumes no following scalar;
 5. emitted text is never rescanned.
 
+<a id="spec-a-6"></a>
 ### A.6 Output delimiter disambiguation
 
 Delimiter escaping in Section 16.4 is an output encoding phase, not part of input ABNF. It runs before ordinary namespace name escaping, emits atomic `\u{HEX}` text, and never rescans emitted escapes.
 
+<a id="spec-b"></a>
 ## Appendix B. Normative diagnostic mapping
 
 Every blocking or warning condition maps to exactly one most-specific code. This table supplements the registry in Section 22.
@@ -3976,6 +4269,7 @@ When a sentence could match several rows, the narrowest row wins. In particular:
 
 Elsewhere in this specification, an otherwise unqualified phrase maps as follows: "blocking parse error" to `PARSE001`, "blocking scheme error" to `SCHEME001`, "blocking wildcard error" to `WILDCARD001`, "blocking reference error" to the most specific `REFERENCE001` through `REFERENCE005`, "blocking type error" to `TYPE001`, "blocking path error" to `PATH001`, and "blocking serialization error" to `SERIALIZE001`.
 
+<a id="spec-c"></a>
 ## Appendix C. Conformance fixture format
 
 The portable conformance corpus uses one directory per case:
@@ -3996,6 +4290,7 @@ conformance/<case-name>/
 
 The harness never runs a case in place. It copies the case into a fresh working directory per run, so that repeated runs and the Section C.7 determinism matrix always start from an unpolluted output root. The reserved names above belong to the fixture; every other path under the working directory after a run is a produced destination and is compared against `expected/`.
 
+<a id="spec-c-1"></a>
 ### C.1 `args.txt`
 
 - UTF-8 without BOM and LF line endings;
@@ -4007,14 +4302,17 @@ The harness never runs a case in place. It copies the case into a fresh working 
 
 The harness invokes the compatibility command with these tokens and sets the working directory to the case directory.
 
+<a id="spec-c-2"></a>
 ### C.2 Inputs and schemes
 
 `inputs/` and `schemes/` contain immutable fixture files. `args.txt` determines their processing order; directory enumeration order is irrelevant.
 
+<a id="spec-c-3"></a>
 ### C.3 Expected output tree
 
 `expected/` contains the complete expected output-root tree. Every file is compared byte-for-byte. Unexpected, missing, differently cased, or differently normalized paths fail the case. An absent `expected/` directory means no destination may be created.
 
+<a id="spec-c-4"></a>
 ### C.4 Expected diagnostics
 
 `expected-diagnostics.json` is the exact content of the `json` diagnostic stream defined in Section 6.4.3: a UTF-8 JSON array in normative emission order, using that section's byte layout and closed schema. The member catalogue below is exploded across lines so that each member can be annotated; it is **not** the emitted layout. Section 6.4.3 requires each element to be one compact object on its own line, and a fixture is compared as literal text, so an expected file written in the layout below will fail every case. A conforming single element is:
@@ -4052,6 +4350,7 @@ Run B's token vector is formed as follows. When the case supplies `args-diagnost
 
 Run B's stream is validated in three steps: it must parse as JSON, it must conform to the Section 6.4.3 schema and byte layout, and it must match `expected-diagnostics.json` structurally. Structural matching compares array length, element order, and every member exactly, except that `message` is never compared and `spec` is compared only when the expected object declares it. Codes, severities, phases, structured fields, cardinality, and array order are therefore compared exactly, while localized prose and specification renumbering do not invalidate the corpus.
 
+<a id="spec-c-5"></a>
 ### C.5 Exit code, standard output, and requirement traceability
 
 `expected-exit-code.txt` contains one ASCII decimal exit code followed by LF.
@@ -4086,6 +4385,7 @@ A named gate must exist, and that is itself checked: a gate naming a test must r
 
 A reference is a claim, and a number in a text file costs nothing to write and nothing to keep true. The manifest must therefore name exactly the fixtures that reference each item, so that adding, removing, or silently retargeting a claim fails the gate until the manifest is re-authored and reviewed. This holds for every item and not only for the ones marked `required`: restricting it to `required` items lets a pending item quietly accumulate fixtures the manifest never records, so the manifest understates coverage exactly where coverage is still being built and is most worth reading. For an item the manifest marks `required`, one further condition holds. Each of the fixtures naming it must carry at least one expectation beyond its exit code: an expected output tree, an expected standard output, or a declared diagnostic stream. Declaring the empty array is such an expectation, because Appendix C.4 distinguishes it from writing no stream at all and the distinction is observable; declaring nothing at all is not, because an exit code alone distinguishes too little to be evidence that the item was exercised.
 
+<a id="spec-c-6"></a>
 ### C.6 Legacy differential metadata
 
 `legacy.md` is required for a Section 3 compatibility or correction case. It records:
@@ -4115,6 +4415,7 @@ The differential baseline is the published namespace2xml 2.4.0 .NET tool and the
 
 The harness must establish that the required runtime is available before it observes anything, and must never treat a failure to launch as a baseline result. A host that cannot find the runtime reports what is indistinguishable, after the fact, from a tool that wrote nothing and exited nonzero. The confusion is not symmetric: a baseline that never started diverges from every case's expected result, so it fails each `agrees` case and *confirms* every `differs` and `fails` one. The lane then reports a plausible list of apparently wrong verdicts whose obvious repair — flipping them — turns the entire differential corpus green while measuring nothing, and Section 3 would afterwards rest on a binary that was never executed. The absence of the runtime is therefore a failure of the lane itself, reported as such and distinguishable from any case's verdict, and never evidence about 2.4.0.
 
+<a id="spec-c-7"></a>
 ### C.7 Determinism runs
 
 Every successful fixture is repeated under:

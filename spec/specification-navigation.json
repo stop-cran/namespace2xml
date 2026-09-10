@@ -1,0 +1,893 @@
+{
+  "generatedBy": "tools/sync-specification-navigation.ps1",
+  "clauses": [
+    {
+      "section": "1",
+      "anchor": "spec-1",
+      "level": 2,
+      "heading": "1. Purpose"
+    },
+    {
+      "section": "2",
+      "anchor": "spec-2",
+      "level": 2,
+      "heading": "2. Normative language"
+    },
+    {
+      "section": "3",
+      "anchor": "spec-3",
+      "level": 2,
+      "heading": "3. Compatibility policy"
+    },
+    {
+      "section": "3.1",
+      "anchor": "spec-3-1",
+      "level": 3,
+      "heading": "3.1 Preserved behavior"
+    },
+    {
+      "section": "3.2",
+      "anchor": "spec-3-2",
+      "level": 3,
+      "heading": "3.2 Deliberately corrected behavior"
+    },
+    {
+      "section": "3.3",
+      "anchor": "spec-3-3",
+      "level": 3,
+      "heading": "3.3 Round-trip guarantees"
+    },
+    {
+      "section": "4",
+      "anchor": "spec-4",
+      "level": 2,
+      "heading": "4. Ordered typed document model"
+    },
+    {
+      "section": "4.1",
+      "anchor": "spec-4-1",
+      "level": 3,
+      "heading": "4.1 Document"
+    },
+    {
+      "section": "4.2",
+      "anchor": "spec-4-2",
+      "level": 3,
+      "heading": "4.2 Overlay nodes"
+    },
+    {
+      "section": "4.3",
+      "anchor": "spec-4-3",
+      "level": 3,
+      "heading": "4.3 Scalar kinds"
+    },
+    {
+      "section": "4.4",
+      "anchor": "spec-4-4",
+      "level": 3,
+      "heading": "4.4 Shape contributions"
+    },
+    {
+      "section": "4.5",
+      "anchor": "spec-4-5",
+      "level": 3,
+      "heading": "4.5 Comments"
+    },
+    {
+      "section": "4.6",
+      "anchor": "spec-4-6",
+      "level": 3,
+      "heading": "4.6 XML nodes"
+    },
+    {
+      "section": "4.7",
+      "anchor": "spec-4-7",
+      "level": 3,
+      "heading": "4.7 Identity and order"
+    },
+    {
+      "section": "5",
+      "anchor": "spec-5",
+      "level": 2,
+      "heading": "5. Universal ordering and precedence"
+    },
+    {
+      "section": "5.1",
+      "anchor": "spec-5-1",
+      "level": 3,
+      "heading": "5.1 Source order"
+    },
+    {
+      "section": "5.2",
+      "anchor": "spec-5-2",
+      "level": 3,
+      "heading": "5.2 Mapping order after override"
+    },
+    {
+      "section": "5.3",
+      "anchor": "spec-5-3",
+      "level": 3,
+      "heading": "5.3 Generated-entry order"
+    },
+    {
+      "section": "5.4",
+      "anchor": "spec-5-4",
+      "level": 3,
+      "heading": "5.4 Sequence order"
+    },
+    {
+      "section": "6",
+      "anchor": "spec-6",
+      "level": 2,
+      "heading": "6. Command-line interface"
+    },
+    {
+      "section": "6.1",
+      "anchor": "spec-6-1",
+      "level": 3,
+      "heading": "6.1 Invocation"
+    },
+    {
+      "section": "6.2",
+      "anchor": "spec-6-2",
+      "level": 3,
+      "heading": "6.2 Options"
+    },
+    {
+      "section": "6.3",
+      "anchor": "spec-6-3",
+      "level": 3,
+      "heading": "6.3 Exit codes"
+    },
+    {
+      "section": "6.4",
+      "anchor": "spec-6-4",
+      "level": 3,
+      "heading": "6.4 Diagnostic stream encoding"
+    },
+    {
+      "section": "6.4.1",
+      "anchor": "spec-6-4-1",
+      "level": 4,
+      "heading": "6.4.1 Format pre-scan"
+    },
+    {
+      "section": "6.4.2",
+      "anchor": "spec-6-4-2",
+      "level": 4,
+      "heading": "6.4.2 `text` encoding"
+    },
+    {
+      "section": "6.4.3",
+      "anchor": "spec-6-4-3",
+      "level": 4,
+      "heading": "6.4.3 `json` encoding"
+    },
+    {
+      "section": "7",
+      "anchor": "spec-7",
+      "level": 2,
+      "heading": "7. Input discovery and reading"
+    },
+    {
+      "section": "7.1",
+      "anchor": "spec-7-1",
+      "level": 3,
+      "heading": "7.1 File extensions"
+    },
+    {
+      "section": "7.2",
+      "anchor": "spec-7-2",
+      "level": 3,
+      "heading": "7.2 Missing files"
+    },
+    {
+      "section": "7.3",
+      "anchor": "spec-7-3",
+      "level": 3,
+      "heading": "7.3 Parsing concurrency"
+    },
+    {
+      "section": "7.4",
+      "anchor": "spec-7-4",
+      "level": 3,
+      "heading": "7.4 Character encoding"
+    },
+    {
+      "section": "8",
+      "anchor": "spec-8",
+      "level": 2,
+      "heading": "8. Namespace profile language"
+    },
+    {
+      "section": "8.1",
+      "anchor": "spec-8-1",
+      "level": 3,
+      "heading": "8.1 Entry"
+    },
+    {
+      "section": "8.2",
+      "anchor": "spec-8-2",
+      "level": 3,
+      "heading": "8.2 Qualified names"
+    },
+    {
+      "section": "8.3",
+      "anchor": "spec-8-3",
+      "level": 3,
+      "heading": "8.3 Value escapes"
+    },
+    {
+      "section": "8.4",
+      "anchor": "spec-8-4",
+      "level": 3,
+      "heading": "8.4 References"
+    },
+    {
+      "section": "8.5",
+      "anchor": "spec-8-5",
+      "level": 3,
+      "heading": "8.5 Comments"
+    },
+    {
+      "section": "8.6",
+      "anchor": "spec-8-6",
+      "level": 3,
+      "heading": "8.6 Ignore entries"
+    },
+    {
+      "section": "8.7",
+      "anchor": "spec-8-7",
+      "level": 3,
+      "heading": "8.7 Numeric paths and ordered sequences"
+    },
+    {
+      "section": "9",
+      "anchor": "spec-9",
+      "level": 2,
+      "heading": "9. JSON input"
+    },
+    {
+      "section": "9.1",
+      "anchor": "spec-9-1",
+      "level": 3,
+      "heading": "9.1 Supported features"
+    },
+    {
+      "section": "9.2",
+      "anchor": "spec-9-2",
+      "level": 3,
+      "heading": "9.2 Unsupported features"
+    },
+    {
+      "section": "9.3",
+      "anchor": "spec-9-3",
+      "level": 3,
+      "heading": "9.3 Duplicate keys"
+    },
+    {
+      "section": "10",
+      "anchor": "spec-10",
+      "level": 2,
+      "heading": "10. YAML input"
+    },
+    {
+      "section": "10.1",
+      "anchor": "spec-10-1",
+      "level": 3,
+      "heading": "10.1 Supported features"
+    },
+    {
+      "section": "10.2",
+      "anchor": "spec-10-2",
+      "level": 3,
+      "heading": "10.2 Deliberately unsupported features"
+    },
+    {
+      "section": "10.3",
+      "anchor": "spec-10-3",
+      "level": 3,
+      "heading": "10.3 Multiple documents"
+    },
+    {
+      "section": "10.4",
+      "anchor": "spec-10-4",
+      "level": 3,
+      "heading": "10.4 Wildcard templates supplied as YAML"
+    },
+    {
+      "section": "11",
+      "anchor": "spec-11",
+      "level": 2,
+      "heading": "11. XML input"
+    },
+    {
+      "section": "11.1",
+      "anchor": "spec-11-1",
+      "level": 3,
+      "heading": "11.1 Secure parser configuration"
+    },
+    {
+      "section": "11.2",
+      "anchor": "spec-11-2",
+      "level": 3,
+      "heading": "11.2 Supported XML subset"
+    },
+    {
+      "section": "11.3",
+      "anchor": "spec-11-3",
+      "level": 3,
+      "heading": "11.3 Mixed content"
+    },
+    {
+      "section": "11.4",
+      "anchor": "spec-11-4",
+      "level": 3,
+      "heading": "11.4 Canonical XML addressing"
+    },
+    {
+      "section": "11.5",
+      "anchor": "spec-11-5",
+      "level": 3,
+      "heading": "11.5 XML comments"
+    },
+    {
+      "section": "11.6",
+      "anchor": "spec-11-6",
+      "level": 3,
+      "heading": "11.6 CDATA"
+    },
+    {
+      "section": "11.7",
+      "anchor": "spec-11-7",
+      "level": 3,
+      "heading": "11.7 Whitespace"
+    },
+    {
+      "section": "11.8",
+      "anchor": "spec-11-8",
+      "level": 3,
+      "heading": "11.8 Unsupported XML features"
+    },
+    {
+      "section": "12",
+      "anchor": "spec-12",
+      "level": 2,
+      "heading": "12. Wildcard templates"
+    },
+    {
+      "section": "12.1",
+      "anchor": "spec-12-1",
+      "level": 3,
+      "heading": "12.1 Legacy captures"
+    },
+    {
+      "section": "12.2",
+      "anchor": "spec-12-2",
+      "level": 3,
+      "heading": "12.2 Explicit captures"
+    },
+    {
+      "section": "12.3",
+      "anchor": "spec-12-3",
+      "level": 3,
+      "heading": "12.3 Matching scope"
+    },
+    {
+      "section": "12.4",
+      "anchor": "spec-12-4",
+      "level": 3,
+      "heading": "12.4 Fixed-point evaluation"
+    },
+    {
+      "section": "12.5",
+      "anchor": "spec-12-5",
+      "level": 3,
+      "heading": "12.5 Duplicate generated names"
+    },
+    {
+      "section": "13",
+      "anchor": "spec-13",
+      "level": 2,
+      "heading": "13. References"
+    },
+    {
+      "section": "13.1",
+      "anchor": "spec-13-1",
+      "level": 3,
+      "heading": "13.1 Resolution"
+    },
+    {
+      "section": "13.2",
+      "anchor": "spec-13-2",
+      "level": 3,
+      "heading": "13.2 Type forwarding"
+    },
+    {
+      "section": "13.3",
+      "anchor": "spec-13-3",
+      "level": 3,
+      "heading": "13.3 Non-scalar references"
+    },
+    {
+      "section": "13.4",
+      "anchor": "spec-13-4",
+      "level": 3,
+      "heading": "13.4 Disabled substitution"
+    },
+    {
+      "section": "14",
+      "anchor": "spec-14",
+      "level": 2,
+      "heading": "14. Output filtering"
+    },
+    {
+      "section": "14.1",
+      "anchor": "spec-14-1",
+      "level": 3,
+      "heading": "14.1 Concrete output instances"
+    },
+    {
+      "section": "14.2",
+      "anchor": "spec-14-2",
+      "level": 3,
+      "heading": "14.2 Strict prefix semantics"
+    },
+    {
+      "section": "14.3",
+      "anchor": "spec-14-3",
+      "level": 3,
+      "heading": "14.3 Templates"
+    },
+    {
+      "section": "14.4",
+      "anchor": "spec-14-4",
+      "level": 3,
+      "heading": "14.4 Reference closure"
+    },
+    {
+      "section": "14.5",
+      "anchor": "spec-14-5",
+      "level": 3,
+      "heading": "14.5 Unused input-source accounting"
+    },
+    {
+      "section": "15",
+      "anchor": "spec-15",
+      "level": 2,
+      "heading": "15. Scheme language"
+    },
+    {
+      "section": "15.1",
+      "anchor": "spec-15-1",
+      "level": 3,
+      "heading": "15.1 Scheme loading phases"
+    },
+    {
+      "section": "15.2",
+      "anchor": "spec-15-2",
+      "level": 3,
+      "heading": "15.2 Directive precedence"
+    },
+    {
+      "section": "15.3",
+      "anchor": "spec-15-3",
+      "level": 3,
+      "heading": "15.3 Deprecated aliases"
+    },
+    {
+      "section": "15.4",
+      "anchor": "spec-15-4",
+      "level": 3,
+      "heading": "15.4 Blocking-error recovery"
+    },
+    {
+      "section": "16",
+      "anchor": "spec-16",
+      "level": 2,
+      "heading": "16. Scheme directives"
+    },
+    {
+      "section": "16.1",
+      "anchor": "spec-16-1",
+      "level": 3,
+      "heading": "16.1 `output`"
+    },
+    {
+      "section": "16.2",
+      "anchor": "spec-16-2",
+      "level": 3,
+      "heading": "16.2 `filename`"
+    },
+    {
+      "section": "16.3",
+      "anchor": "spec-16-3",
+      "level": 3,
+      "heading": "16.3 `root`"
+    },
+    {
+      "section": "16.4",
+      "anchor": "spec-16-4",
+      "level": 3,
+      "heading": "16.4 `delimiter`"
+    },
+    {
+      "section": "16.5",
+      "anchor": "spec-16-5",
+      "level": 3,
+      "heading": "16.5 `key`"
+    },
+    {
+      "section": "16.6",
+      "anchor": "spec-16-6",
+      "level": 3,
+      "heading": "16.6 `type`"
+    },
+    {
+      "section": "16.7",
+      "anchor": "spec-16-7",
+      "level": 3,
+      "heading": "16.7 `substitute`"
+    },
+    {
+      "section": "16.8",
+      "anchor": "spec-16-8",
+      "level": 3,
+      "heading": "16.8 Format input options"
+    },
+    {
+      "section": "16.9",
+      "anchor": "spec-16-9",
+      "level": 3,
+      "heading": "16.9 Format output options"
+    },
+    {
+      "section": "16.10",
+      "anchor": "spec-16-10",
+      "level": 3,
+      "heading": "16.10 `merge`"
+    },
+    {
+      "section": "16.11",
+      "anchor": "spec-16-11",
+      "level": 3,
+      "heading": "16.11 `filemerge`"
+    },
+    {
+      "section": "17",
+      "anchor": "spec-17",
+      "level": 2,
+      "heading": "17. Merge semantics"
+    },
+    {
+      "section": "17.1",
+      "anchor": "spec-17-1",
+      "level": 3,
+      "heading": "17.1 General deep merge"
+    },
+    {
+      "section": "17.2",
+      "anchor": "spec-17-2",
+      "level": 3,
+      "heading": "17.2 Arrays"
+    },
+    {
+      "section": "17.3",
+      "anchor": "spec-17-3",
+      "level": 3,
+      "heading": "17.3 JSON and YAML"
+    },
+    {
+      "section": "17.4",
+      "anchor": "spec-17-4",
+      "level": 3,
+      "heading": "17.4 XML"
+    },
+    {
+      "section": "17.5",
+      "anchor": "spec-17-5",
+      "level": 3,
+      "heading": "17.5 File-level collisions"
+    },
+    {
+      "section": "18",
+      "anchor": "spec-18",
+      "level": 2,
+      "heading": "18. Scalar inference"
+    },
+    {
+      "section": "19",
+      "anchor": "spec-19",
+      "level": 2,
+      "heading": "19. Output format rules"
+    },
+    {
+      "section": "19.1",
+      "anchor": "spec-19-1",
+      "level": 3,
+      "heading": "19.1 Namespace"
+    },
+    {
+      "section": "19.2",
+      "anchor": "spec-19-2",
+      "level": 3,
+      "heading": "19.2 Quoted namespace"
+    },
+    {
+      "section": "19.3",
+      "anchor": "spec-19-3",
+      "level": 3,
+      "heading": "19.3 JSON"
+    },
+    {
+      "section": "19.4",
+      "anchor": "spec-19-4",
+      "level": 3,
+      "heading": "19.4 YAML"
+    },
+    {
+      "section": "19.5",
+      "anchor": "spec-19-5",
+      "level": 3,
+      "heading": "19.5 XML"
+    },
+    {
+      "section": "19.6",
+      "anchor": "spec-19-6",
+      "level": 3,
+      "heading": "19.6 INI"
+    },
+    {
+      "section": "20",
+      "anchor": "spec-20",
+      "level": 2,
+      "heading": "20. Comments across formats"
+    },
+    {
+      "section": "21",
+      "anchor": "spec-21",
+      "level": 2,
+      "heading": "21. Output planning, paths, and publication"
+    },
+    {
+      "section": "21.1",
+      "anchor": "spec-21-1",
+      "level": 3,
+      "heading": "21.1 Output-root confinement"
+    },
+    {
+      "section": "21.2",
+      "anchor": "spec-21-2",
+      "level": 3,
+      "heading": "21.2 Global validation and warning-policy gates"
+    },
+    {
+      "section": "21.3",
+      "anchor": "spec-21-3",
+      "level": 3,
+      "heading": "21.3 Direct publication"
+    },
+    {
+      "section": "21.4",
+      "anchor": "spec-21-4",
+      "level": 3,
+      "heading": "21.4 Existing files"
+    },
+    {
+      "section": "22",
+      "anchor": "spec-22",
+      "level": 2,
+      "heading": "22. Diagnostics"
+    },
+    {
+      "section": "23",
+      "anchor": "spec-23",
+      "level": 2,
+      "heading": "23. Complexity and resource limits"
+    },
+    {
+      "section": "24",
+      "anchor": "spec-24",
+      "level": 2,
+      "heading": "24. Determinism requirements"
+    },
+    {
+      "section": "25",
+      "anchor": "spec-25",
+      "level": 2,
+      "heading": "25. Backward-compatibility examples"
+    },
+    {
+      "section": "25.1",
+      "anchor": "spec-25-1",
+      "level": 3,
+      "heading": "25.1 Value override"
+    },
+    {
+      "section": "25.2",
+      "anchor": "spec-25-2",
+      "level": 3,
+      "heading": "25.2 Output ignore override"
+    },
+    {
+      "section": "25.3",
+      "anchor": "spec-25-3",
+      "level": 3,
+      "heading": "25.3 Array concatenation"
+    },
+    {
+      "section": "25.4",
+      "anchor": "spec-25-4",
+      "level": 3,
+      "heading": "25.4 YAML wildcard enrichment"
+    },
+    {
+      "section": "25.5",
+      "anchor": "spec-25-5",
+      "level": 3,
+      "heading": "25.5 Typed reference"
+    },
+    {
+      "section": "25.6",
+      "anchor": "spec-25-6",
+      "level": 3,
+      "heading": "25.6 Strict literal reference-looking text"
+    },
+    {
+      "section": "25.7",
+      "anchor": "spec-25-7",
+      "level": 3,
+      "heading": "25.7 Uniform root"
+    },
+    {
+      "section": "25.8",
+      "anchor": "spec-25-8",
+      "level": 3,
+      "heading": "25.8 Scalar and descendant overlay"
+    },
+    {
+      "section": "25.9",
+      "anchor": "spec-25-9",
+      "level": 3,
+      "heading": "25.9 Explicit ordering values and mapping escape"
+    },
+    {
+      "section": "25.10",
+      "anchor": "spec-25-10",
+      "level": 3,
+      "heading": "25.10 Logical-path comments across override"
+    },
+    {
+      "section": "25.11",
+      "anchor": "spec-25-11",
+      "level": 3,
+      "heading": "25.11 Permanent ignore mask"
+    },
+    {
+      "section": "25.12",
+      "anchor": "spec-25-12",
+      "level": 3,
+      "heading": "25.12 Stable matching versus dense rendering"
+    },
+    {
+      "section": "25.13",
+      "anchor": "spec-25-13",
+      "level": 3,
+      "heading": "25.13 XML sequence projection"
+    },
+    {
+      "section": "25.14",
+      "anchor": "spec-25-14",
+      "level": 3,
+      "heading": "25.14 XML singleton promotion"
+    },
+    {
+      "section": "26",
+      "anchor": "spec-26",
+      "level": 2,
+      "heading": "26. Acceptance requirements"
+    },
+    {
+      "section": "27",
+      "anchor": "spec-27",
+      "level": 2,
+      "heading": "27. Deferred features"
+    },
+    {
+      "section": "A",
+      "anchor": "spec-a",
+      "level": 2,
+      "heading": "Appendix A. Namespace and reference grammar"
+    },
+    {
+      "section": "A.1",
+      "anchor": "spec-a-1",
+      "level": 3,
+      "heading": "A.1 Physical records"
+    },
+    {
+      "section": "A.2",
+      "anchor": "spec-a-2",
+      "level": 3,
+      "heading": "A.2 Qualified names"
+    },
+    {
+      "section": "A.3",
+      "anchor": "spec-a-3",
+      "level": 3,
+      "heading": "A.3 Namespace values"
+    },
+    {
+      "section": "A.4",
+      "anchor": "spec-a-4",
+      "level": 3,
+      "heading": "A.4 References"
+    },
+    {
+      "section": "A.5",
+      "anchor": "spec-a-5",
+      "level": 3,
+      "heading": "A.5 Decoded native-string escape transducer"
+    },
+    {
+      "section": "A.6",
+      "anchor": "spec-a-6",
+      "level": 3,
+      "heading": "A.6 Output delimiter disambiguation"
+    },
+    {
+      "section": "B",
+      "anchor": "spec-b",
+      "level": 2,
+      "heading": "Appendix B. Normative diagnostic mapping"
+    },
+    {
+      "section": "C",
+      "anchor": "spec-c",
+      "level": 2,
+      "heading": "Appendix C. Conformance fixture format"
+    },
+    {
+      "section": "C.1",
+      "anchor": "spec-c-1",
+      "level": 3,
+      "heading": "C.1 `args.txt`"
+    },
+    {
+      "section": "C.2",
+      "anchor": "spec-c-2",
+      "level": 3,
+      "heading": "C.2 Inputs and schemes"
+    },
+    {
+      "section": "C.3",
+      "anchor": "spec-c-3",
+      "level": 3,
+      "heading": "C.3 Expected output tree"
+    },
+    {
+      "section": "C.4",
+      "anchor": "spec-c-4",
+      "level": 3,
+      "heading": "C.4 Expected diagnostics"
+    },
+    {
+      "section": "C.5",
+      "anchor": "spec-c-5",
+      "level": 3,
+      "heading": "C.5 Exit code, standard output, and requirement traceability"
+    },
+    {
+      "section": "C.6",
+      "anchor": "spec-c-6",
+      "level": 3,
+      "heading": "C.6 Legacy differential metadata"
+    },
+    {
+      "section": "C.7",
+      "anchor": "spec-c-7",
+      "level": 3,
+      "heading": "C.7 Determinism runs"
+    }
+  ]
+}

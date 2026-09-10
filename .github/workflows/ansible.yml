@@ -164,22 +164,18 @@ jobs:
         with:
           python-version: '3.13'
 
-      # ansible/docs/diagnostics.md is a copy of the repository's registry. A collection tarball
-      # cannot reach outside its own directory, and a symlink does not survive `ansible-galaxy
-      # collection build` on every platform, so a copy is the only way to put it in a consumer's
-      # hands offline. A copy nothing checks is a copy that goes stale silently, and a stale
-      # diagnostic registry is worse than an absent one: it answers, and the answer is wrong.
-      - name: The shipped diagnostic registry is the repository's, byte for byte
+      # The collection copy uses immutable absolute links because its tarball cannot resolve paths
+      # outside ansible/. Both copies are rendered from one model, then compared after normalizing
+      # only those approved link bases; arbitrary prose drift remains a failure.
+      - name: The shipped diagnostic registry matches the repository model
         shell: bash
         run: |
           set -euo pipefail
-          if ! cmp -s docs/diagnostics.md ansible/docs/diagnostics.md; then
-            echo "::error::ansible/docs/diagnostics.md has drifted from docs/diagnostics.md"
-            diff -u docs/diagnostics.md ansible/docs/diagnostics.md || true
-            echo "Copy it across: cp docs/diagnostics.md ansible/docs/diagnostics.md"
-            exit 1
-          fi
-          echo "diagnostics.md is identical in both locations"
+          python -m pip install --quiet --disable-pip-version-check PyYAML
+          pwsh -NoProfile -File tools/sync-docs.ps1 -DiagnosticsOnly
+          git diff --exit-code -- docs/diagnostics.md ansible/docs/diagnostics.md
+          python tools/sync-ansible-doc-links.py --check-diagnostic-docs \
+            docs/diagnostics.md ansible/docs/diagnostics.md
 
       - name: Install ansible-core
         shell: bash

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Shouldly;
@@ -17,10 +18,10 @@ namespace Namespace2Xml.UnitTests;
 /// <c>--diagnostics-format json</c> unchallenged.
 /// </para>
 /// <para>
-/// This gate is deliberately structural rather than a table of expected anchors: a table would
-/// restate the source it is checking and pass whatever the source happens to say. Resolving each
-/// anchor against the specification's own headings asks an independent question, and it is the
-/// question that renumbering an amended specification would make interesting.
+/// This gate is deliberately structural rather than a table of expected anchors. The navigation
+/// generator is the only parser for specification clause headings; its generated manifest lets
+/// this test verify the emitted C# values and rendered targets without maintaining a second,
+/// subtly different heading grammar.
 /// </para>
 /// <para>
 /// It does not, and cannot mechanically, check that an anchor names the <em>right</em> clause —
@@ -37,17 +38,15 @@ public class SpecificationAnchorTests
         @"\\u00A7(?<section>(?:\d+(?:\.\d+)*|[A-Z](?:\.\d+)*))",
         RegexOptions.ExplicitCapture | RegexOptions.CultureInvariant);
 
-    /// <summary>
-    /// A numbered or appendix heading. The trailing dot is optional because the specification
-    /// writes "## 23. Complexity" but "### 7.3 Parsing concurrency".
-    /// </summary>
-    private static readonly Regex Heading = new(
-        @"^\#{2,4}[ ](?:Appendix[ ])?(?<section>(?:\d+(?:\.\d+)*|[A-Z](?:\.\d+)*))\.?(?:[ ]|$)",
-        RegexOptions.ExplicitCapture | RegexOptions.CultureInvariant | RegexOptions.Multiline);
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
 
-    private static HashSet<string> Sections { get; } = Heading
-        .Matches(File.ReadAllText(RepositoryLayout.Specification))
-        .Select(match => match.Groups["section"].Value)
+    private static IReadOnlyList<Clause> Clauses { get; } = LoadClauses();
+
+    private static HashSet<string> Sections { get; } = Clauses
+        .Select(clause => clause.Section)
         .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
@@ -65,6 +64,21 @@ public class SpecificationAnchorTests
     /// declares an unknown one a blocking error before section 15.1 begins.
     /// </summary>
     private static HashSet<string> PreambleRules { get; } = new(StringComparer.Ordinal) { "15" };
+
+    private sealed record Clause(string Section, string Anchor, int Level, string Heading);
+
+    private sealed record NavigationManifest(string GeneratedBy, IReadOnlyList<Clause> Clauses);
+
+    private static IReadOnlyList<Clause> LoadClauses()
+    {
+        var manifest = JsonSerializer.Deserialize<NavigationManifest>(
+            File.ReadAllText(RepositoryLayout.SpecificationNavigation),
+            JsonOptions);
+
+        manifest.ShouldNotBeNull("the specification-navigation manifest must be valid JSON");
+        manifest.GeneratedBy.ShouldBe("tools/sync-specification-navigation.ps1");
+        return manifest.Clauses;
+    }
 
     private static IEnumerable<TestCaseData> Anchors()
     {
@@ -95,15 +109,16 @@ public class SpecificationAnchorTests
             $"{file} emits the anchor \u00A7{section}, which is not a heading in docs/specification.md");
 
     /// <summary>
-    /// The gate is worthless if the heading regex silently matches nothing, so pin a few sections
-    /// that must be found, spanning both heading spellings and the appendices.
+    /// The gate is worthless if the generated model silently omits a clause class, so pin a few
+    /// sections spanning decimals, nested decimals, appendices, and appendix subsections.
     /// </summary>
     [TestCase("22")]
     [TestCase("7.3")]
     [TestCase("23")]
     [TestCase("B")]
     [TestCase("C.4")]
-    public void TheSpecificationHeadingsParse(string section) => Sections.ShouldContain(section);
+    public void TheGeneratedNavigationContainsRepresentativeClauses(string section) =>
+        Sections.ShouldContain(section);
 
     /// <summary>
     /// A section the specification does not define must not resolve, or the gate above would
@@ -147,4 +162,50 @@ public class SpecificationAnchorTests
     [TestCase("20", false)]
     public void TheSubdivisionsOfASectionAreFound(string section, bool subdivided) =>
         Subdivided.Contains(section).ShouldBe(subdivided);
+
+    /// <summary>
+    /// Every manifest entry has exactly one explicit target and one contents link, and every
+    /// reserved target in the specification belongs to the manifest.
+    /// </summary>
+    [Test]
+    public void TheGeneratedNavigationIsOneToOneWithTheSpecification()
+    {
+        var specification = File.ReadAllText(RepositoryLayout.Specification);
+
+        Clauses.Select(clause => clause.Section).ShouldBeUnique();
+        Clauses.Select(clause => clause.Anchor).ShouldBeUnique();
+
+        foreach (var clause in Clauses)
+        {
+            Regex.Count(
+                    specification,
+                    Regex.Escape($"<a id=\"{clause.Anchor}\"></a>"),
+                    RegexOptions.CultureInvariant)
+                .ShouldBe(1, $"{clause.Section} must have exactly one explicit target");
+            Regex.Count(
+                    specification,
+                    Regex.Escape($"](#{clause.Anchor})"),
+                    RegexOptions.CultureInvariant)
+                .ShouldBe(1, $"{clause.Section} must have exactly one contents entry");
+        }
+
+        var renderedAnchors = Regex.Matches(
+                specification,
+                "<a id=\"(?<anchor>spec-[a-z0-9-]+)\"></a>",
+                RegexOptions.ExplicitCapture | RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["anchor"].Value)
+            .ToArray();
+        renderedAnchors.ShouldBe(Clauses.Select(clause => clause.Anchor));
+    }
+
+    [TestCase("6", "spec-6")]
+    [TestCase("6.4.3", "spec-6-4-3")]
+    [TestCase("A", "spec-a")]
+    [TestCase("C.4", "spec-c-4")]
+    public void RepresentativeClausesUseStableTargets(string section, string target) =>
+        Clauses.Single(clause => clause.Section == section).Anchor.ShouldBe(target);
+
+    [Test]
+    public void UnnumberedCapitalizedProseIsNotAClause() =>
+        Clauses.ShouldNotContain(clause => clause.Heading == "A type that names a format");
 }

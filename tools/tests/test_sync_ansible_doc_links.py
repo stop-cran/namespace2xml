@@ -194,5 +194,87 @@ class AnsibleDocJsonTests(unittest.TestCase):
         self.assertIn("contains no same-repository", missing_output.getvalue())
 
 
+class DiagnosticDocsTests(unittest.TestCase):
+    RELEASE_REF = "ansible-v3.0.2"
+    ABSOLUTE_BASE = (
+        "https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/"
+    )
+
+    def write_bytes(self, data: bytes) -> Path:
+        temporary = tempfile.NamedTemporaryFile(delete=False)
+        self.addCleanup(Path(temporary.name).unlink)
+        with temporary:
+            temporary.write(data)
+        return Path(temporary.name)
+
+    def test_approved_link_bases_are_the_only_normalized_difference(self) -> None:
+        root = self.write_bytes(
+            b"[spec](specification.md#spec-6-4-3)\n"
+            b"[schema](../spec/diagnostic-stream.schema.json)\n"
+            b"[contributing](../CONTRIBUTING.md#feedback)\n"
+        )
+        ansible = self.write_bytes(
+            (
+                f"[spec]({self.ABSOLUTE_BASE}docs/specification.md#spec-6-4-3)\n"
+                f"[schema]({self.ABSOLUTE_BASE}spec/diagnostic-stream.schema.json)\n"
+                f"[contributing]({self.ABSOLUTE_BASE}CONTRIBUTING.md#feedback)\n"
+            ).encode("ascii")
+        )
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = MODULE.check_diagnostic_docs(
+                root,
+                ansible,
+                self.RELEASE_REF,
+            )
+
+        self.assertEqual(result, 0)
+        self.assertIn("are equivalent", output.getvalue())
+
+    def test_content_drift_is_not_normalized(self) -> None:
+        root = self.write_bytes(
+            b"[spec](specification.md)\n"
+            b"[schema](../spec/diagnostic-stream.schema.json)\n"
+            b"[contributing](../CONTRIBUTING.md)\n"
+        )
+        ansible = self.write_bytes(
+            (
+                f"[spec]({self.ABSOLUTE_BASE}docs/specification.md)\n"
+                f"[schema]({self.ABSOLUTE_BASE}spec/diagnostic-stream.schema.json)\n"
+                f"[contributing]({self.ABSOLUTE_BASE}CONTRIBUTING.md)\n"
+                "changed prose\n"
+            ).encode("ascii")
+        )
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = MODULE.check_diagnostic_docs(
+                root,
+                ansible,
+                self.RELEASE_REF,
+            )
+
+        self.assertEqual(result, 1)
+        self.assertIn("differ after approved", output.getvalue())
+
+    def test_missing_approved_link_class_fails_closed(self) -> None:
+        root = self.write_bytes(b"[spec](specification.md)\n")
+        ansible = self.write_bytes(
+            f"[spec]({self.ABSOLUTE_BASE}docs/specification.md)\n".encode("ascii")
+        )
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = MODULE.check_diagnostic_docs(
+                root,
+                ansible,
+                self.RELEASE_REF,
+            )
+
+        self.assertEqual(result, 1)
+        self.assertIn("missing approved link base", output.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

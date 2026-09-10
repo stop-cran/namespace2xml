@@ -44,7 +44,8 @@ Concretely, this means:
 
 | Path | Role |
 |---|---|
-| `docs/specification.md` | **The contract.** Normative. Hashed into the contract bundle. |
+| `docs/specification.md` | **The contract.** Normative. Hashed into the contract bundle; its contents block and `spec-*` anchors are generated. |
+| `spec/specification-navigation.json` | Generated clause inventory consumed by tests and documentation gates; do not hand-edit. |
 | `spec/diagnostics.registry.json` | Canonical code-level diagnostic facts. Generated; do not hand-edit. |
 | `spec/diagnostic-stream.schema.json` | JSON Schema for `--diagnostics-format json`. Extracted from the specification; do not hand-edit. |
 | `spec/contract-bundle.json` | The revision `--version` reports, covering both files above. |
@@ -69,16 +70,21 @@ The solution uses the `.slnx` format and targets `net10.0`. `Directory.Build.pro
 `TreatWarningsAsErrors`; a warning is a build failure, deliberately.
 
 After changing `docs/specification.md`, regenerate the derived artifacts or CI will reject the
-change. Run all five, in this order — the codes come from the registry, the bundle hashes the
-registry, and the docs read the bundle:
+change. Run all six, in this order — navigation owns clause parsing, the codes come from the
+registry, the bundle hashes the navigated specification and registry, and the docs read the bundle:
 
 ```
+pwsh -NoProfile -File tools/sync-specification-navigation.ps1
 pwsh -NoProfile -File tools/sync-diagnostics-registry.ps1
 pwsh -NoProfile -File tools/sync-diagnostic-codes.ps1
 pwsh -NoProfile -File tools/sync-contract-bundle.ps1
 pwsh -NoProfile -File tools/sync-assertion-manifest.ps1
 pwsh -NoProfile -File tools/sync-docs.ps1
 ```
+
+`sync-docs.ps1` renders `docs/diagnostics.md` and `ansible/docs/diagnostics.md` from one model.
+The repository page uses local links; the collection page uses immutable links derived from
+`ansible/galaxy.yml`. Never copy one over the other.
 
 Adding or changing a conformance fixture also requires `sync-assertion-manifest.ps1` and
 `sync-docs.ps1`, because coverage and the migration notes are both derived from the corpus.
