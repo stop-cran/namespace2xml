@@ -3,15 +3,15 @@
 # same play -- exactly the shape proposed for a collection that ships an install role alongside
 # the filter that needs it.
 #
-# The hypothesis under test is that it is NOT reachable, for a reason that has nothing to do with
-# Ansible: a filter is evaluated by Jinja inside the already-running ansible-playbook process, and
-# subprocess resolves a bare command name against the PATH that process inherited when it was
-# launched. A task is a child process. A child cannot alter its parent's environment. So an
-# install that lands somewhere not already on PATH is invisible to the filter no matter how
-# correct the role is.
+# The original hypothesis was that it would not be reachable because a child process cannot alter
+# the parent ansible-playbook process's PATH. The filter now deliberately searches the dotnet
+# global-tools directory after PATH, so installing into ~/.dotnet/tools must work even when that
+# directory was absent from the inherited PATH.
 #
-# This play is run twice by the workflow: once with ~/.dotnet/tools off PATH (expected to fail at
-# the last task) and once with the escape hatch set (expected to pass). The pair is the finding.
+# The workflow runs this play three ways: with ~/.dotnet/tools off PATH, with it on PATH, and with
+# NAMESPACE2XML set explicitly. All must pass. Branch events supply tool_source so the install uses
+# the package built from the checked-out source; manual dispatch omits it to measure a published
+# version.
 - name: Install the tool, then use it in the same play
   hosts: localhost
   connection: local
@@ -25,9 +25,17 @@
         level: INFO
 
   tasks:
+    # tool_source is exclusive when supplied: branch tests must not resolve the same version from
+    # a configured public feed instead of the checked-out package.
     - name: Install the tool the way an install role would
       ansible.builtin.command:
-        cmd: dotnet tool install --global namespace2xml --version {{ tool_version }}
+        argv: >-
+          {{
+            ['dotnet', 'tool', 'install', '--global', 'namespace2xml', '--version', tool_version]
+            + (['--source', tool_source]
+               if tool_source is defined and tool_source | length > 0
+               else [])
+          }}
       register: install
       changed_when: install.rc == 0
       failed_when:

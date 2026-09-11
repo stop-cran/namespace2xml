@@ -17,6 +17,10 @@ name: ansible-topology-spike
 # exercised against real ansible-core with the install directory off PATH, so it gates that
 # behaviour rather than merely recording it. Fold arm A into the collection's integration tests
 # when spikes/ansible is deleted; the rest of this file goes with the spike.
+#
+# Branch events exercise a package built from the checked-out source. A stable-promotion PR must
+# remain testable before that stable version exists on nuget.org. Manual dispatch retains the
+# published-version input so the original topology measurement can be repeated against any release.
 
 on:
   workflow_dispatch:
@@ -63,11 +67,25 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install the tool on the controller and nowhere else
+      - name: Pack the branch tool
+        if: github.event_name != 'workflow_dispatch'
+        run: dotnet pack src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj --configuration Release --output /tmp/n2x-pack
+
+      - name: Install the published tool on the controller and nowhere else
+        if: github.event_name == 'workflow_dispatch'
         env:
           VERSION: ${{ env.TOOL_VERSION }}
         run: |
           dotnet tool install --global namespace2xml --version "${VERSION}"
+          echo "${HOME}/.dotnet/tools" >> "${GITHUB_PATH}"
+
+      - name: Install the branch tool on the controller and nowhere else
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          VERSION: ${{ env.TOOL_VERSION }}
+        run: |
+          # Replace configured feeds so a published package with the same version cannot win.
+          dotnet tool install --global namespace2xml --version "${VERSION}" --source /tmp/n2x-pack
           echo "${HOME}/.dotnet/tools" >> "${GITHUB_PATH}"
 
       - name: Install ansible-core and the docker connection plugin
@@ -149,6 +167,10 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Pack the branch tool
+        if: github.event_name != 'workflow_dispatch'
+        run: dotnet pack src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj --configuration Release --output /tmp/n2x-pack
+
       # The first version of this measurement guarded with `command -v namespace2xml`, which asks
       # whether the BINARY resolves -- not whether its DIRECTORY is named on PATH. This runner
       # image already has ~/.dotnet/tools on PATH while it is empty, so the guard passed, the
@@ -181,15 +203,21 @@ jobs:
         env:
           ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
           VERSION: ${{ env.TOOL_VERSION }}
+          TOOL_SOURCE: ${{ github.event_name != 'workflow_dispatch' && '/tmp/n2x-pack' || '' }}
         run: |
           dotnet tool uninstall --global namespace2xml || true
           STRIPPED="$(printf '%s' "${PATH}" | tr ':' '\n' | grep -vx "${HOME}/.dotnet/tools" | paste -sd: - || true)"
           echo "PATH for this arm: ${STRIPPED}"
+          SOURCE_ARGS=()
+          if [ -n "${TOOL_SOURCE}" ]; then
+            SOURCE_ARGS=(-e "tool_source=${TOOL_SOURCE}")
+          fi
           set +e
           PATH="${STRIPPED}" ansible-playbook \
             spikes/ansible/install-then-use-playbook.yml \
             -e "tool_version=${VERSION}" \
             -e output_dir=/tmp/out \
+            "${SOURCE_ARGS[@]}" \
             > /tmp/arm-a.log 2>&1
           rc=$?
           set -e
@@ -202,6 +230,7 @@ jobs:
         env:
           ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
           VERSION: ${{ env.TOOL_VERSION }}
+          TOOL_SOURCE: ${{ github.event_name != 'workflow_dispatch' && '/tmp/n2x-pack' || '' }}
         run: |
           dotnet tool uninstall --global namespace2xml || true
           if [ -e "${HOME}/.dotnet/tools/namespace2xml" ]; then
@@ -209,11 +238,16 @@ jobs:
             exit 1
           fi
           STRIPPED="$(printf '%s' "${PATH}" | tr ':' '\n' | grep -vx "${HOME}/.dotnet/tools" | paste -sd: - || true)"
+          SOURCE_ARGS=()
+          if [ -n "${TOOL_SOURCE}" ]; then
+            SOURCE_ARGS=(-e "tool_source=${TOOL_SOURCE}")
+          fi
           set +e
           PATH="${HOME}/.dotnet/tools:${STRIPPED}" ansible-playbook \
             spikes/ansible/install-then-use-playbook.yml \
             -e "tool_version=${VERSION}" \
             -e output_dir=/tmp/out \
+            "${SOURCE_ARGS[@]}" \
             > /tmp/arm-b.log 2>&1
           rc=$?
           set -e
@@ -226,14 +260,20 @@ jobs:
         env:
           ANSIBLE_FILTER_PLUGINS: ${{ github.workspace }}/spikes/ansible/filter_plugins
           VERSION: ${{ env.TOOL_VERSION }}
+          TOOL_SOURCE: ${{ github.event_name != 'workflow_dispatch' && '/tmp/n2x-pack' || '' }}
         run: |
           dotnet tool uninstall --global namespace2xml || true
           STRIPPED="$(printf '%s' "${PATH}" | tr ':' '\n' | grep -vx "${HOME}/.dotnet/tools" | paste -sd: - || true)"
+          SOURCE_ARGS=()
+          if [ -n "${TOOL_SOURCE}" ]; then
+            SOURCE_ARGS=(-e "tool_source=${TOOL_SOURCE}")
+          fi
           set +e
           PATH="${STRIPPED}" NAMESPACE2XML="${HOME}/.dotnet/tools/namespace2xml" ansible-playbook \
             spikes/ansible/install-then-use-playbook.yml \
             -e "tool_version=${VERSION}" \
             -e output_dir=/tmp/out \
+            "${SOURCE_ARGS[@]}" \
             > /tmp/arm-c.log 2>&1
           rc=$?
           set -e
