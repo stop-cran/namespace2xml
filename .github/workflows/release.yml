@@ -8,6 +8,11 @@ on:
   push:
     tags:
       - 'v3.*'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/release.yml'
 
 permissions:
   actions: read
@@ -27,7 +32,31 @@ env:
   REQUIRED_ANSIBLE_WORKFLOW_ID: '337970278'
 
 jobs:
+  oidc-probe:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment: nuget
+    steps:
+      - name: Exchange this run's OIDC identity for a short-lived nuget.org key
+        uses: NuGet/login@ebc737b6fc418a6ca0073cf116ec8dc156d8b81e # v1
+        id: nuget-login
+        with:
+          user: stop-cran
+
+      - name: Require a returned key without publishing
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::the OIDC exchange returned no key"
+            exit 1
+          fi
+          echo "::notice::nuget.org trusted publishing is configured for release.yml"
+
   release:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: nuget
     steps:
