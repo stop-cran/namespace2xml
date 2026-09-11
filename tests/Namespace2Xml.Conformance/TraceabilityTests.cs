@@ -92,7 +92,7 @@ public class TraceabilityTests
     }
 
     [Test]
-    public void EveryFixtureAssertionNamesAnExistingOracleArtifact()
+    public void EveryFixtureAssertionNamesADeclaredOracleArtifact()
     {
         var catalog = AssertionGateCatalog.Load(CorpusLayout.AssertionManifest);
 
@@ -112,8 +112,11 @@ public class TraceabilityTests
                     reference.Artifact.Replace('/', Path.DirectorySeparatorChar)),
             };
 
+            // Appendix C.3 makes an absent expected/ directory the complete empty-tree oracle.
+            // Git cannot carry an empty directory, so that artifact is declared by the fixture
+            // itself; every file-backed oracle must still exist at its exact path.
             var exists = reference.Artifact == "expected/"
-                ? Directory.Exists(artifact)
+                ? Directory.Exists(fixture)
                 : File.Exists(artifact);
 
             exists.ShouldBeTrue(

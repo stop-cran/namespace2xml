@@ -4588,7 +4588,10 @@ For fixture evidence, `artifact` is exactly `expected/` for the complete output 
 `expected/<relative-output-path>` file, `expected-diagnostics.json`, `expected-exit-code.txt`,
 `expected-stdout.txt`, or `legacy.md`. An artifact path is case-sensitive, uses `/`, and contains no empty, `.` or `..`
 segment. The named artifact must exist in the named fixture; naming an oracle surface that fixture
-does not declare is not evidence. When `artifact` is `expected-exit-code.txt`, `observation` is
+does not declare is not evidence. For `expected/`, the fixture directory itself declares the
+artifact: a present `expected/` directory carries its files, while its absence carries the complete
+empty-tree oracle defined by Section C.3. Every other named artifact must exist as a file. When
+`artifact` is `expected-exit-code.txt`, `observation` is
 exactly `expected-exit-code.txt = 0.`, `expected-exit-code.txt = 1.`, or
 `expected-exit-code.txt = 70.` to state the file's complete status oracle without paraphrase. That
 fixture must also own a separate assertion carried by `expected/`, one

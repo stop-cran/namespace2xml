@@ -438,6 +438,33 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: No contract or fixture path may be gitignored
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Run before any build-capable .NET command: tools/ contains a project whose generated
+          # obj/ tree is correctly ignored, while this gate is about authored files a contributor's
+          # checkout already contains before CI creates build output.
+          #
+          # A fixture that git silently drops produces a corpus which passes locally and asserts
+          # less in CI. The inherited Visual Studio template ignored bin/, Release/, *.log and
+          # *.cache, all of which are ordinary names inside a configuration-transformer fixture.
+          #
+          # ansible/ is deliberately not listed. This command reports files that are untracked
+          # *and present in the working tree*, and on a fresh checkout a plugin git never took is
+          # on the contributor's machine rather than on the runner -- so the check could never go
+          # red for the collection, and under C7 a gate that cannot fail is not evidence. The
+          # equivalent question for the collection is whether the built artifact contains every
+          # plugin, which the ansible workflow answers against a real tarball.
+          hidden="$(git ls-files --others --ignored --exclude-standard -- conformance spec tools spikes)"
+          if [ -n "$hidden" ]; then
+            echo "::error::these paths exist but are gitignored, so they would never be committed:"
+            echo "$hidden"
+            exit 1
+          fi
+          echo "every authored path under conformance, spec, tools and spikes is committable"
+
       - run: dotnet format namespace2xml.slnx --verify-no-changes --severity error
 
       - name: Workflows must be valid
@@ -459,28 +486,6 @@ jobs:
           tar -xzf actionlint.tar.gz actionlint
           ./actionlint -no-color -oneline
           echo "workflows are valid"
-
-      - name: No contract or fixture path may be gitignored
-        shell: bash
-        run: |
-          set -euo pipefail
-          # A fixture that git silently drops produces a corpus which passes locally and asserts
-          # less in CI. The inherited Visual Studio template ignored bin/, Release/, *.log and
-          # *.cache, all of which are ordinary names inside a configuration-transformer fixture.
-          #
-          # ansible/ is deliberately not listed. This command reports files that are untracked
-          # *and present in the working tree*, and on a fresh checkout a plugin git never took is
-          # on the contributor's machine rather than on the runner -- so the check could never go
-          # red for the collection, and under C7 a gate that cannot fail is not evidence. The
-          # equivalent question for the collection is whether the built artifact contains every
-          # plugin, which the ansible workflow answers against a real tarball.
-          hidden="$(git ls-files --others --ignored --exclude-standard -- conformance spec tools spikes)"
-          if [ -n "$hidden" ]; then
-            echo "::error::these paths exist but are gitignored, so they would never be committed:"
-            echo "$hidden"
-            exit 1
-          fi
-          echo "every path under conformance, spec, tools and spikes is committable"
 
       - name: KNOWN-LIMITS.md must not cite closed issues as live work
         shell: bash

@@ -96,7 +96,13 @@ function significant(text) {
   });
 }
 
-/** Every `[selector.]inioutputoptions=` line in the case, as [selector, value] pairs, in order. */
+/**
+ * Every `[selector.]inioutputoptions=` line in the case, as [selector, value] pairs, in order.
+ *
+ * `.txt` and `.namespace` are the two extensions the corpus uses for the flat namespace scheme
+ * encoding. Structured scheme encodings are not searched as text because a matching string there
+ * would not necessarily be a directive at that structure level.
+ */
 function optionLines(caseDir) {
   const schemes = path.join(caseDir, 'schemes');
   const lines = [];
@@ -104,7 +110,7 @@ function optionLines(caseDir) {
     return lines;
   }
   for (const name of fs.readdirSync(schemes).sort()) {
-    if (!name.endsWith('.txt')) {
+    if (!name.endsWith('.txt') && !name.endsWith('.namespace')) {
       continue;
     }
     for (const line of fs.readFileSync(path.join(schemes, name), 'utf8').split('\n')) {
