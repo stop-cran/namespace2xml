@@ -3,6 +3,7 @@
   <PropertyGroup>
     <RootNamespace>Namespace2Xml.Conformance</RootNamespace>
     <AssemblyName>Namespace2Xml.Conformance</AssemblyName>
+    <IsTestProject>true</IsTestProject>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>

@@ -3,6 +3,7 @@
   <PropertyGroup>
     <RootNamespace>Namespace2Xml.UnitTests</RootNamespace>
     <AssemblyName>Namespace2Xml.UnitTests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
