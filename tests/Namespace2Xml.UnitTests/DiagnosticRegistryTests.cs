@@ -18,6 +18,10 @@ public class DiagnosticRegistryTests
         @"^\|\s*`([A-Z]+[0-9]{3})`\s*\|\s*(error|warning)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*$",
         RegexOptions.Compiled);
 
+    private static readonly Regex MappingRow = new(
+        @"^\|\s*(.+?)\s*\|\s*`([A-Z]+[0-9]{3})`\s*\|\s*$",
+        RegexOptions.Compiled);
+
     private static JsonElement Registry =>
         JsonDocument.Parse(File.ReadAllText(RepositoryLayout.Registry)).RootElement;
 
@@ -74,6 +78,66 @@ public class DiagnosticRegistryTests
             foreach (var field in entry.GetProperty("fields").EnumerateArray())
             {
                 members.ShouldContain(field.GetString()!);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Section 22 assigns the registry a deliberately narrow authority. This gate checks every
+    /// authoritative field against its independent specification or schema surface while keeping
+    /// occurrence-level phase, anchor, and message values outside that authority.
+    /// </summary>
+    [Test]
+    public void RegistryAuthorityAgreesWithTheSpecificationAndStreamSchema()
+    {
+        var registry = Registry;
+        registry.GetProperty("authoritativeFor").EnumerateArray()
+            .Select(value => value.GetString())
+            .ShouldBe(["code", "severity", "cardinality", "fields"]);
+        registry.GetProperty("notAuthoritativeFor").EnumerateArray()
+            .Select(value => value.GetString())
+            .ShouldBe(["phase", "spec", "message"]);
+
+        var specification = File.ReadAllText(RepositoryLayout.Specification)
+            .ReplaceLineEndings("\n");
+        var appendix = specification[
+            specification.IndexOf("<a id=\"spec-b\"></a>", StringComparison.Ordinal)..];
+        appendix = appendix[..appendix.IndexOf("<a id=\"spec-c\"></a>", StringComparison.Ordinal)];
+        var mappings = appendix.Split('\n')
+            .Select(line => MappingRow.Match(line))
+            .Where(match => match.Success)
+            .GroupBy(match => match.Groups[2].Value, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(match => match.Groups[1].Value).ToArray(),
+                StringComparer.Ordinal);
+
+        using var schema = JsonDocument.Parse(File.ReadAllText(RepositoryLayout.StreamSchema));
+        var schemaFields = schema.RootElement
+            .GetProperty("items").GetProperty("properties")
+            .EnumerateObject().Select(property => property.Name)
+            .ToHashSet(StringComparer.Ordinal);
+        var modelFields = typeof(Diagnostic).GetProperties()
+            .Select(property => char.ToLowerInvariant(property.Name[0]) + property.Name[1..])
+            .ToHashSet(StringComparer.Ordinal);
+        var entries = registry.GetProperty("codes").EnumerateArray().ToArray();
+
+        mappings.Keys.Order(StringComparer.Ordinal)
+            .ShouldBe(entries.Select(entry => entry.GetProperty("code").GetString()!)
+                .Order(StringComparer.Ordinal));
+
+        foreach (var entry in entries)
+        {
+            var code = entry.GetProperty("code").GetString()!;
+            entry.GetProperty("mappings").EnumerateArray()
+                .Select(value => value.GetString())
+                .ShouldBe(mappings[code], code);
+
+            foreach (var field in entry.GetProperty("fields").EnumerateArray()
+                         .Select(value => value.GetString()!))
+            {
+                schemaFields.ShouldContain(field, code);
+                modelFields.ShouldContain(field, code);
             }
         }
     }

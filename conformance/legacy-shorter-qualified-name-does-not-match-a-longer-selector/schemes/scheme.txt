@@ -1,0 +1,2 @@
+a.b.output=namespace
+a.b.filename=out.properties

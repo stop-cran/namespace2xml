@@ -400,6 +400,13 @@ public static class NamespaceProfileReader
         StableOrderingKey key,
         ImmutableArray<BoundComment> comments)
     {
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(
+                PipelineObservationKind.ParseNode,
+                CanonicalPath.Of(parts[..depth]));
+        }
+
         if (depth == parts.Length)
         {
             var leaf = contribute(node);

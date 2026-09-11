@@ -332,6 +332,32 @@ public class IniSerializerTests
         SoleCode().ShouldBe("INI001");
     }
 
+    [Test]
+    public void EveryUnsupportedC0IsRejectedUnderEveryApplicableMode()
+    {
+        IniOutputOptions[] modes =
+        [
+            IniOutputOptions.RejectMultiline,
+            IniOutputOptions.RejectMultiline | IniOutputOptions.QuoteValues,
+            IniOutputOptions.EscapeMultiline,
+            IniOutputOptions.EscapeMultiline | IniOutputOptions.QuoteValues,
+        ];
+
+        foreach (var control in Enumerable.Range(0, 0x20)
+                     .Select(value => (char)value)
+                     .Where(value => value is not ('\t' or '\n' or '\r')))
+        {
+            foreach (var mode in modes)
+            {
+                diagnostics = new DiagnosticBuffer();
+
+                Fails(mode, Entry("s.a", $"x{control}y")).ShouldBeTrue(
+                    $"U+{(int)control:X4} under {mode}");
+                SoleCode().ShouldBe("INI001", $"U+{(int)control:X4} under {mode}");
+            }
+        }
+    }
+
     /// <summary>
     /// Section 19.6: "a value beginning with <c>;</c> or <c>#</c> ... is an error unless
     /// <c>QuoteValues</c> is selected", because an unquoted one reads back as a comment.
@@ -424,13 +450,22 @@ public class IniSerializerTests
     /// Section 20: INI emits comments "only when enabled by <c>inioutputoptions</c>", using the
     /// marker the selected option names.
     /// </summary>
-    [TestCase(IniOutputOptions.SemicolonComments, ';')]
-    [TestCase(IniOutputOptions.HashComments, '#')]
-    public void TheSelectedOptionChoosesTheCommentMarker(IniOutputOptions options, char marker)
+    [Test]
+    public void TheSelectedOptionChoosesTheCommentMarker()
     {
-        Serialize(options, Entry("s.a", "1", "note")).ShouldBe($"[s]\n{marker} note\na=1\n");
+        foreach (var (options, marker) in new[]
+                 {
+                     (IniOutputOptions.SemicolonComments, ';'),
+                     (IniOutputOptions.HashComments, '#'),
+                 })
+        {
+            diagnostics = new DiagnosticBuffer();
 
-        diagnostics.Drain().ShouldBeEmpty();
+            Serialize(options, Entry("s.a", "1", "note"))
+                .ShouldBe($"[s]\n{marker} note\na=1\n");
+
+            diagnostics.Drain().ShouldBeEmpty();
+        }
     }
 
     /// <summary>

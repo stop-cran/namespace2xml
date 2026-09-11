@@ -1,0 +1,4 @@
+app.secret=value
+app.ref=${app.secret}
+!app.secret
+app.keep=ok

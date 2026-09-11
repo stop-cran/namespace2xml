@@ -38,6 +38,7 @@ jobs:
   # depends on nothing, and is the first thing to go red. Running it last, mixed into the main
   # suite, is how these invariants get lost.
   publication-invariants:
+    name: 'ci:.github/workflows/ci.yml::publication-invariants[os=${{ toJSON(matrix.os) }}]'
     strategy:
       fail-fast: false
       matrix:
@@ -70,6 +71,7 @@ jobs:
         run: pwsh -NoProfile -File tools/run-publication-conformance.ps1
 
   build-test:
+    name: 'ci:.github/workflows/ci.yml::build-test[os=${{ toJSON(matrix.os) }}]'
     strategy:
       fail-fast: false
       matrix:
@@ -174,6 +176,7 @@ jobs:
   # Section 24 requires byte-identical output for identical inputs. A tool that only claims
   # determinism is not determinate; this job measures it.
   determinism:
+    name: 'ci:.github/workflows/ci.yml::determinism[os=${{ toJSON(matrix.os) }}]'
     needs: build-test
     strategy:
       fail-fast: false
@@ -200,6 +203,7 @@ jobs:
   # every text output differs by its CR bytes alone and a verdict would describe the runner rather
   # than the tool. Normalizing instead would hide a real line-terminator difference if one existed.
   differential:
+    name: 'ci:.github/workflows/ci.yml::differential'
     needs: build-test
     runs-on: ubuntu-latest
     steps:
@@ -221,6 +225,7 @@ jobs:
       - run: dotnet test namespace2xml.slnx --no-build -c Release --filter "FullyQualifiedName~DifferentialTests"
 
   cross-os-hash:
+    name: 'ci:.github/workflows/ci.yml::cross-os-hash'
     needs: determinism
     runs-on: ubuntu-latest
     steps:
@@ -368,6 +373,7 @@ jobs:
   # step so that a broken interoperability claim is named on the summary page instead of hiding
   # inside a lint failure. The two lanes are separate steps for the same reason.
   ini-interop:
+    name: 'ci:.github/workflows/ci.yml::ini-interop'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

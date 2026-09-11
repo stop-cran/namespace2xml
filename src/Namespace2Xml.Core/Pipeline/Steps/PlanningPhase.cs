@@ -722,6 +722,17 @@ public static class PlanningPhase
 
         foreach (var instance in instances)
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.OutputSelector,
+                    instance.Selector.ToString(),
+                    instance.Declaration.Text);
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.PlanningContribution,
+                    instance.Selector.ToString());
+            }
+
             // Section 14.1: an instance is planned "even when no data path currently matches
             // its literal prefix", so a missing subtree is an empty view rather than no view.
             // The selection does not depend on the format, so it is made once per instance —
@@ -1130,6 +1141,14 @@ public static class PlanningPhase
 
         foreach (var view in views)
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.PlanningContribution,
+                    view.Instance.Selector.ToString(),
+                    view.Format.ToString());
+            }
+
             if (!TryDestination(view, diagnostics, bound.Count, out var path))
             {
                 continue;
@@ -1789,6 +1808,13 @@ public static class PlanningPhase
 
         foreach (var part in selector.Parts)
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.PathPart,
+                    CanonicalPath.Of([part]));
+            }
+
             if (!OverlayAddressing.TryAddress(node, part, out var child))
             {
                 // Section 14.1: an instance whose selector matches nothing has a view with "no
@@ -1832,6 +1858,14 @@ public static class PlanningPhase
         // `root` applies, so a configured root prefixes it rather than replacing it.
         if (instance.Root is { } configured)
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.PathDirective,
+                    CanonicalPath.Of(configured),
+                    "root");
+            }
+
             root = configured.Parts.AddRange(retained);
             return true;
         }
@@ -1850,6 +1884,8 @@ public static class PlanningPhase
             return true;
         }
 
+        _ = TryComposeDestination(instance, format, out var destination, out _);
+
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Type001(
                 DiagnosticPhase.Planning,
@@ -1858,7 +1894,7 @@ public static class PlanningPhase
                 + "and INI require an explicit 'root' because no element or key identity exists "
                 + "otherwise.",
                 cardinalityKey: instance.Selector.ToString(),
-                declaration: $"output={instance.Formats[0]}"),
+                destination: destination?.Canonical),
             OrderingKey: StableOrderingKey.First));
 
         root = [];
@@ -1871,20 +1907,10 @@ public static class PlanningPhase
         int order,
         out DestinationPath path)
     {
-        string? violation;
-
-        if (view.Instance.FilenameTemplate is { } template)
+        if (TryComposeDestination(
+            view.Instance, view.Format, out var composed, out var violation))
         {
-            if (DestinationPathComposer.TryCompose(
-                template, view.Instance.Captures, out var composed, out violation))
-            {
-                path = composed;
-                return true;
-            }
-        }
-        else if (DefaultDestination(view, out var derived, out violation))
-        {
-            path = derived!;
+            path = composed!;
             return true;
         }
 
@@ -1915,6 +1941,28 @@ public static class PlanningPhase
         return false;
     }
 
+    private static bool TryComposeDestination(
+        OutputInstance instance,
+        OutputFormat format,
+        out DestinationPath? path,
+        out string? violation)
+    {
+        if (instance.FilenameTemplate is { } template)
+        {
+            if (DestinationPathComposer.TryCompose(
+                template, instance.Captures, out var composed, out violation))
+            {
+                path = composed;
+                return true;
+            }
+
+            path = null;
+            return false;
+        }
+
+        return DefaultDestination(instance, format, out path, out violation);
+    }
+
     /// <summary>
     /// Section 16.2's default file name: the dot-joined concrete selector, each part encoded by the
     /// portable rules with literal <c>.</c> additionally encoded, forming one filename segment.
@@ -1926,7 +1974,8 @@ public static class PlanningPhase
     /// <c>a%252Eb.properties</c>.
     /// </remarks>
     private static bool DefaultDestination(
-        OutputView view,
+        OutputInstance instance,
+        OutputFormat format,
         out DestinationPath? path,
         out string? violation)
     {
@@ -1935,7 +1984,7 @@ public static class PlanningPhase
 
         var stem = "output";
 
-        if (view.Instance.Selector.Name is { } name)
+        if (instance.Selector.Name is { } name)
         {
             var parts = new List<string>(name.Parts.Length);
 
@@ -1955,7 +2004,7 @@ public static class PlanningPhase
 
         // DefaultExtension carries its own leading dot, so the stem is concatenated rather than
         // joined: a second dot would produce 'a..properties'.
-        path = new DestinationPath(stem + view.Format.DefaultExtension());
+        path = new DestinationPath(stem + format.DefaultExtension());
         return true;
     }
 

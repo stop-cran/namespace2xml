@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r111+f9a5583c6485`.**
+**Contract bundle `r117+e23d96326bfb`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (201)
+## Observable differences (204)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1524,6 +1524,22 @@ implemented, its case says so plainly rather than letting the heading imply othe
   specified one and the first-reached one. The expected stream keeps the two `shared.txt`
   occurrences adjacent, which only an index shared by both produces.
 
+### `deprecated-aliases-remain-accepted`
+
+- namespace2xml 2.4.0: **differs**. Across ten Linux arm64 samples it exits 0 and writes both
+  destinations, but its XML is
+  `<?xml version="1.0" encoding="utf-8"?><cfg a="one" b="two" />` instead of the expected child
+  elements.
+- Contract: Section 3.1 preserves the deprecated aliases in Section 15.3:
+  `namespacedelimiter`, `xmloptions`, `xmlns`, and `xmlnssuffix`.
+- Legacy observation: the baseline accepts `namespacedelimiter` and `xmloptions=NoIndent`; it also
+  accepts both legacy type values, but projects the two selected values as XML attributes.
+- Clean behavior: the replacement exits 0, writes the same colon-delimited namespace destination,
+  applies `NoIndent`, leaves both legacy type values as no-ops, renders the values as child
+  elements, and reports four source-separated `WARN002` records.
+- The measured run therefore proves successful legacy alias acceptance while recording the
+  intentional Section 3.2 XML-model divergence rather than relying on an invalid option value.
+
 ### `destination-fold-follows-wildcard-match-order`
 
 - namespace2xml 2.4.0: **differs**.
@@ -2108,6 +2124,31 @@ implemented, its case says so plainly rather than letting the heading imply othe
   restoration explicit so that dropping one flag never leaves a group in an undefined
   state.
 
+### `legacy-runtime-culture-dependence-is-corrected`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 removes behavior dependent on runtime culture; Section 18 permits only
+  locale-independent scalar spellings and therefore classifies `1,5` as a string.
+- Legacy observation: under the ordinary C differential environment the baseline's
+  culture-sensitive numeric parsing exits 0 but writes a non-string JSON value.
+- Clean behavior: the replacement emits the invariant string `"1,5"` and the same bytes under every
+  runtime culture.
+- The difference is intentional: input type must be a property of its characters, not of the
+  process locale on the machine running the transformation.
+
+### `legacy-yaml-file-collision-is-structural-not-raw-append`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 removes raw appending of independently serialized YAML documents;
+  Sections 17.3 and 17.5 require structural same-format folding before serialization.
+- Legacy observation: the baseline exits 0 and appends two serialized mappings, producing two
+  top-level `obj` keys instead of one merged mapping.
+- Clean behavior: one structurally merged `obj` mapping contains `x: 1` followed by `'y': 2`
+  (quoted because `y` is a portable YAML 1.1 Boolean spelling), and
+  one `WARN005` reports the accepted same-destination fold.
+- The difference is intentional: byte appending can produce duplicate-key YAML whose meaning
+  depends on the downstream parser, while structural folding produces one deterministic document.
+
 ### `malformed-structured-scheme-remains-parse001`
 
 - namespace2xml 2.4.0: **differs**. It had no structured scheme format.
@@ -2473,7 +2514,9 @@ implemented, its case says so plainly rather than letting the heading imply othe
 ### `namespace-permanent-ignore-masks`
 
 - namespace2xml 2.4.0: **differs**.
-- Contract: Section 8.6; Section 8.5 for the comment run; Section 20 for INI comment emission.
+- Contract: Section 3.1 preserves profile-ignore syntax, while Section 3.2 corrects it to permanent
+  run-wide semantics. Section 8.6 defines that correction; Section 8.5 governs the comment run and
+  Section 20 governs INI comment emission.
 - Legacy observation: `!` removal was applied in source order like any other entry, so an entry
   written after the ignore reinstated the path, and an ignore in a later file did not reach a value
   contributed by an earlier one. Whether a comment bound to a removed entry survived was not
@@ -2703,9 +2746,10 @@ implemented, its case says so plainly rather than letting the heading imply othe
   bare, and **no `cfg.sh` file is produced at all**. On standard output the baseline logs
   `Overriding output ... cfg.properties quotednamespace`, meaning it wrote the
   quotednamespace projection over the namespace projection at the same filename.
-- Contract: Section 16.3 `root` uniformity across formats. Section 3.2 as a correction of
-  behaviour caused by "a synthetic internal root leaking into user-visible file names" —
-  the same class of defect makes the `.sh` extension go missing here.
+- Contract: Section 3.1 preserves the existing output-format names and their default extensions.
+  Section 16.3 requires `root` uniformity across those formats. Section 3.2 corrects behavior
+  caused by "a synthetic internal root leaking into user-visible file names" — the same class of
+  defect makes the `.sh` extension go missing here.
 - Legacy observation: 2.4.0 applied `root` per-format rather than uniformly, and its
   filename resolution treated `quotednamespace` and `namespace` as the same format for the
   purpose of choosing the extension. The XML and INI writers implemented `root` because
@@ -5166,7 +5210,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (53)
+## Same observable result as 2.4.0 (55)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -5660,6 +5704,19 @@ those that name a shared reason are behaviour 3.0 preserved.
   removed it. Section 6.2 pins the uniform inline form so callers can rely on it, and this fixture
   discriminates a shipped tool that stops accepting it.
 
+### `cli-variable-precedence-across-files-lines-and-variables`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.1 preserves command-line variables as the highest-precedence input source.
+  Section 8.7 gives files, physical records, and command-line variables their stable source order.
+- Legacy observation: the baseline exits 0 and reproduces `cfg.properties`, including
+  `file=second`, `line=second-line`, and `cli=second-variable`.
+- Clean behavior: later files override earlier files, later records override earlier records, and
+  command-line variables are applied after every file in their own token order even when `-v`
+  precedes `-i` in the argument vector.
+- The agreement is intentional compatibility evidence: each precedence edge remains observable on
+  a different key, so the final command-line winner cannot conceal a broken file or line edge.
+
 ### `cycle-rotation-uses-utf8-byte-order`
 
 - namespace2xml 2.4.0: **agrees**, but for an unrelated reason: only the tree and the exit code are
@@ -5824,6 +5881,19 @@ those that name a shared reason are behaviour 3.0 preserved.
   rather than reject, which is the failure that leaves no trace. It is an input to
   `tools/check-ini-interop.py`: with `interpolation=None` removed, `50%` is rejected outright and
   `100%%` silently becomes `100%`.
+
+### `legacy-shorter-qualified-name-does-not-match-a-longer-selector`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.2 removes matching based only on overlapping qualified-name parts, and
+  Section 14.2 requires a candidate to have at least as many parts as the selector.
+- Legacy observation: across ten Linux arm64 samples the baseline exits 0 and reproduces
+  `out.properties` byte-for-byte. The shorter scalar `a` does not enter this output.
+- Clean behavior: selector `a.b` selects only `a.b` and descendants, so the file contains exactly
+  `keep=right`.
+- This measured agreement disputes the proposed item 69 ownership: although the expected bytes pin
+  the Section 14.2 rule for the replacement, this input does not expose the legacy overlapping-name
+  defect and therefore cannot own the Section 3.2 correction claim.
 
 ### `limit-attribution-across-sources`
 
@@ -6239,6 +6309,28 @@ those that name a shared reason are behaviour 3.0 preserved.
   that exits `1` after refusing one of them for a library-internal reason is doing something
   quite different from the clean tool refusing all six under `RestrictedYaml1`. Diagnostic
   members belong to `expected-diagnostics.json` for exactly this reason.
+
+## Same observable result, no note (14)
+
+These cases declare no verdict. Appendix C.6 reads that as a claim that the baseline
+reproduces the expected result, and the harness checks it against a real run, so their
+silence is verified rather than assumed. They carry no note because nothing about the
+difference needed explaining.
+
+- `an-escaped-yaml-marker-key-stays-literal`
+- `canonical-references-address-qualified-element-and-content-scalar`
+- `destination-prefix-comparison-uses-portable-encoded-segments`
+- `later-xml-input-options-replace-earlier-set`
+- `literal-asterisk-in-filename-under-literal-selector`
+- `mask-suppressed-reference-target-is-missing`
+- `mask-suppresses-wildcard-output-instance`
+- `quoted-namespace-ownerless-comments-follow-every-output-instance`
+- `reference-uses-stable-ordering-value-after-deletion`
+- `root-merge-directive-suppresses-warn004-with-empty-output-plan`
+- `warn010-fires-for-native-yaml-numeric-mapping`
+- `xml-bare-scalar-without-root-is-type001`
+- `xml-scalar-replacement-carries-winning-spelling`
+- `xml-singleton-promotion-does-not-retarget-a-directive`
 
 ## Something changed that is not listed here
 

@@ -4533,9 +4533,90 @@ When `expected-stdout.txt` is absent, standard output must be empty. Section 6.2
 
 Most items are discharged by fixtures, and a fixture is the preferred evidence because it is black-box: it states an input and an expected result and knows nothing about how the tool is built. Some items cannot be. An item about behaviour under an external storage failure cannot be provoked by a case whose only side effect is writing files, because the corpus harness has no way to make a write fail. An item about the corpus itself — that Appendix C's layout is read correctly, or that every Section 3.1 behaviour has a case — cannot be discharged by a case inside that corpus without circularity. For these the manifest records a `gates` list instead, naming the test or continuous-integration job that does the checking.
 
-A named gate must exist, and that is itself checked: a gate naming a test must resolve to a test that is actually declared, and a gate naming a continuous-integration job must resolve to a job defined in the workflow. Without that check the field would be an accounting fiction — a claim of coverage discharged by writing a plausible name into a file — which is precisely the failure this appendix exists to prevent. An item discharged by a gate *alone*, with no fixture naming it, must also say in the manifest why a fixture cannot discharge it, so that the exemption is argued rather than assumed. An item may carry both, and some should: a fixture can state the expected result while a gate supplies the condition under which the fixture is run, and neither alone is the whole claim.
+A gate identity is one of these canonical strings:
 
-A reference is a claim, and a number in a text file costs nothing to write and nothing to keep true. The manifest must therefore name exactly the fixtures that reference each item, so that adding, removing, or silently retargeting a claim fails the gate until the manifest is re-authored and reviewed. This holds for every item and not only for the ones marked `required`: restricting it to `required` items lets a pending item quietly accumulate fixtures the manifest never records, so the manifest understates coverage exactly where coverage is still being built and is most worth reading. For an item the manifest marks `required`, one further condition holds. Each of the fixtures naming it must carry at least one expectation beyond its exit code: an expected output tree, an expected standard output, or a declared diagnostic stream. Declaring the empty array is such an expectation, because Appendix C.4 distinguishes it from writing no stream at all and the distinction is observable; declaring nothing at all is not, because an exit code alone distinguishes too little to be evidence that the item was exercised.
+```text
+nunit:<assembly-name>::<fully-qualified-leaf-test-name>
+ci:<repository-relative-workflow-path>::<job-id>
+ci:<repository-relative-workflow-path>::<job-id>[<dimension>=<json-scalar>,...]
+```
+
+Parsing is ordinal and case-sensitive. It performs no trimming or case folding, and parsing then rendering an identity must reproduce the input byte-for-byte. Duplicate identities within one manifest item are invalid; different items may name the same gate.
+
+An `nunit:` assembly name is the exact `AssemblyName` of a built test project, and its test name is the exact fully-qualified leaf name reported by the repository's pinned test SDK and NUnit adapter. Discovery runs against both built test projects independently with `--list-tests`, `--no-build`, and `--no-restore`; a missing binary, failed discovery process, unrecognized adapter output, or empty project result is an error. A named identity must match exactly one assembly-and-name pair, so zero matches and a duplicate fully-qualified name are both invalid. Source text, method suffixes, prefixes, wildcards, and fixture-family names are not discovery and must never be used as a fallback.
+
+A `ci:` workflow path uses `/`, begins `.github/workflows/`, ends `.yml` or `.yaml`, and contains no empty, `.` or `..` segment. The job ID is the exact YAML key under `jobs`, not its display name. The workflow catalog parses both filename extensions and is invalid when the directory is absent, no workflow is found, a workflow is malformed, or `jobs` is not a nonempty mapping. A catalogued ordinary job has a nonempty `runs-on` target and a nonempty `steps` sequence whose every entry is a mapping containing exactly one nonempty scalar `run` or `uses`. A catalogued reusable-workflow job instead has a nonempty scalar job-level `uses` and has neither `runs-on` nor `steps`. Missing, empty, inert, or mixed execution forms are invalid: a job that cannot execute cannot discharge an assertion.
+
+The catalog classifies an `if` condition as statically false only in these closed cases: its scalar value is exactly `false`; it is an unquoted YAML core Boolean spelling `false`, `False`, or `FALSE`; or, after trimming the complete scalar and whitespace immediately inside the delimiters, it is exactly `${{ false }}`. The same rule applies to job-level and step-level conditions. A job with a statically false job-level condition is invalid, including a reusable-workflow job. An ordinary job is also invalid when every executable step has a statically false condition. Any other scalar condition, including a context-dependent expression, is not evaluated by the catalog and remains potentially executable. The only accepted explicit tags on a condition are `!!str` and `!!bool`; the Boolean tag requires plain style and one of the six YAML core Boolean spellings. A non-scalar condition, any other explicit tag, or a Boolean tag whose style or value is invalid makes the workflow catalog invalid.
+
+The `on` trigger is a supported nonempty event name, a nonempty duplicate-free sequence of supported event names, or a nonempty mapping from supported event names to configurations. An ordinary mapping event has either no configuration or a mapping configuration. `schedule` is the exception: it must be a nonempty sequence of one-field mappings, each containing one nonempty scalar `cron` in the five-field POSIX form GitHub Actions accepts. Each comma-separated field consists of `*`, a value, or an ascending range, optionally followed by a positive `/` step; minute, hour, day-of-month, month, and day-of-week values are checked against their respective ranges, and the documented three-letter month and weekday names are accepted case-insensitively. Scalar or mapping `schedule` values, unsupported operators, malformed fields, and out-of-range values are invalid.
+
+A CI identity without brackets names the whole job. For a non-matrix job that is one execution; for a matrix job it means every cell of the nonempty literal expansion. A bracketed identity names exactly one cell. Its dimension keys are exact matrix keys in ordinal order and its values are the scalar text produced by `${{ toJSON(matrix.<dimension>) }}`, so `true` and `"true"` are distinct. Plain YAML scalars use the GitHub Actions runner's YAML 1.2 core conversion before rendering: only `true`, `True`, `TRUE` and the corresponding three `false` spellings are booleans; only the empty scalar, `null`, `Null`, `NULL`, and `~` are null; decimal, `0x` hexadecimal, `0o` octal, and decimal/exponent floating-point forms become runner numbers; all other plain scalars remain strings. Quoted scalars remain strings. An explicit `!!str` tag always produces a string. The explicit `!!bool`, `!!float`, `!!int`, and `!!null` tags require plain style and require the value to match that tag's corresponding core conversion; a mismatched value is invalid rather than falling back to another type. Any other explicit tag is invalid. These scalar and explicit-tag rules also apply to every mapping key inside `matrix`, including the `include` and `exclude` mappings. As in the runner, a decoded non-string key is converted back to token text before classification: Booleans become `true` or `false`, numbers use invariant `G15`, and null becomes the empty string. Unsupported or mismatched key tags fail before a key can be treated as `include`, `exclude`, or a dimension. Numbers use the runner's invariant `G15` rendering and normalize negative zero to `0`. A non-finite number is invalid because it has no JSON-scalar gate identity. The map must contain the complete key set of exactly one expanded cell: a missing dimension, extra dimension, unknown value, object, array, duplicate key, empty brackets, noncanonical scalar, zero matches, or multiple matches is invalid. Literal matrices expand by forming the Cartesian product of ordinary axes in declaration order, applying `exclude` entries as subset matches, and then applying `include` entries with GitHub Actions merge-or-add semantics. An empty or duplicate expansion, a nonscalar cell value, or an expression whose cells cannot be enumerated statically is invalid for a named gate.
+
+Every manifest-referenced job has an exact canonical YAML `name` that bridges its stable workflow path and job ID to the runtime job name. A non-matrix job uses its canonical whole-job identity. A matrix job uses every complete dimension key in ordinal order and spells each value expression as `${{ toJSON(matrix.<dimension>) }}` inside the brackets. A friendly display name, a partial dimension set, or a name derived from the workflow basename cannot satisfy this requirement.
+
+A named gate must exist, and that is itself checked against these exact catalogs. Without that check the field would be an accounting fiction — a claim of coverage discharged by writing a plausible name into a file — which is precisely the failure this appendix exists to prevent. An item may carry both fixture and gate evidence, and some should: a fixture can state the expected result while a gate supplies the condition under which the fixture is run, and neither alone is the whole claim.
+
+Evidence and the reason a fixture is unavailable are separate. A `required` item must name at least one fixture or gate; `whyNotAFixture` is never evidence by itself. A `pending` item with neither kind of evidence must carry a nonblank `whyNotAFixture`, and every gate-only item must do the same so the exemption is argued rather than assumed. An item with one or more fixtures must not carry `whyNotAFixture`, whether its evidence is fixture-only or mixed.
+
+Item-level evidence is not assertion evidence. Each entry in the manifest's `assertions` array is an
+authored object with exactly these fields in the displayed order:
+
+```json
+{
+  "text": "One independently observable claim.",
+  "evidence": {
+    "kind": "fixture",
+    "name": "case-name",
+    "artifact": "expected/",
+    "observation": "The complete expected tree contains exactly ...; different bytes make the case red."
+  }
+}
+```
+
+`text` is nonblank and unique within the item. `evidence` maps that assertion to exactly one
+observation owner; an assertion that needs two owners is two assertions. The evidence object has
+exactly four nonblank fields in the displayed order:
+
+- `kind` is `fixture` or `gate`;
+- `name` is an exact member of that item's `fixtures` or `gates` list respectively;
+- `artifact` is the specific oracle carrying the observation; and
+- `observation` states the byte, field, count, ordering relation, boundary event, or other
+  independently observable result that changes when the assertion is false.
+
+For fixture evidence, `artifact` is exactly `expected/` for the complete output tree, one
+`expected/<relative-output-path>` file, `expected-diagnostics.json`, `expected-exit-code.txt`,
+`expected-stdout.txt`, or `legacy.md`. An artifact path is case-sensitive, uses `/`, and contains no empty, `.` or `..`
+segment. The named artifact must exist in the named fixture; naming an oracle surface that fixture
+does not declare is not evidence. When `artifact` is `expected-exit-code.txt`, `observation` is
+exactly `expected-exit-code.txt = 0.`, `expected-exit-code.txt = 1.`, or
+`expected-exit-code.txt = 70.` to state the file's complete status oracle without paraphrase. That
+fixture must also own a separate assertion carried by `expected/`, one
+`expected/<relative-output-path>` file, `expected-stdout.txt`, or
+`expected-diagnostics.json` in the same item:
+an exit code can own an assertion specifically about status, but cannot by itself discharge the
+fixture. `legacy.md` remains valid differential evidence but is not a substantive companion for an
+exit-status assertion. `expected/` denotes the complete expected tree, including an intentionally
+empty tree.
+
+For gate evidence, `name` is the canonical gate identity and `artifact` is closed by the identity
+kind: exactly `nunit-result` for `nunit:` evidence and exactly `ci-job-result` for `ci:` evidence.
+The artifact is the successful result of that exact discovered leaf or catalogued executable job;
+`observation` names the comparison, field, boundary, or other result inside the owner that makes it
+red when the assertion is false. Arbitrary artifact prose, an artifact from the other gate kind,
+source text, method names that do not resolve to leaves, and prose about what code is intended to do
+are not gate artifacts.
+
+Every listed fixture and gate owns at least one assertion, and every assertion owns exactly one
+listed fixture or gate. Missing, duplicate, unlisted, malformed, or unused ownership fails the
+traceability gate. These conditions apply to pending items too: `pending` means the Section 26 item
+is not yet completely discharged, not that claims already made about its evidence may be vague.
+Promotion to `required` additionally requires a nonempty assertion set that decomposes the entire
+item. An assertion object and its observation are authored review material; the generator preserves
+their values and canonical field order and never infers them from item text, fixture names, source
+names, or test names.
+
+A reference is a claim, and a number in a text file costs nothing to write and nothing to keep true. The manifest must therefore name exactly the fixtures that reference each item, so that adding, removing, or silently retargeting a claim fails the gate until the manifest is re-authored and reviewed. This holds for every item and not only for the ones marked `required`: restricting it to `required` items lets a pending item quietly accumulate fixtures the manifest never records, so the manifest understates coverage exactly where coverage is still being built and is most worth reading. For an item the manifest marks `required`, one further condition holds. Each of the fixtures naming it must carry at least one expectation beyond its exit code: an expected output tree, an expected standard output, or a declared diagnostic stream. When an assertion specifically names `expected-exit-code.txt`, that fixture must additionally map a separate assertion to one of those substantive oracle artifacts in the same item. Declaring the empty array is such an expectation, because Appendix C.4 distinguishes it from writing no stream at all and the distinction is observable; declaring nothing at all is not, because an exit code alone distinguishes too little to be evidence that the item was exercised.
 
 <a id="spec-c-6"></a>
 ### C.6 Legacy differential metadata

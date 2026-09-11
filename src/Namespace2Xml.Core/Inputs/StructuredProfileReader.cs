@@ -251,7 +251,9 @@ public static class StructuredProfileReader
                 }
             }
 
-            return result;
+            return sequence.PromotesXmlSingleton
+                ? result.WithXmlSingletonPromotion()
+                : result;
         }
 
         private OverlayNode BuildScalar(

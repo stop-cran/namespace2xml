@@ -183,6 +183,13 @@ public sealed class OverlayMerger
     private OverlayNode MergeNode(
         OverlayNode earlier, OverlayNode later, ImmutableArray<NamePart> path)
     {
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(
+                PipelineObservationKind.MergeNode,
+                CanonicalPath.Of(path));
+        }
+
         var strategy = strategies.For(path);
 
         if (strategy == MergeStrategy.Error)

@@ -162,15 +162,17 @@ public sealed class CommandLineParserTests
     /// must produce the identical result.
     /// </summary>
     [Test]
-    public void TheInlineFormWorksOnEveryLongOption(
-        [ValueSource(nameof(EveryLongOptionTakingAValue))] string option)
+    public void TheInlineFormWorksOnEveryLongOption()
     {
-        var detached = CommandLineParser.Parse([.. Minimal, option, ValueFor(option)]);
-        var inline = CommandLineParser.Parse([.. Minimal, $"{option}={ValueFor(option)}"]);
+        foreach (var option in EveryLongOptionTakingAValue)
+        {
+            var detached = CommandLineParser.Parse([.. Minimal, option, ValueFor(option)]);
+            var inline = CommandLineParser.Parse([.. Minimal, $"{option}={ValueFor(option)}"]);
 
-        detached.Succeeded.ShouldBeTrue($"'{option}' should accept its value detached");
-        inline.Succeeded.ShouldBeTrue($"'{option}' should accept its value inline");
-        Describe(inline.CommandLine!).ShouldBe(Describe(detached.CommandLine!));
+            detached.Succeeded.ShouldBeTrue($"'{option}' should accept its value detached");
+            inline.Succeeded.ShouldBeTrue($"'{option}' should accept its value inline");
+            Describe(inline.CommandLine!).ShouldBe(Describe(detached.CommandLine!));
+        }
 
         static string ValueFor(string option) => option switch
         {
@@ -256,6 +258,24 @@ public sealed class CommandLineParserTests
     public void AnOptionThatEndsTheVectorStillRequiringAValueIsRejected() =>
         ParseFail([.. Minimal, "--output"]).Code.ShouldBe("CLI001");
 
+    /// <summary>
+    /// Section 6.2 applies the terminal missing-value rule to every cataloged value-bearing long
+    /// option, including future options added to the central catalog.
+    /// </summary>
+    [Test]
+    public void EveryLongOptionRequiringAValueRejectsATerminalMissingValue()
+    {
+        foreach (var option in CommandLineOptions.All.Where(option =>
+                     option.Arity == CommandLineOptionArity.Single
+                     || option.Name is "--input" or "--scheme"))
+        {
+            var diagnostic = ParseFail([.. Minimal, option.Name]);
+
+            diagnostic.Code.ShouldBe("CLI001", option.Name);
+            diagnostic.Message.ShouldContain(option.Name, Case.Sensitive);
+        }
+    }
+
     [Test]
     public void AnUnrecognizedOptionIsRejected() =>
         ParseFail([.. Minimal, "--nonesuch", "x"]).Code.ShouldBe("CLI001");
@@ -330,11 +350,12 @@ public sealed class CommandLineParserTests
     // ---- the end-of-options marker ------------------------------------------------------
 
     [Test]
-    public void ABareDoubleHyphenHandsEveryFollowingTokenToThePrecedingListOption()
+    public void ABareDoubleHyphenHandsFollowingTokensToScheme()
     {
-        var line = ParseOk("-s", "scheme.txt", "-i", "a", "--", "-o", "--nonesuch", "--");
+        var line = ParseOk(
+            "-i", "input.txt", "-s", "one.txt", "--", "two.txt", "--output", "out");
 
-        line.Inputs.ShouldBe(["a", "-o", "--nonesuch", "--"]);
+        line.Schemes.ShouldBe(["one.txt", "two.txt", "--output", "out"]);
         line.OutputRoot.ShouldBe(".");
     }
 
@@ -345,6 +366,16 @@ public sealed class CommandLineParserTests
 
         line.Inputs.ShouldBe(["a", "--fail-on-warning"]);
         line.FailOnWarning.ShouldBeFalse();
+    }
+
+    [Test]
+    public void DiagnosticsFormatAfterDoubleHyphenIsListData()
+    {
+        var line = ParseOk(
+            "-s", "scheme.txt", "-i", "a", "--", "--diagnostics-format", "json");
+
+        line.Inputs.ShouldBe(["a", "--diagnostics-format", "json"]);
+        line.DiagnosticsFormat.ShouldBe(DiagnosticFormat.Text);
     }
 
     [Test]

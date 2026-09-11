@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Namespace2Xml.Gatekeeper</RootNamespace>
+    <AssemblyName>Namespace2Xml.Gatekeeper</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Namespace2Xml.UnitTests" />
+    <InternalsVisibleTo Include="Namespace2Xml.Conformance" />
+  </ItemGroup>
+
+</Project>

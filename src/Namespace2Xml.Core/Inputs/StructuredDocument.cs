@@ -190,4 +190,11 @@ public sealed record StructuredMapping(
 public sealed record StructuredSequence(
     ImmutableArray<StructuredNode> Items,
     int Line,
-    int Column) : StructuredNode(Line, Column);
+    int Column) : StructuredNode(Line, Column)
+{
+    /// <summary>
+    /// Whether Section 11.4 promoted an XML singleton into this sequence, invalidating the former
+    /// singleton path as a literal directive target.
+    /// </summary>
+    internal bool PromotesXmlSingleton { get; init; }
+}

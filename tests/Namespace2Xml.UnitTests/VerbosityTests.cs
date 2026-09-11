@@ -1,8 +1,11 @@
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Text;
+using System.Text.Json;
 using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
+using Namespace2Xml.Output;
+using Namespace2Xml.Pipeline;
 using NUnit.Framework;
 using Shouldly;
 
@@ -113,18 +116,19 @@ public sealed class VerbosityTests
     /// nothing was written, is what pins the stronger property: under <c>json</c> no code path
     /// holds a writer aimed at the stream carrying the array.
     /// </summary>
-    [TestCase(Verbosity.Trace)]
-    [TestCase(Verbosity.Debug)]
-    [TestCase(Verbosity.Information)]
-    public void TheJsonEncodingSuppressesOperationalMessagesAtEveryVerbosity(Verbosity verbosity)
+    [Test]
+    public void TheJsonEncodingSuppressesOperationalMessagesAtEveryVerbosity()
     {
-        var writer = new StringWriter();
+        foreach (var verbosity in Enum.GetValues<Verbosity>())
+        {
+            var writer = new StringWriter();
 
-        OperationalLogWriter.For(writer, Command(verbosity, DiagnosticFormat.Json))
-            .ShouldBeOfType<SilentOperationalLog>();
+            OperationalLogWriter.For(writer, Command(verbosity, DiagnosticFormat.Json))
+                .ShouldBeOfType<SilentOperationalLog>();
 
-        OperationalLogWriter.For(writer, Command(verbosity, DiagnosticFormat.Text))
-            .ShouldBeOfType<OperationalLogWriter>();
+            OperationalLogWriter.For(writer, Command(verbosity, DiagnosticFormat.Text))
+                .ShouldBeOfType<OperationalLogWriter>();
+        }
     }
 
     /// <summary>
@@ -187,30 +191,129 @@ public sealed class VerbosityTests
         {
             var sink = new TransformationTests.Sink();
             var sources = new TransformationTests.Sources(
-                ("in.txt", "a.x=1\na.y=${a.missing}\na.z=2"),
+                ("in.txt", "a.x=1\na.z=2"),
                 ("scheme.txt", "a.output=namespace"));
+            var command = CommandLineParser.Parse(
+                [
+                    "-i", "missing.txt", "-i", "in.txt", "-s", "scheme.txt",
+                    "--verbosity", verbosity.ToString().ToLowerInvariant(),
+                ])
+                .CommandLine.ShouldNotBeNull();
+            var observer = new ObservationLedger();
+            var operational = new StringWriter();
 
-            var result = TransformationTests.Run(
-                sink,
+            var result = Transformation.Run(
+                command,
                 sources,
-                log: null,
-                "-i", "in.txt", "-s", "scheme.txt", "--verbosity", verbosity.ToString().ToLowerInvariant());
+                sink,
+                OperationalLogWriter.For(operational, command),
+                observer);
 
             return (
                 Verbosity: verbosity,
-                result.ExitCode,
-                Codes: string.Join(",", result.Diagnostics.Select(d => d.Code)),
-                Files: string.Join(",", sink.Written.Keys.Order(StringComparer.Ordinal)));
+                Result: Describe(result),
+                Files: Describe(sink),
+                Observations: observer.Describe(),
+                Operational: operational.ToString());
         }).ToList();
 
         var first = results[0];
 
         foreach (var other in results)
         {
-            other.ExitCode.ShouldBe(first.ExitCode, $"at --verbosity {other.Verbosity}");
-            other.Codes.ShouldBe(first.Codes, $"at --verbosity {other.Verbosity}");
+            other.Result.ShouldBe(first.Result, $"at --verbosity {other.Verbosity}");
             other.Files.ShouldBe(first.Files, $"at --verbosity {other.Verbosity}");
+            other.Observations.ShouldBe(first.Observations, $"at --verbosity {other.Verbosity}");
         }
+
+        results.Single(run => run.Verbosity == Verbosity.Trace).Operational.ShouldNotBeEmpty();
+        results.Single(run => run.Verbosity == Verbosity.None).Operational.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Sections 6.2, 6.4.3, 21.3, and 24 jointly require a late publication failure to remain one
+    /// complete JSON diagnostic array with no operational text at every threshold.
+    /// </summary>
+    [Test]
+    public void LatePublicationFailureIsOnePureJsonArrayAtEveryVerbosity()
+    {
+        foreach (var verbosity in Enum.GetValues<Verbosity>())
+        {
+            var command = CommandLineParser.Parse(
+                [
+                    "-i", "in.txt", "-s", "scheme.txt",
+                    "--diagnostics-format", "json",
+                    "--verbosity", verbosity.ToString().ToLowerInvariant(),
+                ])
+                .CommandLine.ShouldNotBeNull();
+            var standardError = new StringWriter();
+
+            var result = Transformation.Run(
+                command,
+                new TransformationTests.Sources(
+                    ("in.txt", "a.x=1"),
+                    ("scheme.txt", "a.output=namespace")),
+                new FailingPublicationSink(),
+                OperationalLogWriter.For(standardError, command));
+
+            standardError.Write(Encoding.UTF8.GetString(JsonDiagnosticWriter.Render(result.Diagnostics)));
+
+            result.ExitCode.ShouldBe(1, $"at --verbosity {verbosity}");
+            result.Published.ShouldBe(0, $"at --verbosity {verbosity}");
+            using var document = JsonDocument.Parse(standardError.ToString());
+            document.RootElement.ValueKind.ShouldBe(JsonValueKind.Array);
+            document.RootElement.GetArrayLength().ShouldBe(1);
+            document.RootElement[0].GetProperty("code").GetString().ShouldBe("PATH002");
+        }
+    }
+
+    /// <summary>
+    /// Section 21.2 makes repeated warning-policy flags idempotent, while Section 6.2 prevents
+    /// verbosity from changing the policy result, diagnostics, publication, or accounting.
+    /// </summary>
+    [Test]
+    public void RepeatedWarningPolicyIsInvariantAcrossEveryVerbosity()
+    {
+        var runs = Enum.GetValues<Verbosity>().Select(verbosity =>
+        {
+            var sink = new TransformationTests.Sink();
+            var command = CommandLineParser.Parse(
+                [
+                    "--fail-on-warning", "--fail-on-warning",
+                    "-i", "missing.txt", "-i", "in.txt", "-s", "scheme.txt",
+                    "--verbosity", verbosity.ToString().ToLowerInvariant(),
+                ])
+                .CommandLine.ShouldNotBeNull();
+            var observer = new ObservationLedger();
+
+            var result = Transformation.Run(
+                command,
+                new TransformationTests.Sources(
+                    ("in.txt", "a.x=1"),
+                    ("scheme.txt", "a.output=namespace")),
+                sink,
+                SilentOperationalLog.Instance,
+                observer);
+
+            return (
+                Verbosity: verbosity,
+                Result: Describe(result),
+                Files: Describe(sink),
+                Observations: observer.Describe());
+        }).ToList();
+
+        foreach (var run in runs)
+        {
+            run.Result.ShouldBe(runs[0].Result, $"at --verbosity {run.Verbosity}");
+            run.Files.ShouldBe(runs[0].Files, $"at --verbosity {run.Verbosity}");
+            run.Observations.ShouldBe(runs[0].Observations, $"at --verbosity {run.Verbosity}");
+        }
+
+        var representative = runs[0].Result;
+        representative.ShouldContain("ExitCode=1");
+        representative.ShouldContain("Published=0");
+        representative.ShouldContain("WarningPolicyTriggered=True");
+        representative.ShouldContain("WARN001");
     }
 
     private static CommandLine Command(Verbosity verbosity, DiagnosticFormat format) =>
@@ -223,6 +326,39 @@ public sealed class VerbosityTests
             format,
             ResourceLimits.Defaults);
 
+    private static string Describe(TransformationResult result) => string.Join(
+        '\u001f',
+        $"State={result.State}",
+        $"Unsupported={result.Unsupported}",
+        $"Published={result.Published}",
+        $"WarningPolicyTriggered={result.WarningPolicyTriggered}",
+        $"ExitCode={result.ExitCode}",
+        string.Join(
+            '\u001e',
+            result.Diagnostics.Select(diagnostic => string.Join(
+                '\u001d',
+                diagnostic.Code,
+                diagnostic.Severity,
+                diagnostic.Phase,
+                diagnostic.Source,
+                diagnostic.Line,
+                diagnostic.Column,
+                diagnostic.Path,
+                diagnostic.Declaration,
+                diagnostic.Rule.IsDefault ? string.Empty : string.Join('\u001c', diagnostic.Rule),
+                diagnostic.Destination,
+                diagnostic.Spec,
+                diagnostic.Message))));
+
+    private static string Describe(TransformationTests.Sink sink) => string.Join(
+        '\u001f',
+        string.Join('\u001e', sink.Directories),
+        string.Join('\u001e', sink.WriteCalls),
+        string.Join(
+            '\u001e',
+            sink.Written.OrderBy(entry => entry.Key, StringComparer.Ordinal)
+                .Select(entry => entry.Key + "\u001d" + entry.Value)));
+
     /// <summary>Records every operational message, so a test can ask what level carried it.</summary>
     private sealed class RecordingLog : IOperationalLog
     {
@@ -234,5 +370,38 @@ public sealed class VerbosityTests
 
         public ReadOnlyCollection<string> At(OperationalLevel level) =>
             written.Where(entry => entry.Level == level).Select(entry => entry.Message).ToList().AsReadOnly();
+    }
+
+    private sealed class ObservationLedger : IPipelineObserver
+    {
+        private readonly List<PipelineObservation> observations = [];
+
+        public void Observe(PipelineObservation observation) => observations.Add(observation);
+
+        public string Describe() => string.Join(
+            '\u001e',
+            observations.Select(observation => string.Join(
+                '\u001d',
+                observation.Kind,
+                observation.Path,
+                observation.Owner,
+                observation.Target,
+                observation.Amount,
+                observation.Accepted,
+                observation.Values.IsDefault
+                    ? string.Empty
+                    : string.Join('\u001c', observation.Values))));
+    }
+
+    private sealed class FailingPublicationSink : IPublicationSink
+    {
+        public bool SupportsSecureContainment => true;
+
+        public void CreateDirectory(string root, string relative)
+        {
+        }
+
+        public bool Write(string root, string relative, OutputBuffer buffer) =>
+            throw new IOException("simulated late write failure");
     }
 }

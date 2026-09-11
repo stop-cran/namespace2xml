@@ -1,0 +1,6 @@
+-i
+inputs/data.json
+inputs/mask.txt
+inputs/reference.txt
+-s
+schemes/scheme.txt

@@ -1,0 +1,4 @@
+cfg.file=second
+cfg.line=first-line
+cfg.line=second-line
+cfg.cli=second-file

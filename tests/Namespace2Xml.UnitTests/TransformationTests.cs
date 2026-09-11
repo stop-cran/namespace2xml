@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Namespace2Xml.Cli;
@@ -99,6 +100,90 @@ public sealed class TransformationTests
 
     private static ImmutableArray<string> Codes(TransformationResult result) =>
         [.. result.Diagnostics.Select(d => d.Code)];
+
+    /// <summary>
+    /// Sections 11.4 and 19.4 require XML attribute markers to survive a real XML-to-JSON-to-XML
+    /// pipeline round trip rather than only isolated lexer and renderer calls.
+    /// </summary>
+    [Test]
+    public void XmlAttributesSurviveAJsonRoundTrip()
+    {
+        const string original = "<root id=\"7\" />";
+        var jsonSink = new Sink();
+        var first = Run(
+            jsonSink,
+            new Sources(
+                ("input.xml", original),
+                ("to-json.txt", "root.output=json\nroot.root=root\nroot.filename=bridge.json\n")),
+            "-i", "input.xml", "-s", "to-json.txt");
+
+        first.ExitCode.ShouldBe(0);
+        Codes(first).ShouldBeEmpty();
+
+        var xmlSink = new Sink();
+        var second = Run(
+            xmlSink,
+            new Sources(
+                ("bridge.json", jsonSink.Written["bridge.json"]),
+                ("to-xml.txt", "root.output=xml\nroot.root=root\nroot.filename=round.xml\n")),
+            "-i", "bridge.json", "-s", "to-xml.txt");
+
+        second.ExitCode.ShouldBe(0);
+        Codes(second).ShouldBeEmpty();
+
+        var roundTripped = XDocument.Parse(xmlSink.Written["round.xml"]);
+        roundTripped.Root!.Attribute("id")!.Value.ShouldBe("7");
+        roundTripped.Root.Name.LocalName.ShouldBe("root");
+    }
+
+    /// <summary>
+    /// Sections 8.3 and 19.1 require empty-container sentinels, escaped sentinel-like strings,
+    /// near misses, nesting, and later child contributions to survive JSON-to-namespace-to-JSON.
+    /// </summary>
+    [Test]
+    public void JsonContainersAndSentinelLikeStringsSurviveANamespaceRoundTrip()
+    {
+        const string original =
+            "{\"cfg\":{\"map\":{},\"sequence\":[],\"mapText\":\"{}\",\"sequenceText\":\"[]\","
+            + "\"nearPrefix\":\"x{}\",\"nearSuffix\":\"{}x\",\"nested\":{\"empty\":{},\"value\":\"kept\"}}}";
+        var namespaceSink = new Sink();
+        var first = Run(
+            namespaceSink,
+            new Sources(
+                ("input.json", original),
+                ("to-namespace.txt", "output=namespace\nfilename=bridge.properties\n")),
+            "-i", "input.json", "-s", "to-namespace.txt");
+
+        first.ExitCode.ShouldBe(0);
+        Codes(first).ShouldBeEmpty();
+        namespaceSink.Written["bridge.properties"].ShouldBe(
+            "cfg.map={}\n"
+            + "cfg.sequence=[]\n"
+            + "cfg.mapText=\\{}\n"
+            + "cfg.sequenceText=\\[]\n"
+            + "cfg.nearPrefix=x{}\n"
+            + "cfg.nearSuffix={}x\n"
+            + "cfg.nested.empty={}\n"
+            + "cfg.nested.value=kept\n");
+
+        var bridge = namespaceSink.Written["bridge.properties"]
+            .Replace("cfg.nested.empty={}\n", "cfg.nested={}\ncfg.nested.empty={}\n",
+                StringComparison.Ordinal);
+
+        var jsonSink = new Sink();
+        var second = Run(
+            jsonSink,
+            new Sources(
+                ("bridge.properties", bridge),
+                ("to-json.txt", "output=json\nfilename=round.json\n")),
+            "-i", "bridge.properties", "-s", "to-json.txt");
+
+        second.ExitCode.ShouldBe(0);
+        Codes(second).ShouldBeEmpty();
+        JsonNode.DeepEquals(
+            JsonNode.Parse(jsonSink.Written["round.json"]),
+            JsonNode.Parse(original)).ShouldBeTrue();
+    }
 
     /// <summary>
     /// Section 11.5 propagates the complete input envelope to every selected output instance,
@@ -868,6 +953,20 @@ public sealed class TransformationTests
         sink.Written.ShouldBeEmpty();
     }
 
+    [Test]
+    public void ARejectedDestinationPathCreatesNothing()
+    {
+        var (result, sink) = Transform(
+            "app.x=1\n",
+            "app.output=namespace\napp.filename=../x\n");
+
+        result.ExitCode.ShouldBe(1);
+        Codes(result).ShouldBe(["PATH001"]);
+        sink.Directories.ShouldBeEmpty();
+        sink.WriteCalls.ShouldBeEmpty();
+        sink.Written.ShouldBeEmpty();
+    }
+
     /// <summary>
     /// Section 12.1: "Legacy unnamed captures are substituted positionally", and a scheme
     /// directive's value "is decided the same way, from the captures its selector defines". One
@@ -1349,8 +1448,12 @@ public sealed class TransformationTests
     /// diagnostic set depend on sibling order. The rejected sequence itself is excluded, while a
     /// later independently discarded empty sequence still contributes to <c>WARN015</c>.
     /// </summary>
-    [TestCase("""{"cfg":{"blocked":[],"lost":[]}}""")]
-    [TestCase("""{"cfg":{"lost":[],"blocked":[]}}""")]
+    [TestCase(
+        """{"cfg":{"blocked":[],"lost":[]}}""",
+        TestName = "Warn015CountsXmlLossesAfterAnEarlierProjectionErrorWhenBlockedComesFirst")]
+    [TestCase(
+        """{"cfg":{"lost":[],"blocked":[]}}""",
+        TestName = "Warn015CountsXmlLossesAfterAnEarlierProjectionErrorWhenLostComesFirst")]
     public void Warn015CountsXmlLossesAfterAnEarlierProjectionError(string json)
     {
         var sink = new Sink();

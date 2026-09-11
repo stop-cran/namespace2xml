@@ -95,20 +95,23 @@ Seven rules. A rule with no enforcer is decoration, so each one names its enforc
 enforcer does not exist yet, says so in the same breath. [KNOWN-LIMITS.md §4](KNOWN-LIMITS.md#4-documented-but-not-yet-enforced)
 is the single list of which gates are live; this section must never contradict it.
 
-### C1 — Requirement and fixture first
+### C1 — Requirement and evidence first
 
-No behaviour change without named acceptance items and fixture evidence that **fails before and
-passes after**. The fixture may already exist or may land in the same pull request. It is authored
-from the specification, never captured from the tool's output.
+No behaviour change without named acceptance items and fixture or exact executable-gate evidence
+that **fails before and passes after**. Prefer a fixture whenever the behavior is expressible as a
+portable black-box case. Fixture expectations are authored from the specification, never captured
+from the tool's output. A direct gate is used only where Appendix C.5 explains why a fixture cannot
+carry the observation.
 
 *Enforced by:* `TraceabilityTests` and the assertion-manifest gate, both running today. **Partly
-manual:** CI verifies that every named acceptance item exists and that every `required` item has
-fixture coverage, but nothing yet reads the acceptance items out of the pull request body, so the
-"fails before" half is reviewer-verified. Tracked in KNOWN-LIMITS §4.
+manual:** CI verifies that every named acceptance item exists, that every authored assertion owns
+exactly one fixture artifact or exact gate observation, and that every `required` item has evidence,
+but nothing yet reads the acceptance items out of the pull request body, so the "fails before" half
+is reviewer-verified. Tracked in KNOWN-LIMITS §4.
 
-A pull request labelled `refactor-only` is exempt from adding a fixture, and in exchange must leave
-the entire observable corpus byte-identical and carry a maintainer approval. If a refactor changes
-one byte of output, it was not a refactor.
+A pull request labelled `refactor-only` is exempt from adding evidence, and in exchange must leave
+the entire observable corpus and direct-gate observations unchanged and carry a maintainer
+approval. If a refactor changes one observable byte or field, it was not a refactor.
 
 ### C2 — Cite the specification
 
@@ -133,9 +136,11 @@ and `src/` needs maintainer approval — it is not rejected merely for touching 
 
 ### C4 — Traceability stays bidirectional
 
-Every acceptance item has at least one fixture once it is marked `required`, and every fixture cites
-at least one acceptance item. Coverage grows by ratchet: an item is promoted to `required` when the
-milestone that owns it merges, and from then on it can never lose its fixture.
+Every acceptance item has at least one fixture or named gate once it is marked `required`, and every
+fixture cites at least one acceptance item. Every authored assertion names exactly one observable
+fixture artifact or executable-gate observation, and every listed evidence owner carries at least
+one assertion. Coverage grows by ratchet: an item is promoted to `required` when the milestone that
+owns it merges, and from then on it can never lose all evidence.
 
 *Enforced by:* `TraceabilityTests`, running from the first milestone.
 

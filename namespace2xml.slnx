@@ -7,4 +7,7 @@
     <Project Path="tests/Namespace2Xml.Conformance/Namespace2Xml.Conformance.csproj" />
     <Project Path="tests/Namespace2Xml.UnitTests/Namespace2Xml.UnitTests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Namespace2Xml.Gatekeeper/Namespace2Xml.Gatekeeper.csproj" />
+  </Folder>
 </Solution>

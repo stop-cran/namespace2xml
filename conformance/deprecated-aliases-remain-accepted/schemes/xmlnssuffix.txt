@@ -1,0 +1,1 @@
+cfg.b.type=xmlnssuffix

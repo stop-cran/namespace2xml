@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text;
 using Namespace2Xml.Budgets;
+using Namespace2Xml.Pipeline;
 
 namespace Namespace2Xml.Output;
 
@@ -72,11 +73,24 @@ public sealed class OutputBufferWriter
 
         if (!budget.TryConsume(ResourceBound.MaxTotalOutputBytes, bytes.Length, out var fault))
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.RenderedBytes,
+                    amount: bytes.Length,
+                    accepted: false);
+            }
             Fault = fault;
 
             return false;
         }
 
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(
+                PipelineObservationKind.RenderedBytes,
+                amount: bytes.Length);
+        }
         Append(bytes);
 
         return true;
@@ -102,9 +116,23 @@ public sealed class OutputBufferWriter
 
         if (!budget.TryConsume(ResourceBound.MaxTotalOutputBytes, byteCount, out var fault))
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.RenderedBytes,
+                    amount: byteCount,
+                    accepted: false);
+            }
             Fault = fault;
 
             return false;
+        }
+
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(
+                PipelineObservationKind.RenderedBytes,
+                amount: byteCount);
         }
 
         if (byteCount <= SegmentSize)

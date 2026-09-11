@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Namespace2Xml.Core\Namespace2Xml.Core.csproj" />
     <ProjectReference Include="..\..\src\Namespace2Xml.Cli\Namespace2Xml.Cli.csproj" />
+    <ProjectReference Include="..\..\tools\Namespace2Xml.Gatekeeper\Namespace2Xml.Gatekeeper.csproj" />
   </ItemGroup>
 
 </Project>

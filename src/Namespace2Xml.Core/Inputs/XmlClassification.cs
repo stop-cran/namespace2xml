@@ -381,7 +381,10 @@ internal static class XmlClassification
             // 'a.b' to the first repeated child.
             properties.Add(property with
             {
-                Value = new StructuredSequence([value], value.Line, value.Column),
+                Value = new StructuredSequence([value], value.Line, value.Column)
+                {
+                    PromotesXmlSingleton = true,
+                },
             });
 
             return true;

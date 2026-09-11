@@ -319,7 +319,9 @@ public class JsonInputReaderTests
     /// </remarks>
     [TestCase("{\"s\":\"\\uD800\"}")]
     [TestCase("{\"s\":\"\\uDC00\"}")]
-    [TestCase("{\"s\":\"\\uDC00\\uD800\"}")]
+    [TestCase(
+        "{\"s\":\"\\uDC00\\uD800\"}",
+        TestName = "AReversedSurrogatePairIsParse001")]
     [TestCase("{\"\\uD800\":1}")]
     [TestCase("[\"\\uD800\"]")]
     [TestCase("\"\\uD800\"")]

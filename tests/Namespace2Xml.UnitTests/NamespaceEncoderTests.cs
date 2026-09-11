@@ -227,6 +227,40 @@ public sealed class NamespaceEncoderTests
         // The Q{...} prefix already commits the component, so a following '@' cannot be misread.
         Encode(Name(new QualifiedElementPart("u", [new LiteralToken("@a")]))).ShouldBe("Q{u}@a");
 
+    /// <summary>
+    /// Sections 8.2, 11.4, and 19.1 require typed markers, escaped marker-like ordinary names,
+    /// incomplete-marker rejection, and output escaping to remain one injective grammar.
+    /// </summary>
+    [Test]
+    public void TypedMarkerGrammarAndOutputEscapingRemainInjective()
+    {
+        var attribute = QualifiedNameLexer.Lex("@name").Name.ShouldNotBeNull();
+        var content = QualifiedNameLexer.Lex("root.#12").Name.ShouldNotBeNull();
+        var qualified = QualifiedNameLexer.Lex("Q{urn:test}name").Name.ShouldNotBeNull();
+        var escapedAttribute = QualifiedNameLexer.Lex("\\@name").Name.ShouldNotBeNull();
+        var escapedContent = QualifiedNameLexer.Lex("\\#12").Name.ShouldNotBeNull();
+        var escapedQualified = QualifiedNameLexer.Lex("\\Q{urn:test}name").Name.ShouldNotBeNull();
+
+        attribute.Parts.Single().ShouldBeOfType<AttributePart>();
+        content.Parts[1].ShouldBeOfType<ContentPart>();
+        qualified.Parts.Single().ShouldBeOfType<QualifiedElementPart>();
+        escapedAttribute.Parts.Single().ShouldBeOfType<OrdinaryPart>();
+        escapedContent.Parts.Single().ShouldBeOfType<OrdinaryPart>();
+        escapedQualified.Parts.Single().ShouldBeOfType<OrdinaryPart>();
+
+        QualifiedNameLexer.Lex("@").Fault.ShouldNotBeNull();
+        QualifiedNameLexer.Lex("#").Fault.ShouldNotBeNull();
+        QualifiedNameLexer.Lex("#1x").Fault.ShouldNotBeNull();
+        QualifiedNameLexer.Lex("Q{urn:test").Fault.ShouldNotBeNull();
+
+        Encode(attribute).ShouldBe("@name");
+        Encode(content).ShouldBe("root.#12");
+        Encode(qualified).ShouldBe("Q{urn:test}name");
+        Encode(escapedAttribute).ShouldBe("\\@name");
+        Encode(escapedContent).ShouldBe("\\#12");
+        Encode(escapedQualified).ShouldBe("\\Q{urn:test\\}name");
+    }
+
     // Section 19.1: wildcards.
 
     [Test]

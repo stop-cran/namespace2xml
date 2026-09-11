@@ -274,6 +274,14 @@ public sealed class WildcardEvaluator
                     continue;
                 }
 
+                if (PipelineInstrumentation.IsEnabled)
+                {
+                    PipelineInstrumentation.Record(
+                        PipelineObservationKind.WildcardMatch,
+                        CanonicalPath.Of(path),
+                        rule.CanonicalName);
+                }
+
                 if (!TryGenerate(result, rule, index, depth, wave, path, captures, out result))
                 {
                     return false;
@@ -294,6 +302,14 @@ public sealed class WildcardEvaluator
     private bool TryCharge(int index, ImmutableArray<NamePart> path, out bool fresh)
     {
         fresh = considered.Add((index, CanonicalPath.Of(path) ?? string.Empty));
+
+        if (fresh && PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(
+                PipelineObservationKind.WildcardCandidate,
+                CanonicalPath.Of(path),
+                rules[index].CanonicalName);
+        }
 
         if (!fresh || budget.TryConsume(ResourceBound.MaxWildcardCandidates, 1, out var tooMany))
         {
@@ -356,12 +372,26 @@ public sealed class WildcardEvaluator
         // Section 23: "--max-generated counts newly materialized overlay nodes, including carrier
         // containers required for a generated descendant. A generated contribution targeting only
         // already-existing nodes consumes no generated-node count."
-        var fresh = Materialized(current, generated);
+        var materialized = Materialized(current, generated);
+        var fresh = materialized.Count;
 
         if (fresh > 0 && !budget.TryConsume(ResourceBound.MaxGenerated, fresh, out var tooMany))
         {
             ReportLimit(tooMany, [rule]);
             return false;
+        }
+
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            for (var materializedDepth = materialized.ExistingDepth;
+                 materializedDepth < generated.Length;
+                 materializedDepth++)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.GeneratedNode,
+                    CanonicalPath.Of(generated[..(materializedDepth + 1)]),
+                    rule.CanonicalName);
+            }
         }
 
         // Section 12.4: a generated contribution is "merged at its deterministic rule/match
@@ -427,6 +457,13 @@ public sealed class WildcardEvaluator
         OverlayNode leaf,
         StableOrderingKey order)
     {
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(
+                PipelineObservationKind.WildcardPostDiscovery,
+                CanonicalPath.Of(Prefix(path, depth)));
+        }
+
         if (depth == path.Length)
         {
             return Fold(node, leaf, path, order);
@@ -649,7 +686,9 @@ public sealed class WildcardEvaluator
         depth == path.Length ? path : ImmutableArray.Create(path, 0, depth);
 
     /// <summary>How many nodes a generated contribution at a path would newly materialize.</summary>
-    private static long Materialized(OverlayNode root, ImmutableArray<NamePart> path)
+    private static (long Count, int ExistingDepth) Materialized(
+        OverlayNode root,
+        ImmutableArray<NamePart> path)
     {
         var node = root;
         var depth = 0;
@@ -661,7 +700,7 @@ public sealed class WildcardEvaluator
             depth++;
         }
 
-        return path.Length - depth;
+        return (path.Length - depth, depth);
     }
 
     /// <summary>The generative rules that have produced something, for a limit report.</summary>

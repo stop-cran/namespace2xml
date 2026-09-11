@@ -1,0 +1,2 @@
+a.obj.x=1
+b.obj.y=2

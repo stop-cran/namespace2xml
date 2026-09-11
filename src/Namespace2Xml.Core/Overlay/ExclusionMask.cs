@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Namespace2Xml.Pipeline;
 using Namespace2Xml.Profiles;
 
 namespace Namespace2Xml.Overlay;
@@ -55,6 +56,14 @@ public sealed class ExclusionMask
     {
         foreach (var pattern in patterns)
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.MaskCandidate,
+                    CanonicalPath.Of(path),
+                    CanonicalPath.Of(pattern));
+            }
+
             if (WildcardMatch.TryMatchPrefix(pattern.Parts, pattern.Parts.Length, path, out _))
             {
                 return true;
@@ -86,6 +95,13 @@ public sealed class ExclusionMask
 
     private OverlayNode Prune(OverlayNode node, ImmutableArray<NamePart> path)
     {
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(
+                PipelineObservationKind.FilterNode,
+                CanonicalPath.Of(path));
+        }
+
         var children = node.Children;
         var sequence = node.Sequence;
         StableOrderingKey? mappingFromDescendants = null;

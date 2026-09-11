@@ -45,6 +45,7 @@ public sealed class ReferenceResolver
     private readonly Dictionary<string, ScalarPayload?> resolved = new(StringComparer.Ordinal);
     private readonly HashSet<string> reportedCycles = new(StringComparer.Ordinal);
     private readonly HashSet<string> canonicalTargets = new(StringComparer.Ordinal);
+    private string closure = string.Empty;
 
     private ReferenceResolver(
         OverlayNode model, DiagnosticBuffer diagnostics, GlobalBudget budget)
@@ -93,6 +94,13 @@ public sealed class ReferenceResolver
 
         foreach (var root in roots)
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                resolver.closure = CanonicalPath.Of(root) ?? string.Empty;
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.ReferenceClosure,
+                    resolver.closure);
+            }
             resolver.Reach(root);
         }
 
@@ -245,6 +253,14 @@ public sealed class ReferenceResolver
 
     private void Walk(OverlayNode node, ImmutableArray<NamePart> path)
     {
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(
+                PipelineObservationKind.ReferenceNode,
+                CanonicalPath.Of(path),
+                closure);
+        }
+
         if (node.Payload is { IsUnresolved: true })
         {
             ResolveAt(path, []);
@@ -378,6 +394,15 @@ public sealed class ReferenceResolver
         if (!TryAddress(name, path, out var target))
         {
             return null;
+        }
+
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(
+                PipelineObservationKind.ReferenceEdge,
+                CanonicalPath.Of(path),
+                closure,
+                CanonicalPath.Of(target));
         }
 
         var referent = ResolveAt(target, chain);
@@ -634,6 +659,14 @@ public sealed class ReferenceResolver
     /// <summary>Rebuilds the model with every payload this run resolved.</summary>
     private OverlayNode Rewrite(OverlayNode node, ImmutableArray<NamePart> path)
     {
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(
+                PipelineObservationKind.ReferenceNode,
+                CanonicalPath.Of(path),
+                closure);
+        }
+
         var result = node;
 
         if (node.Payload is { IsUnresolved: true }

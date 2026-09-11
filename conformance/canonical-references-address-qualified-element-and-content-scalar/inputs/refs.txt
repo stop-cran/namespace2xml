@@ -1,0 +1,2 @@
+out.qualified=${r.Q{urn:p}x}
+out.content=${r.m.#0}

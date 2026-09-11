@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Namespace2Xml.Gatekeeper;
 using NUnit.Framework;
 using Shouldly;
 
@@ -7,7 +8,8 @@ namespace Namespace2Xml.Conformance;
 /// <summary>
 /// The traceability gate of specification Appendix C.5. Coverage grows by ratchet: an acceptance
 /// item is promoted to <c>required</c> when the milestone that owns it merges, and from then on a
-/// fixture must exist for it. Claiming coverage that does not exist would be worse than none.
+/// fixture or exact named gate must exist for it. Claiming coverage that does not exist would be
+/// worse than none.
 /// </summary>
 [TestFixture]
 public class TraceabilityTests
@@ -58,20 +60,66 @@ public class TraceabilityTests
     }
 
     [Test]
-    public void EveryRequiredItemHasAFixture()
+    public void EveryRequiredItemHasFixtureOrGate()
     {
-        var covered = ConformanceCase.Discover(CorpusLayout.Corpus)
-            .SelectMany(conformanceCase => conformanceCase.Requirements)
-            .ToHashSet();
-
         var uncovered = Items
             .Where(item => item.GetProperty("status").GetString() == "required")
+            .Where(item =>
+                item.GetProperty("fixtures").GetArrayLength() == 0
+                && (!item.TryGetProperty("gates", out var gates) || gates.GetArrayLength() == 0))
             .Select(item => item.GetProperty("item").GetInt32())
-            .Where(item => !covered.Contains(item))
             .ToList();
 
         uncovered.ShouldBeEmpty(
-            "acceptance items are marked required but have no fixture: " + string.Join(", ", uncovered));
+            "acceptance items are marked required but name neither fixture nor gate evidence: "
+            + string.Join(", ", uncovered));
+    }
+
+    /// <summary>
+    /// Appendix C.5: every authored assertion owns exactly one listed fixture artifact or one exact
+    /// executable-gate observation, and every listed evidence owner carries at least one assertion.
+    /// The shared manifest reader enforces the closed object shapes, exact owner names, artifact
+    /// grammar, uniqueness, and the required-item nonempty assertion set.
+    /// </summary>
+    [Test]
+    public void EveryAssertionMapsToExactlyOneObservableEvidenceOwner()
+    {
+        var catalog = AssertionGateCatalog.Load(CorpusLayout.AssertionManifest);
+
+        catalog.Evidence.ShouldNotBeEmpty();
+        catalog.Evidence.Select(reference => reference.Item).Distinct().ShouldBe(
+            Items.Select(item => item.GetProperty("item").GetInt32()));
+    }
+
+    [Test]
+    public void EveryFixtureAssertionNamesAnExistingOracleArtifact()
+    {
+        var catalog = AssertionGateCatalog.Load(CorpusLayout.AssertionManifest);
+
+        foreach (var reference in catalog.Evidence
+                     .Where(reference => reference.Kind == AssertionEvidenceKind.Fixture))
+        {
+            var fixture = Path.Combine(CorpusLayout.Corpus, reference.Name);
+            var artifact = reference.Artifact switch
+            {
+                "expected/" => Path.Combine(fixture, "expected"),
+                "expected-diagnostics.json" => Path.Combine(fixture, "expected-diagnostics.json"),
+                "expected-exit-code.txt" => Path.Combine(fixture, "expected-exit-code.txt"),
+                "expected-stdout.txt" => Path.Combine(fixture, "expected-stdout.txt"),
+                "legacy.md" => Path.Combine(fixture, "legacy.md"),
+                _ => Path.Combine(
+                    fixture,
+                    reference.Artifact.Replace('/', Path.DirectorySeparatorChar)),
+            };
+
+            var exists = reference.Artifact == "expected/"
+                ? Directory.Exists(artifact)
+                : File.Exists(artifact);
+
+            exists.ShouldBeTrue(
+                $"item {reference.Item} assertion '{reference.Assertion}' names missing fixture "
+                + $"artifact '{reference.Name}/{reference.Artifact}'.");
+        }
     }
 
     /// <summary>
@@ -140,82 +188,43 @@ public class TraceabilityTests
         || conformanceCase.ExpectedDiagnostics is not null;
 
     /// <summary>
-    /// Appendix C.5: a gate named in the manifest must resolve to something that exists — a declared
-    /// test, or a job defined in the continuous-integration workflow.
+    /// Appendix C.5: a gate named in the manifest must resolve to an exact built NUnit leaf or an
+    /// exact workflow path, stable job ID, and complete matrix expansion.
     /// <para>
     /// Without this the field would discharge an acceptance item by writing a plausible name into a
-    /// file, which is the exact failure the appendix exists to prevent. A gate is checked by finding
-    /// the name in the sources rather than by reflection, because the tests it names live in an
-    /// assembly this one does not reference and should not have to.
+    /// file, which is the exact failure the appendix exists to prevent. Test discovery therefore
+    /// comes from the two built assemblies through the pinned adapter, never from source text.
     /// </para>
     /// </summary>
     [Test]
-    public void EveryNamedGateResolvesToSomethingThatExists()
+    public void EveryNamedGateResolvesToAnExactCatalogIdentity()
     {
-        var testSources = Directory
-            .EnumerateFiles(Path.Combine(CorpusLayout.Root, "tests"), "*.cs", SearchOption.AllDirectories)
-            .Select(File.ReadAllText)
-            .ToList();
+        var assertions = AssertionGateCatalog.Load(CorpusLayout.AssertionManifest);
+        var tests = NUnitTestDiscovery.Discover(
+            CorpusLayout.Root,
+            typeof(TraceabilityTests).Assembly.Location);
+        var workflows = WorkflowCatalog.Load(CorpusLayout.Root);
 
-        var workflows = Directory
-            .EnumerateFiles(
-                Path.Combine(CorpusLayout.Root, ".github", "workflows"),
-                "*.yml",
-                SearchOption.AllDirectories)
-            .Select(File.ReadAllText)
-            .ToList();
+        tests.Assemblies.Keys.Order(StringComparer.Ordinal).ShouldBe(
+        [
+            "Namespace2Xml.Conformance",
+            "Namespace2Xml.UnitTests",
+        ]);
+        tests.Contains(
+            "Namespace2Xml.Conformance",
+            typeof(TraceabilityTests).FullName
+            + "."
+            + nameof(EveryNamedGateResolvesToAnExactCatalogIdentity)).ShouldBeTrue(
+                "built NUnit discovery does not contain the traceability sentinel leaf.");
 
-        foreach (var item in Items)
-        {
-            if (!item.TryGetProperty("gates", out var gates))
-            {
-                continue;
-            }
-
-            var number = item.GetProperty("item").GetInt32();
-
-            var hasFixtures = item.GetProperty("fixtures").GetArrayLength() > 0;
-
-            if (!hasFixtures)
-            {
-                item.TryGetProperty("whyNotAFixture", out var why).ShouldBeTrue(
-                    $"item {number} is discharged by gates alone but does not say why a fixture "
-                    + "cannot discharge it. Appendix C.5 requires the exemption to be argued "
-                    + "rather than assumed.");
-
-                why.GetString().ShouldNotBeNullOrWhiteSpace();
-            }
-
-            foreach (var gate in gates.EnumerateArray())
-            {
-                var name = gate.GetString()!;
-
-                var resolved = name.StartsWith("ci:", StringComparison.Ordinal)
-                    ? workflows.Any(workflow =>
-                        workflow.Contains("\n  " + name[3..] + ":", StringComparison.Ordinal))
-                    : testSources.Any(source =>
-                        source.Contains(LastSegment(name) + "(", StringComparison.Ordinal));
-
-                resolved.ShouldBeTrue(
-                    $"item {number} names the gate '{name}', which does not resolve to a declared "
-                    + "test or a job in .github/workflows. A gate that names nothing discharges "
-                    + "nothing.");
-            }
-        }
-    }
-
-    private static string LastSegment(string name)
-    {
-        var dot = name.LastIndexOf('.');
-
-        return dot < 0 ? name : name[(dot + 1)..];
+        StaticGateValidator.Validate(assertions.References, tests, workflows);
     }
 
     /// <summary>
     /// Appendix C.5: every acceptance item is discharged by a fixture or by a gate, and an item that
     /// has neither must say so in the manifest.
     /// <para>
-    /// <see cref="EveryRequiredItemHasAFixture"/> only inspects items already promoted to
+    /// <see cref="EveryRequiredItemHasFixtureOrGate"/> only inspects items already promoted to
     /// <c>required</c>, so an item that is still <c>pending</c> could carry no evidence at all and no
     /// test would notice. That is the state the corpus was in for most of its life, and it is
     /// invisible precisely when it matters — while the corpus is being filled in. This gate makes the
@@ -228,30 +237,39 @@ public class TraceabilityTests
     /// </para>
     /// </summary>
     [Test]
-    public void EveryItemIsDischargedByAFixtureAGateOrAnArgument()
+    public void EveryItemHasEvidenceOrAnExplicitPendingGap()
     {
         foreach (var item in Items)
         {
             var number = item.GetProperty("item").GetInt32();
-            var covered = item.GetProperty("fixtures").GetArrayLength() > 0
-                || (item.TryGetProperty("gates", out var gates) && gates.GetArrayLength() > 0);
+            var status = item.GetProperty("status").GetString();
+            var hasFixtures = item.GetProperty("fixtures").GetArrayLength() > 0;
+            var hasGates = item.TryGetProperty("gates", out var gates)
+                && gates.GetArrayLength() > 0;
 
             var argued = item.TryGetProperty("whyNotAFixture", out var why)
                 && !string.IsNullOrWhiteSpace(why.GetString());
 
-            if (!covered)
+            if (!hasFixtures && !hasGates && status == "pending")
             {
                 argued.ShouldBeTrue(
                     $"acceptance item {number} names no fixture and no gate, and does not say why. "
                     + "An item may be uncovered, but Appendix C.5 requires the gap to be argued in "
                     + "the manifest so that it is visible rather than merely absent.");
             }
-            else if (item.GetProperty("fixtures").GetArrayLength() > 0)
+            else if (hasFixtures)
             {
                 argued.ShouldBeFalse(
                     $"acceptance item {number} names a fixture and still carries whyNotAFixture. "
                     + "An exemption that outlives the gap it described is worse than none, because "
                     + "it reports a hole that has been filled.");
+            }
+            else if (hasGates)
+            {
+                argued.ShouldBeTrue(
+                    $"acceptance item {number} names only gate evidence but does not say why a "
+                    + "fixture cannot discharge it. Appendix C.5 requires the exemption to be "
+                    + "argued rather than assumed.");
             }
         }
     }

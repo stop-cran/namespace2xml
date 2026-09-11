@@ -122,9 +122,9 @@ public class StructuredSchemeReaderTests
     /// coordinates, while leaving declaration and path absent because no declaration exists.
     /// </summary>
     /// <param name="document">The scheme document.</param>
-    [TestCase(""" "x" """)]
-    [TestCase("null")]
-    [TestCase("""[1,2]""")]
+    [TestCase(""" "x" """, TestName = "AStringRootIsScheme003WithRootLocation")]
+    [TestCase("null", TestName = "ANullRootIsScheme003WithRootLocation")]
+    [TestCase("""[1,2]""", TestName = "ASequenceRootIsScheme003WithRootLocation")]
     public void NonMappingRootsAreScheme003WithRootLocation(string document)
     {
         Read(document).Entries.ShouldBeEmpty();

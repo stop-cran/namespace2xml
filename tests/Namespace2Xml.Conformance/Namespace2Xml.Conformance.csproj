@@ -21,6 +21,10 @@
       seam diverge from what a user actually runs.
     -->
     <ProjectReference Include="..\..\src\Namespace2Xml.Cli\Namespace2Xml.Cli.csproj" />
+    <ProjectReference Include="..\..\tools\Namespace2Xml.Gatekeeper\Namespace2Xml.Gatekeeper.csproj" />
+    <ProjectReference
+      Include="..\Namespace2Xml.UnitTests\Namespace2Xml.UnitTests.csproj"
+      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

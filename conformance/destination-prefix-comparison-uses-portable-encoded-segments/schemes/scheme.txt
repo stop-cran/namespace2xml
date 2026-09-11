@@ -1,0 +1,4 @@
+left.output=namespace
+left.filename=out/a
+right.*.output=namespace
+right.*.filename=out/*

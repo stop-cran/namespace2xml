@@ -569,7 +569,7 @@ public sealed class DiagnosticBufferTests
 /// The Section 15.4 driver loop over the Section 15.1 step order.
 /// </summary>
 [TestFixture]
-public sealed class PipelineRunTests
+public sealed class PipelineTests
 {
     [Test]
     public void ARunStartsRunningWithNoStepBehindIt()

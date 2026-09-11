@@ -45,6 +45,9 @@ public readonly record struct NodeMarks
     /// <param name="nativeMappings">
     /// The native JSON/YAML mapping contributions at this node, ascending by key.
     /// </param>
+    /// <param name="wasXmlSingletonPromoted">
+    /// Whether Section 11.4 readdressed an XML singleton beneath this sequence path.
+    /// </param>
     private NodeMarks(
         StableOrderingKey position,
         bool addressedDirectly,
@@ -54,7 +57,8 @@ public readonly record struct NodeMarks
         StableOrderingKey? ownMappingShape,
         StableOrderingKey? ownSequenceShape,
         long? contentToken,
-        ImmutableArray<NativeMappingOrigin> nativeMappings)
+        ImmutableArray<NativeMappingOrigin> nativeMappings,
+        bool wasXmlSingletonPromoted = false)
     {
         Position = position;
         AddressedDirectly = addressedDirectly;
@@ -65,6 +69,7 @@ public readonly record struct NodeMarks
         OwnSequenceShape = ownSequenceShape;
         ContentToken = contentToken;
         natives = nativeMappings;
+        WasXmlSingletonPromoted = wasXmlSingletonPromoted;
     }
 
     private readonly ImmutableArray<NativeMappingOrigin> natives;
@@ -104,6 +109,12 @@ public readonly record struct NodeMarks
     /// </para>
     /// </remarks>
     public long? ContentToken { get; }
+
+    /// <summary>
+    /// Whether this sequence path exists because Section 11.4 readdressed an XML singleton beneath
+    /// stable ordering values.
+    /// </summary>
+    internal bool WasXmlSingletonPromoted { get; }
 
     /// <summary>
     /// The Section 4.4 position mark: the latest contribution that addresses this node itself. It
@@ -274,7 +285,8 @@ public readonly record struct NodeMarks
             OwnMappingShape,
             OwnSequenceShape,
             ContentToken,
-            natives);
+            natives,
+            WasXmlSingletonPromoted);
 
     /// <summary>
     /// Records a contribution that requires mapping shape at this node itself, advancing both the
@@ -290,7 +302,8 @@ public readonly record struct NodeMarks
             Later(OwnMappingShape, position),
             OwnSequenceShape,
             ContentToken,
-            natives);
+            natives,
+            WasXmlSingletonPromoted);
 
     /// <summary>
     /// Records a contribution that requires sequence shape at this node itself, advancing both the
@@ -306,7 +319,8 @@ public readonly record struct NodeMarks
             OwnMappingShape,
             Later(OwnSequenceShape, position),
             ContentToken,
-            natives);
+            natives,
+            WasXmlSingletonPromoted);
 
     /// <summary>
     /// Records a strictly deeper descendant, which refreshes the mapping shape-mark and leaves the
@@ -317,7 +331,7 @@ public readonly record struct NodeMarks
     /// </remarks>
     public NodeMarks WithDescendant(StableOrderingKey position) =>
         new(Position, AddressedDirectly, PayloadMark, Later(MappingShape, position), SequenceShape,
-            OwnMappingShape, OwnSequenceShape, ContentToken, natives);
+            OwnMappingShape, OwnSequenceShape, ContentToken, natives, WasXmlSingletonPromoted);
 
     /// <summary>
     /// Records a sequence item, which refreshes the sequence shape-mark and leaves the position
@@ -331,7 +345,21 @@ public readonly record struct NodeMarks
     /// </remarks>
     public NodeMarks WithSequenceItem(StableOrderingKey position) =>
         new(Position, AddressedDirectly, PayloadMark, MappingShape, Later(SequenceShape, position),
-            OwnMappingShape, OwnSequenceShape, ContentToken, natives);
+            OwnMappingShape, OwnSequenceShape, ContentToken, natives, WasXmlSingletonPromoted);
+
+    /// <summary>These marks with Section 11.4 XML singleton-promotion provenance recorded.</summary>
+    internal NodeMarks WithXmlSingletonPromotion() =>
+        new(
+            Position,
+            AddressedDirectly,
+            PayloadMark,
+            MappingShape,
+            SequenceShape,
+            OwnMappingShape,
+            OwnSequenceShape,
+            ContentToken,
+            natives,
+            wasXmlSingletonPromoted: true);
 
     /// <summary>
     /// The marks after Section 8.7 inference, which "replaces that contribution's mapping
@@ -354,7 +382,8 @@ public readonly record struct NodeMarks
     public NodeMarks AsInferredSequence() =>
         new(Position, AddressedDirectly, PayloadMark, mappingShape: null, sequenceShape: ContainerShape,
             ownMappingShape: null, ownSequenceShape: Later(OwnMappingShape, OwnSequenceShape),
-            contentToken: ContentToken, nativeMappings: natives);
+            contentToken: ContentToken, nativeMappings: natives,
+            wasXmlSingletonPromoted: WasXmlSingletonPromoted);
 
     /// <summary>
     /// The marks after Section 16.6 <c>type=mapping</c> converts a winning sequence projection, the
@@ -369,7 +398,8 @@ public readonly record struct NodeMarks
     public NodeMarks AsForcedMapping() =>
         new(Position, AddressedDirectly, PayloadMark, mappingShape: ContainerShape, sequenceShape: null,
             ownMappingShape: Later(OwnMappingShape, OwnSequenceShape), ownSequenceShape: null,
-            contentToken: ContentToken, nativeMappings: natives);
+            contentToken: ContentToken, nativeMappings: natives,
+            wasXmlSingletonPromoted: WasXmlSingletonPromoted);
 
     /// <summary>
     /// The marks of a node's independent payload and sequence facets, with its mapping projection
@@ -388,7 +418,8 @@ public readonly record struct NodeMarks
     /// </remarks>
     public NodeMarks WithoutMapping() =>
         new(Position, AddressedDirectly, PayloadMark, mappingShape: null, SequenceShape,
-            ownMappingShape: null, OwnSequenceShape, ContentToken, nativeMappings: []);
+            ownMappingShape: null, OwnSequenceShape, ContentToken, nativeMappings: [],
+            wasXmlSingletonPromoted: WasXmlSingletonPromoted);
 
     /// <summary>
     /// The marks after Section 8.6 permanent masking, recomputed from the contributions that
@@ -425,7 +456,8 @@ public readonly record struct NodeMarks
             OwnMappingShape,
             OwnSequenceShape,
             ContentToken,
-            natives);
+            natives,
+            WasXmlSingletonPromoted);
 
     /// <summary>
     /// The marks of a node whose complete value one later contribution has replaced.
@@ -456,7 +488,8 @@ public readonly record struct NodeMarks
             replacement.OwnMappingShape,
             replacement.OwnSequenceShape,
             replacement.ContentToken ?? ContentToken,
-            replacement.natives);
+            replacement.natives,
+            replacement.WasXmlSingletonPromoted);
 
     /// <summary>
     /// The marks of a node that carries both of two nodes' contributions, taking the later of each
@@ -489,7 +522,8 @@ public readonly record struct NodeMarks
             Later(OwnMappingShape, other.OwnMappingShape),
             Later(OwnSequenceShape, other.OwnSequenceShape),
             CombineToken(this, other),
-            UnionNatives(natives, other.natives));
+            UnionNatives(natives, other.natives),
+            WasXmlSingletonPromoted || other.WasXmlSingletonPromoted);
 
     /// <summary>These marks with a Section 11.4 content-token ordering value recorded.</summary>
     /// <param name="contentToken">The value the node's XML parent assigned it.</param>
@@ -503,7 +537,8 @@ public readonly record struct NodeMarks
             OwnMappingShape,
             OwnSequenceShape,
             contentToken,
-            natives);
+            natives,
+            WasXmlSingletonPromoted);
 
     /// <summary>
     /// These marks with one Section 3.2 native JSON/YAML mapping contribution recorded.
@@ -528,7 +563,8 @@ public readonly record struct NodeMarks
             OwnMappingShape,
             OwnSequenceShape,
             ContentToken,
-            UnionNatives(natives, [new NativeMappingOrigin(key, source)]));
+            UnionNatives(natives, [new NativeMappingOrigin(key, source)]),
+            WasXmlSingletonPromoted);
 
     /// <summary>
     /// These marks with every Section 3.2 native JSON/YAML mapping contribution discarded, for a
@@ -554,7 +590,8 @@ public readonly record struct NodeMarks
                 OwnMappingShape,
                 OwnSequenceShape,
                 ContentToken,
-                []);
+                [],
+                WasXmlSingletonPromoted);
 
     /// <summary>
     /// The union of two native-mapping origin sets, ascending by key and free of duplicates.

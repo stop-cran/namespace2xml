@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Xml;
 using Namespace2Xml.Budgets;
 using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
@@ -274,6 +275,37 @@ public class XmlInputReaderTests
             + "<!ENTITY c \"&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;\">]><l>&c;</l>";
 
         Refusal(document).Code.ShouldBe("XML001");
+    }
+
+    [Test]
+    public void DtdRefusalPrecedesReaderCreationAndExternalResolution()
+    {
+        const string Document =
+            "<!DOCTYPE r SYSTEM \"probe.dtd\" [<!ENTITY a \"xxxxxxxxxx\">"
+            + "<!ENTITY b \"&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;\">]><r>&b;</r>";
+
+        var factory = new ProbedXmlReaderFactory();
+        var diagnostics = new DiagnosticBuffer();
+
+        XmlInputReader.Read(
+            Document,
+            SourceEncoding.Utf8,
+            XmlInput.Default,
+            new SourceBudget(ResourceLimits.Defaults, 0),
+            ProfileSource.OfFile("d.xml"),
+            DiagnosticPhase.Input,
+            diagnostics,
+            StableOrderingKey.FromSource(0, 1),
+            factory).ShouldBeNull();
+
+        var refusal = diagnostics.Drain().ShouldHaveSingleItem();
+        refusal.Code.ShouldBe("XML001");
+        refusal.Line.ShouldBe(1);
+        refusal.Column.ShouldBe(1);
+        factory.ReaderCreateCalls.ShouldBe(0);
+        factory.ResolverOpenCalls.ShouldBe(0);
+        factory.ReaderReadCalls.ShouldBe(0);
+        factory.ExpandedCharacterCount.ShouldBe(0);
     }
 
     /// <summary>
@@ -1140,4 +1172,22 @@ public class XmlInputReaderTests
     [Test]
     public void RepeatedChildrenPromoteAfterNormalizing() =>
         Normalized("<a>\n  <b>1</b>\n  <b>2</b>\n</a>", out _).ShouldBe(["a.b.0=1", "a.b.1=2"]);
+
+    private sealed class ProbedXmlReaderFactory : XmlInputReader.IXmlReaderFactory
+    {
+        public int ReaderCreateCalls { get; private set; }
+
+        public int ResolverOpenCalls { get; private set; }
+
+        public int ReaderReadCalls { get; private set; }
+
+        public int ExpandedCharacterCount { get; private set; }
+
+        public XmlReader Create(TextReader input, XmlReaderSettings settings)
+        {
+            ReaderCreateCalls++;
+            throw new AssertionException(
+                "The DTD pre-scan must refuse the document before creating an XML reader.");
+        }
+    }
 }
