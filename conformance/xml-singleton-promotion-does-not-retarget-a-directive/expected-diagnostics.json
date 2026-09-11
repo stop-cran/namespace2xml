@@ -1,0 +1,4 @@
+[
+{"code":"WARN004","severity":"warning","phase":"input","path":"r.b","spec":"§8.7"},
+{"code":"WARN009","severity":"warning","phase":"planning","source":"schemes/scheme.txt","line":3,"path":"r.b","declaration":"r.b.type","spec":"§15.2"}
+]

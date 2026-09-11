@@ -23,8 +23,9 @@ spelled:
 > Repeated `-i`/`--input`, `-s`/`--scheme`, and `-v`/`--variables` occurrences concatenate their
 > values in exact command-line token order.
 
-> a list-valued option accepts values until the next option token; every other option accepts
-> exactly one value, and a later occurrence overrides an earlier one.
+> a list-valued option accepts values until the next option token and, for `input` and `scheme`,
+> every occurrence accepts at least one; every other option accepts exactly one value, and a later
+> occurrence overrides an earlier one.
 
 So `-i a b` and `-i a -i b` name the same ordered input list, and the general "a later occurrence
 overrides an earlier one" rule is exactly what the first sentence exempts the list options from.

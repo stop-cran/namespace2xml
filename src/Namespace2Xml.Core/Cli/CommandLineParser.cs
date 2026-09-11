@@ -49,12 +49,23 @@ public static class CommandLineParser
 
         for (var index = 0; index < arguments.Count; index++)
         {
-            var token = arguments[index] ?? string.Empty;
+            var token = arguments[index];
+
+            if (!IsWellFormedUtf16(token))
+            {
+                return Failure(
+                    "§6.2",
+                    $"Argument token {index + 1} is not well-formed Unicode because its UTF-16 "
+                    + "representation contains an unpaired surrogate.");
+            }
 
             // An option still owed a value takes precedence over every other reading of the next
-            // token, so that "--diagnostics-format --" is a missing value rather than a misplaced
-            // end-of-options marker. The two are both CLI001, but they anchor at different clauses.
-            if (!optionsEnded && !currentSatisfied && (token == "--" || IsOptionToken(token)))
+            // option. A pending input or scheme occurrence is the exception for '--': the marker
+            // starts literal-data mode and the occurrence must still receive a later token.
+            if (!optionsEnded
+                && !currentSatisfied
+                && (token == "--" || IsOptionToken(token))
+                && (token != "--" || !IsRequiredList(current!)))
             {
                 var pending = current!;
                 return Failure(pending.DiagnosticAnchor, token == "--"
@@ -65,7 +76,8 @@ public static class CommandLineParser
             if (!optionsEnded && token == "--")
             {
                 // Section 6.2: every following token is a value of the immediately preceding
-                // list-valued option, and there must be one.
+                // list-valued option. A required list occurrence may receive its first value after
+                // the marker; its pending state is deliberately preserved.
                 if (current is not { Arity: CommandLineOptionArity.List })
                 {
                     return Failure("§6.2",
@@ -120,7 +132,8 @@ public static class CommandLineParser
                 }
 
                 current = spec;
-                currentSatisfied = spec.Arity == CommandLineOptionArity.List;
+                currentSatisfied = spec.Arity == CommandLineOptionArity.List
+                    && !IsRequiredList(spec);
 
                 if (inline is null)
                 {
@@ -179,6 +192,34 @@ public static class CommandLineParser
     /// </summary>
     private static bool IsOptionToken(string token) =>
         token.Length > 1 && token[0] == '-' && token != "--";
+
+    private static bool IsRequiredList(CommandLineOption option) =>
+        option.Name is "--input" or "--scheme";
+
+    private static bool IsWellFormedUtf16(string? token)
+    {
+        if (token is null)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < token.Length; index++)
+        {
+            if (char.IsHighSurrogate(token[index]))
+            {
+                if (++index >= token.Length || !char.IsLowSurrogate(token[index]))
+                {
+                    return false;
+                }
+            }
+            else if (char.IsLowSurrogate(token[index]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private static CommandLineResult Failure(string anchor, string message) =>
         new(DiagnosticCodes.Cli001(DiagnosticPhase.Cli, anchor, message).Diagnostic);

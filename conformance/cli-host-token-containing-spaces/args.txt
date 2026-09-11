@@ -1,0 +1,4 @@
+-i
+inputs/input file.json
+-s
+schemes/scheme file.namespace

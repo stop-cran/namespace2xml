@@ -1,0 +1,6 @@
+namespace.first=1
+# between namespace entries
+namespace.second=2
+quoted.first=1
+# between quoted-namespace entries
+quoted.second=2

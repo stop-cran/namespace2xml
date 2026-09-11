@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r106+43b364a4f905`.**
+**Contract bundle `r118+33da7b7912fc`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -19,7 +19,7 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
   there is no longer such a build. Pin to a released version.
 - **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
 
-## Observable differences (165)
+## Observable differences (191)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
@@ -1339,6 +1339,14 @@ implemented, its case says so plainly rather than letting the heading imply othe
   run. Section 14.1 denies XML the selector-name fallback for a document element, and the input
   has two top-level members, so the scheme supplies `root` explicitly.
 
+### `cli-host-token-containing-spaces`
+
+- namespace2xml 2.4.0: **differs**. Its delegated command-line parser had no specified
+  host-argument boundary.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: the two path arguments remain individual tokens even though each contains a
+  space.
+
 ### `cli-option-missing-value-rejected`
 
 - namespace2xml 2.4.0: **differs**. 2.4.0 delegated argument parsing to CommandLineParser, whose
@@ -1447,6 +1455,22 @@ implemented, its case says so plainly rather than letting the heading imply othe
   `WARN005` at `r.txt`, then `WARN005` at `shared.txt` -- a third order, distinct from both the
   specified one and the first-reached one. The expected stream keeps the two `shared.txt`
   occurrences adjacent, which only an index shared by both produces.
+
+### `deprecated-aliases-remain-accepted`
+
+- namespace2xml 2.4.0: **differs**. Across ten Linux arm64 samples it exits 0 and writes both
+  destinations, but its XML is
+  `<?xml version="1.0" encoding="utf-8"?><cfg a="one" b="two" />` instead of the expected child
+  elements.
+- Contract: Section 3.1 preserves the deprecated aliases in Section 15.3:
+  `namespacedelimiter`, `xmloptions`, `xmlns`, and `xmlnssuffix`.
+- Legacy observation: the baseline accepts `namespacedelimiter` and `xmloptions=NoIndent`; it also
+  accepts both legacy type values, but projects the two selected values as XML attributes.
+- Clean behavior: the replacement exits 0, writes the same colon-delimited namespace destination,
+  applies `NoIndent`, leaves both legacy type values as no-ops, renders the values as child
+  elements, and reports four source-separated `WARN002` records.
+- The measured run therefore proves successful legacy alias acceptance while recording the
+  intentional Section 3.2 XML-model divergence rather than relying on an invalid option value.
 
 ### `destination-fold-follows-wildcard-match-order`
 
@@ -1583,6 +1607,14 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: captures come from data outside the scheme's control, and
   encoding-after-substitution is the safety guarantee the specification is written for.
 
+### `flat-output-writes-no-blank-records`
+
+- namespace2xml 2.4.0: **differs**. Quoted-namespace output and comment placement were not part of
+  its contract.
+- Contract: Sections 19.1, 19.2, 20, and Section 26 item 97.
+- Clean behavior: adjacent entries and comments occupy adjacent physical records, with one final
+  LF and no inserted blank record.
+
 ### `folded-implicit-items-rebase-above-the-destination-mark`
 
 - namespace2xml 2.4.0: **differs**. The baseline writes `out.properties` with different content
@@ -1603,6 +1635,20 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: shared array-index state made a fold's result depend on the
   order and shape of contributions rather than on their addressed positions, which is the class
   of defect Section 3.2 exists to remove.
+
+### `ini-discards-an-empty-mapping`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.6; Section 26 item 98.
+- Legacy observation: the baseline silently omitted the explicit empty mapping.
+- Clean behavior: INI still omits the unrepresentable mapping, but reports `WARN015`.
+
+### `ini-discards-an-empty-sequence`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.6; Section 26 item 98.
+- Legacy observation: the baseline silently omitted the explicit empty sequence.
+- Clean behavior: INI still omits the unrepresentable sequence, but reports `WARN015`.
 
 ### `ini-escapemultiline-doubles-a-backslash-with-or-without-quoting`
 
@@ -1738,6 +1784,13 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - It is also an input to `tools/check-ini-interop.js`, which reads the quoting back through a
   parser that unquotes, and to `tools/check-ini-interop.py`, which names it out of envelope because
   `configparser` does not.
+
+### `ini-unsupported-c0-controls`
+
+- namespace2xml 2.4.0: **differs**. It had no INI output or C0-control contract.
+- Contract: Section 19.6 and Section 26 item 96.
+- Clean behavior: unsupported non-NUL C0 controls are `INI001` under each multiline and quoting
+  mode.
 
 ### `json-and-yaml-render-one-exclusive-shape`
 
@@ -1962,6 +2015,54 @@ implemented, its case says so plainly rather than letting the heading imply othe
   restoration explicit so that dropping one flag never leaves a group in an undefined
   state.
 
+### `later-xml-input-options-replace-earlier-set`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 11.7 and 16.8; Section 26 item 16.
+- Legacy observation: all ten Appendix C.6 samples exited 0 but emitted
+  `<r a="" />` instead of the selected XML element tree.
+- Clean behavior: the later complete `NormalizeFormattingWhitespace` directive replaces
+  `PreserveWhitespace`, emits `WARN007`, and preserves `<a>1</a>` while removing only formatting
+  whitespace.
+- Intentional correction: Section 3.1 expressly preserves later-entry override precedence, so an
+  earlier option set cannot remain effective after a later complete replacement.
+
+### `legacy-runtime-culture-dependence-is-corrected`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 removes behavior dependent on runtime culture; Section 18 permits only
+  locale-independent scalar spellings and therefore classifies `1,5` as a string.
+- Legacy observation: under the ordinary C differential environment the baseline's
+  culture-sensitive numeric parsing exits 0 but writes a non-string JSON value.
+- Clean behavior: the replacement emits the invariant string `"1,5"` and the same bytes under every
+  runtime culture.
+- The difference is intentional: input type must be a property of its characters, not of the
+  process locale on the machine running the transformation.
+
+### `legacy-yaml-file-collision-is-structural-not-raw-append`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Section 3.2 removes raw appending of independently serialized YAML documents;
+  Sections 17.3 and 17.5 require structural same-format folding before serialization.
+- Legacy observation: the baseline exits 0 and appends two serialized mappings, producing two
+  top-level `obj` keys instead of one merged mapping.
+- Clean behavior: one structurally merged `obj` mapping contains `x: 1` followed by `'y': 2`
+  (quoted because `y` is a portable YAML 1.1 Boolean spelling), and
+  one `WARN005` reports the accepted same-destination fold.
+- The difference is intentional: byte appending can produce duplicate-key YAML whose meaning
+  depends on the downstream parser, while structural folding produces one deterministic document.
+
+### `literal-asterisk-in-filename-under-literal-selector`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 15.2 and 16.2; Section 26 item 6.
+- Legacy observation: all ten Appendix C.6 samples exited 0 but ignored the literal filename,
+  publishing `app.properties` instead of `star-%2A.conf`.
+- Clean behavior: the selector defines no capture, so `*` is literal directive text and the
+  portable filename algorithm encodes it as `%2A`.
+- Intentional correction: Section 3.1 preserves explicit `filename` values as complete paths;
+  capture substitution cannot discard a literal value when the selector defines no capture.
+
 ### `mask-clears-shape-marks`
 
 - namespace2xml 2.4.0: **differs**. The baseline writes `phantom.properties` with different
@@ -1987,6 +2088,28 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: a mask that only deletes data would leave phantom containers
   behind wherever a suppressed subtree had shaped its ancestor, so the specification withdraws
   a masked contribution's shape evidence at the same step it withdraws the data.
+
+### `mask-suppressed-reference-target-is-missing`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 8.6 and 13.1; Section 26 item 34.
+- Legacy observation: all ten Appendix C.6 samples exited 0 and published `app.properties`,
+  retaining a reference target that the permanent mask removed.
+- Clean behavior: the masked target is missing when references resolve, so `REFERENCE002` blocks
+  publication.
+- Intentional correction: Section 3.1 preserves profile ignores and value references together;
+  resolving through a permanently ignored target would silently restore data the author removed.
+
+### `mask-suppresses-wildcard-output-instance`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 8.6 and 14.4; Section 26 item 34.
+- Legacy observation: all ten Appendix C.6 samples exited 0 but published `x.properties` and
+  `y.properties`, including an instance for the masked path, instead of only `a.y.properties`.
+- Clean behavior: permanent masks apply before concrete wildcard-output expansion, so `a.x`
+  creates no output instance and only `a.y.properties` is published.
+- Intentional correction: Section 3.1 preserves ignores and wildcard templates; allowing a masked
+  path to instantiate an output would make the permanent ignore ineffective.
 
 ### `merge-error-rejects-a-second-source-contribution`
 
@@ -2320,7 +2443,9 @@ implemented, its case says so plainly rather than letting the heading imply othe
 ### `namespace-permanent-ignore-masks`
 
 - namespace2xml 2.4.0: **differs**.
-- Contract: Section 8.6; Section 8.5 for the comment run; Section 20 for INI comment emission.
+- Contract: Section 3.1 preserves profile-ignore syntax, while Section 3.2 corrects it to permanent
+  run-wide semantics. Section 8.6 defines that correction; Section 8.5 governs the comment run and
+  Section 20 governs INI comment emission.
 - Legacy observation: `!` removal was applied in source order like any other entry, so an entry
   written after the ignore reinstated the path, and an ignore in a later file did not reach a value
   contributed by an earlier one. Whether a comment bound to a removed entry survived was not
@@ -2394,6 +2519,13 @@ implemented, its case says so plainly rather than letting the heading imply othe
   sign — a Windows path or a shell template, say — and does so silently, since the corrupted text
   is still valid output.
 
+### `non-xml-coalesces-content-and-envelope-comment-loss`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 4.5, 20, and 26 item 99.
+- Legacy observation: outer XML comments were discarded silently before projection.
+- Clean behavior: the non-XML destination counts two envelope comments and one internal content comment in one destination-scoped `xml-comments` `WARN003`.
+
 ### `one-destination-folds-by-format-before-match-order`
 
 - namespace2xml 2.4.0: **differs**. The baseline writes `out.conf` with different content than
@@ -2436,6 +2568,20 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - Legacy observation: the baseline writes `0.properties` and `1.properties` where this case expects `a.0.properties` and `a.1.properties`. The measurement records `missing a.0.properties; missing a.1.properties; extra 0.properties; extra 1.properties`. Exit code is `0` and standard error is empty beyond the banner, so two files land with the two sequence items' contents in them -- the leading `a.` segment is missing from each name.
 - Clean behavior: the default filename is the whole concrete selector, so the two instances render at `a.0.properties` and `a.1.properties`.
 - Why the difference is intentional: the missing `a.` prefix is the Section 3.2 synthetic-root leak, and the fact that both instances land at all says nothing about whether 2.4.0 addressed the sequence facet at step 9 or reached these items by another path -- the surviving *content* would be identical either way for this data, so the tree comparison here settles filenames rather than addressing. The Section 15.1 step 9 discriminator (a sequence item is addressable through its ordering value) is invisible in the observable this verdict is scored against; it is asserted by the fixture's `expected/` bytes, not by whether the baseline reproduces them for the right reason.
+
+### `quoted-namespace-discards-an-empty-mapping`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.2; Section 26 item 98.
+- Legacy observation: the baseline silently omitted the explicit empty mapping.
+- Clean behavior: quoted namespace still omits the unrepresentable mapping, but reports `WARN015`.
+
+### `quoted-namespace-discards-an-empty-sequence`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.2; Section 26 item 98.
+- Legacy observation: the baseline silently omitted the explicit empty sequence.
+- Clean behavior: quoted namespace still omits the unrepresentable sequence, but reports `WARN015`.
 
 ### `quoted-namespace-hyphen-key-is-shell001`
 
@@ -2483,6 +2629,38 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - The difference is intentional: an output that loses a value is worse than an output that is
   refused, and the collision is a property of the projection rather than of the data.
 
+### `quoted-namespace-ownerless-comments-follow-every-output-instance`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 8.5, 19.2, and 20; Section 26 item 13.
+- Legacy observation: all ten Appendix C.6 samples exited 0 but published `p.properties` and
+  `q.properties` instead of the configured quoted-namespace files `p.sh` and `q.sh`.
+- Clean behavior: each quoted-namespace output instance receives the complete ownerless leading
+  and trailing comment runs around its selected shell assignment.
+- Intentional correction: the Section 3.3 supported-feature guarantee preserves ownerless comments
+  independently for every concrete output; dropping them or the configured output format would
+  lose source information.
+
+### `reference-uses-stable-ordering-value-after-deletion`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 5.4, 8.6, 13.1, and 19.1; Section 26 item 48.
+- Legacy observation: all ten Appendix C.6 samples exited 0 and resolved `${a.2}` to `two`, but
+  rendered the surviving item under sparse key `2` instead of dense visible key `1`.
+- Clean behavior: references continue to address stable ordering value `2`, while namespace
+  output independently densifies the visible surviving items to keys `0` and `1`.
+- Intentional correction: Section 3.2 rejects shared mutable array-index behavior; stable internal
+  identity and dense destination projection must not be conflated after deletion.
+
+### `representable-empty-containers-are-preserved-without-warn015`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.1-19.5; Section 26 item 98.
+- Legacy observation: the baseline differs on at least one normalized byte representation.
+- Clean behavior: namespace, JSON, and YAML preserve both empty-container categories, and XML
+  preserves an empty mapping as an empty element; none of these representable shapes emits
+  `WARN015`.
+
 ### `root-wraps-a-bare-scalars-retained-key`
 
 - namespace2xml 2.4.0: **differs**. It exits 0 and disagrees on every one of the six
@@ -2520,9 +2698,10 @@ implemented, its case says so plainly rather than letting the heading imply othe
   bare, and **no `cfg.sh` file is produced at all**. On standard output the baseline logs
   `Overriding output ... cfg.properties quotednamespace`, meaning it wrote the
   quotednamespace projection over the namespace projection at the same filename.
-- Contract: Section 16.3 `root` uniformity across formats. Section 3.2 as a correction of
-  behaviour caused by "a synthetic internal root leaking into user-visible file names" —
-  the same class of defect makes the `.sh` extension go missing here.
+- Contract: Section 3.1 preserves the existing output-format names and their default extensions.
+  Section 16.3 requires `root` uniformity across those formats. Section 3.2 corrects behavior
+  caused by "a synthetic internal root leaking into user-visible file names" — the same class of
+  defect makes the `.sh` extension go missing here.
 - Legacy observation: 2.4.0 applied `root` per-format rather than uniformly, and its
   filename resolution treated `quotednamespace` and `namespace` as the same format for the
   purpose of choosing the extension. The XML and INI writers implemented `root` because
@@ -2709,6 +2888,18 @@ implemented, its case says so plainly rather than letting the heading imply othe
 - Legacy observation: the baseline exits `0` and writes both `ok.ini` and `bad.ini`. The measurement records `exit 0 (expected 1); extra bad.ini; extra ok.ini`. Standard error is empty beyond the banner, so no `FLAT001` is reported and both destinations land as if the collision at `bad.ini` were not a defect.
 - Clean behavior: the collision at `bad.ini` -- `bad.a.b.k` and `bad.a:b.k` project to the same INI section and key -- is detected at pipeline step 19, before any destination is opened. The run reports `FLAT001` and exits `1`. Neither `ok.ini` nor `bad.ini` is written.
 - Why the difference is intentional: Section 3.2 names this correction directly, "caused by output files being opened before the complete output plan was validated". The specific `ok.ini` byte content the baseline lands is what a run that opens each destination as its serializer completes will write next to a run that then fails on another destination; the specification's rule instead makes the whole plan pass validation together, so a defect in one file scrubs the whole publication. The `bad.ini` bytes are the second half of the same defect -- the collision is not detected at all, and something arbitrarily addressed under the two flat keys is what the file carries. Either byte set is the observable Section 3.2 says the specification does not admit.
+
+### `warn010-fires-for-native-yaml-numeric-mapping`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 8.7 and 19.3; Section 26 item 68.
+- Legacy observation: all ten Appendix C.6 samples exited 0 and emitted the same JSON array bytes
+  except for omitting the required final LF: 16 bytes instead of 17.
+- Clean behavior: the inferred sequence is emitted with the Section 24 final LF and one
+  output-instance-scoped `WARN010` names the contributing YAML mapping.
+- Intentional correction: Section 24's platform-independent byte contract requires the final LF,
+  while `WARN010` makes the deliberate Section 8.7 structural normalization visible rather than
+  silently changing the source mapping's projected shape.
 
 ### `warn010-fires-once-per-native-source-contribution`
 
@@ -3301,6 +3492,34 @@ implemented, its case says so plainly rather than letting the heading imply othe
   UTF-16 byte-order mark and was therefore decoded as UTF-8. Both sources report, in the Section
   7.3 command-line order, so one run names every disagreeing file.
 
+### `xml-discards-an-empty-sequence`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 3.3 and 19.5; Section 26 item 98.
+- Legacy observation: the baseline silently omitted the explicit empty sequence.
+- Clean behavior: XML still omits the unrepresentable repeated-sibling sequence, but reports `WARN015`.
+
+### `xml-envelope-comments-follow-every-output-instance`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 11.5, 19.5, and 26 item 99.
+- Legacy observation: document-envelope comments were discarded before output planning.
+- Clean behavior: every concrete output instance receives the complete envelope even when it selects only one subtree.
+
+### `xml-envelope-comments-stay-outside-configured-root`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 11.5, 19.5, and 26 item 99.
+- Legacy observation: document-envelope comments were discarded.
+- Clean behavior: envelope placement is outside the document element and is unaffected by the configured wrapper root.
+
+### `xml-envelope-comments-union-at-one-destination`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 11.5 and 26 item 99.
+- Legacy observation: document-envelope comments were discarded.
+- Clean behavior: destination folding unions the envelope by stable source occurrence, so each comment appears once rather than once per contributing selector.
+
 ### `xml-filemerge-replace-takes-whole-document`
 
 - namespace2xml 2.4.0: **differs**. It writes `out.xml` as
@@ -3476,6 +3695,34 @@ implemented, its case says so plainly rather than letting the heading imply othe
 
   Emitting it ahead of the first child instead would read as a comment about `a`, which is not
   where the author put it, and is the reassignment Section 11.5 exists to prevent.
+
+### `xml-preserved-whitespace-can-be-visibly-blank`
+
+- namespace2xml 2.4.0: **differs**. It had no distinction between generated formatting and
+  preserved XML whitespace.
+- Contract: Sections 11.4, 19.8, 24, and Section 26 item 97.
+- Clean behavior: a visually blank line survives only because it is input content, not because the
+  formatter inserted it.
+
+### `xml-pretty-printing-writes-no-empty-lines`
+
+- namespace2xml 2.4.0: **differs**. Its XML bytes were not fixed by a complete rendering contract.
+- Contract: Sections 19.8, 24, and Section 26 item 97.
+- Clean behavior: pretty-printing uses two-space indentation, no empty lines, and exactly one final
+  LF.
+
+### `xml-scalar-replacement-carries-winning-spelling`
+
+- namespace2xml 2.4.0: **differs**.
+- Contract: Sections 11.6, 17.4, and 19.5; Section 26 item 16.
+- Legacy observation: all ten Appendix C.6 samples exited 0 but emitted
+  `<r toCdata="" toText="" />`, losing both winning scalar values and their text-versus-CDATA
+  spellings.
+- Clean behavior: replacement carries the winning source spelling, so `new` is CDATA under
+  `toCdata` and ordinary text under `toText`.
+- Intentional correction: the Section 3.3 supported-feature guarantee preserves both XML scalar
+  value and node kind; replacing a value cannot turn it into an empty attribute or discard its
+  winning CDATA-versus-text spelling.
 
 ### `xml-sequence-classification-spans-three-contributions`
 
@@ -3732,7 +3979,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs 2.4.0 could not process (46)
+## Inputs 2.4.0 could not process (59)
 
 The baseline exited nonzero on every sample of these, so no run of it completed: it refused the
 input, terminated abnormally, or gave up part way through, and each entry below says which. 3.0
@@ -3965,6 +4212,17 @@ either accepts the input or reports a diagnostic and exits deliberately.
 - The difference is intentional: an author who wrote an empty directive made a mistake that is
   cheap to name and expensive to diagnose from its consequences.
 
+### `an-escaped-yaml-marker-key-stays-literal`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 9.1, 10.4, and 11.4; Section 26 item 71.
+- Legacy observation: all ten Appendix C.6 samples exited 1 and published no
+  `lit.properties`.
+- Clean behavior: the leading backslash suppresses typed-component recognition, so the
+  ordinary `@key` mapping key is emitted as `\@key=literalval`.
+- Intentional correction: the explicit escaped-key rule keeps a literal marker-shaped mapping key
+  representable instead of allowing parser-specific marker handling to reinterpret or reject it.
+
 ### `an-existing-non-directory-output-root-is-rejected`
 
 - namespace2xml 2.4.0: **fails**.
@@ -4016,6 +4274,34 @@ either accepts the input or reports a diagnostic and exits deliberately.
   without being asked, and the run ends on a dictionary miss naming a key the user never wrote.
   The crash is not incidental to the divergence — it is evidence that the two readings of `a:b`
   are both live in the baseline, which is precisely why 3.0 refuses to write the name at all.
+
+### `canonical-boolean-null-output-spellings`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 19.4, 19.5, 19.6 and Section 26 item 96.
+- Legacy observation: all ten Appendix C.6 samples exited 134 before publishing any destination;
+  an unhandled `ArgumentException` rejected the `attribute` XML type.
+- Clean behavior: Boolean and null payloads use the same lowercase spelling in YAML, INI, XML
+  element text, and XML attributes.
+
+### `canonical-references-address-qualified-element-and-content-scalar`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 11.4, 13.1, and 13.3; Section 26 item 9.
+- Legacy observation: all ten Appendix C.6 samples exited 1 and published no
+  `out.properties`.
+- Clean behavior: canonical `Q{uri}` and `#n` references resolve the qualified element and mixed
+  content scalar directly, producing both expected assignments.
+- Intentional correction: canonical references must distinguish qualified elements and ordered
+  content; accepting only ambiguous simple names would make those preserved XML values unreachable.
+
+### `cli-double-dash-literal-satisfies-input`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 6.2 and Section 26 item 93.
+- Legacy observation: all ten Appendix C.6 samples exited 1 and published no `out.conf`.
+- Clean behavior: post-`--` `-s` is a literal input filename and satisfies the pending `input`
+  occurrence, so the run exits 0 and publishes `out.conf`.
 
 ### `cli-fail-on-warning-after-double-dash-is-data`
 
@@ -4103,6 +4389,46 @@ either accepts the input or reports a diagnostic and exits deliberately.
   `contract-bundle` revision and the specification and registry digests it covers.
 - The difference is intentional: a defect report must be able to name the exact contract the
   observed behavior was measured against, which the legacy banner cannot express.
+
+### `destination-prefix-comparison-uses-portable-encoded-segments`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 16.2 and 17.5; Section 26 item 95.
+- Legacy observation: all ten Appendix C.6 samples exited 134 after publishing `out/a`; an
+  unhandled `IOException` treated the captured `a/b` as a path beneath that file instead of
+  encoding it as one segment.
+- Clean behavior: capture encoding produces sibling files `out/a` and `out/a%2Fb`, so no
+  destination-prefix collision exists.
+- Intentional correction: Sections 3.2 and 16.2 require portable, pre-publication path handling;
+  capture data cannot acquire directory semantics or trigger an unhandled user-input exception.
+
+### `destination-proper-prefix-collisions`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 17.5 and Section 26 item 95.
+- Legacy observation: all ten Appendix C.6 samples exited 134 with an unhandled `IOException`
+  after creating an unexpected partial `tree` destination.
+- Clean behavior: each descendant receives one `PATH001`, including case-folded descendants and a
+  descendant behind more than one conflicting ancestor, before any destination is published.
+
+### `destination-proper-prefix-collisions-reversed`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 17.5 and Section 26 item 95.
+- Legacy observation: all ten Appendix C.6 samples exited 134 with an unhandled
+  `UnauthorizedAccessException` after publishing partial `TREE` and `tree` directory trees.
+- Clean behavior: reversing declarations reverses the source-ordered `PATH001` stream while
+  preserving the same collision set, and validation completes before publication.
+
+### `discarded-empty-containers-are-counted-after-folding`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 3.3, 17.5, and 19.2; Section 26 item 98.
+- Legacy observation: all ten Appendix C.6 samples exited 1 and published no `folded.sh`.
+- Clean behavior: only the final folded destination is diagnosed; its nested and repeated empty
+  mappings and sequences are summarized in one `WARN015`, while the replaced contribution adds no
+  discarded-container count and the synthetic `root` wrapper is not counted; publication still
+  succeeds.
 
 ### `fail-on-warning-clean-repeated`
 
@@ -4233,6 +4559,17 @@ either accepts the input or reports a diagnostic and exits deliberately.
   across formats, and a caller relying on it sees a run that produces nothing under the baseline
   rather than one that produces `app.properties`.
 
+### `root-merge-directive-suppresses-warn004-with-empty-output-plan`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 8.7 and 16.10; Section 26 item 45.
+- Legacy observation: all ten Appendix C.6 samples exited 1 instead of honoring the root
+  `merge=append` directive and completing an empty output plan.
+- Clean behavior: the directive suppresses `WARN004` for the two native root sequences; only
+  `WARN008` remains and the run exits 0.
+- Intentional correction: Section 3.1 preserves the `merge` directive and its input-model scope;
+  an empty output plan does not erase the directive's effect or turn warnings into an input error.
+
 ### `scheme-a-wildcard-does-not-reach-an-xml-component-through-the-alias`
 
 - namespace2xml 2.4.0: **fails**. It terminates with an unhandled
@@ -4291,6 +4628,15 @@ either accepts the input or reports a diagnostic and exits deliberately.
   an attribute and an element of one name had nowhere to put the second and lost it. 3.0 keeps the
   affordance and adds a way to say which one is meant, so the convenient spelling stays convenient
   exactly where it is unambiguous.
+
+### `structured-scheme-empty-mapping-roots`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Section 15 and Section 26 item 94.
+- Legacy observation: all ten Appendix C.6 samples exited 134 with an unhandled
+  `InvalidCastException` from `SchemeError` to `SchemeNode`.
+- Clean behavior: valid empty mappings contribute no directives and only the empty-plan warning
+  remains, so the run exits 0.
 
 ### `swapping-two-invalid-options-swaps-the-reported-one`
 
@@ -4498,6 +4844,18 @@ either accepts the input or reports a diagnostic and exits deliberately.
   which of the two it took, which is the one thing 2.4.0 could not do — it destroyed `both`
   silently in the same pass.
 
+### `xml-bare-scalar-without-root-is-type001`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 14.1 and 19.5; Section 26 item 56.
+- Legacy observation: all ten Appendix C.6 samples wrote an unexpected `lone.xml` and exited 134
+  with an unhandled `InvalidCastException` from `XAttribute` to `XElement`.
+- Clean behavior: XML cannot invent an element identity for the selected bare scalar, so one
+  blocking `TYPE001` is reported before publication and the run exits 1.
+- Intentional correction: Section 3.2 forbids unhandled user-input exceptions and publication
+  before validation; the explicit type error is the deterministic contract for an unrepresentable
+  XML view.
+
 ### `xml-element-only-children-keep-their-place`
 
 - namespace2xml 2.4.0: **fails**.
@@ -4521,6 +4879,14 @@ either accepts the input or reports a diagnostic and exits deliberately.
   before crashing also violates Section 15.4's rule that transformation and planning errors
   never produce a partial output instance for a later phase. Both symptoms are the
   unhandled-exception class Section 3.2 removes.
+
+### `xml-envelope-comments-survive-on-both-sides`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 4.5, 4.6, 11.5, 19.5, and 26 item 99.
+- Legacy observation: all ten Appendix C.6 samples exited 1 and published no `r.xml`.
+- Clean behavior: every source occurrence remains in its leading or trailing document position,
+  while the internal comment remains an ordered content node and XML publication succeeds.
 
 ### `xml-generated-attribute-namespace-prefixes`
 
@@ -4673,7 +5039,7 @@ either accepts the input or reports a diagnostic and exits deliberately.
   enum parser recognized; the string reached `Enum.Parse` unvalidated and threw
   `ArgumentException`, which the CLI did not catch. `type=attribute` **is** an XML-specific
   value in 3.0, and it is legal on a scalar. What this case exercises is applying it to a
-  *sequence* — the JSON `["v1","v2"]` at `cfg.tag` — which §19.5 refuses with `TYPE001`.
+  *explicit empty sequence* — the JSON `[]` at `cfg.tag` — which §19.5 refuses with `TYPE001`.
   The baseline never gets that far: the enum parser fails before the sequence is even
   inspected, so the correction here is layered. The unhandled-exception defect must be
   fixed first before the specific `TYPE001` refusal can be observed at all.
@@ -4728,6 +5094,19 @@ either accepts the input or reports a diagnostic and exits deliberately.
   correction also fixes the partial-file symptom: no output is opened until §15.4's
   validation phase completes, so a run that would have crashed never touches its
   destination and its caller can rerun without cleaning up stale bytes.
+
+### `xml-singleton-promotion-does-not-retarget-a-directive`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 11.4 and 15.2; Section 26 item 78.
+- Legacy observation: all ten Appendix C.6 samples exited 134 with an unhandled `XmlException`
+  while trying to use an ordering value beginning with `0` as an XML name; `r.xml` was empty.
+- Clean behavior: promotion replaces singleton path `r.b` with stable item paths, so the former
+  directive is not retargeted, all three elements render, and `WARN009` names the unbound
+  directive.
+- Intentional correction: Sections 3.1 and 3.2 preserve directive addressing while rejecting
+  mutable array-index behavior and unhandled input exceptions; promotion cannot silently retarget
+  a directive to a different canonical path.
 
 ### `xml-singleton-promotion-does-not-retarget-references`
 
@@ -4919,7 +5298,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (52)
+## Same observable result as 2.4.0 (69)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -5295,6 +5674,13 @@ those that name a shared reason are behaviour 3.0 preserved.
   Section 14.4's list were already evaluated at Section 15.1 step 15, where the test is available,
   which is why they behaved correctly and made the one exception hard to see. Reported as issue 77.
 
+### `cli-both-required-options-missing`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not define the clean diagnostic precedence.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: the absent `input` option is reported before the absent `scheme` option.
+
 ### `cli-diagnostics-format-inline-invalid`
 
 - namespace2xml 2.4.0: **agrees**, but for an unrelated reason: the `--diagnostics-format` option
@@ -5355,6 +5741,34 @@ those that name a shared reason are behaviour 3.0 preserved.
   diagnostic stream. Section 3.2 exists so an invalid command line can still be reported in the
   encoding the caller asked for; an automated caller cannot read the baseline's failure.
 
+### `cli-double-dash-literal-misses-scheme`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not define the clean post-delimiter diagnostic.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: post-`--` `-s` is a literal input value, so the required `scheme` option is absent.
+
+### `cli-empty-input-before-double-dash`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not define the clean `--` arity diagnostic.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: `--` is not an `input` value, so the occurrence remains empty at end of input.
+
+### `cli-empty-input-before-option`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not define per-occurrence list arity.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: the empty `input` occurrence is `CLI001`.
+
+### `cli-empty-scheme-at-end`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not define per-occurrence list arity.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: the empty `scheme` occurrence is `CLI001`.
+
 ### `cli-end-of-options-values`
 
 - namespace2xml 2.4.0: **agrees**. The baseline reproduces the case's expected result observably,
@@ -5413,6 +5827,47 @@ those that name a shared reason are behaviour 3.0 preserved.
   removed it. Section 6.2 pins the uniform inline form so callers can rely on it, and this fixture
   discriminates a shipped tool that stops accepting it.
 
+### `cli-repeated-input-empty-occurrence`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not define per-occurrence list arity.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: a later empty `input` occurrence cannot borrow a value from an earlier one.
+
+### `cli-repeated-scheme-empty-occurrence`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not define per-occurrence list arity.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: a later empty `scheme` occurrence cannot borrow a value from an earlier one.
+
+### `cli-required-input-missing`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not define the clean diagnostic code.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: missing `input` is `CLI001`.
+
+### `cli-required-scheme-missing`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not define the clean diagnostic code.
+- Contract: Section 6.2 and Section 26 item 93.
+- Clean behavior: missing `scheme` is `CLI001`.
+
+### `cli-variable-precedence-across-files-lines-and-variables`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.1 preserves command-line variables as the highest-precedence input source.
+  Section 8.7 gives files, physical records, and command-line variables their stable source order.
+- Legacy observation: the baseline exits 0 and reproduces `cfg.properties`, including
+  `file=second`, `line=second-line`, and `cli=second-variable`.
+- Clean behavior: later files override earlier files, later records override earlier records, and
+  command-line variables are applied after every file in their own token order even when `-v`
+  precedes `-i` in the argument vector.
+- The agreement is intentional compatibility evidence: each precedence edge remains observable on
+  a different key, so the final command-line winner cannot conceal a broken file or line edge.
+
 ### `cycle-rotation-uses-utf8-byte-order`
 
 - namespace2xml 2.4.0: **agrees**, but for an unrelated reason: only the tree and the exit code are
@@ -5464,6 +5919,14 @@ those that name a shared reason are behaviour 3.0 preserved.
   rather than of any one line of any input, which is the same reason Section 26 item 25 gives for
   `merge=error`.
 
+### `destination-textual-prefix-is-not-topological`
+
+- namespace2xml 2.4.0: **agrees**. It exits 0 and publishes the expected sibling destination tree,
+  so the Appendix C.6 exit/tree oracle records agreement even though 2.4.0 did not state the
+  segment-aware rule.
+- Contract: Section 17.5 and Section 26 item 95.
+- Clean behavior: `a` is not a segment prefix of `ab/file`.
+
 ### `empty-output-plan-warning`
 
 - namespace2xml 2.4.0: **agrees** on the observable. A scheme that declares no `output`
@@ -5484,6 +5947,14 @@ those that name a shared reason are behaviour 3.0 preserved.
   of data, and a case with no input would not distinguish the two.
 - `WARN008` declares no optional Section 6.4.3 members, so the occurrence is exactly the five
   required ones. It is the only diagnostic in the corpus whose whole content is its identity.
+
+### `fail-on-warn015-refuses-all-publication`
+
+- namespace2xml 2.4.0: **agrees** on the expected tree and exit code, but only because it rejects
+  the unknown option before serialization. Its diagnostics and execution semantics differ.
+- Contract: Sections 6.2, 19.5, and 21.2; Section 26 item 98.
+- Clean behavior: serialization discovers `WARN015`, then the warning policy refuses both
+  destinations, reports `Published = 0`, and leaves both existing files byte-identical.
 
 ### `fail-on-warning-after-serialization`
 
@@ -5570,6 +6041,33 @@ those that name a shared reason are behaviour 3.0 preserved.
   `tools/check-ini-interop.py`: with `interpolation=None` removed, `50%` is rejected outright and
   `100%%` silently becomes `100%`.
 
+### `ini-escape-multiline-spelling`
+
+- namespace2xml 2.4.0: **agrees**. It exits 0 and publishes the exact expected escaped INI bytes.
+- Contract: Section 19.6 and Section 26 item 96.
+- Clean behavior: backslashes double before CR, LF, and TAB receive their named escapes.
+
+### `input-merge-selector-syntax-is-rejected`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though the clean implementation rejects the declarations through its
+  explicit input-merge grammar.
+- Contract: Section 16.10 and Section 26 item 94.
+- Clean behavior: wildcard and unescaped reference syntax are rejected once per declaration.
+
+### `legacy-shorter-qualified-name-does-not-match-a-longer-selector`
+
+- namespace2xml 2.4.0: **agrees**.
+- Contract: Section 3.2 removes matching based only on overlapping qualified-name parts, and
+  Section 14.2 requires a candidate to have at least as many parts as the selector.
+- Legacy observation: across ten Linux arm64 samples the baseline exits 0 and reproduces
+  `out.properties` byte-for-byte. The shorter scalar `a` does not enter this output.
+- Clean behavior: selector `a.b` selects only `a.b` and descendants, so the file contains exactly
+  `keep=right`.
+- This measured agreement disputes the proposed item 69 ownership: although the expected bytes pin
+  the Section 14.2 rule for the replacement, this input does not expose the legacy overlapping-name
+  defect and therefore cannot own the Section 3.2 correction claim.
+
 ### `limit-attribution-across-sources`
 
 - namespace2xml 2.4.0: **agrees** on the observable. Neither `--max-nodes` nor
@@ -5636,6 +6134,14 @@ those that name a shared reason are behaviour 3.0 preserved.
   phase when a phase holds a blocking diagnostic.
 - The difference is intentional: Section 23 requires the tool to "fail explicitly rather than
   degrade without bound".
+
+### `malformed-structured-scheme-remains-parse001`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not distinguish the clean structured-syntax diagnostic.
+- Contract: Sections 9.2 and 15 and Section 26 item 94.
+- Clean behavior: malformed structured syntax remains `PARSE001`, distinct from semantic
+  `SCHEME003`.
 
 ### `mask-candidates-consume-the-wildcard-limit`
 
@@ -5828,6 +6334,14 @@ those that name a shared reason are behaviour 3.0 preserved.
 - Contract: Section 12.4 shared candidate-check limit; Section 23 wildcard budget; Section 26 items 7 and 36. Section 3 does not enumerate this bound; the fixture pins Section 12.4 and Section 23 rather than a Section 3.1 preservation or a Section 3.2 correction.
 - Legacy observation: the baseline exits `1` with no output tree and no standard error beyond the banner. The measurement records no divergence.
 - Why the observable agreement is not compatibility evidence: `--max-wildcard-candidates` is not an option 2.4.0 had, so the baseline refuses the unknown flag at CLI parsing and returns nonzero before any wildcard is evaluated. That coincides with the case's expected exit `1` and empty tree, but the case exists to pin the third category of Section 12.4's shared candidate-check limit -- wildcard scheme selectors -- and the baseline never reaches selector expansion here. A run whose selectors expanded over an unbounded number of items would also produce an empty tree at exit `1`, which is precisely the failure mode a run with no bound at all could not distinguish from this one. Only the diagnostic stream, which the verdict does not score, could tell them apart.
+
+### `structured-scheme-nonmapping-roots`
+
+- namespace2xml 2.4.0: **agrees**. It exits 1 and publishes no output, matching the Appendix C.6
+  exit/tree oracle even though 2.4.0 did not provide the clean typed-root diagnostic contract.
+- Contract: Section 15 and Section 26 item 94.
+- Clean behavior: each valid nonmapping root is `SCHEME003`; the valid sibling source is checked in
+  the same phase but no output is published after the blocking failures.
 
 ### `two-cycles-that-print-alike-are-both-reported`
 

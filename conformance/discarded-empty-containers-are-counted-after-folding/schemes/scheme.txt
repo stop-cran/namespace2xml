@@ -1,0 +1,6 @@
+old.output=quotednamespace
+old.filename=folded.sh
+final.output=quotednamespace
+final.filename=folded.sh
+final.filemerge=replace
+final.root=root

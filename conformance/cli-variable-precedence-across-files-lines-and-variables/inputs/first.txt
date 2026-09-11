@@ -1,0 +1,2 @@
+cfg.file=first
+cfg.cli=first-file

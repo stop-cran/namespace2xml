@@ -68,6 +68,7 @@ $seedFields = @{
     PARSE002     = @('source', 'line', 'column')
     SCHEME001    = @('source', 'line', 'column', 'path', 'declaration')
     SCHEME002    = @('source', 'line', 'column', 'path', 'declaration')
+    SCHEME003    = @('source', 'line', 'column')
     WILDCARD001  = @('source', 'line', 'column', 'path', 'rule')
     WILDCARD002  = @('rule')
     REFERENCE001 = @('source', 'line', 'column', 'path')
@@ -102,6 +103,7 @@ $seedFields = @{
     WARN012      = @('destination')
     WARN013      = @('path', 'destination')
     WARN014      = @('source', 'path')
+    WARN015      = @('destination')
 }
 
 $codes = foreach ($code in $rows.Keys) {

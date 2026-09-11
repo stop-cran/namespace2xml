@@ -75,6 +75,7 @@ public sealed class FlatProjection
     private readonly FlatFormat format;
     private readonly DiagnosticBuffer diagnostics;
     private readonly DestinationRef? destination;
+    private readonly EmptyContainerLosses emptyContainers = new();
     private readonly List<BoundComment> pending = [];
     private int discardedComments;
 
@@ -101,8 +102,14 @@ public sealed class FlatProjection
     /// The Section 16.3 root parts, applied before any spelling. For INI these become section-path
     /// parts rather than key text, which is why the root is prefixed here and not in the encoder.
     /// </param>
+    /// <param name="discardedEnvelopeComments">
+    /// XML document-envelope comments this non-XML projection discards.
+    /// </param>
     /// <returns>The entries in emission order, and the comments that own no entry.</returns>
-    public FlatDocument Project(OverlayNode view, ImmutableArray<NamePart> root)
+    public FlatDocument Project(
+        OverlayNode view,
+        ImmutableArray<NamePart> root,
+        int discardedEnvelopeComments = 0)
     {
         ArgumentNullException.ThrowIfNull(view);
 
@@ -115,7 +122,15 @@ public sealed class FlatProjection
         // as an ignore mask takes the comments bound to the entries it removes.
         pending.Clear();
 
-        CommentNodes.Report(diagnostics, "\u00A720", destination, discardedComments);
+        CommentNodes.Report(
+            diagnostics,
+            "\u00A720",
+            destination,
+            checked(discardedComments + discardedEnvelopeComments));
+        emptyContainers.Report(
+            diagnostics,
+            format == FlatFormat.QuotedNamespace ? "\u00A719.2" : "\u00A719.6",
+            destination);
 
         var leading = ImmutableArray.CreateBuilder<BoundComment>();
         var trailing = ImmutableArray.CreateBuilder<BoundComment>();
@@ -135,6 +150,11 @@ public sealed class FlatProjection
         ImmutableArray<FlatEntry>.Builder entries,
         bool isRoot = false)
     {
+        if (format != FlatFormat.Namespace)
+        {
+            emptyContainers.Observe(node);
+        }
+
         if (node.Payload is { IsValue: false })
         {
             // A comment node another contribution has given children. Only the comment goes.

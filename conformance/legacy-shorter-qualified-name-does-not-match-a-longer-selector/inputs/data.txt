@@ -1,0 +1,2 @@
+a=wrong-shorter-path
+a.b.keep=right

@@ -28,6 +28,16 @@ public static class ToolRunner
     public static ToolResult Run(IReadOnlyList<string> arguments, string workingDirectory) =>
         Run(ToolAssembly, arguments, workingDirectory);
 
+    internal static ToolResult Run(
+        IReadOnlyList<string> arguments,
+        string workingDirectory,
+        string culture) =>
+        Start(
+            DotnetHost,
+            [ToolAssembly, .. arguments],
+            workingDirectory,
+            culture);
+
     /// <summary>
     /// Invokes an arbitrary managed assembly through the .NET host. The Appendix C.6 differential
     /// lane uses this to observe the pinned 2.4.0 baseline under exactly the environment the corpus
@@ -60,6 +70,18 @@ public static class ToolRunner
         return Start(host ?? DotnetHost, [assembly, .. arguments], workingDirectory);
     }
 
+    internal static ToolResult Run(
+        string assembly,
+        IReadOnlyList<string> arguments,
+        string workingDirectory,
+        string? host,
+        string culture) =>
+        Start(
+            host ?? DotnetHost,
+            [assembly, .. arguments],
+            workingDirectory,
+            culture);
+
     /// <summary>
     /// Invokes the .NET host itself, with no assembly. The Appendix C.6 differential lane asks the
     /// host which runtimes it can see before it observes the baseline, under the same pinned
@@ -77,7 +99,8 @@ public static class ToolRunner
     private static ToolResult Start(
         string fileName,
         IReadOnlyList<string> arguments,
-        string workingDirectory)
+        string workingDirectory,
+        string? culture = null)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -101,6 +124,12 @@ public static class ToolRunner
         startInfo.Environment["LANG"] = "C";
         startInfo.Environment["LC_ALL"] = "C";
         startInfo.Environment["TZ"] = "UTC";
+
+        if (culture is not null)
+        {
+            startInfo.Environment["LANG"] = culture;
+            startInfo.Environment["LC_ALL"] = culture;
+        }
 
         // Appendix C.6 forbids observing the differential baseline on a runtime it was never
         // published against. "Minor" is the host's own default and never crosses a major version,

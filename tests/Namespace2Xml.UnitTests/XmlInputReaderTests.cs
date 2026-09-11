@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Xml;
 using Namespace2Xml.Budgets;
 using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
@@ -274,6 +275,37 @@ public class XmlInputReaderTests
             + "<!ENTITY c \"&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;\">]><l>&c;</l>";
 
         Refusal(document).Code.ShouldBe("XML001");
+    }
+
+    [Test]
+    public void DtdRefusalPrecedesReaderCreationAndExternalResolution()
+    {
+        const string Document =
+            "<!DOCTYPE r SYSTEM \"probe.dtd\" [<!ENTITY a \"xxxxxxxxxx\">"
+            + "<!ENTITY b \"&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;\">]><r>&b;</r>";
+
+        var factory = new ProbedXmlReaderFactory();
+        var diagnostics = new DiagnosticBuffer();
+
+        XmlInputReader.Read(
+            Document,
+            SourceEncoding.Utf8,
+            XmlInput.Default,
+            new SourceBudget(ResourceLimits.Defaults, 0),
+            ProfileSource.OfFile("d.xml"),
+            DiagnosticPhase.Input,
+            diagnostics,
+            StableOrderingKey.FromSource(0, 1),
+            factory).ShouldBeNull();
+
+        var refusal = diagnostics.Drain().ShouldHaveSingleItem();
+        refusal.Code.ShouldBe("XML001");
+        refusal.Line.ShouldBe(1);
+        refusal.Column.ShouldBe(1);
+        factory.ReaderCreateCalls.ShouldBe(0);
+        factory.ResolverOpenCalls.ShouldBe(0);
+        factory.ReaderReadCalls.ShouldBe(0);
+        factory.ExpandedCharacterCount.ShouldBe(0);
     }
 
     /// <summary>
@@ -990,6 +1022,52 @@ public class XmlInputReaderTests
     }
 
     /// <summary>
+    /// Sections 11.5 and 23 count envelope comments against both comment bounds, including decoded
+    /// UTF-8 bytes, but exclude them from the overlay-node bound.
+    /// </summary>
+    [Test]
+    public void EnvelopeCommentsConsumeCommentBudgetsButNotNodeBudget()
+    {
+        const string document = "<!--ab--><a/><!--\U0001F600-->";
+
+        var tally = Charged(document);
+        tally.Comments.ShouldBe(2);
+        tally.CommentBytes.ShouldBe(6);
+        tally.Nodes.ShouldBe(1);
+
+        var comments = new GlobalBudget(
+            ResourceLimits.Defaults with { MaxComments = 1 });
+        comments.TryAdmit(tally, 0, out var commentsFault).ShouldBeFalse();
+        commentsFault!.Value.Bound.ShouldBe(ResourceBound.MaxComments);
+
+        var bytes = new GlobalBudget(
+            ResourceLimits.Defaults with { MaxCommentBytes = 5 });
+        bytes.TryAdmit(tally, 0, out var bytesFault).ShouldBeFalse();
+        bytesFault!.Value.Bound.ShouldBe(ResourceBound.MaxCommentBytes);
+
+        Crossed(
+            document,
+            ResourceLimits.Defaults with { MaxNodes = 1 })
+            .ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Section 11.5 stores comments outside the document element only in the document envelope.
+    /// They therefore have no synthetic <c>#n</c> path while internal comments keep theirs.
+    /// </summary>
+    [Test]
+    public void EnvelopeCommentsHaveNoOverlayAddress()
+    {
+        const string document = "<!--before--><a><!--inside--><b>1</b></a><!--after-->";
+
+        var root = Read(document);
+
+        root.XmlEnvelopeComments.Select(comment => comment.Text)
+            .ShouldBe(["before", "after"]);
+        Paths(document).ShouldBe(["a.b=1", "a.#0=<!--inside-->"]);
+    }
+
+    /// <summary>
     /// Section 11.7's default mode: "<c>PreserveWhitespace</c> retains every text node."
     /// </summary>
     [Test]
@@ -1094,4 +1172,22 @@ public class XmlInputReaderTests
     [Test]
     public void RepeatedChildrenPromoteAfterNormalizing() =>
         Normalized("<a>\n  <b>1</b>\n  <b>2</b>\n</a>", out _).ShouldBe(["a.b.0=1", "a.b.1=2"]);
+
+    private sealed class ProbedXmlReaderFactory : XmlInputReader.IXmlReaderFactory
+    {
+        public int ReaderCreateCalls { get; private set; }
+
+        public int ResolverOpenCalls { get; private set; }
+
+        public int ReaderReadCalls { get; private set; }
+
+        public int ExpandedCharacterCount { get; private set; }
+
+        public XmlReader Create(TextReader input, XmlReaderSettings settings)
+        {
+            ReaderCreateCalls++;
+            throw new AssertionException(
+                "The DTD pre-scan must refuse the document before creating an XML reader.");
+        }
+    }
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--leading-one-->
+<!--leading-two-->
+<!--leading-three-->
+<r>
+  <a>1</a>
+  <b>2</b>
+  <!--internal-->
+</r>
+<!--trailing-one-->
+<!--trailing-two-->
+<!--trailing-three-->

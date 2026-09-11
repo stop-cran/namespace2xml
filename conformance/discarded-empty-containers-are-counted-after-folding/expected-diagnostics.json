@@ -1,0 +1,4 @@
+[
+{"code":"WARN005","severity":"warning","phase":"planning","destination":"folded.sh","spec":"§17.5"},
+{"code":"WARN015","severity":"warning","phase":"planning","destination":"folded.sh","spec":"§19.2"}
+]

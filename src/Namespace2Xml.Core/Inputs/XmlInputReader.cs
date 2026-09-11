@@ -69,13 +69,45 @@ public static class XmlInputReader
         DiagnosticBuffer diagnostics,
         StableOrderingKey key)
     {
+        return Read(
+            text,
+            encoding,
+            options,
+            budget,
+            origin,
+            phase,
+            diagnostics,
+            key,
+            SystemXmlReaderFactory.Instance);
+    }
+
+    internal static StructuredNode? Read(
+        string text,
+        SourceEncoding encoding,
+        XmlInputOptions options,
+        SourceBudget budget,
+        ProfileSource origin,
+        DiagnosticPhase phase,
+        DiagnosticBuffer diagnostics,
+        StableOrderingKey key,
+        IXmlReaderFactory readerFactory)
+    {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(origin);
         ArgumentNullException.ThrowIfNull(diagnostics);
+        ArgumentNullException.ThrowIfNull(readerFactory);
 
         var reader = new Reader(
-            encoding, options, origin, phase, diagnostics, key, budget, new SourceLines(text));
+            encoding,
+            options,
+            origin,
+            phase,
+            diagnostics,
+            key,
+            budget,
+            new SourceLines(text),
+            readerFactory);
 
         return reader.Run(text);
     }
@@ -88,9 +120,12 @@ public static class XmlInputReader
         DiagnosticBuffer diagnostics,
         StableOrderingKey key,
         SourceBudget budget,
-        SourceLines lines)
+        SourceLines lines,
+        IXmlReaderFactory readerFactory)
     {
         private readonly Stack<Frame> frames = new();
+        private readonly ImmutableArray<StructuredXmlEnvelopeComment>.Builder envelopeComments =
+            ImmutableArray.CreateBuilder<StructuredXmlEnvelopeComment>();
         private StructuredNode? root;
         private long order;
         private long elements;
@@ -113,7 +148,7 @@ public static class XmlInputReader
                 return null;
             }
 
-            using var reader = XmlReader.Create(new StringReader(text), Settings);
+            using var reader = readerFactory.Create(new StringReader(text), Settings);
             var position = (IXmlLineInfo)reader;
 
             try
@@ -177,7 +212,10 @@ public static class XmlInputReader
                     key));
             }
 
-            return root;
+            return root with
+            {
+                XmlEnvelopeComments = envelopeComments.ToImmutable(),
+            };
         }
 
         /// <summary>The Section 11.1 parser posture.</summary>
@@ -427,7 +465,7 @@ public static class XmlInputReader
             return true;
         }
 
-        /// <summary>Retains a comment as a Section 11.5 ordered content node.</summary>
+        /// <summary>Retains a comment as Section 11.5 content or document-envelope metadata.</summary>
         /// <param name="value">The comment's text, as the parser decoded it.</param>
         /// <param name="at">The parser's position reporter.</param>
         /// <remarks>
@@ -449,6 +487,10 @@ public static class XmlInputReader
 
             if (frames.Count == 0)
             {
+                envelopeComments.Add(new StructuredXmlEnvelopeComment(
+                    value,
+                    root is null ? XmlEnvelopePlacement.Leading : XmlEnvelopePlacement.Trailing,
+                    order));
                 return true;
             }
 
@@ -951,6 +993,19 @@ public static class XmlInputReader
             int Line,
             int Column,
             string Text) : Token(Ordinal);
+    }
+
+    internal interface IXmlReaderFactory
+    {
+        XmlReader Create(TextReader input, XmlReaderSettings settings);
+    }
+
+    private sealed class SystemXmlReaderFactory : IXmlReaderFactory
+    {
+        internal static SystemXmlReaderFactory Instance { get; } = new();
+
+        public XmlReader Create(TextReader input, XmlReaderSettings settings) =>
+            XmlReader.Create(input, settings);
     }
 
     /// <summary>Scans the XML prolog, which is the only place a DTD may appear.</summary>

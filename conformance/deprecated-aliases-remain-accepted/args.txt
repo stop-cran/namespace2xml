@@ -1,0 +1,8 @@
+-i
+inputs/data.txt
+-s
+schemes/base.txt
+schemes/delimiter.txt
+schemes/xml-options.txt
+schemes/xmlns.txt
+schemes/xmlnssuffix.txt

@@ -53,6 +53,12 @@ public sealed record OutputView(
     /// that no scheme path can address.
     /// </remarks>
     public ImmutableArray<NamePart> AppliedRoot { get; init; } = [];
+
+    /// <summary>
+    /// The complete Section 11.5 XML document envelope, separate from the selected overlay so no
+    /// selector or transformation can address it.
+    /// </summary>
+    public ImmutableArray<XmlEnvelopeComment> XmlEnvelopeComments { get; init; } = [];
 }
 
 /// <summary>One output view bound to the destination it will be written to.</summary>
@@ -716,6 +722,17 @@ public static class PlanningPhase
 
         foreach (var instance in instances)
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.OutputSelector,
+                    instance.Selector.ToString(),
+                    instance.Declaration.Text);
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.PlanningContribution,
+                    instance.Selector.ToString());
+            }
+
             // Section 14.1: an instance is planned "even when no data path currently matches
             // its literal prefix", so a missing subtree is an empty view rather than no view.
             // The selection does not depend on the format, so it is made once per instance —
@@ -847,12 +864,18 @@ public static class PlanningPhase
             return StepOutcome.Failed<ImmutableArray<OutputView>>();
         }
 
+        var envelopeComments = contributions
+            .SelectMany(contribution => contribution.Contribution.XmlEnvelopeComments)
+            .OrderBy(comment => comment.Order)
+            .ToImmutableArray();
+
         ImmutableArray<OutputView> rebuilt =
         [
             .. views.Select(view => view with
             {
                 View = LiftDocumentComments(
                     resolution.Model, Descend(resolution.Model, view.Instance.Selector.Name)),
+                XmlEnvelopeComments = envelopeComments,
             }),
         ];
 
@@ -1118,6 +1141,14 @@ public static class PlanningPhase
 
         foreach (var view in views)
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.PlanningContribution,
+                    view.Instance.Selector.ToString(),
+                    view.Format.ToString());
+            }
+
             if (!TryDestination(view, diagnostics, bound.Count, out var path))
             {
                 continue;
@@ -1142,7 +1173,6 @@ public static class PlanningPhase
         // blocking PATH001 collision rather than a merge." The check is on the whole plan rather
         // than per destination, because the colliding pair is by definition two destinations.
         var byPortability = new Dictionary<string, DestinationContribution>(StringComparer.Ordinal);
-
         foreach (var contribution in contributions.OrderBy(c => c.Key))
         {
             if (byPortability.TryGetValue(contribution.Path.PortabilityKey, out var earlier)
@@ -1165,6 +1195,8 @@ public static class PlanningPhase
 
             byPortability.TryAdd(contribution.Path.PortabilityKey, contribution);
         }
+
+        ReportDestinationTopology(contributions, diagnostics);
 
         return diagnostics.HasBlockingError
             ? StepOutcome.Failed<ImmutableArray<DestinationContribution>>()
@@ -1348,6 +1380,13 @@ public static class PlanningPhase
         ArgumentNullException.ThrowIfNull(budget);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
+        ReportDestinationTopology(contributions, diagnostics);
+
+        if (diagnostics.HasBlockingError)
+        {
+            return StepOutcome.Failed<ImmutableArray<DestinationContribution>>();
+        }
+
         var folded = new Dictionary<string, DestinationContribution>(StringComparer.Ordinal);
         var order = new List<string>();
         var pending = new List<(string Canonical, DiagnosticOccurrence Occurrence)>();
@@ -1407,6 +1446,96 @@ public static class PlanningPhase
             ? StepOutcome.Failed<ImmutableArray<DestinationContribution>>()
             : StepOutcome.Produced(
                 ImmutableArray.CreateRange(order.Select(canonical => folded[canonical])));
+    }
+
+    /// <summary>
+    /// Reports destinations for which a planned file is also required to be an ancestor directory.
+    /// </summary>
+    private static void ReportDestinationTopology(
+        ImmutableArray<DestinationContribution> contributions,
+        DiagnosticBuffer diagnostics)
+    {
+        // A portability key with multiple canonical spellings is already an exact folded collision.
+        // Exclude it from this rule so one destination does not acquire two PATH001 occurrences.
+        var topology = contributions
+            .GroupBy(contribution => contribution.Path.PortabilityKey, StringComparer.Ordinal)
+            .Where(group => group
+                .Select(contribution => contribution.Path.Canonical)
+                .Distinct(StringComparer.Ordinal)
+                .Take(2)
+                .Count() == 1)
+            .Select(group => new KeyValuePair<string, DestinationContribution>(
+                group.Key,
+                PublicationRepresentative(group)))
+            .ToArray();
+
+        var destinationOrder = DestinationContribution
+            .InPublicationOrder(topology.Select(pair => pair.Value))
+            .Select((contribution, index) => (contribution.Path.PortabilityKey, index))
+            .ToDictionary(pair => pair.PortabilityKey, pair => pair.index, StringComparer.Ordinal);
+
+        foreach (var descendant in topology)
+        {
+            KeyValuePair<string, DestinationContribution>? longest = null;
+
+            foreach (var ancestor in topology)
+            {
+                if (ancestor.Key.Length >= descendant.Key.Length
+                    || !descendant.Key.StartsWith(
+                        ancestor.Key + "/", StringComparison.Ordinal)
+                    || longest is { } held && held.Key.Length >= ancestor.Key.Length)
+                {
+                    continue;
+                }
+
+                longest = ancestor;
+            }
+
+            if (longest is not { } conflict)
+            {
+                continue;
+            }
+
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Path001(
+                    DiagnosticPhase.Planning,
+                    "§17.5",
+                    $"'{descendant.Value.Path.Canonical}' requires "
+                    + $"'{conflict.Value.Path.Canonical}' to be a directory, but that destination "
+                    + "is also a file.",
+                    cardinalityKey: descendant.Key,
+                    destination: descendant.Value.Path.Canonical),
+                DestinationOrder: destinationOrder[descendant.Key]));
+        }
+    }
+
+    /// <summary>
+    /// Computes the contribution whose publication key an exact destination would retain after
+    /// Section 17.5 folding, without performing the model merge that topology failure precludes.
+    /// </summary>
+    private static DestinationContribution PublicationRepresentative(
+        IEnumerable<DestinationContribution> contributions)
+    {
+        using var ordered = contributions.OrderBy(contribution => contribution.Key).GetEnumerator();
+
+        if (!ordered.MoveNext())
+        {
+            throw new ArgumentException("At least one destination contribution is required.", nameof(contributions));
+        }
+
+        var retained = ordered.Current;
+
+        while (ordered.MoveNext())
+        {
+            var later = ordered.Current;
+
+            if (retained.View.Format != later.View.Format)
+            {
+                retained = later;
+            }
+        }
+
+        return retained;
     }
 
     /// <summary>
@@ -1591,9 +1720,24 @@ public static class PlanningPhase
             {
                 View = merger.Merge(accumulated.View.View, later.View.View),
                 Types = MergeTypes(accumulated.View.Types, later.View.Types),
+                XmlEnvelopeComments = MergeEnvelopeComments(
+                    accumulated.View.XmlEnvelopeComments,
+                    later.View.XmlEnvelopeComments),
             },
         };
     }
+
+    /// <summary>Unions a folded destination's XML envelope by stable source occurrence.</summary>
+    private static ImmutableArray<XmlEnvelopeComment> MergeEnvelopeComments(
+        ImmutableArray<XmlEnvelopeComment> accumulated,
+        ImmutableArray<XmlEnvelopeComment> later) =>
+        [..
+            accumulated
+                .Concat(later)
+                .GroupBy(comment => comment.Order)
+                .Select(group => group.First())
+                .OrderBy(comment => comment.Order)
+        ];
 
     /// <summary>
     /// Unions two contributions' Section 15.2 transform tables for a same-format destination fold.
@@ -1664,6 +1808,13 @@ public static class PlanningPhase
 
         foreach (var part in selector.Parts)
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.PathPart,
+                    CanonicalPath.Of([part]));
+            }
+
             if (!OverlayAddressing.TryAddress(node, part, out var child))
             {
                 // Section 14.1: an instance whose selector matches nothing has a view with "no
@@ -1707,6 +1858,14 @@ public static class PlanningPhase
         // `root` applies, so a configured root prefixes it rather than replacing it.
         if (instance.Root is { } configured)
         {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.PathDirective,
+                    CanonicalPath.Of(configured),
+                    "root");
+            }
+
             root = configured.Parts.AddRange(retained);
             return true;
         }
@@ -1725,6 +1884,8 @@ public static class PlanningPhase
             return true;
         }
 
+        _ = TryComposeDestination(instance, format, out var destination, out _);
+
         diagnostics.Add(new BufferedDiagnostic(
             DiagnosticCodes.Type001(
                 DiagnosticPhase.Planning,
@@ -1733,7 +1894,7 @@ public static class PlanningPhase
                 + "and INI require an explicit 'root' because no element or key identity exists "
                 + "otherwise.",
                 cardinalityKey: instance.Selector.ToString(),
-                declaration: $"output={instance.Formats[0]}"),
+                destination: destination?.Canonical),
             OrderingKey: StableOrderingKey.First));
 
         root = [];
@@ -1746,20 +1907,10 @@ public static class PlanningPhase
         int order,
         out DestinationPath path)
     {
-        string? violation;
-
-        if (view.Instance.FilenameTemplate is { } template)
+        if (TryComposeDestination(
+            view.Instance, view.Format, out var composed, out var violation))
         {
-            if (DestinationPathComposer.TryCompose(
-                template, view.Instance.Captures, out var composed, out violation))
-            {
-                path = composed;
-                return true;
-            }
-        }
-        else if (DefaultDestination(view, out var derived, out violation))
-        {
-            path = derived!;
+            path = composed!;
             return true;
         }
 
@@ -1790,6 +1941,28 @@ public static class PlanningPhase
         return false;
     }
 
+    private static bool TryComposeDestination(
+        OutputInstance instance,
+        OutputFormat format,
+        out DestinationPath? path,
+        out string? violation)
+    {
+        if (instance.FilenameTemplate is { } template)
+        {
+            if (DestinationPathComposer.TryCompose(
+                template, instance.Captures, out var composed, out violation))
+            {
+                path = composed;
+                return true;
+            }
+
+            path = null;
+            return false;
+        }
+
+        return DefaultDestination(instance, format, out path, out violation);
+    }
+
     /// <summary>
     /// Section 16.2's default file name: the dot-joined concrete selector, each part encoded by the
     /// portable rules with literal <c>.</c> additionally encoded, forming one filename segment.
@@ -1801,7 +1974,8 @@ public static class PlanningPhase
     /// <c>a%252Eb.properties</c>.
     /// </remarks>
     private static bool DefaultDestination(
-        OutputView view,
+        OutputInstance instance,
+        OutputFormat format,
         out DestinationPath? path,
         out string? violation)
     {
@@ -1810,7 +1984,7 @@ public static class PlanningPhase
 
         var stem = "output";
 
-        if (view.Instance.Selector.Name is { } name)
+        if (instance.Selector.Name is { } name)
         {
             var parts = new List<string>(name.Parts.Length);
 
@@ -1830,7 +2004,7 @@ public static class PlanningPhase
 
         // DefaultExtension carries its own leading dot, so the stem is concatenated rather than
         // joined: a second dot would produce 'a..properties'.
-        path = new DestinationPath(stem + view.Format.DefaultExtension());
+        path = new DestinationPath(stem + format.DefaultExtension());
         return true;
     }
 

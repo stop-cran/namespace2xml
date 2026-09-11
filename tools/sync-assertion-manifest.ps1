@@ -9,8 +9,8 @@
     specification and carries the decomposition into individually testable assertions.
 
     Item text, and the item set, are derived from the specification and must never be edited by
-    hand. Milestone ownership, coverage status, and decomposed assertions are authored and are
-    preserved across regeneration.
+    hand.     Milestone ownership, coverage status, decomposed assertions, and their exact evidence mappings
+    are authored and are preserved across regeneration.
 
     CI runs this script and fails on a diff.
 #>
@@ -83,7 +83,7 @@ $rendered = foreach ($number in ($items.Keys | Sort-Object { [int]$_ })) {
         fixtures   = @($fixtures)
     }
 
-    # Appendix C.5: an item a fixture cannot discharge names gates instead.
+    # Appendix C.5: an item may name fixture evidence, gate evidence, or both.
     if ($gates.Count -gt 0) {
         $entry['gates'] = @($gates)
     }
@@ -102,9 +102,10 @@ $document = [ordered]@{
     generatedBy = 'tools/sync-assertion-manifest.ps1'
     statuses    = [ordered]@{
         pending  = 'Not yet owned by a merged milestone. Not enforced by the traceability gate.'
-        required = 'Appendix C.5: the fixtures field must name exactly the fixtures that reference this item, and each must assert more than an exit code. Enforced by the traceability gate.'
+        required = 'Appendix C.5: a required item must completely decompose into assertions. Every assertion owns exactly one listed fixture artifact or executable-gate observation, every listed owner is used, every fixture asserts more than an exit code, and every gate identity resolves exactly.'
     }
-    gates       = 'Appendix C.5: an item no fixture can discharge names the test or CI job that checks it instead, and says why a fixture cannot. Every name must resolve to something that exists, or the field is an accounting fiction.'
+    gates       = 'Appendix C.5: an item may name exact test or CI gate evidence with or without fixtures. A gate-only item says why a fixture cannot discharge it. Every identity must resolve exactly, or the field is an accounting fiction.'
+    assertions  = 'Appendix C.5: each authored assertion has exactly one fixture-or-gate evidence object naming an exact artifact and the observable byte, field, count, ordering relation, or boundary event that changes when false.'
     items       = @($rendered)
 }
 

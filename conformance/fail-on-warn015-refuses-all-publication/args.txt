@@ -1,0 +1,5 @@
+-i
+inputs/doc.json
+-s
+schemes/scheme.txt
+--fail-on-warning

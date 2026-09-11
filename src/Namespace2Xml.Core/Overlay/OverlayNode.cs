@@ -150,6 +150,20 @@ public sealed class OverlayNode
             SequenceHighWater);
 
     /// <summary>
+    /// Marks this sequence path as one created by Section 11.4 singleton promotion.
+    /// </summary>
+    internal OverlayNode WithXmlSingletonPromotion() =>
+        Compose(
+            Marks.WithXmlSingletonPromotion(),
+            Payload,
+            HasExplicitMapping,
+            HasExplicitSequence,
+            Children,
+            Sequence,
+            Comments,
+            SequenceHighWater);
+
+    /// <summary>
     /// An intermediate node materialised only because something deeper needed a container.
     /// </summary>
     /// <param name="position">The key of the contribution that first required it.</param>

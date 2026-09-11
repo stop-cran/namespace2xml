@@ -27,7 +27,16 @@ public sealed record SchemeEntry(
     StableOrderingKey Order,
     int Line,
     string Source,
-    string Declaration);
+    string Declaration)
+{
+    /// <summary>The one-based column at which the declaration begins.</summary>
+    public int Column { get; init; } = 1;
+
+    /// <summary>
+    /// Whether the written selector contains unescaped reference syntax before name decoding.
+    /// </summary>
+    public bool SelectorContainsReferenceSyntax { get; init; }
+}
 
 /// <summary>One scheme source, read into its Section 15 directives.</summary>
 /// <param name="Entries">The directives, in source order.</param>
@@ -225,7 +234,12 @@ public static class SchemeReader
             key,
             record.Line,
             source,
-            written));
+            written)
+        {
+            Column = record.Column,
+            SelectorContainsReferenceSyntax =
+                QualifiedNameLexer.ContainsUnescapedReferenceSyntax(written, native: false),
+        });
     }
 
     // 'name' is the lexed name, or null when the record spells none. Section 6.4.3 requires the

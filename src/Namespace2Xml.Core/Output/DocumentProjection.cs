@@ -81,8 +81,14 @@ public sealed class DocumentProjection
     /// arriving from the pipeline is already wrapped and carries no root parts. Wrapping here keeps
     /// the projection correct for a view that has not been through that fold.
     /// </remarks>
+    /// <param name="discardedEnvelopeComments">
+    /// XML document-envelope comments this non-XML projection discards.
+    /// </param>
     /// <returns>The document root.</returns>
-    public DocumentNode Project(OverlayNode view, ImmutableArray<NamePart> root)
+    public DocumentNode Project(
+        OverlayNode view,
+        ImmutableArray<NamePart> root,
+        int discardedEnvelopeComments = 0)
     {
         ArgumentNullException.ThrowIfNull(view);
 
@@ -95,7 +101,11 @@ public sealed class DocumentProjection
                 []);
         }
 
-        CommentNodes.Report(diagnostics, anchor, destination, discardedComments);
+        CommentNodes.Report(
+            diagnostics,
+            anchor,
+            destination,
+            checked(discardedComments + discardedEnvelopeComments));
 
         return document;
     }

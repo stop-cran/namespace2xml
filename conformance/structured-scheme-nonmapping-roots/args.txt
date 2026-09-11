@@ -1,0 +1,10 @@
+-i
+inputs/input.namespace
+-s
+schemes/scalar.json
+schemes/null.json
+schemes/sequence.json
+schemes/scalar.yaml
+schemes/null.yaml
+schemes/sequence.yaml
+schemes/valid.json

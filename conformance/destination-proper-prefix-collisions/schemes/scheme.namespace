@@ -1,0 +1,8 @@
+ancestor.output=namespace
+ancestor.filename=tree
+branch.output=namespace
+branch.filename=tree/branch
+deep.output=namespace
+deep.filename=tree/branch/one.json
+sibling.output=namespace
+sibling.filename=TREE/two.json

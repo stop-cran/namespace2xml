@@ -90,7 +90,7 @@ public class DifferentialTests
             divergences.ShouldBeEmpty(
                 $"{conformanceCase.Name} diverges from namespace2xml 2.4.0 but declares no Appendix C.6 " +
                 "verdict explaining it. An unexplained divergence is the one thing this lane exists to " +
-                $"catch.{Environment.NewLine}{Describe(divergences)}");
+                $"catch.{Environment.NewLine}{DescribeSamples(samples)}");
 
             return;
         }
@@ -100,7 +100,7 @@ public class DifferentialTests
             divergences.ShouldBeEmpty(
                 $"{conformanceCase.Name} claims '{claim.Line}', so Appendix C.6 requires the baseline " +
                 $"to produce this case's expected tree and exit code, and it does not.{Environment.NewLine}" +
-                $"{Describe(divergences)}");
+                $"{DescribeSamples(samples)}");
 
             return;
         }
@@ -108,14 +108,16 @@ public class DifferentialTests
         divergences.ShouldNotBeEmpty(
             $"{conformanceCase.Name} claims '{claim.Line}', but the baseline produced exactly the " +
             "expected tree and exit code. Either the correction was never needed or the case does not " +
-            "reach it; a divergence nobody can observe is not a correction.");
+            $"reach it; a divergence nobody can observe is not a correction.{Environment.NewLine}" +
+            DescribeSamples(samples));
 
         if (claim.Verdict == LegacyVerdict.Fails)
         {
             samples.ShouldAllBe(
                 sample => sample.ExitCode != 0,
                 $"{conformanceCase.Name} claims the baseline fails, but at least one run exited " +
-                "successfully. Appendix C.6 requires 'differs' for a baseline that completes.");
+                "successfully. Appendix C.6 requires 'differs' for a baseline that completes." +
+                $"{Environment.NewLine}{DescribeSamples(samples)}");
 
             return;
         }
@@ -130,7 +132,8 @@ public class DifferentialTests
                 sample => sample.ExitCode == 0,
                 $"{conformanceCase.Name} claims '{claim.Line}', but the baseline exited nonzero on " +
                 $"every one of {samples.Count} runs, so it never produced a result to differ with. " +
-                "Appendix C.6 requires the 'fails' verdict for that.");
+                $"Appendix C.6 requires the 'fails' verdict for that.{Environment.NewLine}" +
+                DescribeSamples(samples));
         }
     }
 
@@ -177,7 +180,11 @@ public class DifferentialTests
     }
 
     /// <summary>One baseline run: what it produced, and how that differed from what the case expects.</summary>
-    private sealed record Observation(int ExitCode, List<string> Divergences, string Fingerprint);
+    private sealed record Observation(
+        int ExitCode,
+        List<string> Divergences,
+        string Fingerprint,
+        string StandardError);
 
     /// <summary>
     /// Whether the samples disagree about the one thing a verdict claims: some reproduced the
@@ -226,7 +233,11 @@ public class DifferentialTests
 
         divergences.AddRange(OutputTreeComparer.Compare(conformanceCase.ExpectedTree, produced));
 
-        return new Observation(result.ExitCode, divergences, Fingerprint(result.ExitCode, produced));
+        return new Observation(
+            result.ExitCode,
+            divergences,
+            Fingerprint(result.ExitCode, produced),
+            DescribeStandardError(result.StandardError));
     }
 
     /// <summary>
@@ -242,7 +253,10 @@ public class DifferentialTests
                 $"{group.First().ExitCode}, " +
                 (group.First().Divergences.Count == 0
                     ? "matches the expected tree"
-                    : string.Join("; ", group.First().Divergences)));
+                    : string.Join("; ", group.First().Divergences)) +
+                (group.First().StandardError.Length == 0
+                    ? string.Empty
+                    : $"{Environment.NewLine}    stderr: {group.First().StandardError}"));
 
         return string.Join(Environment.NewLine, groups);
     }
@@ -263,8 +277,28 @@ public class DifferentialTests
                "\n" + string.Join("\n", entries);
     }
 
-    private static string Describe(List<string> divergences) =>
-        string.Join(Environment.NewLine, divergences.Select(divergence => "  - " + divergence));
+    private static string DescribeStandardError(byte[] standardError)
+    {
+        const int limit = 2048;
+
+        if (standardError.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var text = System.Text.Encoding.UTF8
+            .GetString(standardError)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .TrimEnd();
+
+        if (text.Length > limit)
+        {
+            text = text[..limit] + " ... [truncated]";
+        }
+
+        return text.Replace("\n", Environment.NewLine + "            ", StringComparison.Ordinal);
+    }
 
     private static string RequireBaseline()
     {

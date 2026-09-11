@@ -1,0 +1,3 @@
+cfg.output=ini
+cfg.filename=mapping.ini
+cfg.root=section

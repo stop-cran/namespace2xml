@@ -1,0 +1,5 @@
+[
+{"code":"INI001","severity":"error","phase":"planning","path":"escape.value","destination":"escape.ini","spec":"§19.6"},
+{"code":"INI001","severity":"error","phase":"planning","path":"reject.value","destination":"reject.ini","spec":"§19.6"},
+{"code":"INI001","severity":"error","phase":"planning","path":"quote.value","destination":"quote.ini","spec":"§19.6"}
+]

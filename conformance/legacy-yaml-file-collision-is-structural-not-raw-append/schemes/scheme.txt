@@ -1,0 +1,4 @@
+a.output=yaml
+a.filename=out.yaml
+b.output=yaml
+b.filename=out.yaml

@@ -1,0 +1,7 @@
+r.left.output=xml
+r.left.root=doc
+r.left.filename=out.xml
+r.right.output=xml
+r.right.root=doc
+r.right.filename=out.xml
+r.right.filemerge=deep

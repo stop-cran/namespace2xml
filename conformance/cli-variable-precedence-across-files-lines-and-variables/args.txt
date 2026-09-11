@@ -1,0 +1,8 @@
+-v
+cfg.cli=first-variable
+cfg.cli=second-variable
+-i
+inputs/first.txt
+inputs/second.txt
+-s
+schemes/scheme.txt

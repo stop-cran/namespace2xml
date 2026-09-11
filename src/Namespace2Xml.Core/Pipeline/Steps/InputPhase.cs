@@ -391,6 +391,11 @@ public static class InputPhase
 
     private static OverlayNode Project(OverlayNode node)
     {
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(PipelineObservationKind.SequenceInferenceNode);
+        }
+
         var children = node.Children;
 
         foreach (var (name, child) in node.OrderedChildren)
@@ -468,6 +473,11 @@ public static class InputPhase
 
     private static OverlayNode Settle(OverlayNode node)
     {
+        if (PipelineInstrumentation.IsEnabled)
+        {
+            PipelineInstrumentation.Record(PipelineObservationKind.ScalarInferenceNode);
+        }
+
         var settled = node;
 
         if (node.Payload is { IsUntyped: true } payload)

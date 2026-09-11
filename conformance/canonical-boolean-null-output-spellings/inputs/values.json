@@ -1,0 +1,5 @@
+{
+  "yaml": {"truth": true, "falsehood": false, "nothing": null},
+  "ini": {"truth": true, "falsehood": false, "nothing": null},
+  "xml": {"attribute": true, "truth": true, "falsehood": false, "nothing": null}
+}

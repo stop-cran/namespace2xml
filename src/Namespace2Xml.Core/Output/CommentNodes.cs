@@ -5,7 +5,7 @@ using Namespace2Xml.Pipeline;
 namespace Namespace2Xml.Output;
 
 /// <summary>
-/// What an output that is not XML does with the Section 11.5 comment nodes selected into it.
+/// What an output that is not XML does with Section 11.5 XML content and envelope comments.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,10 +23,9 @@ namespace Namespace2Xml.Output;
 /// forbid.
 /// </para>
 /// <para>
-/// The feature category is comment <em>nodes</em>, which is not the category the Section 4.5 bound
-/// comments of <c>JsonSerializer</c> and <c>IniSerializer</c> report under. The two are different
-/// source concepts — one is ordered content, the other an annotation on a value — and sharing a
-/// cardinality key would let whichever renderer ran first silence the other's count.
+/// The feature category is <c>xml-comments</c>, which combines the two unbound XML comment
+/// positions but remains distinct from the Section 4.5 value-bound comments reported by other
+/// serializers.
 /// </para>
 /// </remarks>
 public static class CommentNodes
@@ -51,7 +50,7 @@ public static class CommentNodes
     /// <param name="diagnostics">The buffer the warning accumulates in.</param>
     /// <param name="anchor">The Section 22 <c>spec</c> anchor of the format being rendered.</param>
     /// <param name="destination">The Section 6.4.3 destination, which is the "output file" half.</param>
-    /// <param name="discarded">How many comment nodes were discarded.</param>
+    /// <param name="discarded">How many XML content and envelope comments were discarded.</param>
     public static void Report(
         DiagnosticBuffer diagnostics,
         string anchor,
@@ -69,9 +68,9 @@ public static class CommentNodes
             DiagnosticCodes.Warn003(
                 DiagnosticPhase.Planning,
                 anchor,
-                $"only XML renders comment nodes, so {discarded} XML comment(s) selected into this "
-                + "output were discarded.",
-                cardinalityKey: FlatIdentity.Key(destination?.Canonical, "comment-nodes"),
+                $"only XML renders XML content or document-envelope comments, so {discarded} "
+                + "XML comment(s) in this output were discarded.",
+                cardinalityKey: FlatIdentity.Key(destination?.Canonical, "xml-comments"),
                 destination: destination?.Canonical),
             DestinationOrder: destination?.Order));
     }

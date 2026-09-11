@@ -1,0 +1,3 @@
+[
+{"code":"WARN010","severity":"warning","phase":"planning","source":"inputs/data.yaml","path":"cfg","destination":"cfg.json","spec":"§8.7"}
+]

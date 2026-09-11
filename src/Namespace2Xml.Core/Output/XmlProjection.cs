@@ -39,6 +39,7 @@ public sealed class XmlProjection
 {
     private readonly DiagnosticBuffer diagnostics;
     private readonly DestinationRef? destination;
+    private readonly EmptyContainerLosses emptyContainers = new();
     private readonly IReadOnlyDictionary<string, EffectiveTransform> types;
     private readonly int wrapper;
     private readonly bool preservesCData;
@@ -74,16 +75,90 @@ public sealed class XmlProjection
     /// <summary>Projects one view, or null when Section 14.1 refuses it.</summary>
     /// <param name="view">The selected output view.</param>
     /// <param name="root">The Section 16.3 root parts, empty when undeclared.</param>
+    /// <param name="envelopeComments">Section 11.5 comments outside the document element.</param>
     /// <returns>The document, or null when a blocking type error was raised.</returns>
-    public XmlDocumentProjection? Project(OverlayNode view, ImmutableArray<NamePart> root)
+    public XmlDocumentProjection? Project(
+        OverlayNode view,
+        ImmutableArray<NamePart> root,
+        ImmutableArray<XmlEnvelopeComment> envelopeComments = default)
     {
         ArgumentNullException.ThrowIfNull(view);
 
         ReportShapeConflicts(view, []);
+        ObserveDiscardedEmptySequences(view, root);
 
+        var document = ProjectView(view, root, envelopeComments);
+
+        emptyContainers.Report(diagnostics, "\u00A719.5", destination);
+
+        return document;
+    }
+
+    /// <summary>
+    /// Counts every explicit empty sequence the final XML view would omit, independently of the
+    /// fail-fast byte projection.
+    /// </summary>
+    /// <remarks>
+    /// Section 24 requires the complete planning diagnostic set. A sibling that raises
+    /// <c>TYPE001</c>, <c>XML001</c>, or <c>XML002</c> can block publication, but it does not make a
+    /// later independently discardable sequence representable. The traversal therefore mirrors
+    /// XML placement without constructing bytes or raising diagnostics, and excludes only a
+    /// sequence whose own placement rule rejects it instead of discarding it.
+    /// </remarks>
+    private void ObserveDiscardedEmptySequences(
+        OverlayNode view,
+        ImmutableArray<NamePart> root)
+    {
         if (view.Marks.ContainerIsSequence)
         {
-            return Document(ProjectRootSequence(view, root));
+            if (root.Length >= 2 && TryName(root[^2], out _))
+            {
+                ObserveNamedElement(root[^1], view, []);
+            }
+
+            return;
+        }
+
+        if (!root.IsDefaultOrEmpty)
+        {
+            if (TryName(root[^1], out _))
+            {
+                ObserveElementContent(view, []);
+            }
+
+            return;
+        }
+
+        if (view.Payload is not null && !view.Marks.RendersAsMapping)
+        {
+            return;
+        }
+
+        var children = view.Marks.RendersAsMapping
+            ? view.OrderedChildren.ToList()
+            : [];
+
+        if (children.Count != 1)
+        {
+            return;
+        }
+
+        var (name, child) = children[0];
+
+        if (TryName(name, out _))
+        {
+            ObserveElementContent(child, [name]);
+        }
+    }
+
+    private XmlDocumentProjection? ProjectView(
+        OverlayNode view,
+        ImmutableArray<NamePart> root,
+        ImmutableArray<XmlEnvelopeComment> envelopeComments)
+    {
+        if (view.Marks.ContainerIsSequence)
+        {
+            return Document(ProjectRootSequence(view, root), envelopeComments: envelopeComments);
         }
 
         if (root.IsDefaultOrEmpty)
@@ -92,7 +167,7 @@ public sealed class XmlProjection
             // stands for the view itself and its own comments have nowhere inside the tree to go.
             // Section 20 still places them "at the start and the end" of the instance, and XML
             // allows comments before and after the document element, so that is where they go.
-            return Document(ProjectImplicitRoot(view), view);
+            return Document(ProjectImplicitRoot(view), view, envelopeComments);
         }
 
         // Section 16.3: "root=x.y ... XML emits <x><y>...</y></x>". The innermost root part owns
@@ -122,7 +197,7 @@ public sealed class XmlProjection
             element = outer;
         }
 
-        return Document(element);
+        return Document(element, envelopeComments: envelopeComments);
     }
 
     /// <summary>Wraps a projected element, hoisting the comments no element could hold.</summary>
@@ -130,27 +205,50 @@ public sealed class XmlProjection
     /// <param name="view">
     /// The view whose comments have no element of their own, or null when an element holds them.
     /// </param>
+    /// <param name="envelopeComments">Comments retained outside the document element.</param>
     /// <returns>The document, or null when <paramref name="element"/> is null.</returns>
-    private static XmlDocumentProjection? Document(XElement? element, OverlayNode? view = null)
+    private static XmlDocumentProjection? Document(
+        XElement? element,
+        OverlayNode? view = null,
+        ImmutableArray<XmlEnvelopeComment> envelopeComments = default)
     {
         if (element is null)
         {
             return null;
         }
 
-        if (view is null)
-        {
-            return new XmlDocumentProjection([], element, []);
-        }
-
         return new XmlDocumentProjection(
-            [.. Comments(view, leading: true)], element, [.. Comments(view, leading: false)]);
+            [.. Comments(view, envelopeComments, leading: true)],
+            element,
+            [.. Comments(view, envelopeComments, leading: false)]);
     }
 
-    private static IEnumerable<XComment> Comments(OverlayNode view, bool leading) =>
-        view.OrderedComments
-            .Where(comment => (comment.Placement != CommentPlacement.Trailing) == leading)
+    private static IEnumerable<XComment> Comments(
+        OverlayNode? view,
+        ImmutableArray<XmlEnvelopeComment> envelopeComments,
+        bool leading)
+    {
+        var bound = view is null
+            ? []
+            : view.OrderedComments
+                .Where(comment => (comment.Placement != CommentPlacement.Trailing) == leading)
+                .Select(comment => new OrderedComment(comment.Text, comment.Order));
+
+        var envelope = envelopeComments.IsDefaultOrEmpty
+            ? []
+            : envelopeComments
+                .Where(comment =>
+                    (comment.Placement == XmlEnvelopePlacement.Leading) == leading)
+                .Select(comment => new OrderedComment(comment.Text, comment.Order));
+
+        return bound
+            .Concat(envelope)
+            .OrderBy(comment => comment.Order)
+            .ThenBy(comment => comment.Text, StringComparer.Ordinal)
             .Select(comment => new XComment(comment.Text));
+    }
+
+    private readonly record struct OrderedComment(string Text, StableOrderingKey Order);
 
     private XElement? ProjectImplicitRoot(OverlayNode view)
     {
@@ -189,6 +287,110 @@ public sealed class XmlProjection
         return TryFill(element, child, [name]) ? element : null;
     }
 
+    /// <summary>
+    /// Observes losses below content that has already acquired an element in the XML tree.
+    /// </summary>
+    private void ObserveElementContent(
+        OverlayNode node,
+        ImmutableArray<NamePart> path)
+    {
+        var kind = Kind(path);
+
+        if (kind == TypeValue.Attribute
+            || node.Marks.ContainerIsSequence
+            || (node.Payload is null && kind is TypeValue.Text or TypeValue.Cdata)
+            || !node.Marks.ContainerIsMapping)
+        {
+            return;
+        }
+
+        foreach (var (_, unit) in Placed(node, path))
+        {
+            if (unit.IsItem)
+            {
+                if (TryName(unit.Name, out _))
+                {
+                    ObserveElementContent(unit.Node, unit.Path);
+                }
+
+                continue;
+            }
+
+            ObserveChild(unit.Name, unit.Node, unit.Path);
+        }
+    }
+
+    /// <summary>Observes losses below one mapping child under its effective XML placement.</summary>
+    private void ObserveChild(
+        NamePart name,
+        OverlayNode child,
+        ImmutableArray<NamePart> path)
+    {
+        if (Kind(path) is { } kind)
+        {
+            if (kind != TypeValue.Element || name is ContentPart)
+            {
+                return;
+            }
+
+            var promoted = name is AttributePart attribute ? attribute.Name : name;
+            ObserveNamedElement(promoted, child, path);
+            return;
+        }
+
+        switch (name)
+        {
+            case AttributePart:
+                return;
+
+            case ContentPart:
+                ObserveElementContent(child, path);
+                return;
+
+            default:
+                ObserveNamedElement(name, child, path);
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Observes an ordinary or explicitly element-typed child, including repeated sequence
+    /// elements.
+    /// </summary>
+    private void ObserveNamedElement(
+        NamePart name,
+        OverlayNode child,
+        ImmutableArray<NamePart> path)
+    {
+        if (child.Marks.ContainerIsSequence)
+        {
+            if (child.Sequence.IsEmpty)
+            {
+                emptyContainers.ObserveEmptySequence(child);
+                return;
+            }
+
+            if (!TryName(name, out _))
+            {
+                return;
+            }
+
+            foreach (var (value, item) in child.OrderedSequence)
+            {
+                ObserveElementContent(
+                    item.Node,
+                    path.Add(OrderingValues.ToNamePart(value)));
+            }
+
+            return;
+        }
+
+        if (TryName(name, out _))
+        {
+            ObserveElementContent(child, path);
+        }
+    }
+
     private XElement? ProjectRootSequence(OverlayNode view, ImmutableArray<NamePart> root)
     {
         // Section 19.5: "An output view whose document root is itself a sequence requires 'root'
@@ -210,7 +412,7 @@ public sealed class XmlProjection
 
         // The wrapper stands for the view, so Section 20's start-and-end placement is inside it,
         // exactly as it is for a mapping view under an explicit root.
-        foreach (var comment in Comments(view, leading: true))
+        foreach (var comment in Comments(view, [], leading: true))
         {
             wrapper.Add(comment);
         }
@@ -220,7 +422,7 @@ public sealed class XmlProjection
             return null;
         }
 
-        foreach (var comment in Comments(view, leading: false))
+        foreach (var comment in Comments(view, [], leading: false))
         {
             wrapper.Add(comment);
         }

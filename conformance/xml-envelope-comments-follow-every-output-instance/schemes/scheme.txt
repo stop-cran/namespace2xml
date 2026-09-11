@@ -1,0 +1,6 @@
+r.left.output=xml
+r.left.root=doc
+r.left.filename=left.xml
+r.right.output=xml
+r.right.root=doc
+r.right.filename=right.xml

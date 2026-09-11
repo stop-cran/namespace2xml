@@ -1,0 +1,5 @@
+{
+  "escape": {"value": "\u0001"},
+  "reject": {"value": "\u0001"},
+  "quote": {"value": "\u0001"}
+}

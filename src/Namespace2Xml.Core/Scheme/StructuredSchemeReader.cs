@@ -20,11 +20,11 @@ namespace Namespace2Xml.Scheme;
 /// wildcard-template meaning inside it.
 /// </para>
 /// <para>
-/// A mapping with properties is therefore a path, and everything else is a declaration site. That
-/// single rule is what makes the projection total: no node is silently walked past, so a scheme
-/// cannot declare less than its author wrote without saying so. A sequence or an empty mapping
-/// reaches the declaration site and earns Section 15's "container value" <c>SCHEME001</c>, which is
-/// the same answer a profile gives for the same intent expressed differently.
+/// A mapping with properties is therefore a path, and everything else below the root is a
+/// declaration site. That rule makes the projection total: no nested node is silently walked past,
+/// while an empty root mapping is a valid scheme with no declarations. A nonmapping root earns
+/// <c>SCHEME003</c>; a sequence or empty mapping below a directive path remains the Section 15
+/// "container value" <c>SCHEME001</c>.
 /// </para>
 /// <para>
 /// XML is deliberately not read here. Section 15 names XML scheme files once, about secure parsing,
@@ -53,11 +53,17 @@ public static class StructuredSchemeReader
 
         var state = new Walk(sourceOrdinal, source, diagnostics);
 
+        if (document is not StructuredMapping root)
+        {
+            state.RejectRoot(document);
+            return new SchemeContribution(state.Entries.ToImmutable());
+        }
+
         // Section 15.2 orders directives by source order, and a structured document's source order
         // is its document order. A within-source counter carries it rather than the line, because a
         // JSON object may write every property on one line and two directives sharing an ordering
         // key would make their override stream depend on the dictionary that held them.
-        state.Visit(document, []);
+        state.VisitRoot(root);
 
         return new SchemeContribution(state.Entries.ToImmutable());
     }
@@ -69,40 +75,73 @@ public static class StructuredSchemeReader
         public ImmutableArray<SchemeEntry>.Builder Entries { get; } =
             ImmutableArray.CreateBuilder<SchemeEntry>();
 
-        public void Visit(StructuredNode node, ImmutableArray<NamePart> path)
+        public void RejectRoot(StructuredNode node)
+        {
+            diagnostics.Add(new BufferedDiagnostic(
+                DiagnosticCodes.Scheme003(
+                    DiagnosticPhase.Scheme,
+                    "§15",
+                    $"the document's root value is a {Describe(node)} rather than a mapping.",
+                    cardinalityKey: ProfileSource.OfFile(source, sourceOrdinal).SourceKey,
+                    source: source,
+                    line: 1,
+                    column: 1),
+                StableOrderingKey.FromSource(sourceOrdinal, 0)));
+        }
+
+        public void VisitRoot(StructuredMapping root)
+        {
+            foreach (var property in root.Properties)
+            {
+                Visit(
+                    property.Value,
+                    [property.Name],
+                    QualifiedNameLexer.ContainsUnescapedReferenceSyntax(property.Key, native: true),
+                    property.Line,
+                    property.Column);
+            }
+        }
+
+        private void Visit(
+            StructuredNode node,
+            ImmutableArray<NamePart> path,
+            bool selectorContainsReferenceSyntax,
+            int declarationLine,
+            int declarationColumn)
         {
             if (node is StructuredMapping { Properties.IsEmpty: false } mapping)
             {
                 foreach (var property in mapping.Properties)
                 {
-                    Visit(property.Value, path.Add(property.Name));
+                    Visit(
+                        property.Value,
+                        path.Add(property.Name),
+                        selectorContainsReferenceSyntax
+                            || QualifiedNameLexer.ContainsUnescapedReferenceSyntax(
+                                property.Key, native: true),
+                        property.Line,
+                        property.Column);
                 }
 
                 return;
             }
 
-            Declare(node, path);
+            Declare(
+                node,
+                path,
+                selectorContainsReferenceSyntax,
+                declarationLine,
+                declarationColumn);
         }
 
-        private void Declare(StructuredNode node, ImmutableArray<NamePart> path)
+        private void Declare(
+            StructuredNode node,
+            ImmutableArray<NamePart> path,
+            bool selectorContainsReferenceSyntax,
+            int declarationLine,
+            int declarationColumn)
         {
             var key = StableOrderingKey.FromSource(sourceOrdinal, ++ordinal);
-
-            // A root scalar or a root sequence has no path at all, so no part of it can be the
-            // "final qualified-name part" Section 15 makes a directive. It also spells no
-            // declaration, and a synthetic one would be indistinguishable from written text.
-            if (path.IsEmpty)
-            {
-                Reject(
-                    $"the document's root value is a {Describe(node)} rather than a mapping, so it "
-                    + "spells no qualified directive path, and Section 15 admits only those in a "
-                    + "scheme.",
-                    node,
-                    key,
-                    name: null,
-                    declaration: null);
-                return;
-            }
 
             var name = new QualifiedName(path);
             var declaration = CanonicalPath.Of(name)!;
@@ -160,9 +199,13 @@ public static class StructuredSchemeReader
                 directive,
                 value!,
                 key,
-                node.Line,
+                declarationLine,
                 source,
-                declaration));
+                declaration)
+            {
+                Column = declarationColumn,
+                SelectorContainsReferenceSyntax = selectorContainsReferenceSyntax,
+            });
         }
 
         private bool TryReadValue(

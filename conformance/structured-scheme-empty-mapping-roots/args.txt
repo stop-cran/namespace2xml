@@ -1,0 +1,5 @@
+-i
+inputs/input.namespace
+-s
+schemes/empty.json
+schemes/empty.yaml

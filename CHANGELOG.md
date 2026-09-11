@@ -15,6 +15,13 @@ independently.
 
 ### Added
 
+- **XML comments outside the document element are preserved as unaddressable envelope metadata.**
+  Every XML output instance receives the complete leading/trailing envelope, destination folds
+  preserve stable source order without duplication, non-XML outputs coalesce all discarded XML
+  comments into one destination-scoped `WARN003`, and the original issue #24 `logback.xml` corpus
+  now has a permanent structural regression gate.
+  [#100](https://github.com/stop-cran/namespace2xml/issues/100).
+
 - **Specification clauses and diagnostic codes now have generated, stable links.** The normative
   specification carries a generated hierarchical contents block and explicit `spec-*` targets,
   backed by `spec/specification-navigation.json`; the diagnostic reference links every summary code

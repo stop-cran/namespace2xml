@@ -1,7 +1,9 @@
 # Legacy differential
 
 - namespace2xml 2.4.0: **differs**.
-- Contract: Section 8.6; Section 8.5 for the comment run; Section 20 for INI comment emission.
+- Contract: Section 3.1 preserves profile-ignore syntax, while Section 3.2 corrects it to permanent
+  run-wide semantics. Section 8.6 defines that correction; Section 8.5 governs the comment run and
+  Section 20 governs INI comment emission.
 - Legacy observation: `!` removal was applied in source order like any other entry, so an entry
   written after the ignore reinstated the path, and an ignore in a later file did not reach a value
   contributed by an earlier one. Whether a comment bound to a removed entry survived was not

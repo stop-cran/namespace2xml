@@ -240,9 +240,23 @@ public sealed class IniSerializer
         var payload = keyed.Entry.Payload!;
         var text = payload.IsNull ? "null" : payload.ToCanonicalText();
 
-        if (text.Contains('\0', StringComparison.Ordinal))
+        char? unsupportedControl = null;
+
+        foreach (var character in text)
         {
-            Report(keyed, "NUL is not representable in a 'PortableIni1' value under any option.");
+            if (character < '\u0020' && character is not ('\t' or '\r' or '\n'))
+            {
+                unsupportedControl = character;
+                break;
+            }
+        }
+
+        if (unsupportedControl is { } control)
+        {
+            Report(
+                keyed,
+                $"control character U+{(int)control:X4} is not representable in a "
+                + "'PortableIni1' value under any option.");
             return false;
         }
 

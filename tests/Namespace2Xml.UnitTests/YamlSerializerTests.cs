@@ -206,7 +206,10 @@ public class YamlSerializerTests
     [TestCase("", "''")]
     [TestCase("yes", "'yes'")]
     [TestCase("it's", "it's")]
-    [TestCase("'quoted'", "'''quoted'''")]
+    [TestCase(
+        "'quoted'",
+        "'''quoted'''",
+        TestName = "ALiteralQuoteIsDoubledInSingleQuotedYaml")]
     public void AStringThatWouldResolveOtherwiseIsSingleQuoted(string value, string expected) =>
         Serialize(Map(("k", Text(value)))).ShouldBe("k: " + expected + "\n");
 

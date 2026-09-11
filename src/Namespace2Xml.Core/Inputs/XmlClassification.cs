@@ -236,6 +236,7 @@ internal static class XmlClassification
                 Comments = mapping.Comments,
                 ContentToken = mapping.ContentToken,
                 Scalar = mapping.Scalar,
+                XmlEnvelopeComments = mapping.XmlEnvelopeComments,
             }
             : mapping;
     }
@@ -309,6 +310,7 @@ internal static class XmlClassification
         {
             Comments = mapping.Comments,
             ContentToken = mapping.ContentToken,
+            XmlEnvelopeComments = mapping.XmlEnvelopeComments,
         };
     }
 
@@ -379,7 +381,10 @@ internal static class XmlClassification
             // 'a.b' to the first repeated child.
             properties.Add(property with
             {
-                Value = new StructuredSequence([value], value.Line, value.Column),
+                Value = new StructuredSequence([value], value.Line, value.Column)
+                {
+                    PromotesXmlSingleton = true,
+                },
             });
 
             return true;

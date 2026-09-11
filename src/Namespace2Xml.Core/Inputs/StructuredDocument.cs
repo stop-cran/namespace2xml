@@ -20,6 +20,15 @@ namespace Namespace2Xml.Inputs;
 /// </remarks>
 public readonly record struct StructuredComment(string Text, CommentPlacement Placement);
 
+/// <summary>An XML comment outside the document element, before stable source ordering is added.</summary>
+/// <param name="Text">The decoded comment text.</param>
+/// <param name="Placement">Its leading or trailing document position.</param>
+/// <param name="TraversalOrdinal">Its ordinal in the XML reader's complete token traversal.</param>
+public readonly record struct StructuredXmlEnvelopeComment(
+    string Text,
+    XmlEnvelopePlacement Placement,
+    long TraversalOrdinal);
+
 /// <summary>
 /// One node of a native structured document, in the three shapes Section 4.2 recognizes.
 /// </summary>
@@ -57,6 +66,12 @@ public abstract record StructuredNode(int Line, int Column)
     /// uninitialized one — the difference matters because the two compare unequal.
     /// </remarks>
     public ImmutableArray<StructuredComment> Comments { get; init; } = [];
+
+    /// <summary>
+    /// Section 11.5 XML comments outside the document element, populated only on the structured
+    /// root and kept separate because no overlay path may address them.
+    /// </summary>
+    public ImmutableArray<StructuredXmlEnvelopeComment> XmlEnvelopeComments { get; init; } = [];
 
     /// <summary>
     /// The Section 11.4 content-token ordering value this node's XML parent assigned it, or
@@ -175,4 +190,11 @@ public sealed record StructuredMapping(
 public sealed record StructuredSequence(
     ImmutableArray<StructuredNode> Items,
     int Line,
-    int Column) : StructuredNode(Line, Column);
+    int Column) : StructuredNode(Line, Column)
+{
+    /// <summary>
+    /// Whether Section 11.4 promoted an XML singleton into this sequence, invalidating the former
+    /// singleton path as a literal directive target.
+    /// </summary>
+    internal bool PromotesXmlSingleton { get; init; }
+}

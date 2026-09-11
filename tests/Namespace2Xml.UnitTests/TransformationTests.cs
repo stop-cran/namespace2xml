@@ -1,6 +1,10 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Namespace2Xml.Cli;
 using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Output;
@@ -53,6 +57,8 @@ public sealed class TransformationTests
 
         public List<string> Directories { get; } = [];
 
+        public List<string> WriteCalls { get; } = [];
+
         /// <summary>An in-memory sink has no filesystem to be escaped from.</summary>
         public bool SupportsSecureContainment => true;
 
@@ -64,6 +70,7 @@ public sealed class TransformationTests
         /// </summary>
         public bool Write(string root, string relative, OutputBuffer buffer)
         {
+            WriteCalls.Add(relative);
             var replaced = Written.ContainsKey(relative);
 
             Written[relative] = new UTF8Encoding(false).GetString(buffer.ToArray());
@@ -93,6 +100,320 @@ public sealed class TransformationTests
 
     private static ImmutableArray<string> Codes(TransformationResult result) =>
         [.. result.Diagnostics.Select(d => d.Code)];
+
+    /// <summary>
+    /// Sections 11.4 and 19.4 require XML attribute markers to survive a real XML-to-JSON-to-XML
+    /// pipeline round trip rather than only isolated lexer and renderer calls.
+    /// </summary>
+    [Test]
+    public void XmlAttributesSurviveAJsonRoundTrip()
+    {
+        const string original = "<root id=\"7\" />";
+        var jsonSink = new Sink();
+        var first = Run(
+            jsonSink,
+            new Sources(
+                ("input.xml", original),
+                ("to-json.txt", "root.output=json\nroot.root=root\nroot.filename=bridge.json\n")),
+            "-i", "input.xml", "-s", "to-json.txt");
+
+        first.ExitCode.ShouldBe(0);
+        Codes(first).ShouldBeEmpty();
+
+        var xmlSink = new Sink();
+        var second = Run(
+            xmlSink,
+            new Sources(
+                ("bridge.json", jsonSink.Written["bridge.json"]),
+                ("to-xml.txt", "root.output=xml\nroot.root=root\nroot.filename=round.xml\n")),
+            "-i", "bridge.json", "-s", "to-xml.txt");
+
+        second.ExitCode.ShouldBe(0);
+        Codes(second).ShouldBeEmpty();
+
+        var roundTripped = XDocument.Parse(xmlSink.Written["round.xml"]);
+        roundTripped.Root!.Attribute("id")!.Value.ShouldBe("7");
+        roundTripped.Root.Name.LocalName.ShouldBe("root");
+    }
+
+    /// <summary>
+    /// Sections 8.3 and 19.1 require empty-container sentinels, escaped sentinel-like strings,
+    /// near misses, nesting, and later child contributions to survive JSON-to-namespace-to-JSON.
+    /// </summary>
+    [Test]
+    public void JsonContainersAndSentinelLikeStringsSurviveANamespaceRoundTrip()
+    {
+        const string original =
+            "{\"cfg\":{\"map\":{},\"sequence\":[],\"mapText\":\"{}\",\"sequenceText\":\"[]\","
+            + "\"nearPrefix\":\"x{}\",\"nearSuffix\":\"{}x\",\"nested\":{\"empty\":{},\"value\":\"kept\"}}}";
+        var namespaceSink = new Sink();
+        var first = Run(
+            namespaceSink,
+            new Sources(
+                ("input.json", original),
+                ("to-namespace.txt", "output=namespace\nfilename=bridge.properties\n")),
+            "-i", "input.json", "-s", "to-namespace.txt");
+
+        first.ExitCode.ShouldBe(0);
+        Codes(first).ShouldBeEmpty();
+        namespaceSink.Written["bridge.properties"].ShouldBe(
+            "cfg.map={}\n"
+            + "cfg.sequence=[]\n"
+            + "cfg.mapText=\\{}\n"
+            + "cfg.sequenceText=\\[]\n"
+            + "cfg.nearPrefix=x{}\n"
+            + "cfg.nearSuffix={}x\n"
+            + "cfg.nested.empty={}\n"
+            + "cfg.nested.value=kept\n");
+
+        var bridge = namespaceSink.Written["bridge.properties"]
+            .Replace("cfg.nested.empty={}\n", "cfg.nested={}\ncfg.nested.empty={}\n",
+                StringComparison.Ordinal);
+
+        var jsonSink = new Sink();
+        var second = Run(
+            jsonSink,
+            new Sources(
+                ("bridge.properties", bridge),
+                ("to-json.txt", "output=json\nfilename=round.json\n")),
+            "-i", "bridge.properties", "-s", "to-json.txt");
+
+        second.ExitCode.ShouldBe(0);
+        Codes(second).ShouldBeEmpty();
+        JsonNode.DeepEquals(
+            JsonNode.Parse(jsonSink.Written["round.json"]),
+            JsonNode.Parse(original)).ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Section 11.5 propagates the complete input envelope to every selected output instance,
+    /// regardless of which subtree supplies that instance's element content.
+    /// </summary>
+    [Test]
+    public void EveryOutputInstanceReceivesTheCompleteXmlEnvelope()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("input.xml",
+                    "<!--leading--><r><left><a>1</a></left><right><b>2</b></right></r>"
+                    + "<!--trailing-->"),
+                ("scheme.txt",
+                    "r.left.output=xml\n"
+                    + "r.left.root=doc\n"
+                    + "r.left.filename=left.xml\n"
+                    + "r.right.output=xml\n"
+                    + "r.right.root=doc\n"
+                    + "r.right.filename=right.xml\n")),
+            "-i", "input.xml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        result.Diagnostics.ShouldBeEmpty();
+        sink.Written.Keys.Order(StringComparer.Ordinal).ShouldBe(["left.xml", "right.xml"]);
+
+        foreach (var output in sink.Written.Values)
+        {
+            var document = XDocument.Parse(output, LoadOptions.PreserveWhitespace);
+            document.Nodes().OfType<XComment>().Select(comment => comment.Value)
+                .ShouldBe(["leading", "trailing"]);
+            document.Root!.Name.LocalName.ShouldBe("doc");
+        }
+
+        sink.Written["left.xml"].ShouldContain("<a>1</a>");
+        sink.Written["right.xml"].ShouldContain("<b>2</b>");
+    }
+
+    /// <summary>
+    /// Sections 11.4 and 26 item 99 require XML shape reconciliation to preserve the complete
+    /// source envelope when an element-only contribution is rebuilt into the merged mixed shape.
+    /// </summary>
+    [Test]
+    public void XmlShapeReconciliationPreservesEverySourceEnvelope()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("first.xml",
+                    "<!--first-leading--><r><a>1</a></r><!--first-trailing-->"),
+                ("second.xml",
+                    "<!--second-leading--><r>text<b>2</b></r><!--second-trailing-->"),
+                ("scheme.txt",
+                    "r.output=xml\n"
+                    + "r.root=r\n"
+                    + "r.filename=reconciled.xml\n")),
+            "-i", "first.xml", "-i", "second.xml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        result.Diagnostics.ShouldBeEmpty();
+
+        var document = XDocument.Parse(
+            sink.Written["reconciled.xml"],
+            LoadOptions.PreserveWhitespace);
+        document.Nodes().OfType<XComment>().Select(comment => comment.Value)
+            .ShouldBe([
+                "first-leading",
+                "second-leading",
+                "first-trailing",
+                "second-trailing",
+            ]);
+    }
+
+    /// <summary>
+    /// Sections 8.5, 14.1, and 26 item 99 distinguish unaddressable envelope metadata from selected
+    /// overlay content: the envelope is rendered, but it does not hide a selector that found nothing.
+    /// </summary>
+    [Test]
+    public void EnvelopeMetadataDoesNotSuppressAnEmptySelectionWarning()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("input.xml", "<!--leading--><r><present>1</present></r><!--trailing-->"),
+                ("scheme.txt",
+                    "r.missing.output=xml\n"
+                    + "r.missing.root=doc\n"
+                    + "r.missing.filename=empty.xml\n")),
+            "-i", "input.xml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        result.Diagnostics.ShouldHaveSingleItem().Code.ShouldBe("WARN009");
+
+        var document = XDocument.Parse(
+            sink.Written["empty.xml"],
+            LoadOptions.PreserveWhitespace);
+        document.Nodes().OfType<XComment>().Select(comment => comment.Value)
+            .ShouldBe(["leading", "trailing"]);
+        document.Root!.Name.LocalName.ShouldBe("doc");
+        document.Root.IsEmpty.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Sections 3 and 19.3 require one destination-scoped warning for all XML comment loss in one
+    /// non-XML output, combining internal content comments and both envelope positions.
+    /// </summary>
+    [Test]
+    public void NonXmlOutputCoalescesContentAndEnvelopeCommentLoss()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("input.xml", "<!--leading--><r><a>1</a><!--internal--></r><!--trailing-->"),
+                ("scheme.txt", "r.output=json\nr.root=r\n")),
+            "-i", "input.xml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        var warning = result.Diagnostics.ShouldHaveSingleItem();
+        warning.Code.ShouldBe("WARN003");
+        warning.Message.ShouldBe(
+            "only XML renders XML content or document-envelope comments, so 3 XML comment(s) "
+            + "in this output were discarded.");
+        warning.Destination.ShouldBe("r.json");
+        warning.Source.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Permanent regression for issue #24 using the reporter's exact attachment:
+    /// https://github.com/user-attachments/files/30691932/logback.xml,
+    /// SHA-256 f3f1bad107807dc2fae8e8674c077eef109311a6feb43aab4ae60db7a44bc3d9.
+    /// Section 26 item 99 requires the previously dropped leading comment to survive with the
+    /// seven internal comments, while the issue's structural acceptance counts remain unchanged.
+    /// </summary>
+    [Test]
+    public void Issue24RealLogbackPreservesAllEightCommentsAndStructure()
+    {
+        var path = Path.Combine(
+            RepositoryLayout.Root,
+            "tests",
+            "Namespace2Xml.UnitTests",
+            "TestData",
+            "issue-24-logback.xml");
+        var inputBytes = File.ReadAllBytes(path);
+        Convert.ToHexString(SHA256.HashData(inputBytes)).ToLowerInvariant().ShouldBe(
+            "f3f1bad107807dc2fae8e8674c077eef109311a6feb43aab4ae60db7a44bc3d9");
+        inputBytes.Length.ShouldBe(33_002);
+
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("logback.xml", inputBytes),
+                ("scheme.txt", new UTF8Encoding(false).GetBytes(
+                    "configuration.output=xml\n"
+                    + "configuration.root=configuration\n"
+                    + "configuration.filename=logback.xml\n"))),
+            "-i", "logback.xml", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        result.Published.ShouldBe(1);
+        result.Diagnostics.ShouldBeEmpty();
+
+        var inputText = new UTF8Encoding(false, true).GetString(inputBytes);
+        var outputText = sink.Written["logback.xml"];
+        var input = XDocument.Parse(inputText, LoadOptions.PreserveWhitespace);
+        var output = XDocument.Parse(outputText, LoadOptions.PreserveWhitespace);
+
+        var inputComments = input.DescendantNodes().OfType<XComment>()
+            .Select(comment => comment.Value).ToArray();
+        var outputComments = output.DescendantNodes().OfType<XComment>()
+            .Select(comment => comment.Value).ToArray();
+        inputComments.Length.ShouldBe(8);
+        outputComments.ShouldBe(inputComments);
+        output.Nodes().OfType<XComment>().Select(comment => comment.Value)
+            .ShouldBe([" // @formatter:off "]);
+
+        AssertNamedElements(input, output, "appender", "name", 33);
+        AssertNamedElements(input, output, "logger", "name", 42);
+        AssertNamedElements(input, output, "property", "name", 7);
+
+        var inputReferences = ReferenceParentage(input).Order(StringComparer.Ordinal).ToArray();
+        var outputReferences = ReferenceParentage(output).Order(StringComparer.Ordinal).ToArray();
+        inputReferences.Length.ShouldBe(39);
+        outputReferences.ShouldBe(inputReferences);
+
+        var expectedBytes = Regex.Replace(
+            inputText.Replace(
+                "encoding=\"UTF-8\"",
+                "encoding=\"utf-8\"",
+                StringComparison.Ordinal),
+            @"(?<!\s)/>",
+            " />");
+        outputText.ShouldBe(expectedBytes);
+    }
+
+    private static void AssertNamedElements(
+        XDocument input,
+        XDocument output,
+        string element,
+        string attribute,
+        int count)
+    {
+        var expected = input.Descendants(element)
+            .Select(node => node.Attribute(attribute)!.Value)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var actual = output.Descendants(element)
+            .Select(node => node.Attribute(attribute)!.Value)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        expected.Length.ShouldBe(count);
+        actual.ShouldBe(expected);
+    }
+
+    private static IEnumerable<string> ReferenceParentage(XDocument document) =>
+        document.Descendants("appender-ref").Select(reference =>
+        {
+            var parent = reference.Parent.ShouldNotBeNull();
+            var owner = parent.Name.LocalName == "root"
+                ? "root"
+                : $"{parent.Name.LocalName}:{parent.Attribute("name")?.Value}";
+
+            return $"{owner}->{reference.Attribute("ref")!.Value}";
+        });
 
     // ---- The complete path -------------------------------------------------------------------
 
@@ -632,6 +953,20 @@ public sealed class TransformationTests
         sink.Written.ShouldBeEmpty();
     }
 
+    [Test]
+    public void ARejectedDestinationPathCreatesNothing()
+    {
+        var (result, sink) = Transform(
+            "app.x=1\n",
+            "app.output=namespace\napp.filename=../x\n");
+
+        result.ExitCode.ShouldBe(1);
+        Codes(result).ShouldBe(["PATH001"]);
+        sink.Directories.ShouldBeEmpty();
+        sink.WriteCalls.ShouldBeEmpty();
+        sink.Written.ShouldBeEmpty();
+    }
+
     /// <summary>
     /// Section 12.1: "Legacy unnamed captures are substituted positionally", and a scheme
     /// directive's value "is decided the same way, from the captures its selector defines". One
@@ -1068,6 +1403,149 @@ public sealed class TransformationTests
         result.Published.ShouldBe(0);
         sink.Directories.ShouldBeEmpty();
         sink.Written["guard.properties"].ShouldBe("sentinel=unchanged\n");
+    }
+
+    /// <summary>
+    /// Sections 17.5 and 19.2: destination projection sees only the final folded contribution.
+    /// The replaced contribution and the synthetic <c>root</c> wrapper do not inflate the counts,
+    /// and both nonzero categories are reported in their fixed mapping-before-sequence order.
+    /// </summary>
+    [Test]
+    public void Warn015CountsTheFinalFoldedViewOnceInFixedCategoryOrder()
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("first.json", """{"old":{"oldMap":{},"oldSeq":[]}}"""),
+                ("second.json",
+                    """{"final":{"map1":{},"map2":{},"seq1":[],"seq2":[],"nested":{"map3":{},"seq3":[]},"keep":"v"}}"""),
+                ("scheme.txt",
+                    "old.output=quotednamespace\n"
+                    + "old.filename=folded.sh\n"
+                    + "final.output=quotednamespace\n"
+                    + "final.filename=folded.sh\n"
+                    + "final.filemerge=replace\n"
+                    + "final.root=root\n")),
+            "-i", "first.json", "-i", "second.json", "-s", "scheme.txt");
+
+        result.ExitCode.ShouldBe(0);
+        result.Published.ShouldBe(1);
+        result.Diagnostics.Select(entry => entry.Code).ShouldBe(["WARN005", "WARN015"]);
+
+        var warning = result.Diagnostics.Single(entry => entry.Code == "WARN015");
+
+        warning.Message.ShouldBe(
+            "destination projection discarded explicit empty containers it cannot represent: "
+            + "empty-mapping=3; empty-sequence=3.");
+        warning.Destination.ShouldBe("folded.sh");
+        warning.Spec.ShouldBe("§19.2");
+        sink.Written["folded.sh"].ShouldBe("root_keep='v'\n");
+    }
+
+    /// <summary>
+    /// Sections 19.5 and 24: one blocking XML projection error does not make the complete planning
+    /// diagnostic set depend on sibling order. The rejected sequence itself is excluded, while a
+    /// later independently discarded empty sequence still contributes to <c>WARN015</c>.
+    /// </summary>
+    [TestCase(
+        """{"cfg":{"blocked":[],"lost":[]}}""",
+        TestName = "Warn015CountsXmlLossesAfterAnEarlierProjectionErrorWhenBlockedComesFirst")]
+    [TestCase(
+        """{"cfg":{"lost":[],"blocked":[]}}""",
+        TestName = "Warn015CountsXmlLossesAfterAnEarlierProjectionErrorWhenLostComesFirst")]
+    public void Warn015CountsXmlLossesAfterAnEarlierProjectionError(string json)
+    {
+        var sink = new Sink();
+        var result = Run(
+            sink,
+            new Sources(
+                ("doc.json", json),
+                ("scheme.txt",
+                    "cfg.output=xml\n"
+                    + "cfg.filename=out.xml\n"
+                    + "cfg.root=root\n"
+                    + "cfg.blocked.type=attribute\n")),
+            "-i", "doc.json", "-s", "scheme.txt");
+
+        result.Diagnostics.Select(entry => entry.Code).ShouldBe(["TYPE001", "WARN015"]);
+        result.Diagnostics.Single(entry => entry.Code == "WARN015").Message.ShouldBe(
+            "destination projection discarded explicit empty containers it cannot represent: "
+            + "empty-sequence=1.");
+        result.Published.ShouldBe(0);
+        sink.Written.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Sections 17.1 and 19.5: XML retains a mapping facet beneath a later scalar payload as mixed
+    /// content, so the loss observer traverses that facet even though mapping is not the node's
+    /// exclusive rendered shape.
+    /// </summary>
+    [Test]
+    public void Warn015CountsXmlLossesUnderMixedContentMappings()
+    {
+        var sink = new Sink();
+        sink.Written["out.xml"] = "sentinel";
+        var result = Run(
+            sink,
+            new Sources(
+                ("mapping.json", """{"cfg":{"lost":[]}}"""),
+                ("scalar.json", """{"cfg":"value"}"""),
+                ("scheme.txt",
+                    "cfg.output=xml\n"
+                    + "cfg.filename=out.xml\n"
+                    + "cfg.root=root\n")),
+            "--fail-on-warning",
+            "-i", "mapping.json",
+            "-i", "scalar.json",
+            "-s", "scheme.txt");
+
+        Codes(result).ShouldBe(["WARN015"]);
+        result.Diagnostics.Single().Message.ShouldBe(
+            "destination projection discarded explicit empty containers it cannot represent: "
+            + "empty-sequence=1.");
+        result.Diagnostics.Single().Destination.ShouldBe("out.xml");
+        result.Diagnostics.Single().Spec.ShouldBe("§19.5");
+        result.WarningPolicyTriggered.ShouldBeTrue();
+        result.ExitCode.ShouldBe(1);
+        result.Published.ShouldBe(0);
+        sink.Directories.ShouldBeEmpty();
+        sink.WriteCalls.ShouldBeEmpty();
+        sink.Written["out.xml"].ShouldBe("sentinel");
+    }
+
+    /// <summary>
+    /// Sections 21.2 and 21.4: a serialization-time <c>WARN015</c> participates in
+    /// <c>--fail-on-warning</c>, so no sink operation occurs and every pre-existing destination
+    /// remains byte-for-byte unchanged.
+    /// </summary>
+    [Test]
+    public void FailOnWarn015RefusesEveryDestinationBeforeTheFirstSinkCall()
+    {
+        var sink = new Sink();
+        sink.Written["guard.xml"] = "old guard";
+        sink.Written["clean.json"] = "old clean";
+        var result = Run(
+            sink,
+            new Sources(
+                ("doc.json", """{"guard":{"lost":[],"keep":"new"},"clean":{"keep":"new"}}"""),
+                ("scheme.txt",
+                    "guard.output=xml\n"
+                    + "guard.filename=guard.xml\n"
+                    + "guard.root=root\n"
+                    + "clean.output=json\n"
+                    + "clean.filename=clean.json\n")),
+            "--fail-on-warning", "-i", "doc.json", "-s", "scheme.txt");
+
+        result.Diagnostics.Select(entry => entry.Code).ShouldBe(["WARN015"]);
+        result.WarningPolicyTriggered.ShouldBeTrue();
+        result.ExitCode.ShouldBe(1);
+        result.Published.ShouldBe(0);
+        result.State.ShouldBe(PipelineRunState.Finished);
+        sink.Directories.ShouldBeEmpty();
+        sink.WriteCalls.ShouldBeEmpty();
+        sink.Written["guard.xml"].ShouldBe("old guard");
+        sink.Written["clean.json"].ShouldBe("old clean");
     }
 
     [Test]

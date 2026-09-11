@@ -38,6 +38,7 @@ jobs:
   # depends on nothing, and is the first thing to go red. Running it last, mixed into the main
   # suite, is how these invariants get lost.
   publication-invariants:
+    name: 'ci:.github/workflows/ci.yml::publication-invariants[os=${{ toJSON(matrix.os) }}]'
     strategy:
       fail-fast: false
       matrix:
@@ -70,6 +71,7 @@ jobs:
         run: pwsh -NoProfile -File tools/run-publication-conformance.ps1
 
   build-test:
+    name: 'ci:.github/workflows/ci.yml::build-test[os=${{ toJSON(matrix.os) }}]'
     strategy:
       fail-fast: false
       matrix:
@@ -174,6 +176,7 @@ jobs:
   # Section 24 requires byte-identical output for identical inputs. A tool that only claims
   # determinism is not determinate; this job measures it.
   determinism:
+    name: 'ci:.github/workflows/ci.yml::determinism[os=${{ toJSON(matrix.os) }}]'
     needs: build-test
     strategy:
       fail-fast: false
@@ -200,6 +203,7 @@ jobs:
   # every text output differs by its CR bytes alone and a verdict would describe the runner rather
   # than the tool. Normalizing instead would hide a real line-terminator difference if one existed.
   differential:
+    name: 'ci:.github/workflows/ci.yml::differential'
     needs: build-test
     runs-on: ubuntu-latest
     steps:
@@ -221,6 +225,7 @@ jobs:
       - run: dotnet test namespace2xml.slnx --no-build -c Release --filter "FullyQualifiedName~DifferentialTests"
 
   cross-os-hash:
+    name: 'ci:.github/workflows/ci.yml::cross-os-hash'
     needs: determinism
     runs-on: ubuntu-latest
     steps:
@@ -368,6 +373,7 @@ jobs:
   # step so that a broken interoperability claim is named on the summary page instead of hiding
   # inside a lint failure. The two lanes are separate steps for the same reason.
   ini-interop:
+    name: 'ci:.github/workflows/ci.yml::ini-interop'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -432,6 +438,33 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: No contract or fixture path may be gitignored
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Run before any build-capable .NET command: tools/ contains a project whose generated
+          # obj/ tree is correctly ignored, while this gate is about authored files a contributor's
+          # checkout already contains before CI creates build output.
+          #
+          # A fixture that git silently drops produces a corpus which passes locally and asserts
+          # less in CI. The inherited Visual Studio template ignored bin/, Release/, *.log and
+          # *.cache, all of which are ordinary names inside a configuration-transformer fixture.
+          #
+          # ansible/ is deliberately not listed. This command reports files that are untracked
+          # *and present in the working tree*, and on a fresh checkout a plugin git never took is
+          # on the contributor's machine rather than on the runner -- so the check could never go
+          # red for the collection, and under C7 a gate that cannot fail is not evidence. The
+          # equivalent question for the collection is whether the built artifact contains every
+          # plugin, which the ansible workflow answers against a real tarball.
+          hidden="$(git ls-files --others --ignored --exclude-standard -- conformance spec tools spikes)"
+          if [ -n "$hidden" ]; then
+            echo "::error::these paths exist but are gitignored, so they would never be committed:"
+            echo "$hidden"
+            exit 1
+          fi
+          echo "every authored path under conformance, spec, tools and spikes is committable"
+
       - run: dotnet format namespace2xml.slnx --verify-no-changes --severity error
 
       - name: Workflows must be valid
@@ -453,28 +486,6 @@ jobs:
           tar -xzf actionlint.tar.gz actionlint
           ./actionlint -no-color -oneline
           echo "workflows are valid"
-
-      - name: No contract or fixture path may be gitignored
-        shell: bash
-        run: |
-          set -euo pipefail
-          # A fixture that git silently drops produces a corpus which passes locally and asserts
-          # less in CI. The inherited Visual Studio template ignored bin/, Release/, *.log and
-          # *.cache, all of which are ordinary names inside a configuration-transformer fixture.
-          #
-          # ansible/ is deliberately not listed. This command reports files that are untracked
-          # *and present in the working tree*, and on a fresh checkout a plugin git never took is
-          # on the contributor's machine rather than on the runner -- so the check could never go
-          # red for the collection, and under C7 a gate that cannot fail is not evidence. The
-          # equivalent question for the collection is whether the built artifact contains every
-          # plugin, which the ansible workflow answers against a real tarball.
-          hidden="$(git ls-files --others --ignored --exclude-standard -- conformance spec tools spikes)"
-          if [ -n "$hidden" ]; then
-            echo "::error::these paths exist but are gitignored, so they would never be committed:"
-            echo "$hidden"
-            exit 1
-          fi
-          echo "every path under conformance, spec, tools and spikes is committable"
 
       - name: KNOWN-LIMITS.md must not cite closed issues as live work
         shell: bash

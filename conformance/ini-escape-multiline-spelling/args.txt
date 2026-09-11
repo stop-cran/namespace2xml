@@ -1,0 +1,4 @@
+-i
+inputs/profile.namespace
+-s
+schemes/scheme.namespace

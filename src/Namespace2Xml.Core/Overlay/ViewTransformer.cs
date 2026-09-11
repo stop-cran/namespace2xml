@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Namespace2Xml.Diagnostics;
+using Namespace2Xml.Pipeline;
 using Namespace2Xml.Profiles;
 using Namespace2Xml.Scheme;
 
@@ -193,6 +194,27 @@ public static class ViewTransformer
             if (!Matches(rule, absolute, out var captures))
             {
                 continue;
+            }
+
+            // Section 11.4 moves a promoted singleton from P to P.<ordering-value>. A literal
+            // directive written to P named the former element, not the sequence container that
+            // promotion later created there. Wildcard rules are expanded against the final graph
+            // and therefore remain eligible.
+            if (node.Marks.WasXmlSingletonPromoted
+                && rule.Path is { } path
+                && !QualifiedNameLexer.ContainsWildcard(path))
+            {
+                continue;
+            }
+
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(
+                    PipelineObservationKind.PathDirective,
+                    CanonicalPath.Of(absolute),
+                    rule.Types is { IsIgnore: true }
+                        ? "type=ignore"
+                        : rule.Declaration.Text);
             }
 
             bindings.Add((rule, relative));

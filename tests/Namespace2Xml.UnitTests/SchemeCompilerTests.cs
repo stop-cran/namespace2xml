@@ -489,24 +489,34 @@ public class SchemeCompilerTests
     /// directive reaches the deferral list and refuses a run that Section 16 defines completely.
     /// A directive added to the enum without an arm makes this red.
     /// </summary>
-    [TestCase("a.output=namespace")]
-    [TestCase("a.filename=f")]
-    [TestCase("a.root=r")]
-    [TestCase("a.delimiter=:")]
-    [TestCase("a.key=name")]
-    [TestCase("a.type=array")]
-    [TestCase("a.substitute=None")]
-    [TestCase("a.xmlinputoptions=attributes")]
-    [TestCase("a.xmloutputoptions=indent")]
-    [TestCase("a.jsoninputoptions=arrayasobject")]
-    [TestCase("a.jsonoutputoptions=indent")]
-    [TestCase("a.yamlinputoptions=arrayasobject")]
-    [TestCase("a.yamloutputoptions=indent")]
-    [TestCase("a.inioutputoptions=preservesections")]
-    [TestCase("a.merge=append")]
-    [TestCase("a.filemerge=append")]
-    public void EveryDirectiveHasACompilerArm(string declaration) =>
-        Compile(declaration).Deferred.ShouldBeEmpty();
+    [Test]
+    public void EveryDirectiveHasACompilerArm()
+    {
+        string[] declarations =
+        [
+            "a.output=namespace",
+            "a.filename=f",
+            "a.root=r",
+            "a.delimiter=:",
+            "a.key=name",
+            "a.type=array",
+            "a.substitute=None",
+            "a.xmlinputoptions=attributes",
+            "a.xmloutputoptions=indent",
+            "a.jsoninputoptions=arrayasobject",
+            "a.jsonoutputoptions=indent",
+            "a.yamlinputoptions=arrayasobject",
+            "a.yamloutputoptions=indent",
+            "a.inioutputoptions=preservesections",
+            "a.merge=append",
+            "a.filemerge=append",
+        ];
+
+        foreach (var declaration in declarations)
+        {
+            Compile(declaration).Deferred.ShouldBeEmpty(declaration);
+        }
+    }
 
     // ---- Sections 16.5 and 16.6: path-scoped transformations ---------------------------------------
 

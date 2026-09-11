@@ -1,0 +1,5 @@
+-i
+inputs/one.json
+inputs/two.yaml
+-s
+schemes/scheme.txt

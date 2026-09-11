@@ -15,7 +15,7 @@
   enum parser recognized; the string reached `Enum.Parse` unvalidated and threw
   `ArgumentException`, which the CLI did not catch. `type=attribute` **is** an XML-specific
   value in 3.0, and it is legal on a scalar. What this case exercises is applying it to a
-  *sequence* — the JSON `["v1","v2"]` at `cfg.tag` — which §19.5 refuses with `TYPE001`.
+  *explicit empty sequence* — the JSON `[]` at `cfg.tag` — which §19.5 refuses with `TYPE001`.
   The baseline never gets that far: the enum parser fails before the sequence is even
   inspected, so the correction here is layered. The unhandled-exception defect must be
   fixed first before the specific `TYPE001` refusal can be observed at all.

@@ -73,7 +73,23 @@ public static class Transformation
         CommandLine command,
         ISourceReader? reader = null,
         IPublicationSink? sink = null,
-        IOperationalLog? log = null)
+        IOperationalLog? log = null) =>
+        RunObserved(command, reader, sink, log, observer: null);
+
+    internal static TransformationResult Run(
+        CommandLine command,
+        ISourceReader? reader,
+        IPublicationSink? sink,
+        IOperationalLog? log,
+        IPipelineObserver observer) =>
+        RunObserved(command, reader, sink, log, observer);
+
+    private static TransformationResult RunObserved(
+        CommandLine command,
+        ISourceReader? reader,
+        IPublicationSink? sink,
+        IOperationalLog? log,
+        IPipelineObserver? observer)
     {
         ArgumentNullException.ThrowIfNull(command);
 
@@ -85,7 +101,12 @@ public static class Transformation
             {
                 try
                 {
-                    result = RunCore(command, reader, sink, log ?? SilentOperationalLog.Instance);
+                    result = RunCore(
+                        command,
+                        reader,
+                        sink,
+                        log ?? SilentOperationalLog.Instance,
+                        observer);
                 }
                 catch (Exception error)
                 {
@@ -118,8 +139,12 @@ public static class Transformation
         CommandLine command,
         ISourceReader? reader,
         IPublicationSink? sink,
-        IOperationalLog log)
+        IOperationalLog log,
+        IPipelineObserver? observer)
     {
+        using var instrumentation = observer is null
+            ? null
+            : PipelineInstrumentation.Begin(observer);
         var run = new PipelineRun(log);
         var budget = new GlobalBudget(command.Limits);
         var loader = new SourceLoader(reader ?? new FileSystemSourceReader(), command.Limits, log);
@@ -156,6 +181,7 @@ public static class Transformation
                 both.First.Second.Options,
                 both.Second.Substitutes,
                 diagnostics));
+        ObserveInputEnvelopes(PipelineStep.ParseInputs, inputs);
 
         // Steps 6 and 7 are performed by the reader as it parses: it lexes every value and returns
         // templates and masks separately from concrete contributions. They are still run as steps
@@ -209,6 +235,7 @@ public static class Transformation
             PipelineRun.Both(instances, model),
             (both, diagnostics) =>
                 PlanningPhase.BuildOutputInstances(both.First, both.Second, diagnostics));
+        ObserveViewEnvelopes(PipelineStep.BuildOutputInstances, views);
 
         var resolved = run.Run(
             PipelineStep.ResolveReferences,
@@ -222,12 +249,14 @@ public static class Transformation
                 both.Second.Second,
                 budget,
                 diagnostics));
+        ObserveViewEnvelopes(PipelineStep.ResolveReferences, resolved);
 
         var transformed = run.Run(
             PipelineStep.ApplyTransformations,
             PipelineRun.Both(resolved, configuration),
             (both, diagnostics) =>
                 PlanningPhase.ApplyTransformations(both.First, both.Second, diagnostics));
+        ObserveViewEnvelopes(PipelineStep.ApplyTransformations, transformed);
 
         var grouped = run.Run(
             PipelineStep.GroupByDestination,
@@ -263,5 +292,48 @@ public static class Transformation
             run.Unsupported,
             published?.Value ?? 0,
             warningPolicyTriggered);
+    }
+
+    private static void ObserveInputEnvelopes(
+        PipelineStep step,
+        StepProduct<ImmutableArray<InputContribution>>? inputs)
+    {
+        if (!PipelineInstrumentation.IsEnabled || inputs is null)
+        {
+            return;
+        }
+
+        foreach (var contribution in inputs.Value)
+        {
+            PipelineInstrumentation.RecordEnvelope(new EnvelopeSnapshot(
+                step,
+                new EnvelopeProductIdentity(
+                    "input-contribution",
+                    SourceIdentity: contribution.Origin.Identity,
+                    SourceOrdinal: contribution.Origin.Ordinal),
+                contribution.Contribution.XmlEnvelopeComments));
+        }
+    }
+
+    private static void ObserveViewEnvelopes(
+        PipelineStep step,
+        StepProduct<ImmutableArray<OutputView>>? views)
+    {
+        if (!PipelineInstrumentation.IsEnabled || views is null)
+        {
+            return;
+        }
+
+        foreach (var view in views.Value)
+        {
+            PipelineInstrumentation.RecordEnvelope(new EnvelopeSnapshot(
+                step,
+                new EnvelopeProductIdentity(
+                    "output-view",
+                    Selector: view.Instance.Selector.ToString(),
+                    Format: view.Format,
+                    FormatOrdinal: view.FormatOrdinal),
+                view.XmlEnvelopeComments));
+        }
     }
 }

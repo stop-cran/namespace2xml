@@ -8,9 +8,10 @@
   bare, and **no `cfg.sh` file is produced at all**. On standard output the baseline logs
   `Overriding output ... cfg.properties quotednamespace`, meaning it wrote the
   quotednamespace projection over the namespace projection at the same filename.
-- Contract: Section 16.3 `root` uniformity across formats. Section 3.2 as a correction of
-  behaviour caused by "a synthetic internal root leaking into user-visible file names" —
-  the same class of defect makes the `.sh` extension go missing here.
+- Contract: Section 3.1 preserves the existing output-format names and their default extensions.
+  Section 16.3 requires `root` uniformity across those formats. Section 3.2 corrects behavior
+  caused by "a synthetic internal root leaking into user-visible file names" — the same class of
+  defect makes the `.sh` extension go missing here.
 - Legacy observation: 2.4.0 applied `root` per-format rather than uniformly, and its
   filename resolution treated `quotednamespace` and `namespace` as the same format for the
   purpose of choosing the extension. The XML and INI writers implemented `root` because

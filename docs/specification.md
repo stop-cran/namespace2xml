@@ -286,6 +286,31 @@ Cross-format conversion preserves concepts supported by both source and destinat
 
 Unsupported source concepts are discarded during rendering and must produce one summarized warning per output file and feature category. For example, rendering YAML comments to JSON produces one comments-discarded warning, not one warning per comment.
 
+Explicit empty containers are data shapes, not metadata. Their destination behavior is:
+
+| Destination | Explicit empty mapping | Explicit empty sequence |
+|---|---|---|
+| namespace | preserved as `{}` | preserved as `[]` |
+| JSON | preserved | preserved |
+| YAML | preserved | preserved |
+| XML | preserved as an empty element | discarded |
+| quoted namespace | discarded | discarded |
+| INI | discarded | discarded |
+
+When a cell says **discarded**, emit `WARN015` once per final folded destination when one or more
+selected explicit empty-container facets are omitted. Count the facets in the final output view
+after destination folding and exclusive-shape selection, and before serialization. Count nested
+facets and repeated occurrences independently. Count only an authored explicit facet that is empty
+and is the node's winning container shape. Do not count a losing or replaced contribution, an empty
+ancestor introduced only by `root` or another projection operation, or a facet omitted because
+another payload/container shape won; the last case is the applicable `TYPE002` shape loss instead.
+
+The diagnostic carries `destination` and no category-specific structured field. Its localized
+message reports each nonzero category count in the fixed order `empty-mapping`,
+`empty-sequence`. The occurrence has phase `planning` and is anchored at the destination-specific
+projection rule in Section 19. `--fail-on-warning` applies after all such losses have been counted,
+under Section 21.2.
+
 #### Extended namespace round trip
 
 Ordinary `name=value` data cannot represent every XML or YAML concept. A future extended namespace serialization may expose node-kind metadata for round trips through namespace text.
@@ -411,7 +436,7 @@ A non-XML comment records:
 
 Exact whitespace surrounding a comment in the *source* need not be preserved: leading and trailing spaces and tabs around the text are not part of it, and the marker never is. What each destination then writes is fixed by that format's output-byte rules in Section 19, not left to the writer, because Section 24 requires two implementations to agree on it.
 
-An XML comment is not a non-XML comment and this does not apply to it. Section 11.5 retains it as an ordered content node whose content is the text between `<!--` and `-->`, and Section 19.5 writes that content back unchanged. Spaces and tabs inside it are part of the content and survive, because every conforming XML parser reports comment content without normalizing them; preserving them is not a stronger promise than the format already makes, it is declining to discard what the parser supplies. Line endings are the exception Section 3.3 already names, for the reason given in Section 19.5.
+An XML comment is not a non-XML comment and the association rules above do not apply to it. Section 11.5 distinguishes two positions. A comment inside the document element is retained as an ordered content node. A comment outside the document element is retained as document-envelope metadata, classified as document-leading before the element and document-trailing after it. Both carry the text between `<!--` and `-->`; Section 19.5 writes that content back unchanged. Spaces and tabs inside it are part of the content and survive, because every conforming XML parser reports comment content without normalizing them; preserving them is not a stronger promise than the format already makes, it is declining to discard what the parser supplies. Line endings are the exception Section 3.3 already names, for the reason given in Section 19.5.
 
 Normalized association rules are:
 
@@ -426,7 +451,8 @@ Normalized association rules are:
 - permanent ignore masks remove the matching path and all comments bound to it;
 - output-view `type=ignore` hides the matching path and its bound comments in that output instance;
 - comments on a wildcard template are cloned onto each generated contribution in match order;
-- standalone XML comments remain ordered content nodes and are not reassigned to adjacent values.
+- XML content comments remain ordered content nodes and are not reassigned to adjacent values;
+- XML document-envelope comments retain only their leading or trailing document position and are never assigned a value owner.
 
 When a transformation re-addresses a value—such as `key` record construction, mixed-key `type=array`, input or destination `append`, or another rebase—comments bound to the source path or sequence item move with that value to its new address. Document-position comments do not move.
 
@@ -442,6 +468,8 @@ XML content requires these additional ordered node kinds:
 - text;
 - CDATA;
 - comment.
+
+An XML document also records comments outside its document element as a separate ordered envelope. Each envelope comment records its content, source ordering key, and leading or trailing document position. Envelope comments are metadata rather than overlay nodes: they have no qualified path or sequence ordering value, consume the comment-count and decoded-comment-byte budgets but do not consume `--max-nodes`, and remain outside the selected or wrapped document-element subtree.
 
 An XML element records:
 
@@ -555,6 +583,16 @@ During wildcard, ignore, reference, and scheme matching, a sequence exposes its 
 <a id="spec-6"></a>
 ## 6. Command-line interface
 
+The product contract begins with the ordered vector of Unicode argument strings supplied to the
+program by its host runtime. Shell tokenization, quote removal, wildcard expansion, environment
+expansion, and conversion from a platform-native command-line representation into that vector are
+outside this contract. Every supplied string is already one token: the tool does not split it again
+on whitespace, quotes, backslashes, or any other character, and it performs no globbing.
+
+Each token must be well-formed Unicode. An ill-formed host string is `CLI001`. Thus a token whose
+value is `a b.json` is one path, and literal `"` or `\` characters in a token remain data rather
+than becoming quoting or escaping syntax.
+
 <a id="spec-6-1"></a>
 ### 6.1 Invocation
 
@@ -597,7 +635,9 @@ Presence is decided by scanning the raw token vector for the option token, in ei
 | `--help` | no | Print help and exit successfully. |
 | `--version` | no | Print version and exit successfully. |
 
-Repeated `-i`/`--input`, `-s`/`--scheme`, and `-v`/`--variables` occurrences concatenate their values in exact command-line token order. A `--` token ends option recognition; every following token is consumed only as a value of the immediately preceding list-valued option, and using `--` without such an option is `CLI001`.
+Repeated `-i`/`--input`, `-s`/`--scheme`, and `-v`/`--variables` occurrences concatenate their values in exact command-line token order. Operational mode requires at least one input value and at least one scheme value. In addition, every `-i`/`--input` and `-s`/`--scheme` occurrence must contribute at least one value even when another occurrence of the same option is nonempty. The end of the vector or another option token immediately after such an occurrence is `CLI001`.
+
+A `--` token ends option recognition; it is not itself a value, and every following token is consumed only as a value of the immediately preceding list-valued option. No following token is parsed as an option. Using `--` without such an option is `CLI001`. An occurrence may therefore obtain its first value after the marker: `-i --` is empty and invalid, while `-s scheme.namespace -i -- -s` gives the input occurrence the literal path `-s`.
 
 Option tokens are recognized by one uniform grammar, which applies to every option in the table above:
 
@@ -607,7 +647,14 @@ Option tokens are recognized by one uniform grammar, which applies to every opti
 - `--help` and `--version` take no value. Section 6.1 decides the informational mode from the presence of the option token in either form, before any argument is validated, so an inline value on either is ignored rather than diagnosed;
 - `--fail-on-warning` takes no value. Repeating it is idempotent. Any inline value, including the empty value in `--fail-on-warning=`, is `CLI001`; a following token is not consumed as its value and is parsed normally, so an otherwise unattached detached value is also `CLI001`;
 - any other token is a value of the option currently accepting values. The token `-` is an ordinary value in this version. A value appearing when no option is accepting values is `CLI001`, as is an option token that reaches the end of the argument vector still requiring a value;
-- a list-valued option accepts values until the next option token; every other option accepts exactly one value, and a later occurrence overrides an earlier one.
+- a list-valued option accepts values until the next option token and, for `input` and `scheme`,
+  every occurrence accepts at least one; every other option accepts exactly one value, and a later
+  occurrence overrides an earlier one.
+
+CLI validation reports the first token fault in left-to-right order. If token scanning succeeds,
+required-option absence is checked in table order, `input` before `scheme`. Because `CLI001` is once
+per invocation, that deterministic first fault is the occurrence emitted. `--help` and `--version`
+retain the Section 6.1 precedence and bypass all operational validation.
 
 The inline form is available to every long option rather than to `--diagnostics-format` alone. A grammar with one exception has to be stated twice, tested twice, and explained twice, and the exception would fall on the one option whose parsing already happens twice under Section 6.4.1.
 
@@ -956,6 +1003,8 @@ Substitution-mode path patterns are compiled from the raw scheme before structur
 
 A namespace comment is a physical line whose first non-whitespace character is an unescaped `#`. A `#` that is not the first non-space/tab scalar of a record never begins a comment; whether it is ordinary text or a Section 8.2 typed marker is decided by Section 8.2, which makes `a.#1` a content token rather than an ordinary name.
 
+These association rules govern namespace comments only. They neither create nor address the XML document-envelope metadata of Sections 4.6 and 11.5.
+
 The comment's text is the remainder of the record after that `#`, with leading and trailing spaces and tabs removed; Section 4.5 does not require surrounding whitespace to survive. The marker is not part of the text. Section 16.9 selects an output comment marker independently of the input, and Section 20 prefixes every emitted physical line with `# `, so text that kept its input marker would be emitted twice over, and a comment read from `#` would reach an INI destination that selected `;` as `; #...`. Any further `#` scalars belong to the text, because only the first one is a marker.
 
 Consecutive comments are associated with the next entry, with one exception: comments preceding the first entry of a source are document-leading, as Section 20 classifies the first position for every format. Trailing comments with no following entry remain document-trailing comments. A source that forms no entry at all has no contribution for a comment to trail, so its whole run is the opening run and is document-leading.
@@ -1113,6 +1162,10 @@ Within that one part, unescaped `*` and `*[identifier]` tokens retain their wild
 
 String scalar values use the same strict reference and value-escape lexer as namespace values unless a matching `substitute` directive disables interpretation.
 
+When a JSON document is used as a scheme under Section 15, its root must be an object. An empty
+object is a valid scheme containing no directives; a scalar, null, or array root is the semantic
+scheme-shape error `SCHEME003`, rather than a JSON syntax error.
+
 <a id="spec-9-2"></a>
 ### 9.2 Unsupported features
 
@@ -1169,6 +1222,10 @@ A component whose text is `<<` is therefore written quoted on YAML output, as Se
 These rules, rather than an underlying library's advertised YAML 1.1 or 1.2 mode, are normative. Any parser may be used only if it is configured or wrapped to produce exactly `RestrictedYaml1` behavior.
 
 The differences from namespace scalar inference are intentional: plain YAML `+1`, `.5`, and `1.` remain strings because they are not JSON-compatible numbers, while any ASCII case spelling of `true` or `false`, including `tRuE`, is Boolean.
+
+When a YAML document is used as a scheme under Section 15, its root must be a mapping. An empty
+mapping is a valid scheme containing no directives; a scalar, null, or sequence root is the semantic
+scheme-shape error `SCHEME003`, rather than a YAML syntax error.
 
 <a id="spec-10-2"></a>
 ### 10.2 Deliberately unsupported features
@@ -1473,9 +1530,13 @@ When converting a non-XML mapping to XML, the document element does not come fro
 <a id="spec-11-5"></a>
 ### 11.5 XML comments
 
-XML comments are retained as ordered comment nodes.
+An XML comment inside the document element is retained as an ordered content comment node.
 
-They are not forced into a "leading comment for the next value" representation because a comment may occur between mixed-content nodes or after the final child.
+It is not forced into a "leading comment for the next value" representation because a comment may occur between mixed-content nodes or after the final child.
+
+An XML comment outside the document element is retained separately as document-envelope metadata. A comment before the document element is document-leading and a comment after it is document-trailing. Envelope comments preserve lexical order within one source and source-occurrence order across sources. They receive no synthetic content-token or `#n` path: selectors, references, wildcard matching, path directives, `ignore`, and `root` cannot address, transform, mask, or move them.
+
+Every concrete output instance receives the complete ordered XML envelope independently of the subtree it selects. When distinct instances write distinct files, each file receives that complete envelope. When several instances fold into one final destination, their envelope collections are unioned by stable source-occurrence identity in source order, so each source envelope comment appears exactly once in that final file rather than once per contributing instance. Same-format accumulation retains that union; cross-format replacement carries the later contribution's complete envelope.
 
 <a id="spec-11-6"></a>
 ### 11.6 CDATA
@@ -1809,7 +1870,7 @@ A concrete output instance created by a literal declaration or wildcard expansio
 
 A wildcard output declaration that produces no concrete selector instance emits `WARN009` and creates no file. Explicit empty mapping or sequence presence is not a zero-entry selection.
 
-A concrete output instance whose selected view contains nothing also emits `WARN009`, and still produces its file as described above. The instance is a planned output either way, so this is a warning rather than an error and the exit code is unaffected; what it removes is the silence. A literal selector that matches no data and a wildcard selector that matches no data are the same authoring mistake, and Section 14.1 otherwise reports only the second: the first produces a well-formed, deployable, empty document and no diagnostic, so a mistyped selector is indistinguishable from a deliberately empty one at every later stage. An intentionally empty output is still expressible and still exits `0`; it now says so in the stream. Explicit empty mapping or sequence presence is content for this purpose, exactly as it is for the wildcard rule above, so a deliberately declared empty container does not warn.
+A concrete output instance whose selected view contains nothing also emits `WARN009`, and still produces its file as described above. The instance is a planned output either way, so this is a warning rather than an error and the exit code is unaffected; what it removes is the silence. A literal selector that matches no data and a wildcard selector that matches no data are the same authoring mistake, and Section 14.1 otherwise reports only the second: the first produces a well-formed, deployable, empty document and no diagnostic, so a mistyped selector is indistinguishable from a deliberately empty one at every later stage. An intentionally empty output is still expressible and still exits `0`; it now says so in the stream. Explicit empty mapping or sequence presence is content for this purpose, exactly as it is for the wildcard rule above, so a deliberately declared empty container does not warn. XML document-envelope metadata is not part of the selected view and therefore does not make an otherwise empty selection non-empty or suppress this warning. Section 8.5 still assigns the complete envelope to the planned output, and, unless warning policy refuses publication, an XML file whose configured `root` supplies its document element renders that envelope normally.
 
 If the empty root selector selects a bare scalar, JSON and YAML may emit a scalar document. XML, namespace, quoted namespace, and INI require an explicit `root`; otherwise rendering is a blocking type error because no key or element identity exists.
 
@@ -1880,9 +1941,22 @@ This accounting is about whether the source's data was addressed, not whether it
 <a id="spec-15"></a>
 ## 15. Scheme language
 
-Scheme files may use the case-insensitive `.json`, `.yaml`, and `.yml` extensions that Section 7.1 gives input files, and every other extension, including none at all, uses namespace-profile parsing. Their parsed content must project to qualified directive paths and scalar directive values.
+Scheme files may use the case-insensitive `.json`, `.yaml`, and `.yml` extensions that Section 7.1 gives input files, and every other extension, including none at all, uses namespace-profile parsing. Their parsed content must project to qualified directive paths and scalar directive values. Sections 9.1 and 10.4 govern native structured keys: each mapping key contributes one qualified-name part, so nesting creates a multi-part directive path and a dot inside one native key remains literal.
 
-A directive value that is a sequence is `SCHEME001`, not a set of indexed directives. Section 5.4's rule that a sequence exposes its ordering values as decimal name parts governs *matching* — wildcards, ignore, references, and scheme selectors — and so applies to the path side of a scheme entry. It does not apply to the value side, where Section 15 requires a nonempty scalar. Reading `cfg.output: [json, yaml]` as `cfg.output.0` and `cfg.output.1` would report two unknown-directive errors naming paths the author never wrote, and would quietly make a JSON scheme file mean something different from the namespace file `cfg.output=json,yaml` that expresses the same intent. The comma-separated scalar is the spelling for a multi-valued directive in every format.
+A directive value that is a sequence is `SCHEME001`, not a set of indexed directives. For example:
+
+```yaml
+cfg:
+  output: [json, yaml]
+```
+
+Section 5.4's rule that a sequence exposes its ordering values as decimal name parts governs *matching* — wildcards, ignore, references, and scheme selectors — and so applies to the path side of a scheme entry. It does not apply to the value side, where Section 15 requires a nonempty scalar. Reading that sequence as `cfg.output.0` and `cfg.output.1` would report two unknown-directive errors naming paths the author never wrote, and would quietly make a YAML scheme file mean something different from the namespace file `cfg.output=json,yaml` that expresses the same intent. The comma-separated scalar is the spelling for a multi-valued directive in every format.
+
+A syntactically valid JSON or YAML scheme document must have a mapping root. A scalar, null, or
+sequence root is `SCHEME003` once per failing scheme-source occurrence, carrying `source` and its
+deterministic root `line` and `column` but no invented `path` or `declaration`. An empty mapping root
+is valid and contributes no directives. Malformed JSON or YAML remains `PARSE001`; syntax failure
+and semantic scheme shape are distinct conditions.
 
 Namespace-profile scheme files are the canonical and recommended representation.
 
@@ -1930,7 +2004,12 @@ The normative processing pipeline is:
 1. Parse scheme syntax using secure format defaults and resolve references among scheme entries. Scheme references cannot target input data. A scheme reference resolves against the directive entries of the scheme set and nothing else: its target is another scheme entry's value, addressed by that entry's qualified directive path, so `cfg.filename=${cfg.output}` is legal and yields that directive's resolved text. A reference naming a path that is not a scheme entry is `REFERENCE002` in the `scheme` phase, reported as an unrecognized directive at the named path rather than as input data that happens to be absent, because at step 1 no input has been read and the two cannot be told apart. A reference chain that returns to its own start is `REFERENCE003` in the `scheme` phase, anchored at Section 13.1, and names the whole cycle so that no directive in it is reported as merely unresolvable. These two are reported per owning directive rather than under the Section 13 "once per reachable owning value" rule, because reachability is a Section 14.4 property computed at step 13 and does not yet exist here.
 2. Compile root-level input options.
 3. Compile `substitute` path patterns. These patterns may contain name wildcards but no references.
-4. Compile literal-path input `merge` directives. Input `merge` paths must not contain wildcards or references. `filemerge` is not consulted during input processing.
+4. Compile literal-path input `merge` directives. The selector on each input `merge` declaration
+   must be one literal qualified path and must not contain wildcard or `${...}` reference syntax.
+   Either or both forbidden forms emit one blocking `SCHEME001` for that declaration, carrying
+   `source`, declaration `line` and `column`, the offending `path`, and the complete `declaration`.
+   The failing declaration contributes no directive. `filemerge` is not consulted during input
+   processing.
 5. Parse input documents into typed overlays without applying namespace escape decoding to native structured strings.
 6. Lex and validate reference and value-wildcard syntax in strings according to the precompiled `substitute` patterns. A `substitute` pattern matches an entry's declared pre-expansion path; a generated entry inherits the mode resolved for its template. Reference targets are not resolved until step 15.
 7. Extract wildcard template entries from concrete JSON, YAML, and namespace contributions, and permanent namespace `!` exclusion masks from namespace contributions. XML input cannot define a wildcard template because XML names are parsed as XML names rather than namespace wildcard syntax.
@@ -2015,7 +2094,7 @@ The following aliases remain accepted with one warning per scheme:
 
 Blocking diagnostics are collected within the pipeline phase in which they are detected, subject to the registry cardinalities in Section 22. A phase completes every independent check that does not depend on a failed result, buffers its deterministic diagnostic set, and then aborts before the next phase when any blocking diagnostic exists.
 
-A source that fails parsing, decoding, or a per-source limit contributes no partial overlay. Other independent sources in the same phase may still be parsed so their source-scoped diagnostics can be collected. A failed scheme contributes no partial directives. Transformation and planning errors never produce a partial output instance for a later phase.
+A source that fails parsing, decoding, or a per-source limit contributes no partial overlay. Other independent sources in the same phase may still be parsed so their source-scoped diagnostics can be collected. A structured scheme whose root is not a mapping contributes no directives, and an input `merge` declaration containing wildcard or reference syntax contributes no directive. Other declarations and other independent scheme sources are still checked in the same phase. A failed scheme contributes no partial directives to a later phase. Transformation and planning errors never produce a partial output instance for a later phase.
 
 Publication is the exception because external side effects have begun: `PATH002` stops publication immediately as specified in Section 21.3.
 
@@ -2668,6 +2747,20 @@ A canonical destination path is the portable-encoded relative path with `/` sepa
 
 For cross-platform collision detection, also compute a portability key by uppercasing ASCII letters in the canonical path. Because portable segment encoding makes every non-ASCII byte an uppercase `%HH` sequence, this comparison is platform-independent. Two nonidentical canonical paths with the same portability key are a blocking `PATH001` collision rather than a merge. Byte-identical canonical paths continue through the deterministic collision fold below.
 
+After the complete output plan is known and before serialization, directory creation, file opening,
+staging, or publication, compare the complete destination segment vectors under that same
+portability key. A blocking file-versus-directory topology conflict exists when one planned
+destination is a proper path-segment prefix of another. A textual prefix ending inside a segment,
+such as `a` and `ab/file.json`, is not a conflict.
+
+Emit `PATH001` once for each descendant destination having such a prefix. Its `destination` is the
+descendant, and its message names the longest conflicting proper-prefix destination. When several
+ancestors prefix one descendant, only that longest ancestor is named; when one ancestor has several
+descendants, each descendant gets its own occurrence. The comparison uses portable-segment encoding
+followed by ASCII-letter folding only and introduces no Unicode normalization. It consumes the
+complete plan, so source or declaration order cannot change the diagnostic set or produce
+filesystem side effects.
+
 Every sequence item retains explicit or implicit provenance into this fold. Each sequence path in a destination accumulator has its own high-water mark:
 
 - an implicit item from a later output contribution is rebased onto the next fresh destination ordering value;
@@ -2803,9 +2896,11 @@ Values use the inverse of the namespace value lexer:
 
 Physical output entries are always one line. Multiline scalar data is represented through escapes, never literal record-breaking line terminators.
 
+The serializer inserts no blank records before, after, or between entries or comments.
+
 A node whose projection is an empty mapping emits `qualified.name={}`, and one whose projection is an empty sequence emits `qualified.name=[]`. A scalar whose text is exactly `{}` or `[]` emits `\{}` or `\[]`. This is what makes the Section 8.3 sentinel bidirectional, and it is the only case in which this format emits a key for a path that holds no scalar: a container with children needs no key of its own, because its children carry it.
 
-Section 19.2 and Section 19.6 emit no sentinel and no key for an empty container. A shell assignment and an INI entry are read as text by consumers that have no container concept, so a bracket pair written there would be data rather than shape, and re-reading it would invent a string the source never held. Those formats discard the concept instead, under the cross-format rule in Section 3.3.
+Section 19.2 and Section 19.6 emit no sentinel and no key for an empty container. A shell assignment and an INI entry are read as text by consumers that have no container concept, so a bracket pair written there would be data rather than shape, and re-reading it would invent a string the source never held. Those formats discard the concept instead and emit `WARN015` as Section 3.3 requires.
 
 An entry whose emitted value ends in a space is refused. The condition is blocking `NAMESPACE001`, naming the path and the destination, and is anchored here. Under `namespaceoutputoptions=AllowTrailingWhitespace` the entry is written with its trailing space intact and the condition is `WARN013` instead, at the same cardinality.
 
@@ -2853,9 +2948,15 @@ NAME='can'\''t'
 
 This preserves spaces, `$`, backticks, double quotes, backslashes, exclamation marks, and line breaks without expansion.
 
+The serializer inserts no blank records before, after, or between assignments or comments.
+
 NUL is not representable and is an error.
 
 A null payload emits the text `null`, as in Section 19.1. Quoted namespace is namespace output under shell quoting rather than a different value model, so a consumer reading `NAME='null'` learns what a namespace consumer reading `name=null` learns. Emitting an empty assignment instead would make null indistinguishable from the empty string, which is a different payload.
+
+An explicit empty mapping or sequence emits no assignment because a shell assignment has no
+container concept. Each such selected facet is discarded and contributes to the destination's
+`WARN015` counts under Section 3.3.
 
 When the selected output root is a bare scalar, quoted namespace retains the final concrete selector part as the assignment name. `root` prefixes that name rather than replacing it, as in Section 16.3, and the parts are joined by the delimiter.
 
@@ -2937,6 +3038,9 @@ YAML output:
 - does not emit `---`;
 - does not preserve original quote style, tag syntax, anchors, aliases, or folded-versus-literal source style;
 - applies structural merge before serialization.
+
+Typed Boolean scalars emit lowercase `true` or `false`, and null emits lowercase `null`.
+Integer and decimal spellings remain the Section 18 canonical locale-independent forms.
 
 A literal block scalar reproduces its content from its indentation and chomping indicator alone, which is not enough for every multiline value. A line with trailing whitespace, a CR line break, a control character outside YAML's `c-printable`, and a first non-empty line that is itself indented are each altered or lost by a block scalar, and Section 3.3 requires a same-format round trip to preserve them. A value ending in a blank line needs the `|+` indicator, whose block ends with two line breaks and so cannot satisfy Section 24's requirement that a text output end with exactly one LF.
 
@@ -3032,13 +3136,17 @@ XML output:
 - preserves expanded names and required namespace declarations;
 - preserves ordered attributes and content;
 - preserves mixed content without inserting indentation inside it;
-- emits retained XML comments;
+- emits retained XML content and document-envelope comments;
 - emits retained CDATA when configured;
 - applies `element`, `attribute`, `text`, and `cdata` types;
 - applies structural merge before serialization;
 - uses UTF-8;
 - includes an XML declaration under the default `Declaration` option and omits it under `NoDeclaration`;
 - uses normalized indentation outside mixed content by default.
+
+Boolean text and attribute values emit lowercase `true` or `false`, and null text and attribute
+values emit lowercase `null`. Integer and decimal spellings remain the Section 18 canonical
+locale-independent forms.
 
 #### XML output bytes
 
@@ -3120,11 +3228,14 @@ where no reference is recognized. A comment containing CR therefore reads back w
 within the latitude Section 3.3 already grants — "line endings ... need not be preserved" — and it
 is a property of XML rather than a choice made here.
 
-A comment bound to a value is written immediately before that value's content, inside the element
-that carries it, and a comment bound to no value is written at document level: a document-leading
-comment after the XML declaration and before the document element, and a document-trailing comment
-after the document element. A comment content node read from XML keeps the position its ordering
-value gives it among the element and comment nodes it sits among, under Section 11.4.
+A non-XML comment bound to a value is written immediately before that value's content, inside the
+element that carries it. A non-XML comment bound to no value is written at document level: a
+document-leading comment after the XML declaration and before the document element, and a
+document-trailing comment after the document element. XML document-envelope comments use those
+same document-level positions regardless of the selected subtree or a configured `root`; they
+remain outside every wrapper element. All document-level comments retain source order. An XML
+content comment keeps the position its ordering value gives it among the element and comment nodes
+it sits among, under Section 11.4.
 
 A scalar exposed at an element path under Section 11.4 is written at the position its retained ordering value gives it, among the element and comment nodes the element carries, exactly as though it were a content node: `<a><!--c-->1</a>` emits as `<a><!--c-->1</a>`, and `<a>1<!--c--></a>` emits as `<a>1<!--c--></a>`. Mixed content already places every run this way, because there each run is a content node with an ordering value of its own.
 
@@ -3142,6 +3253,9 @@ holds text or CDATA is written exactly where it stands, with no line break or in
 around it, and a comment whose parent holds only elements and comments is written on its own line at
 their indentation. Content containing LF is written with that LF literal and no re-indentation,
 since indenting it would alter the comment.
+
+Pretty-printing inserts no empty lines. A visually blank line is permitted only where preserved
+whitespace is actual input data; indentation and comment layout do not manufacture one.
 
 #### XML sequence projection
 
@@ -3163,6 +3277,14 @@ with `root=cfg` renders conceptually as:
 ```
 
 Sequence items are serialized in stable ordering-value order and are densified only in the emitted sibling order. A scalar or null item uses the repeated element's text content by default. A mapping or XML-element item uses the repeated element as its containing element and projects its fields, attributes, and children normally. A sequence-only item that has no named child element projection is `TYPE001`.
+
+An explicit empty sequence has no item from which XML can emit a repeated sibling element. When
+default or `element` projection reaches such a selected sequence, it emits no element and
+contributes to the destination's `empty-sequence` `WARN015` count under Section 3.3. An explicit
+empty mapping remains representable as the one empty element Section 19.5 defines and does not
+contribute. A sequence rejected by another rule as `TYPE001`, or a sequence facet that loses the
+exclusive container-shape contest as `TYPE002`, is not a representational discard and does not
+contribute.
 
 XML is a destination requiring one container shape under Section 17.1, so a node holding both a mapping and a sequence projection emits only the later container contribution and warns. The two projections are indistinguishable once written: a mapping renders as one element bearing its children, and a sequence renders as that same element repeated beside itself, under the same expanded name and in the same position. The mapping's element would therefore read as one more item of the sequence rather than as a mapping, and no reader could recover which of the siblings was which. The diagnostic is `TYPE002`, reported once per projected path and destination and carrying both `path` and `destination`.
 
@@ -3201,7 +3323,9 @@ INI output targets a conservative interoperable subset:
 - section and key names must match `[A-Za-z0-9_.:-]+` after delimiter joining;
 - section and key names containing `[`, `]`, `=`, comment markers, whitespace, or control characters are errors;
 - default values are unquoted single-line UTF-8 text;
-- NUL, CR, and LF in a value are errors under `RejectMultiline`;
+- NUL and every other C0 control except TAB, CR, and LF are errors under every multiline strategy;
+- CR and LF in a value are errors under `RejectMultiline`; TAB remains ordinary whitespace subject
+  to the unquoted leading/trailing rule;
 - a value beginning with `;` or `#`, or having leading/trailing whitespace, is an error unless `QuoteValues` is selected;
 - `QuoteValues` emits double-quoted values, escaping `\` as `\\` and `"` as `\"`;
 - `EscapeMultiline` additionally emits LF as `\n`, CR as `\r`, and tab as `\t`;
@@ -3215,7 +3339,19 @@ Path projection is normative:
 - container-only paths do not emit keys;
 - `root` is applied before this section/key split.
 
-A null payload emits the text `null`, as in Section 19.1. `PortableIni1` has no null literal, and an empty value is a legal empty string, so spelling null as an empty value would write two distinct payloads as one line.
+An explicit empty mapping or sequence therefore emits neither a key nor a section. Each such
+selected facet is discarded and contributes to the destination's `WARN015` counts under Section
+3.3.
+
+A Boolean payload emits lowercase `true` or `false`. A null payload emits lowercase `null`, as in
+Section 19.1. Integer and decimal spellings remain the Section 18 canonical locale-independent
+forms. `PortableIni1` has no null literal, and an empty value is a legal empty string, so spelling
+null as an empty value would write two distinct payloads as one line.
+
+Under `EscapeMultiline`, CR, LF, and TAB emit `\r`, `\n`, and `\t` after literal backslashes have
+been doubled. NUL and every other unsupported C0 control are blocking `INI001`; they are never
+written literally, removed, or converted to a generic Unicode escape. The same C0 refusal applies
+under `RejectMultiline`, including when `QuoteValues` is selected.
 
 An overlay may emit both a scalar INI key and descendant sections when their projected identities are distinct. For example, a scalar at `a.x` and a descendant at `a.x.z` may emit key `x` in section `[a]` and key `z` in section `[a:x]`. No shape warning is emitted merely because one logical path supplies both projections. A genuine post-projection key or section collision is blocking `FLAT001`.
 
@@ -3287,9 +3423,9 @@ Cross-format comment association follows source order:
 - inline YAML comments remain attached to their payload;
 - when several source documents merge, document-leading comments precede that source's first surviving contribution and document-trailing comments follow its final surviving contribution.
 
-Converting a *value-bound* comment between formats uses these associations: a namespace, INI or YAML comment reaching an XML destination becomes an XML comment adjacent to the value it is bound to, and a YAML inline comment reaching a flat destination becomes the full-line comment described above. The conversion runs into XML and between the non-XML formats, and never out of XML, because Section 11.5 leaves XML no value-bound comment to convert: every comment an XML source contributes is an ordered content node.
+Converting a *value-bound* comment between formats uses these associations: a namespace, INI or YAML comment reaching an XML destination becomes an XML comment adjacent to the value it is bound to, and a YAML inline comment reaching a flat destination becomes the full-line comment described above. The conversion runs into XML and between the non-XML formats, and never out of XML, because Section 11.5 leaves XML no value-bound comment to convert: an XML comment is either an ordered content node or document-envelope metadata.
 
-An XML comment therefore does not convert. Section 4.5 keeps it an ordered content node that is "not reassigned to adjacent values", so it has no value association for the rules above to carry, and no non-XML destination can place it. It is therefore discarded by every non-XML destination, with the one summarized `WARN003` per output file and feature category that Section 7 requires of any discarded source concept. This is the asymmetry the model implies rather than an omission: a comment that was never bound to a value cannot acquire a binding by being written somewhere else, and inventing one would attach the author's note to whichever value happened to follow it.
+An XML comment therefore does not convert. Section 4.5 keeps a content comment as an ordered node and an envelope comment as a document-level position; neither has a value association for the rules above to carry, and no non-XML destination can place either kind. Every non-XML destination therefore discards both kinds under the single `xml-comments` feature category. One final output file containing any number of content comments, envelope comments, or both emits exactly one summarized `WARN003`, carrying `destination` and no `source`, whose count is the total number discarded after destination folding. This is the asymmetry the model implies rather than an omission: a comment that was never bound to a value cannot acquire a binding by being written somewhere else, and inventing one would attach the author's note to whichever value happened to follow it.
 
 One consequence is worth stating, because Section 19.4 and Section 19.6 would otherwise look incomplete. An XML comment is the only comment whose text may contain a line break: Section 8.1 rule 2 makes a namespace or INI comment a single record, which is a single line, a YAML comment ends at end of line, and two adjacent comment lines are two comments rather than one comment of two lines. Since no XML comment reaches a non-XML destination, multiline comment text cannot reach YAML or INI output, and neither section states a rule for splitting it — there is no case for such a rule to govern, and a rule written for an unreachable case is one no fixture can hold to account. The rule below states the split for namespace and quoted-namespace output anyway, because there it is a safety property rather than a rendering choice, and a safety property should not rest on an argument about reachability.
 
@@ -3465,7 +3601,9 @@ Warnings include:
 - native JSON/YAML numeric mapping inferred as a sequence;
 - scheme directive binds to no concrete output instance or survives only beneath an ignored ancestor;
 - input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target;
-- namespace value written with a trailing space by explicit option.
+- namespace value written with a trailing space by explicit option;
+- selected explicit empty containers discarded because the destination has no representation for
+  their container concept.
 
 Warnings do not change the success exit code.
 
@@ -3478,6 +3616,7 @@ The normative diagnostic registry is:
 | `PARSE002` | error | Invalid or unsupported character encoding | once per failing source |
 | `SCHEME001` | error | Unknown directive, value, or illegal option/type combination | once per declaration |
 | `SCHEME002` | error | Ambiguous canonical/simple scheme path | once per expanded declaration |
+| `SCHEME003` | error | Structured scheme root is not a mapping | once per failing scheme source |
 | `WILDCARD001` | error | Invalid, undefined, or mixed capture outside a reference | once per rule |
 | `WILDCARD002` | error | Nonterminating expansion or wildcard limit | once per invocation |
 | `REFERENCE001` | error | Malformed or free-wildcard reference | once per owning value |
@@ -3491,11 +3630,11 @@ The normative diagnostic registry is:
 | `SHELL001` | error | Invalid quoted-namespace shell identifier | once per projected key and output instance |
 | `XML001` | error | DTD, external entity/resource, or prohibited XML feature | once per failing document |
 | `XML002` | error | Invalid XML name, namespace, declaration, or canonical address | once per failing node or document |
-| `INI001` | error | Value or name unsupported by `PortableIni1` options | once per path and output instance |
+| `INI001` | error | Value, name, or control character unsupported by `PortableIni1` options | once per path and output instance |
 | `NAMESPACE001` | error | Value unsupported by the namespace destination's options | once per path and output instance |
 | `COLLISION001` | error | `filemerge=error` rejects a second contribution to one destination | once per rejected contribution after the first |
 | `SERIALIZE001` | error | Output view cannot be serialized under the selected format/options | once per output instance |
-| `PATH001` | error | Invalid, escaping, or insecure output path | once per destination |
+| `PATH001` | error | Invalid, escaping, insecure, or topologically conflicting output path | once per destination |
 | `PATH002` | error | Publication/open/write/flush failure | once, for the failing destination |
 | `LIMIT001` | error | Non-wildcard resource limit exceeded | once per invocation |
 | `WARN001` | warning | Missing input or scheme file | once per missing-file occurrence on the command line |
@@ -3512,6 +3651,7 @@ The normative diagnostic registry is:
 | `WARN012` | warning | INI output emits a global-key preamble, which a reader requiring a section header will refuse | once per output instance |
 | `WARN013` | warning | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | once per path and output instance |
 | `WARN014` | warning | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | once per admitted input-source occurrence |
+| `WARN015` | warning | Explicit empty mapping or sequence discarded by destination projection | once per final folded destination |
 
 `TYPE001` includes a bare scalar selected for XML without a configured `root`, and a bare scalar selected by the empty root selector for namespace, quoted namespace, or INI, which in that case have no concrete selector part to supply a key. `FLAT001` covers namespace, quoted-namespace, and INI post-projection key collisions, and JSON and YAML mapping-key collisions. Ordering-value overflow and every configured non-wildcard resource-bound violation are `LIMIT001`, matching that code's registry condition and Appendix B row; a wildcard fixed-point, candidate, generated-node, or iteration bound is `WILDCARD002`. Malformed limit option values are `CLI001`. `SERIALIZE001` is used only before publication, while an open, write, or flush failure after the validation gate is `PATH002`. `NAMESPACE001` is more specific than `SERIALIZE001` for a namespace value the destination's options cannot write, and names the path rather than the output instance alone.
 
@@ -3638,6 +3778,9 @@ All text outputs:
 - use LF as the physical line terminator;
 - end with exactly one LF;
 - contain no line ending in a space or a TAB, except where a Section 16.9 output option explicitly relaxes the rule for one destination.
+
+Namespace and quoted-namespace output insert no blank records. XML pretty-printing inserts no empty
+lines; a visually blank XML line is permitted only when preserved whitespace is content.
 
 The last of these is not presentational. Trailing whitespace is invisible in every editor, is stripped silently by many of them and by a good deal of tooling, and would therefore be the one class of byte in a specified output that a consumer could destroy without noticing — precisely the outcome the byte rules exist to prevent.
 
@@ -4069,6 +4212,13 @@ An implementation is conforming only when automated black-box tests cover:
 90. Namespace empty-container sentinels: `{}` and `[]` as whole-value shape contributions, `\{}` and `\[]` as the strings they displace, the near-miss values that stay strings, bidirectional emission including the escape, an empty container coexisting with a later child, and the JSON round trip through namespace that the sentinels make lossless.
 91. Unused input-source accounting: `WARN014` once per admitted source occurrence whose surviving eligible concrete paths are outside every effective output selector and successful reachable reference target, with deterministic source/path attribution; no warning for selected but overwritten data, reachable reference-only support data, deliberate `output=ignore` selection, wholly masked data, ineligible source-only content, or a run with no non-empty non-ignored pre-transformation view.
 92. The opt-in `--fail-on-warning` policy: valueless and repeatable CLI grammar with unchanged informational-mode precedence and default behavior; complete warning retention through serialization; refusal of all publication without changing diagnostic semantics or pre-existing destination bytes; an explicit warning-policy result with `Published = 0` and exit code `1`; and independence from the emitted verbosity threshold.
+93. The host-token boundary and required list-option arity: tokens containing spaces, quotes, or backslashes remain single unchanged values; every repeated input and scheme occurrence is nonempty; post-`--` tokens are literal values; missing required options have deterministic precedence; informational modes bypass malformed operational forms; and an ill-formed Unicode host token is `CLI001`.
+94. Scheme declaration shape: input `merge` selectors containing wildcard or reference syntax are `SCHEME001` once per declaration; structured scalar, null, and sequence roots are `SCHEME003` once per scheme-source occurrence; empty mapping roots are valid; malformed structured syntax remains `PARSE001`; and independent sources still collect same-phase diagnostics without contributing partial directives.
+95. Destination file-versus-directory topology: proper path-segment-prefix conflicts are detected from the complete portable plan before I/O, reported as `PATH001` once per descendant with deterministic ordering, folded ASCII case, and longest-ancestor selection, while textual non-segment prefixes and exact-destination folds retain their existing behavior.
+96. Canonical scalar text and INI control handling: YAML, INI, and XML text/attributes spell Boolean and null values in lowercase; INI multiline escaping orders backslash before CR/LF/TAB substitutions; and NUL plus every unsupported C0 control is blocking `INI001` under every applicable option combination.
+97. Generated blank-record bytes: namespace and quoted-namespace output insert no blank records, XML pretty-printing inserts no empty lines, preserved XML whitespace may remain visibly blank, and every nonempty text output retains exactly one final LF.
+98. Explicit empty-container projection: namespace, JSON, YAML, and XML empty mappings remain represented without `WARN015`; quoted namespace and INI report discarded empty mappings and sequences; XML reports discarded empty sequences but not empty mappings; nested and repeated selected empties contribute exact category counts in fixed mapping-then-sequence message order; destination folding counts only final surviving facets; projection-created empty ancestors and facets lost to another shape do not contribute; XML sequences rejected as `TYPE001` do not contribute; and `--fail-on-warning` retains the complete planning diagnostics while refusing every publication.
+99. XML document-envelope comments: comments before and after the document element are retained as unaddressable document-leading and document-trailing metadata in lexical and source-occurrence order; every output instance receives the complete envelope without that metadata making an otherwise empty selection non-empty or suppressing `WARN009`; destination folding retains one copy per stable source occurrence per final file; XML writes the comments outside every selected or configured-root element; non-XML output discards content and envelope XML comments under one destination-scoped `xml-comments` `WARN003`; comment-count and decoded-comment-byte budgets include envelope comments while `--max-nodes` does not; and selectors, references, wildcards, directives, masks, and internal XML comment addressing remain unaffected.
 
 <a id="spec-27"></a>
 ## 27. Deferred features
@@ -4222,6 +4372,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Invalid byte sequence, unsupported BOM/encoding, XML declaration encoding inconsistent with decoded input | `PARSE002` |
 | Unknown/empty directive, illegal directive value, illegal option combination, `type=array` plus `key` | `SCHEME001` |
 | Ambiguous simple/canonical scheme path | `SCHEME002` |
+| Syntactically valid JSON/YAML scheme root is scalar, null, or sequence rather than mapping | `SCHEME003` |
 | Invalid, undefined, or mixed wildcard capture outside a reference | `WILDCARD001` |
 | Wildcard fixed-point, candidate, generated-node, or iteration limit | `WILDCARD002` |
 | Malformed/unterminated reference, legacy bare wildcard in reference, free explicit capture | `REFERENCE001` |
@@ -4235,11 +4386,11 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Invalid quoted-namespace identifier or NUL value | `SHELL001` |
 | DTD, external entity/resource, network retrieval, or prohibited XML feature | `XML001` |
 | Invalid XML name/namespace/canonical address/declaration structure other than byte-encoding disagreement | `XML002` |
-| Value/name/comment cannot be represented by effective `PortableIni1` options | `INI001` |
+| Value/name/comment/control character cannot be represented by effective `PortableIni1` options | `INI001` |
 | Namespace value ends in a space and no option permits writing it | `NAMESPACE001` |
 | `filemerge=error` rejects a second destination contribution | `COLLISION001` |
 | Final output model cannot be serialized under its selected format/options | `SERIALIZE001` |
-| Invalid, escaping, insecure, traversal, portability-key-colliding, or uncontainable destination path | `PATH001` |
+| Invalid, escaping, insecure, traversal, portability-key-colliding, proper-segment-prefix-conflicting, or uncontainable destination path | `PATH001` |
 | Destination open, create, write, flush, or close failure after publication starts | `PATH002` |
 | Ordering-value overflow or any non-wildcard resource limit | `LIMIT001` |
 | Missing CLI input/scheme path | `WARN001` |
@@ -4257,6 +4408,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | INI output writes a global-key preamble without `GlobalSection` | `WARN012` |
 | Namespace output writes a value ending in a space under `AllowTrailingWhitespace` | `WARN013` |
 | Input source has unmasked concrete paths but none is addressed by an output selector or reachable reference target | `WARN014` |
+| Explicit empty mapping or sequence discarded because the destination has no representation for that container concept | `WARN015` |
 
 `COLLISION001` has severity error and cardinality once per rejected destination contribution after the first. It is compatibility-stable with the Section 22 registry.
 
@@ -4381,9 +4533,93 @@ When `expected-stdout.txt` is absent, standard output must be empty. Section 6.2
 
 Most items are discharged by fixtures, and a fixture is the preferred evidence because it is black-box: it states an input and an expected result and knows nothing about how the tool is built. Some items cannot be. An item about behaviour under an external storage failure cannot be provoked by a case whose only side effect is writing files, because the corpus harness has no way to make a write fail. An item about the corpus itself — that Appendix C's layout is read correctly, or that every Section 3.1 behaviour has a case — cannot be discharged by a case inside that corpus without circularity. For these the manifest records a `gates` list instead, naming the test or continuous-integration job that does the checking.
 
-A named gate must exist, and that is itself checked: a gate naming a test must resolve to a test that is actually declared, and a gate naming a continuous-integration job must resolve to a job defined in the workflow. Without that check the field would be an accounting fiction — a claim of coverage discharged by writing a plausible name into a file — which is precisely the failure this appendix exists to prevent. An item discharged by a gate *alone*, with no fixture naming it, must also say in the manifest why a fixture cannot discharge it, so that the exemption is argued rather than assumed. An item may carry both, and some should: a fixture can state the expected result while a gate supplies the condition under which the fixture is run, and neither alone is the whole claim.
+A gate identity is one of these canonical strings:
 
-A reference is a claim, and a number in a text file costs nothing to write and nothing to keep true. The manifest must therefore name exactly the fixtures that reference each item, so that adding, removing, or silently retargeting a claim fails the gate until the manifest is re-authored and reviewed. This holds for every item and not only for the ones marked `required`: restricting it to `required` items lets a pending item quietly accumulate fixtures the manifest never records, so the manifest understates coverage exactly where coverage is still being built and is most worth reading. For an item the manifest marks `required`, one further condition holds. Each of the fixtures naming it must carry at least one expectation beyond its exit code: an expected output tree, an expected standard output, or a declared diagnostic stream. Declaring the empty array is such an expectation, because Appendix C.4 distinguishes it from writing no stream at all and the distinction is observable; declaring nothing at all is not, because an exit code alone distinguishes too little to be evidence that the item was exercised.
+```text
+nunit:<assembly-name>::<fully-qualified-leaf-test-name>
+ci:<repository-relative-workflow-path>::<job-id>
+ci:<repository-relative-workflow-path>::<job-id>[<dimension>=<json-scalar>,...]
+```
+
+Parsing is ordinal and case-sensitive. It performs no trimming or case folding, and parsing then rendering an identity must reproduce the input byte-for-byte. Duplicate identities within one manifest item are invalid; different items may name the same gate.
+
+An `nunit:` assembly name is the exact `AssemblyName` of a built test project, and its test name is the exact fully-qualified leaf name reported by the repository's pinned test SDK and NUnit adapter. Discovery runs against both built test projects independently with `--list-tests`, `--no-build`, and `--no-restore`; a missing binary, failed discovery process, unrecognized adapter output, or empty project result is an error. A named identity must match exactly one assembly-and-name pair, so zero matches and a duplicate fully-qualified name are both invalid. Source text, method suffixes, prefixes, wildcards, and fixture-family names are not discovery and must never be used as a fallback.
+
+A `ci:` workflow path uses `/`, begins `.github/workflows/`, ends `.yml` or `.yaml`, and contains no empty, `.` or `..` segment. The job ID is the exact YAML key under `jobs`, not its display name. The workflow catalog parses both filename extensions and is invalid when the directory is absent, no workflow is found, a workflow is malformed, or `jobs` is not a nonempty mapping. A catalogued ordinary job has a nonempty `runs-on` target and a nonempty `steps` sequence whose every entry is a mapping containing exactly one nonempty scalar `run` or `uses`. A catalogued reusable-workflow job instead has a nonempty scalar job-level `uses` and has neither `runs-on` nor `steps`. Missing, empty, inert, or mixed execution forms are invalid: a job that cannot execute cannot discharge an assertion.
+
+The catalog classifies an `if` condition as statically false only in these closed cases: its scalar value is exactly `false`; it is an unquoted YAML core Boolean spelling `false`, `False`, or `FALSE`; or, after trimming the complete scalar and whitespace immediately inside the delimiters, it is exactly `${{ false }}`. The same rule applies to job-level and step-level conditions. A job with a statically false job-level condition is invalid, including a reusable-workflow job. An ordinary job is also invalid when every executable step has a statically false condition. Any other scalar condition, including a context-dependent expression, is not evaluated by the catalog and remains potentially executable. The only accepted explicit tags on a condition are `!!str` and `!!bool`; the Boolean tag requires plain style and one of the six YAML core Boolean spellings. A non-scalar condition, any other explicit tag, or a Boolean tag whose style or value is invalid makes the workflow catalog invalid.
+
+The `on` trigger is a supported nonempty event name, a nonempty duplicate-free sequence of supported event names, or a nonempty mapping from supported event names to configurations. An ordinary mapping event has either no configuration or a mapping configuration. `schedule` is the exception: it must be a nonempty sequence of one-field mappings, each containing one nonempty scalar `cron` in the five-field POSIX form GitHub Actions accepts. Each comma-separated field consists of `*`, a value, or an ascending range, optionally followed by a positive `/` step; minute, hour, day-of-month, month, and day-of-week values are checked against their respective ranges, and the documented three-letter month and weekday names are accepted case-insensitively. Scalar or mapping `schedule` values, unsupported operators, malformed fields, and out-of-range values are invalid.
+
+A CI identity without brackets names the whole job. For a non-matrix job that is one execution; for a matrix job it means every cell of the nonempty literal expansion. A bracketed identity names exactly one cell. Its dimension keys are exact matrix keys in ordinal order and its values are the scalar text produced by `${{ toJSON(matrix.<dimension>) }}`, so `true` and `"true"` are distinct. Plain YAML scalars use the GitHub Actions runner's YAML 1.2 core conversion before rendering: only `true`, `True`, `TRUE` and the corresponding three `false` spellings are booleans; only the empty scalar, `null`, `Null`, `NULL`, and `~` are null; decimal, `0x` hexadecimal, `0o` octal, and decimal/exponent floating-point forms become runner numbers; all other plain scalars remain strings. Quoted scalars remain strings. An explicit `!!str` tag always produces a string. The explicit `!!bool`, `!!float`, `!!int`, and `!!null` tags require plain style and require the value to match that tag's corresponding core conversion; a mismatched value is invalid rather than falling back to another type. Any other explicit tag is invalid. These scalar and explicit-tag rules also apply to every mapping key inside `matrix`, including the `include` and `exclude` mappings. As in the runner, a decoded non-string key is converted back to token text before classification: Booleans become `true` or `false`, numbers use invariant `G15`, and null becomes the empty string. Unsupported or mismatched key tags fail before a key can be treated as `include`, `exclude`, or a dimension. Numbers use the runner's invariant `G15` rendering and normalize negative zero to `0`. A non-finite number is invalid because it has no JSON-scalar gate identity. The map must contain the complete key set of exactly one expanded cell: a missing dimension, extra dimension, unknown value, object, array, duplicate key, empty brackets, noncanonical scalar, zero matches, or multiple matches is invalid. Literal matrices expand by forming the Cartesian product of ordinary axes in declaration order, applying `exclude` entries as subset matches, and then applying `include` entries with GitHub Actions merge-or-add semantics. An empty or duplicate expansion, a nonscalar cell value, or an expression whose cells cannot be enumerated statically is invalid for a named gate.
+
+Every manifest-referenced job has an exact canonical YAML `name` that bridges its stable workflow path and job ID to the runtime job name. A non-matrix job uses its canonical whole-job identity. A matrix job uses every complete dimension key in ordinal order and spells each value expression as `${{ toJSON(matrix.<dimension>) }}` inside the brackets. A friendly display name, a partial dimension set, or a name derived from the workflow basename cannot satisfy this requirement.
+
+A named gate must exist, and that is itself checked against these exact catalogs. Without that check the field would be an accounting fiction — a claim of coverage discharged by writing a plausible name into a file — which is precisely the failure this appendix exists to prevent. An item may carry both fixture and gate evidence, and some should: a fixture can state the expected result while a gate supplies the condition under which the fixture is run, and neither alone is the whole claim.
+
+Evidence and the reason a fixture is unavailable are separate. A `required` item must name at least one fixture or gate; `whyNotAFixture` is never evidence by itself. A `pending` item with neither kind of evidence must carry a nonblank `whyNotAFixture`, and every gate-only item must do the same so the exemption is argued rather than assumed. An item with one or more fixtures must not carry `whyNotAFixture`, whether its evidence is fixture-only or mixed.
+
+Item-level evidence is not assertion evidence. Each entry in the manifest's `assertions` array is an
+authored object with exactly these fields in the displayed order:
+
+```json
+{
+  "text": "One independently observable claim.",
+  "evidence": {
+    "kind": "fixture",
+    "name": "case-name",
+    "artifact": "expected/",
+    "observation": "The complete expected tree contains exactly ...; different bytes make the case red."
+  }
+}
+```
+
+`text` is nonblank and unique within the item. `evidence` maps that assertion to exactly one
+observation owner; an assertion that needs two owners is two assertions. The evidence object has
+exactly four nonblank fields in the displayed order:
+
+- `kind` is `fixture` or `gate`;
+- `name` is an exact member of that item's `fixtures` or `gates` list respectively;
+- `artifact` is the specific oracle carrying the observation; and
+- `observation` states the byte, field, count, ordering relation, boundary event, or other
+  independently observable result that changes when the assertion is false.
+
+For fixture evidence, `artifact` is exactly `expected/` for the complete output tree, one
+`expected/<relative-output-path>` file, `expected-diagnostics.json`, `expected-exit-code.txt`,
+`expected-stdout.txt`, or `legacy.md`. An artifact path is case-sensitive, uses `/`, and contains no empty, `.` or `..`
+segment. The named artifact must exist in the named fixture; naming an oracle surface that fixture
+does not declare is not evidence. For `expected/`, the fixture directory itself declares the
+artifact: a present `expected/` directory carries its files, while its absence carries the complete
+empty-tree oracle defined by Section C.3. Every other named artifact must exist as a file. When
+`artifact` is `expected-exit-code.txt`, `observation` is
+exactly `expected-exit-code.txt = 0.`, `expected-exit-code.txt = 1.`, or
+`expected-exit-code.txt = 70.` to state the file's complete status oracle without paraphrase. That
+fixture must also own a separate assertion carried by `expected/`, one
+`expected/<relative-output-path>` file, `expected-stdout.txt`, or
+`expected-diagnostics.json` in the same item:
+an exit code can own an assertion specifically about status, but cannot by itself discharge the
+fixture. `legacy.md` remains valid differential evidence but is not a substantive companion for an
+exit-status assertion. `expected/` denotes the complete expected tree, including an intentionally
+empty tree.
+
+For gate evidence, `name` is the canonical gate identity and `artifact` is closed by the identity
+kind: exactly `nunit-result` for `nunit:` evidence and exactly `ci-job-result` for `ci:` evidence.
+The artifact is the successful result of that exact discovered leaf or catalogued executable job;
+`observation` names the comparison, field, boundary, or other result inside the owner that makes it
+red when the assertion is false. Arbitrary artifact prose, an artifact from the other gate kind,
+source text, method names that do not resolve to leaves, and prose about what code is intended to do
+are not gate artifacts.
+
+Every listed fixture and gate owns at least one assertion, and every assertion owns exactly one
+listed fixture or gate. Missing, duplicate, unlisted, malformed, or unused ownership fails the
+traceability gate. These conditions apply to pending items too: `pending` means the Section 26 item
+is not yet completely discharged, not that claims already made about its evidence may be vague.
+Promotion to `required` additionally requires a nonempty assertion set that decomposes the entire
+item. An assertion object and its observation are authored review material; the generator preserves
+their values and canonical field order and never infers them from item text, fixture names, source
+names, or test names.
+
+A reference is a claim, and a number in a text file costs nothing to write and nothing to keep true. The manifest must therefore name exactly the fixtures that reference each item, so that adding, removing, or silently retargeting a claim fails the gate until the manifest is re-authored and reviewed. This holds for every item and not only for the ones marked `required`: restricting it to `required` items lets a pending item quietly accumulate fixtures the manifest never records, so the manifest understates coverage exactly where coverage is still being built and is most worth reading. For an item the manifest marks `required`, one further condition holds. Each of the fixtures naming it must carry at least one expectation beyond its exit code: an expected output tree, an expected standard output, or a declared diagnostic stream. When an assertion specifically names `expected-exit-code.txt`, that fixture must additionally map a separate assertion to one of those substantive oracle artifacts in the same item. Declaring the empty array is such an expectation, because Appendix C.4 distinguishes it from writing no stream at all and the distinction is observable; declaring nothing at all is not, because an exit code alone distinguishes too little to be evidence that the item was exercised.
 
 <a id="spec-c-6"></a>
 ### C.6 Legacy differential metadata

@@ -1,0 +1,3 @@
+cfg.output=ini
+cfg.root=cfg
+cfg.inioutputoptions=EscapeMultiline

@@ -134,6 +134,18 @@ public class DestinationFoldTests
         return outcome.Value;
     }
 
+    private static XmlEnvelopeComment Envelope(
+        string text, XmlEnvelopePlacement placement, int source, int item) =>
+        new(text, placement, StableOrderingKey.FromSource(source, item));
+
+    private static DestinationContribution WithEnvelope(
+        DestinationContribution contribution,
+        params XmlEnvelopeComment[] comments) =>
+        contribution with
+        {
+            View = contribution.View with { XmlEnvelopeComments = [.. comments] },
+        };
+
     /// <summary>
     /// Section 17.5: "Same-format <c>replace</c> preserves the earliest prior publication key even
     /// when no prior sequence high-water state exists".
@@ -186,6 +198,64 @@ public class DestinationFoldTests
 
         folded.Length.ShouldBe(1);
         folded[0].Key.DeclarationOrder.ShouldBe(7);
+    }
+
+    /// <summary>
+    /// Sections 8.5 and 17.5 union envelope metadata by source occurrence when same-format output
+    /// instances converge. A repeated view of one source occurrence must not duplicate it.
+    /// </summary>
+    [Test]
+    public void EnvelopeCommentsAreUnionedByStableSourceOccurrence()
+    {
+        var diagnostics = new DiagnosticBuffer();
+        var shared = Envelope("shared", XmlEnvelopePlacement.Leading, source: 0, item: 7);
+
+        var folded = Fold(
+            diagnostics,
+            WithEnvelope(
+                Contribution("a", "out.xml", "a", "1", declarationOrder: 0, format: OutputFormat.Xml),
+                shared,
+                Envelope("first-only", XmlEnvelopePlacement.Trailing, source: 0, item: 9)),
+            WithEnvelope(
+                Contribution("b", "out.xml", "b", "2", declarationOrder: 1, format: OutputFormat.Xml),
+                shared,
+                Envelope("second-only", XmlEnvelopePlacement.Trailing, source: 1, item: 3)));
+
+        folded.Length.ShouldBe(1);
+        folded[0].View.XmlEnvelopeComments
+            .Select(comment => (comment.Text, comment.Placement, comment.Order))
+            .ShouldBe(
+            [
+                ("shared", XmlEnvelopePlacement.Leading, StableOrderingKey.FromSource(0, 7)),
+                ("first-only", XmlEnvelopePlacement.Trailing, StableOrderingKey.FromSource(0, 9)),
+                ("second-only", XmlEnvelopePlacement.Trailing, StableOrderingKey.FromSource(1, 3)),
+            ]);
+    }
+
+    /// <summary>
+    /// A cross-format collision replaces the old plan wholesale, but Section 8.5 guarantees that
+    /// the incoming view already carries the complete source envelope.
+    /// </summary>
+    [Test]
+    public void CrossFormatReplacementCarriesTheIncomingCompleteEnvelope()
+    {
+        var diagnostics = new DiagnosticBuffer();
+        var first = Envelope("first", XmlEnvelopePlacement.Leading, source: 0, item: 1);
+        var second = Envelope("second", XmlEnvelopePlacement.Trailing, source: 1, item: 9);
+
+        var folded = Fold(
+            diagnostics,
+            WithEnvelope(
+                Contribution("a", "out.conf", "a", "old", declarationOrder: 0),
+                Envelope("stale", XmlEnvelopePlacement.Leading, source: 0, item: 0)),
+            WithEnvelope(
+                Contribution("b", "out.conf", "b", "new", declarationOrder: 1, format: OutputFormat.Xml),
+                first,
+                second));
+
+        folded.Length.ShouldBe(1);
+        folded[0].View.Format.ShouldBe(OutputFormat.Xml);
+        folded[0].View.XmlEnvelopeComments.ShouldBe([first, second]);
     }
 
     /// <summary>
@@ -278,5 +348,63 @@ public class DestinationFoldTests
 
         folded.Length.ShouldBe(2);
         folded.Select(contribution => contribution.Key.DeclarationOrder).ShouldBe([0L, 1L]);
+    }
+
+    /// <summary>
+    /// Portable comparison can assert the descendant field but intentionally ignores localized
+    /// prose. This gate therefore pins the rule that one descendant behind several ancestors names
+    /// the longest conflicting ancestor in its message.
+    /// </summary>
+    [Test]
+    public void APrefixCollisionNamesTheLongestConflictingAncestor()
+    {
+        var diagnostics = new DiagnosticBuffer();
+
+        PlanningPhase.FoldDestinationCollisions(
+            [
+                Contribution("root", "A", "x", "0", declarationOrder: 0),
+                Contribution("branch", "a/b", "x", "1", declarationOrder: 1),
+                Contribution("leaf", "A/B/c.json", "x", "2", declarationOrder: 2),
+            ],
+            new GlobalBudget(new ResourceLimits()),
+            diagnostics).Faulted.ShouldBeTrue();
+
+        var leaf = diagnostics.Drain().Single(diagnostic =>
+            diagnostic.Destination == "A/B/c.json");
+
+        leaf.Code.ShouldBe("PATH001");
+        leaf.Message.ShouldContain("'a/b'");
+        leaf.Message.ShouldNotContain("'A' is");
+    }
+
+    /// <summary>
+    /// Section 24 orders destination-only diagnostics by the Section 21.3 publication index. A
+    /// cross-format replacement resets that index, so portability-key order and the earliest
+    /// contribution key are both insufficient.
+    /// </summary>
+    [Test]
+    public void PrefixCollisionDiagnosticsUsePostFoldPublicationOrder()
+    {
+        var diagnostics = new DiagnosticBuffer();
+
+        PlanningPhase.FoldDestinationCollisions(
+            [
+                Contribution("a-old", "a/leaf", "x", "0", declarationOrder: 0),
+                Contribution("a-root", "a", "x", "1", declarationOrder: 1),
+                Contribution("b-leaf", "b/leaf", "x", "2", declarationOrder: 2),
+                Contribution("b-root", "b", "x", "3", declarationOrder: 3),
+                Contribution(
+                    "a-new",
+                    "a/leaf",
+                    "x",
+                    "4",
+                    declarationOrder: 4,
+                    format: OutputFormat.Ini),
+            ],
+            new GlobalBudget(new ResourceLimits()),
+            diagnostics).Faulted.ShouldBeTrue();
+
+        diagnostics.Drain().Select(diagnostic => diagnostic.Destination)
+            .ShouldBe(["b/leaf", "a/leaf"]);
     }
 }

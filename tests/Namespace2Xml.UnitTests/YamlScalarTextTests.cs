@@ -265,7 +265,7 @@ public class YamlScalarTextTests
     /// <param name="expected">The double-quoted spelling.</param>
     [TestCase("a\"b", "\"a\\\"b\"")]
     [TestCase("a\\b", "\"a\\\\b\"")]
-    [TestCase("a\tb", "\"a\\tb\"")]
+    [TestCase("a\tb", "\"a\\tb\"", TestName = "ATabUsesTheShortEscapeInDoubleQuotedYaml")]
     [TestCase("a\nb", "\"a\\nb\"")]
     [TestCase("a\rb", "\"a\\rb\"")]
     public void TheDoubleQuotedFormEscapesWhatWouldEndIt(string text, string expected) =>

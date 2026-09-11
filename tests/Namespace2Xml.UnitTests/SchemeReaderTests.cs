@@ -76,26 +76,36 @@ public class SchemeReaderTests
     /// Section 15 lists eighteen recognized spellings. Recognizing a subset would silently discard
     /// configuration, which Section 15 makes an error precisely so that it cannot happen.
     /// </summary>
-    [TestCase("output", SchemeDirective.Output)]
-    [TestCase("filename", SchemeDirective.Filename)]
-    [TestCase("root", SchemeDirective.Root)]
-    [TestCase("delimiter", SchemeDirective.Delimiter)]
-    [TestCase("namespacedelimiter", SchemeDirective.Delimiter)]
-    [TestCase("key", SchemeDirective.Key)]
-    [TestCase("type", SchemeDirective.Type)]
-    [TestCase("substitute", SchemeDirective.Substitute)]
-    [TestCase("xmloptions", SchemeDirective.XmlOutputOptions)]
-    [TestCase("xmlinputoptions", SchemeDirective.XmlInputOptions)]
-    [TestCase("xmloutputoptions", SchemeDirective.XmlOutputOptions)]
-    [TestCase("jsoninputoptions", SchemeDirective.JsonInputOptions)]
-    [TestCase("jsonoutputoptions", SchemeDirective.JsonOutputOptions)]
-    [TestCase("yamlinputoptions", SchemeDirective.YamlInputOptions)]
-    [TestCase("yamloutputoptions", SchemeDirective.YamlOutputOptions)]
-    [TestCase("inioutputoptions", SchemeDirective.IniOutputOptions)]
-    [TestCase("merge", SchemeDirective.Merge)]
-    [TestCase("filemerge", SchemeDirective.FileMerge)]
-    public void EveryRecognizedDirectiveIsRecognized(string name, SchemeDirective expected) =>
-        Entries($"{name}=x").ShouldHaveSingleItem().Directive.ShouldBe(expected);
+    [Test]
+    public void EveryRecognizedDirectiveIsRecognized()
+    {
+        (string Name, SchemeDirective Directive)[] expected =
+        [
+            ("output", SchemeDirective.Output),
+            ("filename", SchemeDirective.Filename),
+            ("root", SchemeDirective.Root),
+            ("delimiter", SchemeDirective.Delimiter),
+            ("namespacedelimiter", SchemeDirective.Delimiter),
+            ("key", SchemeDirective.Key),
+            ("type", SchemeDirective.Type),
+            ("substitute", SchemeDirective.Substitute),
+            ("xmloptions", SchemeDirective.XmlOutputOptions),
+            ("xmlinputoptions", SchemeDirective.XmlInputOptions),
+            ("xmloutputoptions", SchemeDirective.XmlOutputOptions),
+            ("jsoninputoptions", SchemeDirective.JsonInputOptions),
+            ("jsonoutputoptions", SchemeDirective.JsonOutputOptions),
+            ("yamlinputoptions", SchemeDirective.YamlInputOptions),
+            ("yamloutputoptions", SchemeDirective.YamlOutputOptions),
+            ("inioutputoptions", SchemeDirective.IniOutputOptions),
+            ("merge", SchemeDirective.Merge),
+            ("filemerge", SchemeDirective.FileMerge),
+        ];
+
+        foreach (var (name, directive) in expected)
+        {
+            Entries($"{name}=x").ShouldHaveSingleItem().Directive.ShouldBe(directive, name);
+        }
+    }
 
     /// <summary>Section 15: "Unknown directives are blocking errors."</summary>
     [Test]
