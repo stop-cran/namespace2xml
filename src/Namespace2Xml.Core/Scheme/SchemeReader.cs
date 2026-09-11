@@ -118,7 +118,7 @@ public static class SchemeReader
                     break;
 
                 default:
-                    throw new InvalidOperationException(
+                    throw new PipelineInvariantException(
                         $"Section 8.1 classifies records into the {nameof(NamespaceRecordKind)} "
                         + $"members; '{record.Kind}' is not one of them.");
             }

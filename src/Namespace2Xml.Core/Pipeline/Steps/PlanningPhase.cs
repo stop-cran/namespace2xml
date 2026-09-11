@@ -361,7 +361,7 @@ public static class PlanningPhase
                     // compiler, not a user-caused condition, and Section 6.3 forbids it reaching
                     // the stream as a runtime exception, but reaching this branch at all would
                     // already be a violation of that contract.
-                    throw new InvalidOperationException(
+                    throw new PipelineInvariantException(
                         $"'InstanceOptions' carries the unexpected directive '{winner.Directive}'.");
             }
         }
@@ -1006,33 +1006,6 @@ public static class PlanningPhase
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(diagnostics);
-
-        if (!configuration.Deferred.IsEmpty)
-        {
-            var entry = configuration.Deferred[0];
-
-            // Two things defer an entry, and they need different explanations. A reference that
-            // failed to resolve leaves its value unresolved, and Section 15.4 lets the phase finish
-            // its independent checks first; that one cannot reach *here*, because the scheme phase
-            // aborts on the blocking diagnostic. The compiler's default arm defers anything its
-            // switch does not route, which is unreachable only for as long as every recognized
-            // directive is routed -- so the arm exists to catch a directive added without a
-            // compile route, and must name that directive rather than blame a reference nobody
-            // wrote. Both are written out rather than asserted because the reachability is a
-            // property of another component.
-            return StepOutcome.Unsupported<ImmutableArray<OutputView>>(
-                entry.Value.ContainsReference
-                    ? new UnsupportedCapability(
-                        "references in scheme values",
-                        $"'{entry.Declaration}' in {entry.Source} contains a reference that step 1 "
-                        + "did not resolve.",
-                        "\u00A715.1")
-                    : new UnsupportedCapability(
-                        $"the '{SchemeDirectives.CanonicalSpelling(entry.Directive)}' scheme directive",
-                        $"'{entry.Declaration}' in {entry.Source} is recognized by Section 15 and "
-                        + "this build compiles no configuration from it.",
-                        "\u00A715.1"));
-        }
 
         if (configuration.Transforms.IsEmpty)
         {

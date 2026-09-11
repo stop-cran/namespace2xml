@@ -101,7 +101,7 @@ package invalid. That message is misleading for this package: use the .NET 10 SD
 
 ```bash
 # controller, for the filter
-dotnet tool install --global namespace2xml --prerelease
+dotnet tool install --global namespace2xml
 ansible-galaxy collection install stop_cran.namespace2xml
 ```
 
@@ -109,17 +109,13 @@ ansible-galaxy collection install stop_cran.namespace2xml
 # each managed node, for the module
 - name: Install the transformer on the node
   ansible.builtin.command:
-    cmd: dotnet tool install --global namespace2xml --prerelease
+    cmd: dotnet tool install --global namespace2xml
     creates: ~/.dotnet/tools/namespace2xml
 ```
 
-`--prerelease` is not optional today. The 3.0 line is still on `3.0.0-preview`, and without that
-flag NuGet resolves the newest *stable* version, which is 2.4.0. That build accepts the same
-arguments and the same scheme spellings, so nothing would look wrong — it would simply render
-under the previous contract. Both plugins therefore read `--version` and **refuse** any binary
-that does not report a `contract-bundle`, rather than proceeding and producing a document whose
-rules you did not choose. When 3.0.0 is tagged stable the flag becomes unnecessary and this
-paragraph goes away.
+Both plugins read `--version` and **refuse** any binary that does not report a `contract-bundle`,
+rather than proceeding under the previous 2.x contract. Pin the tool version in controlled
+environments when a collection upgrade must not also change the transformation contract.
 
 Both plugins find the binary at `$NAMESPACE2XML`, then on `PATH`, then in the dotnet global-tools
 directory. That last step is not redundant, and it is load-bearing for a different reason on each
@@ -626,10 +622,15 @@ When the base document is a file on the node, the [`render` module](#the-render-
 
 ## Versioning
 
-This collection is at 3.0.0 while the tool is at 3.x. They are separate artefacts with separate
+This collection is at 3.0.2 while the tool is at 3.x. They are separate artefacts with separate
 compatibility promises: the collection pins no tool version, and the two are released under
 different tags — `v3.*` for the tool, `ansible-v*` for this collection. The numbers matching at
 3.0 is a coincidence of timing, not a rule.
+
+Collection 3.0.1 hardened staged-plaintext cleanup after unreachable hosts, classified affected
+recaps as failed, corrected directory mode handling, and rejected unsafe symlink paths. Collection
+3.0.2 moved documentation links to immutable release targets and states the .NET 10 SDK floor
+required by source-build installation.
 
 2.0.0 rather than 1.1.0 because 1.0.0 documented, as a requirement, that target nodes need neither
 .NET nor the tool. The module makes that false for any play that uses it, and a promise about what
@@ -711,7 +712,7 @@ in CI.
 
 ## Found a problem?
 
-Good — that is what the preview is for, and the project is built to absorb it.
+Good — the project is built to absorb field evidence and evolve without guessing.
 
 Every diagnostic these plugins surface carries a **stable code** and a **specification anchor**
 naming the clause it enforces, so a disagreement can be reported precisely rather than described.

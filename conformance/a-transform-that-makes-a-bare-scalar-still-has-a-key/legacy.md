@@ -53,8 +53,8 @@ an INI value — that rule is real and is not what this fixture is about.
 ## Not asserted
 
 JSON, YAML and XML. Section 14.1 gives JSON and YAML a different answer for the bare-scalar shape —
-they "may emit a scalar document" — and all three formats are declined in this preview with exit
-`70`, so the item cannot close until Section 19.3, 19.5 and the YAML writer land.
+they "may emit a scalar document" — and this fixture does not request those output formats.
+Their scalar-document behavior is covered by dedicated cases instead.
 
 The empty root selector. Section 14.1 requires an explicit `root` there rather than falling back to a
 selector part, because there is no final concrete selector part to fall back to. That is a different

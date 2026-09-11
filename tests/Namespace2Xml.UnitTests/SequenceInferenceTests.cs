@@ -413,7 +413,5 @@ public sealed class SequenceInferenceTests
         [.. result.Diagnostics.Select(d => d.Code)];
 
     private static string DescribeFailure(TransformationResult result) =>
-        result.Unsupported is { } unsupported
-            ? $"declined: {unsupported.Capability} \u2014 {unsupported.Detail}"
-            : "the run did not succeed";
+        $"the run did not succeed (state {result.State}, exit {result.ExitCode})";
 }

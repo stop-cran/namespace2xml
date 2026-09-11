@@ -92,8 +92,8 @@ commit accidentally, rather than merely discouraged.
 ## 3. The change protocol (binding)
 
 Seven rules. A rule with no enforcer is decoration, so each one names its enforcer — and, where the
-enforcer does not exist yet, says so in the same breath. [KNOWN-LIMITS.md §4](KNOWN-LIMITS.md#4-documented-but-not-yet-enforced)
-is the single list of which gates are live; this section must never contradict it.
+enforcer does not exist yet, says so in the same breath. `KNOWN-LIMITS.md` is reserved for current
+runtime and interoperability boundaries; development-process enforcement is stated here.
 
 ### C1 — Requirement and evidence first
 
@@ -107,7 +107,7 @@ carry the observation.
 manual:** CI verifies that every named acceptance item exists, that every authored assertion owns
 exactly one fixture artifact or exact gate observation, and that every `required` item has evidence,
 but nothing yet reads the acceptance items out of the pull request body, so the "fails before" half
-is reviewer-verified. Tracked in KNOWN-LIMITS §4.
+is reviewer-verified.
 
 A pull request labelled `refactor-only` is exempt from adding evidence, and in exchange must leave
 the entire observable corpus and direct-gate observations unchanged and carry a maintainer
@@ -121,7 +121,7 @@ diagnostic occurrence carries the anchor it actually enforces, not a nearby one.
 *Enforced by:* registry and schema tests constrain the permitted anchors, and fixture comparison
 checks the occurrence-level anchor whenever a fixture pins one. **Not machine-checked:** the
 citation itself is a required field in the pull request template, and a template field is a prompt,
-not a gate. Tracked in KNOWN-LIMITS §4.
+not a gate.
 
 ### C3 — Specification decision precedes implementation acceptance
 
@@ -164,7 +164,7 @@ that merely passes through them — re-run the specification §21 fixtures befor
 
 *Enforced by:* **nothing yet.** The §21 publication fixtures do not exist until publication is
 implemented, so there is no job to run them first and no CI job by that name in any workflow. Until
-that milestone lands, C6 is a reviewer obligation. Tracked in KNOWN-LIMITS §4. Stating it now is
+that milestone lands, C6 is a reviewer obligation. Stating it now is
 deliberate: the rule has to precede the code it governs, or the first publication change will be
 written without it.
 
@@ -193,7 +193,7 @@ A test, a gate or an assertion earns trust only by being shown to reject somethi
   many fixtures cite the item.
 
 *Enforced by:* **nothing machine-checkable, and it probably cannot be.** Both limbs are reviewer
-obligations, and the second is the harder one to see. Tracked in KNOWN-LIMITS §4.
+obligations, and the second is the harder one to see.
 
 **Why the second limb needed writing down.** Acceptance item 15 claimed for months that "no external
 or network resource is retrieved". Every fixture input declared a DTD, which is refused before any
@@ -258,7 +258,7 @@ becomes a denial-of-service attack on the maintainer, and the rational response 
 which closes the loop this project depends on.
 
 **Grep-reconstructible anchors** are what let reports survive the repository moving underneath them.
-During the preview the specification will be revised repeatedly; a quoted phrase still finds its
+As the specification is revised, a quoted phrase still finds its
 clause afterwards, and `line 1843` does not.
 
 ### 4.3 Draft, then submit
@@ -548,8 +548,8 @@ part that should stay soft.
 cover, each with the route to report it.
 
 That file exists because a document claiming completeness cannot receive feedback: every gap reads as
-user error, and the reporter concludes they are holding it wrong. During the preview the list is
-long, and that is correct.
+user error, and the reporter concludes they are holding it wrong. Stable releases keep the list
+short by moving resolved history to `CHANGELOG.md`.
 
 ---
 
@@ -564,10 +564,11 @@ unreadable and then unread, so each revision must say what it dropped.
 
 ### 9.1 Publishing
 
-A release is a **tag**, and nothing else. `git tag v<version> && git push origin v<version>` on a
-commit whose `<Version>` matches the tag exactly; the workflow refuses the tag otherwise. There is
-no manual dispatch and no publish on push, because 2.x published on every push to master and that
-is how a half-finished thought reaches other people's build servers.
+A release is a **signed annotated tag**, and nothing else. The tag must point to the current
+`master` commit, its signature must validate against fingerprint
+`CEF2B1528A812CC3D0BCBC32AD3E63ADB89CAE86`, and `<Version>` must match the tag exactly. There is no
+manual dispatch and no publish on push, because 2.x published on every push to master and that is
+how a half-finished thought reaches other people's build servers.
 
 Publishing is **irreversible**. nuget.org does not allow a version to be deleted or replaced, only
 unlisted, so a wrong tag is permanent and the next number is the only remedy. Read the run before
@@ -578,9 +579,30 @@ The moving parts, so nobody has to rediscover them:
 | Part | Value | Why it is like that |
 |---|---|---|
 | Credential | none stored — nuget.org **trusted publishing** | The workflow proves its identity with a GitHub OIDC token and receives a key valid for one hour. There is no long-lived secret to leak, rotate, or forget. `NuGet/login@v1` runs immediately before the push because each token buys exactly one key. |
+| Tag verification key | environment secret `RELEASE_SIGNING_PUBLIC_KEY` | The armored public key is imported into an isolated keyring and must contain the pinned fingerprint above. The secret is public key material, but using an environment secret keeps personal UIDs out of the repository. |
 | Trust policy | owner `stop-cran`, repo `namespace2xml`, workflow `release.yml` | Registered on nuget.org, and it names the **workflow file**. Renaming `release.yml` silently revokes the ability to publish; change the policy first. |
 | Environment | `nuget`, restricted to `v3.*` tags | The workflow's own trigger already says tags only; the environment says it again where a workflow edit cannot reach. Add required reviewers here if you want a human gate, and name `nuget` in the nuget.org policy to require it. |
-| Order | verify → pack → check contents → check symbols reach source → install → check `--version` → follow every printed link → attest → exchange token → push | Everything cheap and reversible happens before the one step that is neither. |
+| Required workflow proofs | CI `327594363`; Ansible `337970278` | Both must have a successful `push` run on `master` for the exact tag target. A green run for another commit or event is not accepted. |
+| Order | verify tag/master/workflows → inspect retained candidate and public state → pack once on attempt 1 → run every candidate gate → compare any existing public bytes → hash and upload candidate → reverify the tag and attest package and symbols → exchange token only for absent artifacts → publish → compare all served payloads → stable install/smoke → create or reconcile the GitHub release | Everything cheap and reversible happens before publication, and every later step names the immutable candidate it is reconciling. |
+
+The first attempt requires the NuGet package, symbol package, and GitHub release all to be absent.
+It uploads the candidate package, symbols, hashes, source identity, and issue #24 evidence as one
+immutable Actions artifact. A rerun of the same workflow run finds that artifact by its run-bound
+name, pins its artifact ID, and does not rebuild. Existing public artifacts are accepted only after
+comparison with those candidate bytes **before** any missing counterpart is pushed; any mismatch
+is fatal. `--skip-duplicate` is deliberately forbidden.
+
+nuget.org can add or replace `.signature.p7s` when repository-signing a package. The served-artifact
+gate records whole-file hashes and, when those differ, requires every non-signature ZIP entry to
+have the exact candidate name, length, and SHA-256. No other archive difference is accepted. GitHub
+release assets must be whole-file byte-identical to the candidate.
+
+These boundaries are executable. `tools/test-compare-nuget-package.ps1` mutates payload, signature,
+archive metadata, duplicate entries, and ZIP structure; `tools/test-verify-release-candidate.ps1`
+mutates the retained file set, manifest, hashes, metadata, and issue #24 evidence; and
+`tools/test-verify-nuget-publication.ps1` proves that only HTTP 404 propagation lag is retried while
+HTTP 5xx and transport failures stop immediately. Push CI runs all three against its packed
+artifact.
 
 The link check exists because `--version` reports a `specification-sha256` and a URL, and those are
 only worth printing if the URL serves bytes that hash to that value. It fetches the specification
@@ -623,15 +645,18 @@ commit it points at. In order:
    closes the placeholder set, so there is deliberately no `${version}`: the expected text is
    written out, and updating it is part of cutting the release. Forgetting this fails
    `dotnet test`, which is the point.
-4. **Update the published-bundle list in the `KNOWN-LIMITS.md` preamble.** Readers use it to decide
-   whether an entry marked *(resolved)* applies to the binary they are running, and an entry that
-   names no bundle cannot answer that.
-5. **Run the full loop, push the commit, and wait for CI to be green.** The tag builds the same
-   commit; discovering a failure after the tag is pushed costs a version number, permanently.
-6. **Then tag.**
+4. **Re-read `KNOWN-LIMITS.md`.** Update its contract-bundle header and remove anything the release
+   resolves. The stable file lists only current boundaries; resolved preview history belongs in
+   `CHANGELOG.md`.
+5. **Run the full loop, merge to `master`, and wait for both CI and Ansible to be green on the exact
+   merge commit.** The workflow rejects evidence from another commit, branch, or event.
+6. **Create and push the signed annotated tag.** Verify the signing key before pushing:
+   `git tag -s -a v<version> -m "namespace2xml <version>"`, then
+   `git verify-tag v<version>`, then `git push origin v<version>`.
 
-The release workflow installs the packed tool and runs **the whole conformance corpus against that
-artifact** rather than against the build output. Packing, the NuGet layout, the generated
+The release workflow installs the packed tool, runs **the whole conformance corpus against that
+artifact**, and executes issue #24's exact real-world XML gate rather than judging the build output.
+Packing, the NuGet layout, the generated
 `runtimeconfig` and `deps` files, the tool shim and the apphost all sit between the two, and a
 release build normalizes source paths, so the assembly inside the package has never been the
 assembly the corpus judged. It runs before anything is pushed to nuget.org: a failure costs a retag

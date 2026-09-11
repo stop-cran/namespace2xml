@@ -33,7 +33,7 @@
   the correct behaviour of the two clauses rather than trapping the specific defect of
   admitting comments to the index. A separate fixture whose scheme creates a genuine
   alias competition between an element name and a comment position would be needed to
-  trap it, and this preview does not carry one.
+  trap it, and the current corpus does not carry one.
 - The difference is intentional: an XML comment is deliberately not a value, and using a
   comment as a candidate for reference resolution would let a document author change what
   a live value resolves to by adding or removing an annotation. The 3.0 reader also

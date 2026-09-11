@@ -4868,7 +4868,7 @@
             "kind": "fixture",
             "name": "cli-help-outranks-version",
             "artifact": "expected-stdout.txt",
-            "observation": "Output contains help markers and explicitly does not contain `version: 3.0.0-preview.3` or `contract-bundle: ${contract-bundle}`."
+            "observation": "Output contains help markers and explicitly does not contain `version: 3.0.0` or `contract-bundle: ${contract-bundle}`."
           }
         },
         {

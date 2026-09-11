@@ -45,7 +45,7 @@
 
 .EXAMPLE
     pwsh -NoProfile -File tools/verify-sourcelink.ps1
-    pwsh -NoProfile -File tools/verify-sourcelink.ps1 -Version 3.0.0-preview.4
+    pwsh -NoProfile -File tools/verify-sourcelink.ps1 -Version 3.0.0
 #>
 [CmdletBinding()]
 param(
@@ -213,7 +213,10 @@ try {
                     continue
                 }
 
-                $target = $pattern.Replacement + $name.Substring($pattern.Prefix.Length)
+                # Portable PDB document names retain the build host's separator, but SourceLink
+                # replacements are URLs. A Windows-built package must not request backslash paths.
+                $relativeName = $name.Substring($pattern.Prefix.Length).Replace('\', '/')
+                $target = $pattern.Replacement + $relativeName
                 $status = Get-Document -Url $target -Path $scratch
                 if ($status -ne '200') {
                     $note = if ($transient -contains $status) { ' (still transient after five attempts)' } else { '' }

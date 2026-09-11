@@ -7,8 +7,7 @@ enforced. The material here is the part that should stay soft: moving it into th
 it, and it is exactly the part that should keep learning from use.
 
 > **Status:** partial. Sections 1–3 and 6 are written from practice; the multi-format worked
-> pipelines are still thin. See [KNOWN-LIMITS.md](../KNOWN-LIMITS.md) §5. If you worked something out
-> yourself that should have been here, that is a
+> pipelines are still thin. If you worked something out yourself that should have been here, that is a
 > [usage gap report](https://github.com/stop-cran/namespace2xml/issues/new?template=usage_gap.yml)
 > and it is the most valuable kind.
 

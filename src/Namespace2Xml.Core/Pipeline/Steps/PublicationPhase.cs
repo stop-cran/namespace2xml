@@ -184,7 +184,7 @@ public static class PublicationPhase
 
         if (view.Format is not (OutputFormat.Json or OutputFormat.Yaml))
         {
-            throw new InvalidOperationException(
+            throw new PipelineInvariantException(
                 $"step 14 admitted {view.Format}, which has no serializer.");
         }
 

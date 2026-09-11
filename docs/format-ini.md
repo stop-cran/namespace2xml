@@ -567,8 +567,9 @@ Go's `gopkg.in/ini.v1` are not named here and are not tested; each has its own v
 comments and case. If you are aiming this tool at one of them, treat the two envelopes above as a
 starting point rather than an answer, and test your own reader against the emitted file.
 
-This discharges acceptance item 28 for both named parsers. `KNOWN-LIMITS.md` §2.1 records what
-remains, which is the unnamed parsers and the five files no named parser reads.
+This discharges acceptance item 28 for both named parsers. The
+[interoperability envelope](../KNOWN-LIMITS.md#interoperability-envelopes) records what remains:
+unnamed parsers and the five files no named parser reads.
 ## Traps
 
 - **`-i config.ini` is not an INI reader.** §7.1 sends `.ini` down the namespace-profile
@@ -599,8 +600,9 @@ remains, which is the unnamed parsers and the five files no named parser reads.
 - **`PortableIni1` is verified against two parsers, but not every file against both.** Python's
   `configparser` and npm's `ini`, each under its own configuration and envelope, both checked on
   every CI run. Thirteen of the corpus's 26 emitted `.ini` files are read by both, eight by `ini`
-  alone, and five by neither. No other parser is named or tested; `KNOWN-LIMITS.md` §2.1 records
-  what that leaves open.
+  alone, and five by neither. No other parser is named or tested; the
+  [interoperability envelope](../KNOWN-LIMITS.md#interoperability-envelopes) records what that
+  leaves open.
 
 ## Open questions
 

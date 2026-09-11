@@ -17,7 +17,7 @@ Expect an acknowledgement within seven days.
 
 | Version | Supported |
 |---|---|
-| `3.0.0-preview.*` | Yes, on the latest preview only |
+| `3.0.x` | Yes |
 | `2.x` | No |
 
 The 2.x line is superseded by the 3.0 rewrite and receives no fixes.
@@ -54,10 +54,11 @@ Not a vulnerability:
 
 ## Supply chain
 
-Releases are published only from tags, never from a branch, and only from the `release` workflow.
-Each release carries [build provenance attestation](https://github.com/stop-cran/namespace2xml/attestations),
-so a package can be traced to the exact workflow run and commit that produced it. Symbol packages
-are published alongside, and the build is deterministic and source-linked.
+Releases are published only from signed annotated tags whose commit is the tested `master` head,
+never from a branch, and only from the `release` workflow. Each package and symbol package carries
+[build provenance attestation](https://github.com/stop-cran/namespace2xml/attestations), so both
+artifacts can be traced to the immutable workflow candidate and exact commit. Published package
+payloads are compared with that candidate after nuget.org has served them.
 
 If you obtain a `namespace2xml` package whose provenance does not verify, treat it as hostile and
 report it here.

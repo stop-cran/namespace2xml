@@ -11,7 +11,7 @@
     <Description>Deterministic configuration transformer. Merges and templates namespace profiles into XML, JSON, YAML, INI and shell outputs from a single normative specification. Every diagnostic carries a stable code and a specification anchor, and --diagnostics-format json makes the whole diagnostic stream machine-readable for automation and AI agents.</Description>
     <PackageTags>configuration;codegen;xml;json;yaml;ini;templating;deterministic;ai-agent;dotnet-tool</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Preview of the 3.0 rewrite against the normative specification in docs/specification.md. See CHANGELOG.md.</PackageReleaseNotes>
+    <PackageReleaseNotes>Stable 3.0 specification-first rewrite with deterministic multi-format output, machine-readable diagnostics, and a complete offline contract. See CHANGELOG.md.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

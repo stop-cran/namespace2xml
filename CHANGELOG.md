@@ -13,6 +13,12 @@ independently.
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-09-11
+
+### Contract
+
+- `contract-bundle` `r118+33da7b7912fc`.
+
 ### Added
 
 - **XML comments outside the document element are preserved as unaddressable envelope metadata.**
@@ -35,11 +41,48 @@ independently.
   by the clean-context agent report that rated specification navigation 2/5 and found agents
   repeatedly downloading and grepping the 307 KB contract. [#128](https://github.com/stop-cran/namespace2xml/issues/128).
 
+- **Stable publication is bound to one signed-tag candidate.** The release workflow accepts only an
+  annotated tag signed by the pinned release key and pointing at the exact green `master` commit,
+  packs once on attempt 1, retains that package and symbols with hashes and source/workflow
+  metadata, attests both artifacts, and reconciles partial publication without rebuilding. Public
+  NuGet payloads must be byte-identical except for a repository-signature entry, every GitHub
+  release asset must be whole-file identical, an existing public artifact is compared before its
+  missing counterpart can be pushed, and stable installation plus a smoke transformation pass
+  before GitHub release publication. CI deliberately mutates the package comparator, retained
+  candidate, and publication transport to prove those gates fail closed.
+  [#25](https://github.com/stop-cran/namespace2xml/issues/25).
+
+- **Issue #24 is now a package-bound permanent acceptance gate.** The release installs the exact
+  retained `.nupkg` from a cleared local-only source and runs the reporter's pinned 33,002-byte
+  `logback.xml` outside the checkout. It checks process channels, diagnostics, element identity,
+  count and parentage, comments, and the complete output bytes, records evidence tied to the package
+  hash and commit, and proves the oracle red with a controlled identity mutation.
+  [#24](https://github.com/stop-cran/namespace2xml/issues/24).
+
+- **Section 26 traceability is enforced as a generated completeness contract.** Every normative
+  clause is mapped to implementation and conformance evidence; CI rejects missing, stale, or
+  non-executable links and preserves measured legacy-differential evidence separately from the
+  stable contract. [#35](https://github.com/stop-cran/namespace2xml/issues/35).
+
 ### Changed
 
 - Updated `Microsoft.SourceLink.GitHub` to 10.0.401 after
   [GHSA-23fw-v26w-5fgq](https://github.com/advisories/GHSA-23fw-v26w-5fgq) made the previous
   transitive `Microsoft.Build.Tasks.Git` dependency fail the repository's warning-as-error restore.
+
+- Promoted package, CLI help, installation guidance, conformance fixtures, Ansible integration, and
+  security/support documentation from preview identity to stable `3.0.0`. Current installation no
+  longer requires `--prerelease`; historical preview evidence remains under its original release.
+
+- Internal compiler and pipeline impossibilities now throw a narrow invariant exception instead of
+  creating a third public transformation result. Stable CLI outcomes are exit `0` or `1`; text mode
+  emits one invariant line if such a defect escapes, while JSON diagnostics remain exactly one pure
+  array with no leaked prose.
+
+### Removed
+
+- Removed the preview-only `Unsupported` result and exit `70`, together with stale tests and
+  documentation that treated implementation incompleteness as a supported runtime outcome.
 
 ## [3.0.0-preview.5] - 2026-08-20
 

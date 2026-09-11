@@ -20,11 +20,10 @@
     The annotation is what lets a *(resolved)* entry keep pointing at the work that resolved it,
     and it tells a reader which links are live work without following any of them.
 
-    The header revision is checked for the same reason. It tells a reader which build the file
-    describes, and every *(resolved)* entry is a statement about that revision rather than about
-    every binary sharing a version number -- so a stale header silently reassigns seventeen such
-    claims to a contract that never made them. Nothing regenerates it, and it had already rotted
-    from r44 to r75 before anything noticed.
+    The header version and revision are checked for the same reason. They tell a reader which build
+    the file describes, so stale identity silently reassigns its claims to a release or contract
+    that never made them. Nothing regenerates the header, and its revision had already rotted from
+    r44 to r75 before anything noticed.
 
 .PARAMETER RepositoryRoot
     Repository root. Defaults to the parent of the directory holding this script.
@@ -62,13 +61,34 @@ if (-not (Test-Path -LiteralPath $bundlePath)) {
 }
 
 $revision = (Get-Content -LiteralPath $bundlePath -Raw | ConvertFrom-Json).revision
+$propsPath = Join-Path $RepositoryRoot 'Directory.Build.props'
+if (-not (Test-Path -LiteralPath $propsPath)) {
+    Write-Error "Directory.Build.props not found at $propsPath"
+    exit 1
+}
+
+$props = [xml] (Get-Content -LiteralPath $propsPath -Raw)
+$versionNode = $props.SelectSingleNode('/Project/PropertyGroup/Version')
+if (-not $versionNode -or [string]::IsNullOrWhiteSpace($versionNode.InnerText)) {
+    Write-Error 'Directory.Build.props declares no Version.'
+    exit 1
+}
+$version = $versionNode.InnerText.Trim()
+
 $header = [regex]::Match(
-    $text, '(?m)^\*\*Describes the `v3` branch at contract bundle `(?<revision>[^`]+)`')
+    $text, '(?m)^\*\*Describes `(?<version>[^`]+)` at contract bundle `(?<revision>[^`]+)`')
 
 if (-not $header.Success) {
     Write-Error (
-        'KNOWN-LIMITS.md has no "**Describes the `v3` branch at contract bundle `...`" header. ' +
+        'KNOWN-LIMITS.md has no "**Describes `<version>` at contract bundle `...`" header. ' +
         'The revision check would pass vacuously; restore the header rather than the check.')
+    exit 1
+}
+
+if ($header.Groups['version'].Value -cne $version) {
+    Write-Host (
+        "KNOWN-LIMITS.md names version $($header.Groups['version'].Value), but " +
+        "Directory.Build.props declares $version.")
     exit 1
 }
 
@@ -79,6 +99,30 @@ if ($header.Groups['revision'].Value -ne $revision) {
         '  The contract moved and the file did not. Re-read the entries against the current ' +
         "build before updating the header: the revision is what tells a reader whether a " +
         "*(resolved)* entry applies to the binary they are running.`n")
+    exit 1
+}
+
+$numberedReferencePattern = [regex]::new(
+    'KNOWN-LIMITS\.md(?:\)|\]\([^)]+\))?[\s`*]*(?:§|section)\s*\d+(?:\.\d+)*',
+    [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+$liveDocErrors = [Collections.Generic.List[string]]::new()
+$docsRoot = Join-Path $RepositoryRoot 'docs'
+
+foreach ($document in Get-ChildItem -LiteralPath $docsRoot -Recurse -File -Filter '*.md') {
+    $content = [IO.File]::ReadAllText($document.FullName)
+    foreach ($match in $numberedReferencePattern.Matches($content)) {
+        $line = ($content.Substring(0, $match.Index) -split "`n").Count
+        $relative = [IO.Path]::GetRelativePath(
+            $RepositoryRoot,
+            $document.FullName).Replace('\', '/')
+        $display = $match.Value.Replace("`r", ' ').Replace("`n", ' ')
+        $liveDocErrors.Add(
+            "${relative}:${line}: numbered KNOWN-LIMITS.md reference is unstable: $display")
+    }
+}
+
+if ($liveDocErrors.Count -ne 0) {
+    Write-Error ($liveDocErrors -join "`n")
     exit 1
 }
 

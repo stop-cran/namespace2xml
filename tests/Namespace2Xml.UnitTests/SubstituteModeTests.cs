@@ -278,14 +278,13 @@ public class SubstituteModeTests
     }
 
     /// <summary>
-    /// Step 3 compiles the directive, so step 16 must not find it uncompiled and refuse the run.
+    /// Step 3 compiles the directive, so the later scheme compiler accepts it as already handled.
     /// </summary>
     [Test]
-    public void ACompiledDirectiveIsNotDeferred() =>
-        SchemeCompiler.Compile(
+    public void ACompiledDirectiveIsAcceptedByTheLaterCompiler() =>
+        Should.NotThrow(() => SchemeCompiler.Compile(
             SchemeReader.Read(Records("a.substitute=None"), 2, "s.properties", diagnostics).Entries,
-            diagnostics)
-            .Deferred.ShouldBeEmpty();
+            diagnostics));
 
     // ---- Section 16.7 applied to a namespace profile ---------------------------------------------
 

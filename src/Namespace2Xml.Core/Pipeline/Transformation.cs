@@ -11,7 +11,6 @@ namespace Namespace2Xml.Pipeline;
 /// <summary>What one invocation of the pipeline produced.</summary>
 /// <param name="Diagnostics">The complete Section 24 diagnostic stream.</param>
 /// <param name="State">Where the run stopped.</param>
-/// <param name="Unsupported">The capability that stopped it, when one did.</param>
 /// <param name="Published">How many destinations were written.</param>
 /// <param name="WarningPolicyTriggered">
 /// Whether the enabled Section 21.2 warning policy refused publication.
@@ -19,22 +18,19 @@ namespace Namespace2Xml.Pipeline;
 public sealed record TransformationResult(
     ImmutableArray<Diagnostic> Diagnostics,
     PipelineRunState State,
-    UnsupportedCapability? Unsupported,
     int Published,
     bool WarningPolicyTriggered = false)
 {
     /// <summary>
-    /// The Section 6.3 exit code, or <see langword="null"/> when the run declined and so decided no
-    /// outcome at all.
+    /// The Section 6.3 exit code.
     /// </summary>
     /// <remarks>
     /// Section 6.3 gives <c>0</c> to a run that completed with no blocking diagnostic and <c>1</c>
     /// to one that produced any. Warnings remain non-blocking, but the opt-in Section 21.2 policy
     /// can independently make the completed invocation fail.
     /// </remarks>
-    public int? ExitCode => State == PipelineRunState.Unsupported
-        ? null
-        : WarningPolicyTriggered || Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error) ? 1 : 0;
+    public int ExitCode =>
+        WarningPolicyTriggered || Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error) ? 1 : 0;
 }
 
 /// <summary>
@@ -289,7 +285,6 @@ public static class Transformation
         return new TransformationResult(
             run.Diagnostics.Drain(),
             run.State,
-            run.Unsupported,
             published?.Value ?? 0,
             warningPolicyTriggered);
     }

@@ -20,19 +20,19 @@ The specification is the contract; the implementation is an attempt to satisfy i
 2.4.0 left undefined is now defined, and the intentional differences are listed in
 [docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md).
 
-`3.0.0-preview.N` is a preview line. It is meant to be used, reported against, and revised. See
-[KNOWN-LIMITS.md](KNOWN-LIMITS.md) for what it does not do yet.
+`3.0.0` is the permanent release of that contract. See [KNOWN-LIMITS.md](KNOWN-LIMITS.md) for the
+deliberate boundaries of 3.0 and the contract work deferred to 3.1.
 
 ---
 
 ## Install
 
 ```
-dotnet tool install --global namespace2xml --prerelease
+dotnet tool install --global namespace2xml
 ```
 
-`--prerelease` is required while the 3.0 line is in preview; without it NuGet resolves 2.4.0, which
-takes the same arguments under the previous contract.
+The tool requires the .NET 10 SDK. On .NET 8, installation can misleadingly report that
+`DotnetToolSettings.xml` is missing and call the package invalid; install the .NET 10 SDK and retry.
 
 To use it from Ansible, add the [`stop_cran.namespace2xml`](https://galaxy.ansible.com/ui/repo/published/stop_cran/namespace2xml/)
 collection. The filter evaluates on the controller, which is where the tool is needed; target nodes
@@ -179,11 +179,7 @@ This tool is designed to be used by programs, and to be **argued with** by them.
   `WARN007` when XML formatting whitespace is normalized.
 - **Exit codes are contractual.** `0` is success, including success with warnings by default;
   `1` is failure or a `--fail-on-warning` publication refusal. Specification Section 6.3 fixes
-  those two and no others. During the `3.0.0-preview` line a third
-  code, **`70`**, means *this preview has not implemented the requested work* — the pipeline was
-  never entered, no destination was written, and nothing about the input has been judged. An agent
-  must treat `70` as "come back later", never as a failure of the configuration it supplied. It
-  disappears at `3.0.0`; a released build returns only `0` or `1`.
+  those two and no others.
 - **The specification ships inside the package**, so an agent can read the contract offline.
 - **Symbols and source link** are published alongside every release, so a stack trace resolves to
   the exact source that produced it.
@@ -226,7 +222,7 @@ the issue tracker.
 
 ## Found a problem?
 
-Good — that is what the preview is for, and the project is built to absorb it.
+Good — the project is built to absorb field evidence and evolve without guessing.
 
 Before filing, ask one question: **what would have to change so this never surprises anyone again?**
 

@@ -212,10 +212,6 @@ public sealed record InstanceOptionWinner(
 /// <param name="Outputs">The concrete output instances, in declaration order.</param>
 /// <param name="InputMerges">The literal-path input merge directives, in source order.</param>
 /// <param name="Transforms">The Section 16.5 and 16.6 path-scoped rules, in source order.</param>
-/// <param name="Deferred">
-/// Recognized directives this build does not compile. They are carried rather than dropped so the
-/// driver can refuse the run instead of silently ignoring configuration the user wrote.
-/// </param>
 /// <param name="InstanceOptions">
 /// The winning per-instance-scoped directive declarations, keyed by (selector, directive) and kept
 /// in source order for Section 15.2's cross-selector override stream. The compiler binds a winner
@@ -227,7 +223,6 @@ public sealed record SchemeConfiguration(
     ImmutableArray<OutputInstance> Outputs,
     ImmutableArray<InputMerge> InputMerges,
     ImmutableArray<TransformRule> Transforms,
-    ImmutableArray<SchemeEntry> Deferred,
     ImmutableArray<InstanceOptionWinner> InstanceOptions);
 
 /// <summary>
@@ -274,7 +269,6 @@ public static class SchemeCompiler
         // downstream, which Section 6.3 forbids as a way for a user-caused condition to surface.
         var mergeWinners = new Dictionary<SelectorKey, (SchemeEntry Entry, long Order)>();
         var transforms = ImmutableArray.CreateBuilder<TransformRule>();
-        var deferred = ImmutableArray.CreateBuilder<SchemeEntry>();
 
         for (var index = 0; index < ordered.Length; index++)
         {
@@ -307,16 +301,9 @@ public static class SchemeCompiler
                 // Section 15.1 step 1 resolves scheme-internal references before anything reads a
                 // directive value. Compiling the text as written would silently treat "${x}" as a
                 // literal file name.
-                //
-                // A wildcard is never deferred. Section 12.1 makes a '*' in a scheme value a
-                // capture substitution only where the captures are known by the time the value is
-                // read: the output-instance-scoped directives take them from the Section 14.1
-                // expansion at step 13, 'key' takes them from its own per-path match at step 16,
-                // and the two directives for which neither holds -- 'type' and 'output' -- are
-                // excluded from substitution by Section 12.1 itself, so their values arrive here
-                // as literal text and are judged by Section 16.6 and Section 16.1.
-                deferred.Add(entry);
-                continue;
+                throw new PipelineInvariantException(
+                    $"Scheme directive '{entry.Directive}' reached compilation with an "
+                    + "unresolved reference.");
             }
 
             switch (entry.Directive)
@@ -360,8 +347,8 @@ public static class SchemeCompiler
                     break;
 
                 default:
-                    deferred.Add(entry);
-                    break;
+                    throw new PipelineInvariantException(
+                        $"Scheme directive '{entry.Directive}' has no compiler implementation.");
             }
         }
 
@@ -369,7 +356,6 @@ public static class SchemeCompiler
             BuildInstances(winners, diagnostics),
             CompileInputMerges(mergeWinners, diagnostics),
             transforms.ToImmutable(),
-            deferred.ToImmutable(),
             CollectInstanceOptions(winners));
     }
 

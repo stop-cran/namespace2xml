@@ -169,9 +169,59 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - name: Resolve package version
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content -LiteralPath Directory.Build.props -Raw
+          $version = [string]$props.Project.PropertyGroup.Version
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw 'Directory.Build.props does not declare Version.'
+          }
+          "NAMESPACE2XML_VERSION=$version" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Pack the one candidate judged by every package-level acceptance gate
+        run: dotnet pack src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj -c Release -o artifacts
       - name: The corpus must pass against the packaged tool, not the build output
         shell: pwsh
-        run: pwsh -NoProfile -File tools/verify-packaged-corpus.ps1
+        run: pwsh -NoProfile -File tools/verify-packaged-corpus.ps1 -Package artifacts
+      - name: The reporter's exact issue 24 input must pass against the packaged tool
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/verify-issue-24.ps1
+          -Package artifacts
+          -EvidencePath artifacts/issue-24-evidence.json
+      - name: The issue 24 gate must reject a valid structural mutation
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/test-verify-issue-24.ps1 -Package artifacts
+      - name: The served-package comparator must enforce its exact exception boundary
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/test-compare-nuget-package.ps1
+          -Package artifacts/namespace2xml.$env:NAMESPACE2XML_VERSION.nupkg
+      - name: The retained-candidate validator must reject every controlled mutation
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/test-verify-release-candidate.ps1
+          -Package artifacts/namespace2xml.$env:NAMESPACE2XML_VERSION.nupkg
+          -SymbolPackage artifacts/namespace2xml.$env:NAMESPACE2XML_VERSION.snupkg
+      - name: Public reconciliation must retry only propagation lag
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/test-verify-nuget-publication.ps1
+          -Package artifacts/namespace2xml.$env:NAMESPACE2XML_VERSION.nupkg
+          -SymbolPackage artifacts/namespace2xml.$env:NAMESPACE2XML_VERSION.snupkg
+      - name: Release-boundary tag identity must reject controlled mutations
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/test-verify-release-tag.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue-24-evidence-${{ runner.os }}
+          path: artifacts/issue-24-evidence.json
 
   # Section 24 requires byte-identical output for identical inputs. A tool that only claims
   # determinism is not determinate; this job measures it.
@@ -279,7 +329,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --quiet --disable-pip-version-check PyYAML
-          python -m unittest discover -s tools/tests -p 'test_sync_*.py'
+          python -m unittest discover -s tools/tests -p 'test_*.py'
       - name: Regenerate specification navigation
         run: pwsh -NoProfile -File tools/sync-specification-navigation.ps1
       - name: Regenerate the diagnostics registry

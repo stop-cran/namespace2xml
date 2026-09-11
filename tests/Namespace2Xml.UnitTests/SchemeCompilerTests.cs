@@ -453,16 +453,30 @@ public class SchemeCompilerTests
 
     /// <summary>
     /// Section 15.1 step 1 resolves scheme-internal references before any directive value is read.
-    /// A value carrying one is therefore not compiled here; compiling the text as written would
-    /// treat the reference's spelling as a literal file name.
+    /// A value carrying one is therefore an internal pipeline invariant failure here: compiling
+    /// the text as written would treat the reference's spelling as a literal file name.
     /// </summary>
     [Test]
-    public void AReferenceBearingValueIsNotCompiled()
-    {
-        var configuration = Compile("output=namespace\nfilename=${a.b}");
+    public void AReferenceBearingValueCannotReachCompilation() =>
+        Should.Throw<PipelineInvariantException>(
+            () => Compile("output=namespace\nfilename=${a.b}"));
 
-        configuration.Outputs.ShouldHaveSingleItem().Filename.ShouldBeNull();
-        configuration.Deferred.ShouldHaveSingleItem().Directive.ShouldBe(SchemeDirective.Filename);
+    /// <summary>
+    /// Every directive recognized by the reader must have a compiler implementation. A future enum
+    /// member omitted from the compiler is an implementation defect, not a third public outcome.
+    /// </summary>
+    [Test]
+    public void AnUnhandledDirectiveCannotBeSilentlyIgnored()
+    {
+        var read = SchemeReader.Read(
+            Records("output=namespace"), 2, "s.properties", diagnostics);
+        var entry = read.Entries.ShouldHaveSingleItem() with
+        {
+            Directive = (SchemeDirective)int.MaxValue,
+        };
+
+        Should.Throw<PipelineInvariantException>(
+            () => SchemeCompiler.Compile([entry], diagnostics));
     }
 
     /// <summary>
@@ -471,23 +485,19 @@ public class SchemeCompilerTests
     /// text, and Section 16.6 closes it to a keyword set that does not contain "arr*y".
     /// </summary>
     /// <remarks>
-    /// An unresolved reference is now the only thing a value can carry that this step declines to
-    /// compile, so nothing here may be deferred. Deferring the entry instead would carry it to a
-    /// step that cannot judge a keyword set either, and Section 22 fixes the rejection in this
-    /// phase.
+    /// A wildcard is not a reference token. Deferring the entry instead would carry it to a step
+    /// that cannot judge a keyword set either, and Section 22 fixes the rejection in this phase.
     /// </remarks>
     [Test]
     public void AnAsteriskInATypeValueIsJudgedAgainstTheKeywordSet()
     {
         Only("a.*.type=arr*y").Code.ShouldBe("SCHEME001");
-
-        Compile("a.*.type=arr*y").Deferred.ShouldBeEmpty();
+        Compile("a.*.type=arr*y").Transforms.ShouldBeEmpty();
     }
 
     /// <summary>
-    /// Every member of <see cref="SchemeDirective"/> has a compiler arm, so no well-formed
-    /// directive reaches the deferral list and refuses a run that Section 16 defines completely.
-    /// A directive added to the enum without an arm makes this red.
+    /// Every member of <see cref="SchemeDirective"/> has a compiler arm. A directive added to the
+    /// enum without an arm makes this red with <see cref="PipelineInvariantException"/>.
     /// </summary>
     [Test]
     public void EveryDirectiveHasACompilerArm()
@@ -514,7 +524,7 @@ public class SchemeCompilerTests
 
         foreach (var declaration in declarations)
         {
-            Compile(declaration).Deferred.ShouldBeEmpty(declaration);
+            Should.NotThrow(() => Compile(declaration), declaration);
         }
     }
 
@@ -529,8 +539,6 @@ public class SchemeCompilerTests
     public void ATypeDirectiveCompilesToASourceOrderedRule()
     {
         var configuration = Compile("a.type=array");
-
-        configuration.Deferred.ShouldBeEmpty();
 
         var rule = configuration.Transforms.ShouldHaveSingleItem();
 
