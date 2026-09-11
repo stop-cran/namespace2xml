@@ -173,7 +173,11 @@ jobs:
         shell: pwsh
         run: |
           [xml]$props = Get-Content -LiteralPath Directory.Build.props -Raw
-          $version = [string]$props.Project.PropertyGroup.Version
+          $versionNodes = @($props.SelectNodes('/Project/PropertyGroup/Version'))
+          if ($versionNodes.Count -ne 1) {
+            throw "Directory.Build.props must declare exactly one Version; found $($versionNodes.Count)."
+          }
+          $version = $versionNodes[0].InnerText.Trim()
           if ([string]::IsNullOrWhiteSpace($version)) {
             throw 'Directory.Build.props does not declare Version.'
           }
