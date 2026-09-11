@@ -23,7 +23,6 @@
 
 ## Not asserted
 
-- The distinction between `REFERENCE002` and `REFERENCE005` for a node carrying an explicit empty
-  container mark. `app.subtree` here has a descendant, which Section 13.1 names outright; the
-  empty-mapping case reads differently against the Section 22 registry row and is recorded in
-  `KNOWN-LIMITS.md` rather than pinned here.
+- The distinction between `REFERENCE002` and `REFERENCE005` for an explicit empty container.
+  `app.subtree` here has a descendant; empty-container references are pinned separately by
+  `a-reference-to-an-empty-container-is-not-a-value`.

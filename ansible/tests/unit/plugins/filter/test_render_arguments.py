@@ -309,7 +309,10 @@ def test_a_binary_without_a_contract_bundle_is_refused(monkeypatch, tmp_path):
     binary.write_text("two-point-x", encoding="utf-8")
     _stub_version(monkeypatch, binary, ["namespace2xml 2.4.0\n"])
 
-    with pytest.raises(n2x.Namespace2XmlError, match="--prerelease"):
+    with pytest.raises(
+        n2x.Namespace2XmlError,
+        match="dotnet tool install --global namespace2xml",
+    ):
         n2x.tool_identity()
 
 

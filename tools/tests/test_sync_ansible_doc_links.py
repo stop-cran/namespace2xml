@@ -137,6 +137,7 @@ class SpecificationCitationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "README.md"
             original = (
+                "This collection is at 3.0.2 while the tool is at 3.x.\n"
                 "[§16.10](https://github.com/stop-cran/namespace2xml/blob/"
                 "ansible-v3.0.2/docs/specification.md)\n"
                 "[`§6.4.3`](https://github.com/stop-cran/namespace2xml/blob/"
@@ -150,6 +151,11 @@ class SpecificationCitationTests(unittest.TestCase):
                     MODULE,
                     "collection_ref",
                     return_value="ansible-v3.0.2",
+                ),
+                mock.patch.object(
+                    MODULE,
+                    "collection_version",
+                    return_value="3.0.2",
                 ),
                 mock.patch.object(
                     MODULE,
@@ -220,6 +226,37 @@ class CollectionVersionTests(unittest.TestCase):
             MODULE.collection_version(non_scalar)
         with self.assertRaisesRegex(ValueError, "is not safe"):
             MODULE.collection_version(unsafe)
+
+    def test_normalizes_readme_collection_version(self) -> None:
+        data = b"This collection is at 3.0.0 while the tool is at 3.x.\n"
+        normalized, stale = MODULE.normalize_readme_collection_version(
+            "ansible/README.md",
+            data,
+            "3.0.2",
+        )
+
+        self.assertEqual(
+            b"This collection is at 3.0.2 while the tool is at 3.x.\n",
+            normalized,
+        )
+        self.assertEqual(1, len(stale))
+        self.assertEqual("collection version", stale[0].kind)
+
+    def test_readme_requires_exactly_one_current_version_sentence(self) -> None:
+        for data in (
+            b"",
+            (
+                b"This collection is at 3.0.1 while the tool is at 3.x.\n"
+                b"This collection is at 3.0.2 while the tool is at 3.x.\n"
+            ),
+        ):
+            with self.subTest(data=data):
+                with self.assertRaisesRegex(ValueError, "exactly one"):
+                    MODULE.normalize_readme_collection_version(
+                        "ansible/README.md",
+                        data,
+                        "3.0.2",
+                    )
 
 
 class AnsibleDocJsonTests(unittest.TestCase):

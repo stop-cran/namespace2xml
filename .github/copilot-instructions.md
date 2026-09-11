@@ -1009,8 +1009,8 @@ CONTRIBUTING C7; it is the rule most easily satisfied on paper.
 clause, both readings, and the cost of each in `KNOWN-LIMITS.md`, and file the ambiguity report.
 Do not pick a reading and encode it in a fixture: the corpus is what the project uses to tell
 correct from customary, and a guess pinned there is indistinguishable from a decision afterwards.
-`Q{}local-name` (§11.4, KNOWN-LIMITS §1.6) is the worked example — a real defect, deliberately left
-unfixed because both places it would be observable refuse with `NOTIMPL` in this preview.
+Record the unresolved boundary in `KNOWN-LIMITS.md` and link the issue that owns the future
+contract decision.
 
 ---
 

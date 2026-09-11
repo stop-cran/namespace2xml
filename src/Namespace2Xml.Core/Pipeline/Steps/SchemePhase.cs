@@ -12,10 +12,9 @@ namespace Namespace2Xml.Pipeline.Steps;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The four steps are separate because Section 15.1 separates them, and because each one is a
-/// distinct opportunity for this build to discover that it cannot do the job. A step that cannot
-/// perform its own work declines with an <see cref="UnsupportedCapability"/> instead of passing its
-/// input through; see <see cref="UnsupportedCapability"/> for why silence is the worse failure.
+/// The four steps are separate because Section 15.1 separates them. Reference resolution runs
+/// before compilation and any blocking resolution diagnostic aborts the phase, so the compiler
+/// receives only reference-free entries.
 /// </para>
 /// <para>
 /// Scheme sources are read here rather than before step 1 so that their diagnostics carry the

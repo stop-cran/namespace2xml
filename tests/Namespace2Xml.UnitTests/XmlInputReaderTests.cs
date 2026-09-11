@@ -913,7 +913,7 @@ public class XmlInputReaderTests
     /// Section 11.7: "the default XML input mode is <c>PreserveWhitespace</c>", and that option
     /// "retains every text node". Formatting indentation is therefore content, and an indented
     /// element is mixed -- which is exactly what <c>NormalizeFormattingWhitespace</c> exists to
-    /// opt out of. See <c>KNOWN-LIMITS.md</c>: this preview declines that option.
+    /// opt out of. See <c>KNOWN-LIMITS.md</c>: this implementation declines that option.
     /// </summary>
     [Test]
     public void FormattingWhitespaceIsRetainedByDefault() =>

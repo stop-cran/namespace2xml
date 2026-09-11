@@ -27,9 +27,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.13'
 
@@ -166,7 +166,7 @@ jobs:
           fi
           echo "the collection documentation lints clean"
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           global-json-file: global.json
 
@@ -329,7 +329,7 @@ jobs:
           done
           echo "every link in the shipped documents resolves"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: collection
           path: ${{ runner.temp }}/build/*.tar.gz
@@ -345,9 +345,9 @@ jobs:
     permissions:
       contents: write  # create the GitHub release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.13'
 
@@ -357,7 +357,7 @@ jobs:
           set -euo pipefail
           python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: collection
           path: dist
@@ -469,11 +469,10 @@ jobs:
             echo "- [Report a problem](https://github.com/${GITHUB_REPOSITORY}/issues/new/choose) — select the **Ansible collection** component."
             echo
             echo "Both plugins require a namespace2xml 3.x build, which reports a \`contract-bundle\`."
-            echo "They refuse a 2.x tool rather than rendering against an older contract. The 3.0"
-            echo "line is still on preview, so the flag is not optional:"
+            echo "They refuse a 2.x tool rather than rendering against an older contract:"
             echo
             echo '```sh'
-            echo "dotnet tool install --global --prerelease namespace2xml"
+            echo "dotnet tool install --global namespace2xml"
             echo '```'
           } > "$RUNNER_TEMP/notes.md"
 

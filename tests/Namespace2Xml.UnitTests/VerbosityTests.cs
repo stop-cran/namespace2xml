@@ -329,7 +329,6 @@ public sealed class VerbosityTests
     private static string Describe(TransformationResult result) => string.Join(
         '\u001f',
         $"State={result.State}",
-        $"Unsupported={result.Unsupported}",
         $"Published={result.Published}",
         $"WarningPolicyTriggered={result.WarningPolicyTriggered}",
         $"ExitCode={result.ExitCode}",

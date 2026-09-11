@@ -219,7 +219,7 @@ public sealed class SourceLoader
                     phase,
                     diagnostics,
                     key),
-                _ => throw new InvalidOperationException(
+                _ => throw new PipelineInvariantException(
                     $"Section 7.1 names no structured format '{format}'."),
             };
 

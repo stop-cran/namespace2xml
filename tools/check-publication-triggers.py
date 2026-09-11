@@ -43,6 +43,7 @@ review requirement, not by this gate.
 from __future__ import annotations
 
 import glob
+import re
 import sys
 
 try:
@@ -84,6 +85,7 @@ PATTERNS = (
     ("ansible-galaxy", "publish"),
     ("--api" "-key",),
 )
+IMMUTABLE_ACTION_REFERENCE = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 
 def scalars(node: object):
@@ -131,10 +133,24 @@ def triggers(document: object) -> object:
     """
     if not isinstance(document, dict):
         return None
+
     for key in ("on", True):
         if key in document:
             return document[key]
     return None
+
+
+def action_references(node: object):
+    """Yields every action and reusable-workflow reference in the document."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "uses" and isinstance(value, str):
+                yield value
+            else:
+                yield from action_references(value)
+    elif isinstance(node, (list, tuple)):
+        for item in node:
+            yield from action_references(item)
 
 
 def check(path: str) -> list[str]:
@@ -155,6 +171,19 @@ def check(path: str) -> list[str]:
         return []
 
     print(f"{path} can publish packages ({evidence}); checking its triggers.")
+
+    floating = [
+        reference
+        for reference in action_references(document)
+        if not reference.startswith("./")
+        and IMMUTABLE_ACTION_REFERENCE.fullmatch(reference) is None
+    ]
+    if floating:
+        return [
+            f"{path} publishes packages with external action '{reference}' that is not pinned "
+            "to a full 40-character lowercase commit SHA"
+            for reference in floating
+        ]
 
     on = triggers(document)
 

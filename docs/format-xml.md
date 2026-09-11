@@ -225,13 +225,10 @@ reference forms resolve to their intended values in the same run. This is the po
 forms: they are the vocabulary that survives the ambiguity.
 
 For **scheme selectors**, §15.2 promises a parallel diagnostic — `SCHEME002` — when an unmarked
-selector could bind to more than one canonical component at a matched location. `KNOWN-LIMITS.md`
-§1.10 records that the current build resolves an unmarked scheme selector directly to the typed
-component with the same simple text (element `x`, never attribute `@x`), so `SCHEME002` currently
-has no call site and is emitted nowhere. A directive that would be ambiguous under the alias
-index therefore binds *canonically*, without a warning. This is a live gap between specification
-and implementation and is expected to close before 3.0 ships; write the canonical spelling in a
-scheme where the difference matters and the same scheme will work under both readings.
+selector could bind to more than one canonical component at a matched location. The current build
+applies the simple alias to scheme paths and emits `SCHEME002` with the canonical alternatives
+rather than choosing one. A marked selector such as `a.@x` or `a.Q{}x` bypasses the alias index and
+selects exactly one component.
 
 ### `#n` content tokens
 
@@ -532,8 +529,7 @@ Verified behaviour:
 `NewLineOnAttributes` places *every* attribute on its own line, including the first, indented two
 spaces beyond the owning start tag (§16.9). It was once specified as covering only the attributes
 after the first; [#53 (closed)](https://github.com/stop-cran/namespace2xml/issues/53) settled that
-against the older wording, and `KNOWN-LIMITS.md` §1.18 records why the clause moved rather than the
-code. `conformance/xml-newline-on-attributes` now pins the layout.
+against the older wording. `conformance/xml-newline-on-attributes` now pins the layout.
 
 Because `NewLineOnAttributes` requires a line break and two spaces before every attribute and
 `NoIndent` inserts no formatting whitespace, the two cannot both be honored on any element that

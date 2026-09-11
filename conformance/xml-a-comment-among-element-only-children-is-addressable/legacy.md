@@ -31,7 +31,6 @@
 
 ## Not asserted
 
-- That `r.#2` does not address the `<d>` element. Section 11.4 says an element-only child carries a
-  content-token ordering value "for deterministic placement" without saying whether that token is
-  also an address, so the negative is under-determined and is recorded in `KNOWN-LIMITS.md` §1.3
-  rather than pinned here.
+- Positional addressing of the `<d>` element. Section 11.4 gives element-only children ordinary
+  element-name addressing; this fixture uses `#1` only for the comment and does not exercise any
+  positional spelling for an element child.

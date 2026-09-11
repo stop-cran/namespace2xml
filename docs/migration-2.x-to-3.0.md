@@ -17,14 +17,15 @@ be written are tracked in [KNOWN-LIMITS.md](../KNOWN-LIMITS.md).
 - **Target framework.** The tool now requires the .NET 10 runtime.
 - **Releases come from tags only.** If you pinned to a build produced by a push to `master`,
   there is no longer such a build. Pin to a released version.
-- **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.
+- **3.0 is stable.** Install `namespace2xml` without `--prerelease`; use an exact version pin
+  when a deployment must remain on one contract build.
 
 ## Observable differences (191)
 
 Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and
 each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.
 Nearly all are corrections, and every case says which contract it is correcting. A difference
-is not automatically an improvement, though: where this preview declines a capability 2.4.0
+is not automatically an improvement, though: where 3.0 declines a capability 2.4.0
 implemented, its case says so plainly rather than letting the heading imply otherwise.
 
 ### `a-backslash-asterisk-in-a-native-key-is-a-literal-asterisk`
@@ -3431,7 +3432,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   the correct behaviour of the two clauses rather than trapping the specific defect of
   admitting comments to the index. A separate fixture whose scheme creates a genuine
   alias competition between an element name and a comment position would be needed to
-  trap it, and this preview does not carry one.
+  trap it, and the current corpus does not carry one.
 - The difference is intentional: an XML comment is deliberately not a value, and using a
   comment as a candidate for reference resolution would let a document author change what
   a live value resolves to by adding or removing an annotation. The 3.0 reader also

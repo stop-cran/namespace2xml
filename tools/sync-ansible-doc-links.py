@@ -36,6 +36,10 @@ SPECIFICATION_CITATION = re.compile(
     rb"[^/\s<>\"]+/docs/specification\.md)"
     rb"(?P<fragment>#[^)\s<>\"]+)?\)"
 )
+README_COLLECTION_VERSION = re.compile(
+    rb"^This collection is at (?P<version>[^\s\r\n]+) while the tool is at 3\.x\.",
+    re.MULTILINE,
+)
 SAFE_VERSION = re.compile(r"[0-9A-Za-z][0-9A-Za-z.+-]*")
 SAFE_SECTION = re.compile(r"(?:[0-9]+(?:\.[0-9]+)*|[A-Z](?:\.[0-9]+)*)")
 SAFE_SPECIFICATION_ANCHOR = re.compile(
@@ -140,6 +144,39 @@ def collection_version(path: Path = GALAXY_MANIFEST) -> str:
 def collection_ref(path: Path = GALAXY_MANIFEST) -> str:
     """Returns the release ref covering the collection's source commit."""
     return f"ansible-v{collection_version(path)}"
+
+
+def normalize_readme_collection_version(
+    relative_path: str,
+    data: bytes,
+    expected_version: str,
+) -> tuple[bytes, list[StaleLink]]:
+    """Keeps the README's current collection version tied to galaxy.yml."""
+    matches = list(README_COLLECTION_VERSION.finditer(data))
+    if len(matches) != 1:
+        raise ValueError(
+            "ansible/README.md must contain exactly one current collection-version sentence"
+        )
+
+    match = matches[0]
+    found = match.group("version").decode("ascii")
+    if found == expected_version:
+        return data, []
+
+    normalized = (
+        data[: match.start("version")]
+        + expected_version.encode("ascii")
+        + data[match.end("version") :]
+    )
+    return normalized, [
+        StaleLink(
+            path=relative_path,
+            line=data.count(b"\n", 0, match.start()) + 1,
+            found=found,
+            expected=expected_version,
+            kind="collection version",
+        )
+    ]
 
 
 def tracked_ansible_files() -> list[tuple[str, Path]]:
@@ -346,6 +383,7 @@ def synchronize(check: bool) -> int:
     """Checks or updates every tracked Ansible text file."""
     try:
         release_ref = collection_ref()
+        expected_collection_version = collection_version()
         anchors = specification_anchors()
         files = tracked_ansible_files()
     except (OSError, subprocess.CalledProcessError, UnicodeError, ValueError) as error:
@@ -354,6 +392,7 @@ def synchronize(check: bool) -> int:
 
     stale_refs: list[StaleLink] = []
     stale_citations: list[StaleLink] = []
+    stale_metadata: list[StaleLink] = []
     updates: list[tuple[str, Path, bytes]] = []
     link_count = 0
     citation_count = 0
@@ -364,9 +403,18 @@ def synchronize(check: bool) -> int:
             if b"\0" in data:
                 continue
 
+            normalized = data
+            if relative_path == "ansible/README.md":
+                normalized, stale = normalize_readme_collection_version(
+                    relative_path,
+                    normalized,
+                    expected_collection_version,
+                )
+                stale_metadata.extend(stale)
+
             normalized, stale, matched = normalize_links(
                 relative_path,
-                data,
+                normalized,
                 release_ref,
             )
             link_count += matched
@@ -386,7 +434,7 @@ def synchronize(check: bool) -> int:
         print(f"error: {error}")
         return 1
 
-    all_stale = [*stale_refs, *stale_citations]
+    all_stale = [*stale_refs, *stale_citations, *stale_metadata]
     if check and all_stale:
         for stale in all_stale:
             print(f"{stale.path}:{stale.line}: stale {stale.kind}")
@@ -406,13 +454,15 @@ def synchronize(check: bool) -> int:
         print(
             f"Normalized {len(stale_refs)} release ref(s) and "
             f"{len(stale_citations)} specification citation target(s) "
+            f"and {len(stale_metadata)} collection metadata value(s) "
             f"in {len(updates)} file(s)."
         )
     else:
         print(
             f"All {link_count} same-repository blob/tree link(s) under ansible/ "
             f"use {release_ref}; all {citation_count} linked specification "
-            "citation(s) use generated stable anchors."
+            "citation(s) use generated stable anchors; the README collection "
+            f"version is {expected_collection_version}."
         )
 
     return 0

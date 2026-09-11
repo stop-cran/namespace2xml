@@ -57,9 +57,10 @@ distinct component satisfies the addressing half and splits one overlay node in 
 
 ## Not asserted
 
-`Q{}` in a scheme selector. Section 15.2 grants the same escape to output-view directives, and
-`KNOWN-LIMITS.md` section 1.10 records that scheme paths do not consult the alias index in the first
-place, so there is nothing there for the marker to escape yet.
+`Q{}` in a scheme selector. Section 15.2 grants the same escape to output-view directives, but
+scheme alias behavior is pinned separately by
+`scheme-an-unmarked-directive-reaches-an-attribute-through-the-simple-alias` and
+`scheme-an-ambiguous-simple-alias-is-blocking`.
 
 ## Legacy differential
 

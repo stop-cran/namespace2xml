@@ -7,20 +7,27 @@ namespace Namespace2Xml.Cli;
 /// <summary>Process entry point.</summary>
 public static class Program
 {
-    /// <summary>
-    /// Exit code reserved for a preview build that has not yet implemented the requested work.
-    /// Specification Section 6.3 fixes <c>0</c> and <c>1</c> as the normative outcomes, so a
-    /// preview must never return either of them for work it did not actually perform.
-    /// </summary>
-    internal const int NotImplementedInThisPreview = 70;
-
     /// <summary>Runs the tool.</summary>
     /// <param name="args">Raw argument vector, exactly as supplied by the host.</param>
     /// <returns>An exit code as defined by specification Section 6.3.</returns>
-    public static int Main(string[] args)
+    public static int Main(string[] args) =>
+        Execute(
+            args,
+            Console.Out,
+            Console.Error,
+            static (command, log) => Transformation.Run(command, sink: null, log: log));
+
+    internal static int Execute(
+        string[] args,
+        TextWriter stdout,
+        TextWriter stderr,
+        Func<CommandLine, IOperationalLog, TransformationResult> transform,
+        Stream? jsonStream = null)
     {
-        var stdout = Console.Out;
-        var stderr = Console.Error;
+        ArgumentNullException.ThrowIfNull(args);
+        ArgumentNullException.ThrowIfNull(stdout);
+        ArgumentNullException.ThrowIfNull(stderr);
+        ArgumentNullException.ThrowIfNull(transform);
 
         // The diagnostic encoding is resolved before anything else is validated, so that an
         // invalid command line is itself reported in the encoding the caller asked for.
@@ -52,34 +59,50 @@ public static class Program
         var command = parsed.CommandLine!;
         var log = OperationalLogWriter.For(stderr, command);
 
-        var result = Transformation.Run(command, sink: null, log: log);
-
-        Emit(stderr, format, result.Diagnostics, command.Verbosity);
-
-        if (result.ExitCode is { } code)
+        TransformationResult result;
+        try
         {
-            return code;
+            result = transform(command, log);
+        }
+        catch (PipelineInvariantException failure)
+        {
+            EmitInvariantFailure(stderr, format, command.Verbosity, failure, jsonStream);
+            return 1;
         }
 
-        // Section 6.4.3 gives standard error to the diagnostic stream alone when the canonical
-        // JSON encoding is selected, so an operational message must not follow the array. In the
-        // text encoding the message is permitted, but it is terminated with LF rather than
-        // Environment.NewLine because Section 24 forbids results that vary by host line ending.
-        if (format != DiagnosticFormat.Json)
+        Emit(stderr, format, result.Diagnostics, command.Verbosity, jsonStream);
+        return result.ExitCode;
+    }
+
+    internal static void EmitInvariantFailure(
+        TextWriter stderr,
+        DiagnosticFormat format,
+        Verbosity verbosity,
+        PipelineInvariantException failure,
+        Stream? jsonStream = null)
+    {
+        if (format == DiagnosticFormat.Json)
         {
-            stderr.Write(
-                "namespace2xml " + ContractBundle.ProductVersion + ": " +
-                result.Unsupported + " See " + HelpText.RepositoryUrl + ".\n");
+            Emit(stderr, format, [], verbosity, jsonStream);
+            return;
         }
 
-        return NotImplementedInThisPreview;
+        if (verbosity == Verbosity.None)
+        {
+            return;
+        }
+
+        stderr.Write(
+            "namespace2xml " + ContractBundle.ProductVersion
+            + ": internal pipeline invariant failed: " + failure.Message + "\n");
     }
 
     private static void Emit(
         TextWriter stderr,
         DiagnosticFormat format,
         IReadOnlyList<Diagnostic> diagnostics,
-        Verbosity verbosity)
+        Verbosity verbosity,
+        Stream? jsonStream = null)
     {
         // Section 6.2 filters what is written and nothing else: the list arrives already ordered by
         // Section 24 and this never reorders it, so a threshold change moves lines out of the
@@ -97,10 +120,18 @@ public static class Program
                 // 6.4.3). That clause explicitly overrides Section 6.2 for `none`: "--verbosity
                 // none, and any threshold that filters every produced diagnostic, yields exactly
                 // the two bytes [] followed by one LF", which is what an empty list renders as.
-                using var raw = Console.OpenStandardError();
                 var bytes = JsonDiagnosticWriter.Render(admitted);
-                raw.Write(bytes, 0, bytes.Length);
-                raw.Flush();
+                if (jsonStream is not null)
+                {
+                    jsonStream.Write(bytes, 0, bytes.Length);
+                    jsonStream.Flush();
+                }
+                else
+                {
+                    using var raw = Console.OpenStandardError();
+                    raw.Write(bytes, 0, bytes.Length);
+                    raw.Flush();
+                }
                 return;
             }
 

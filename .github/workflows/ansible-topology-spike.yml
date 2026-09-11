@@ -23,7 +23,7 @@ on:
     inputs:
       version:
         description: Published namespace2xml version to measure against
-        default: 3.0.0-preview.4
+        default: 3.0.0
         required: false
         type: string
   # Arm A of the second job is a regression gate on the filter resolving the tool without PATH,
@@ -45,7 +45,7 @@ permissions:
   contents: read
 
 env:
-  TOOL_VERSION: ${{ inputs.version || '3.0.0-preview.4' }}
+  TOOL_VERSION: ${{ inputs.version || '3.0.0' }}
 
 jobs:
   execution-locus:

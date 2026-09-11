@@ -25,11 +25,10 @@ public sealed record StepProduct<T>(PipelineStep? Step, T Value);
 /// <typeparam name="T">The product type.</typeparam>
 public readonly record struct StepOutcome<T>
 {
-    internal StepOutcome(bool faulted, T? value, UnsupportedCapability? unsupported)
+    internal StepOutcome(bool faulted, T? value)
     {
         Faulted = faulted;
         Value = value;
-        Unsupported = unsupported;
     }
 
     /// <summary>Whether the step failed to produce a result.</summary>
@@ -38,8 +37,6 @@ public readonly record struct StepOutcome<T>
     /// <summary>The product, or <c>default</c> when <see cref="Faulted"/>.</summary>
     public T? Value { get; }
 
-    /// <summary>The capability this build lacks, when the step declined to run at all.</summary>
-    public UnsupportedCapability? Unsupported { get; }
 }
 
 /// <summary>Creates <see cref="StepOutcome{T}"/> values.</summary>
@@ -49,7 +46,7 @@ public static class StepOutcome
     /// <typeparam name="T">The product type.</typeparam>
     /// <param name="value">The product.</param>
     /// <returns>A successful outcome.</returns>
-    public static StepOutcome<T> Produced<T>(T value) => new(faulted: false, value, unsupported: null);
+    public static StepOutcome<T> Produced<T>(T value) => new(faulted: false, value);
 
     /// <summary>The step did not produce a usable result.</summary>
     /// <remarks>
@@ -59,20 +56,7 @@ public static class StepOutcome
     /// </remarks>
     /// <typeparam name="T">The product type.</typeparam>
     /// <returns>A failed outcome.</returns>
-    public static StepOutcome<T> Failed<T>() => new(faulted: true, value: default, unsupported: null);
-
-    /// <summary>
-    /// The step declined to run because the invocation needs a capability this build does not have.
-    /// </summary>
-    /// <typeparam name="T">The product type.</typeparam>
-    /// <param name="capability">The missing capability.</param>
-    /// <returns>An outcome that stops the run without deciding a Section 6.3 exit code.</returns>
-    public static StepOutcome<T> Unsupported<T>(UnsupportedCapability capability)
-    {
-        ArgumentNullException.ThrowIfNull(capability);
-
-        return new StepOutcome<T>(faulted: true, value: default, capability);
-    }
+    public static StepOutcome<T> Failed<T>() => new(faulted: true, value: default);
 }
 
 /// <summary>The state of a <see cref="PipelineRun"/>.</summary>
@@ -87,11 +71,6 @@ public enum PipelineRunState
     /// <summary>Every step has run.</summary>
     Finished,
 
-    /// <summary>
-    /// A step declined because the invocation needs a capability this build does not have. The run
-    /// decides no Section 6.3 outcome at all: it did not happen.
-    /// </summary>
-    Unsupported,
 }
 
 /// <summary>
@@ -130,12 +109,6 @@ public sealed class PipelineRun
 
     /// <summary>The step whose phase boundary aborted the run, or <c>null</c> if none has.</summary>
     public PipelineStep? AbortedAfter { get; private set; }
-
-    /// <summary>
-    /// The capability that stopped the run, or <c>null</c> when every step this run reached was one
-    /// this build implements.
-    /// </summary>
-    public UnsupportedCapability? Unsupported { get; private set; }
 
     /// <summary>Where the run stands under Section 15.4.</summary>
     public PipelineRunState State { get; private set; } = PipelineRunState.Running;
@@ -194,7 +167,7 @@ public sealed class PipelineRun
     /// <param name="body">The step, given its input and a buffer for its own diagnostics.</param>
     /// <returns>The step's product, or <c>null</c> when it failed, was skipped, or the run had aborted.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="body"/> is <c>null</c>.</exception>
-    /// <exception cref="InvalidOperationException">
+    /// <exception cref="PipelineInvariantException">
     /// The step is out of Section 15.1 order, the input comes from a step that has not run, or the
     /// step reported failure without a blocking diagnostic.
     /// </exception>
@@ -207,7 +180,7 @@ public sealed class PipelineRun
 
         if (completed == PipelineSteps.Last)
         {
-            throw new InvalidOperationException(
+            throw new PipelineInvariantException(
                 $"Section 15.1 ends at {PipelineSteps.Last} (step {PipelineSteps.Last.Number()}); "
                 + $"{step} would be a twenty-first.");
         }
@@ -215,14 +188,14 @@ public sealed class PipelineRun
         var expected = completed?.Next() ?? PipelineSteps.First;
         if (step != expected)
         {
-            throw new InvalidOperationException(
+            throw new PipelineInvariantException(
                 $"Section 15.1 orders {expected} (step {expected.Number()}) next, not {step} "
                 + $"(step {step.Number()}). The phase order is acyclic and is not a suggestion.");
         }
 
         if (input?.Step is { } producer && producer >= step)
         {
-            throw new InvalidOperationException(
+            throw new PipelineInvariantException(
                 $"{step} (step {step.Number()}) consumes a product of {producer} "
                 + $"(step {producer.Number()}), which Section 15.1 places no earlier. That is a cycle.");
         }
@@ -247,20 +220,9 @@ public sealed class PipelineRun
         var stepDiagnostics = new DiagnosticBuffer();
         var outcome = body(input.Value, stepDiagnostics);
 
-        if (outcome.Unsupported is { } capability)
-        {
-            // Deliberately before the blocking-diagnostic check: a step that declines has not
-            // examined the input closely enough to have an opinion about it, and inventing a
-            // diagnostic here would put a code in the stream that Section 22 does not define.
-            Diagnostics.Merge(stepDiagnostics);
-            Unsupported = capability;
-            State = PipelineRunState.Unsupported;
-            return null;
-        }
-
         if (outcome.Faulted && !stepDiagnostics.HasBlockingError)
         {
-            throw new InvalidOperationException(
+            throw new PipelineInvariantException(
                 $"{step} (step {step.Number()}) reported failure without buffering a blocking "
                 + "diagnostic. Section 15.4 aborts on blocking diagnostics, so a silent failure "
                 + "would let the run continue past a step that produced nothing.");

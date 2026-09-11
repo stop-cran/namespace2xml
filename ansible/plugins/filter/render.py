@@ -325,9 +325,7 @@ requirements:
   - The .NET 10 SDK on the controller when installing the tool with C(dotnet tool install).
     The installed tool targets C(net10.0) and requires the .NET 10 runtime, which the SDK supplies.
   - The C(namespace2xml) .NET tool, version 3.0 or later, on the controller.
-  - 3.0 is in preview at the time of writing and the newest stable release is 2.4.0, so a plain
-    C(dotnet tool install --global namespace2xml) installs a 2.x build. Ask for the preview
-    explicitly with C(dotnet tool install --global --prerelease namespace2xml).
+    Install it with C(dotnet tool install --global namespace2xml).
   - The filter refuses a pre-3.0 binary rather than rendering through it. A 2.x build accepts
     the same arguments and the same scheme spellings, so it would otherwise exit successfully
     and return a document rendered under the older contract, with nothing to say so.

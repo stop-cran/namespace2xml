@@ -247,14 +247,15 @@ $lines = @(
     '- **Target framework.** The tool now requires the .NET 10 runtime.'
     '- **Releases come from tags only.** If you pinned to a build produced by a push to `master`,'
     '  there is no longer such a build. Pin to a released version.'
-    '- **Preview versions carry a `-preview.N` suffix.** `dotnet tool install` needs `--prerelease`.'
+    '- **3.0 is stable.** Install `namespace2xml` without `--prerelease`; use an exact version pin'
+    '  when a deployment must remain on one contract build.'
     ''
     "## Observable differences ($($verdicts.differs.Count))"
     ''
     'Each of these is an observable difference between 2.4.0 and 3.0 on the same command line, and'
     'each was measured by running the pinned 2.4.0 baseline against the case rather than recalled.'
     'Nearly all are corrections, and every case says which contract it is correcting. A difference'
-    'is not automatically an improvement, though: where this preview declines a capability 2.4.0'
+    'is not automatically an improvement, though: where 3.0 declines a capability 2.4.0'
     'implemented, its case says so plainly rather than letting the heading imply otherwise.'
     ''
 )

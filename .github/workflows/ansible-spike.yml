@@ -1,7 +1,7 @@
 name: ansible-spike
 
 # Issue #37. Manual dispatch only: this measures an integration that is not part of the product,
-# against a published preview, and nothing in the repository depends on its result.
+# against a published 3.x release, and nothing in the repository depends on its result.
 #
 # It runs here rather than on a workstation because an Ansible controller is POSIX-only. The
 # encoder and the marshalling can be exercised anywhere Python runs; the claim that a playbook
@@ -12,7 +12,7 @@ on:
     inputs:
       version:
         description: Published namespace2xml version to prototype against
-        default: 3.0.0-preview.4
+        default: 3.0.0
         required: false
         type: string
   # This once also ran on push to v3, because workflow_dispatch reads only from the default branch
@@ -39,7 +39,7 @@ jobs:
 
       - name: Install the published tool
         env:
-          VERSION: ${{ inputs.version || '3.0.0-preview.4' }}
+          VERSION: ${{ inputs.version || '3.0.0' }}
         run: |
           dotnet tool install --global namespace2xml --version "${VERSION}"
           echo "${HOME}/.dotnet/tools" >> "${GITHUB_PATH}"

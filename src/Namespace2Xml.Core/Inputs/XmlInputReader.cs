@@ -35,7 +35,7 @@ namespace Namespace2Xml.Inputs;
 /// </para>
 /// <para>
 /// Section 11.4 evaluates mixedness and repeated-child classification "at concrete merge time
-/// across all input contributions", which this preview reduces to one document at a time. See
+/// across all input contributions", which this implementation reduces to one document at a time. See
 /// <c>KNOWN-LIMITS.md</c>: a reader that cannot see the other contributions cannot classify against
 /// them, and inventing an answer would be worse than declaring the reduction.
 /// </para>

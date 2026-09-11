@@ -277,9 +277,8 @@ requirements:
     The installed tool targets C(net10.0) and requires the .NET 10 runtime, which the SDK supplies.
 notes:
   - The tool must be present on every node this runs against. Install it with
-    C(dotnet tool install --global --prerelease namespace2xml). C(--prerelease) is required
-    while the 3.0 line is on preview; without it dotnet installs the 2.x tool, which this
-    module refuses.
+    C(dotnet tool install --global namespace2xml). The module refuses a pre-3.0 tool rather
+    than rendering under the older contract.
   - Reading and rewriting XML in the same format normally needs
     C(xmlinputoptions=NormalizeFormattingWhitespace), written unqualified. Without it,
     indentation is parsed as content and the run is refused with C(TYPE001). Enabling it emits

@@ -56,9 +56,9 @@ YAML syntax that the parser removes, so the key the projection sees is the one c
 
 ## Not asserted
 
-That a `*` in a directive value other than `filename` is substituted; Section 12.1 requires it and
-this version refuses it, which `KNOWN-LIMITS.md` records against issue #71. Nor an explicit
-`*[identifier]` capture in a YAML key, which the same sentence admits.
+Substitution in directive values other than `filename`, or an explicit `*[identifier]` capture in
+a YAML key. Those capabilities are pinned by their own fixtures rather than inferred from this
+unnamed-capture case.
 
 ## Legacy differential
 

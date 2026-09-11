@@ -46,8 +46,6 @@ public class OutputInstanceExpansionTests
     {
         var outcome = ExpandWith(scheme, data, new GlobalBudget(ResourceLimits.Defaults));
 
-        outcome.Unsupported.ShouldBeNull();
-
         return outcome.Value;
     }
 
@@ -55,7 +53,13 @@ public class OutputInstanceExpansionTests
         string scheme, string data, GlobalBudget budget)
     {
         var read = SchemeReader.Read(Records(scheme), 2, "s.properties", diagnostics);
-        var configuration = SchemeCompiler.Compile(read.Entries, diagnostics);
+        var entries = SchemeReferenceResolver.Resolve(read.Entries, budget, diagnostics);
+        if (diagnostics.HasBlockingError)
+        {
+            return StepOutcome.Failed<ImmutableArray<OutputInstance>>();
+        }
+
+        var configuration = SchemeCompiler.Compile(entries, diagnostics);
 
         return PlanningPhase.ExpandWildcards(configuration, Model(data), budget, diagnostics);
     }
@@ -186,34 +190,18 @@ public class OutputInstanceExpansionTests
 
     /// <summary>
     /// Section 16.2 resolves scheme references "before capture substitution", which is pipeline
-    /// step 1. A filename carrying one is therefore deferred by the compiler and never reaches
-    /// this step at all, so the instance it belongs to arrives here carrying no filename.
+    /// step 1. The resolved value therefore reaches filename compilation before this step performs
+    /// capture substitution.
     /// </summary>
-    /// <remarks>
-    /// This is a seam rather than a defect only because step 16 refuses every deferred entry. When
-    /// step 16 learns to resolve them it must feed the result back through the filename compiler;
-    /// resolving the reference and dropping the entry would give the instance its default name
-    /// with no diagnostic.
-    /// </remarks>
     [Test]
-    public void AFilenameCarryingASchemeReferenceIsDeferredRatherThanCompiled()
+    public void AFilenameSchemeReferenceIsResolvedBeforeExpansion()
     {
-        var read = SchemeReader.Read(
-            Records("a.output=namespace\na.filename=${x}.conf"), 2, "s.properties", diagnostics);
-        var configuration = SchemeCompiler.Compile(read.Entries, diagnostics);
+        var instances = Expand(
+            "a.root=cfg\na.output=namespace\na.filename=${a.root}.conf",
+            "a.x=1");
 
-        configuration.Deferred.ShouldHaveSingleItem()
-            .Directive.ShouldBe(SchemeDirective.Filename);
-
-        var instances = ExpandWith(
-            "a.output=namespace\na.filename=${x}.conf",
-            "a.x=1",
-            new GlobalBudget(ResourceLimits.Defaults)).Value;
-
-        instances.ShouldHaveSingleItem().Filename.ShouldBeNull();
-
-        PlanningPhase.ApplyTransformations([], configuration, diagnostics)
-            .Unsupported.ShouldNotBeNull().Spec.ShouldBe("\u00A715.1");
+        instances.ShouldHaveSingleItem().Filename.ShouldBe("cfg.conf");
+        diagnostics.Drain().ShouldBeEmpty();
     }
 
     /// <summary>
@@ -255,7 +243,6 @@ public class OutputInstanceExpansionTests
         var outcome = ExpandWith(
             "a.*.output=namespace", "a.p=1\na.q=2\nb.r=3\nb.s=4\nc.t=5\nc.u=6", budget);
 
-        outcome.Unsupported.ShouldBeNull();
         Selectors(outcome.Value).ShouldBe(["a.p", "a.q"]);
         diagnostics.Drain().ShouldBeEmpty();
     }
@@ -310,7 +297,6 @@ public class OutputInstanceExpansionTests
 
         var outcome = ExpandWith("a.output=namespace", "a.p=1\na.q=2", budget);
 
-        outcome.Unsupported.ShouldBeNull();
         Selectors(outcome.Value).ShouldBe(["a"]);
         diagnostics.Drain().ShouldBeEmpty();
     }

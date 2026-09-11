@@ -286,7 +286,7 @@ public static class StructuredProfileReader
             }
 
             // Section 12.1 reads a value's wildcard form from its owning name's captures. This
-            // preview declines a native name that defines any, so no value here can substitute one.
+            // reader declines a native name that defines any, so no value here can substitute one.
             var lexed = ValueLexer.Lex(
                 scalar.NativeString!, ValueSyntax.NativeString(WildcardSyntax.None));
 

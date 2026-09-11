@@ -1,67 +1,186 @@
 name: release
 
-# Tag-only. namespace2xml 2.x published to nuget.org on every push to master, which meant any
-# commit reaching the default branch was published under the trusted package name without a
-# separate reviewed act. Publication is now a deliberate, signed, tagged decision.
+# A stable release is one signed annotated tag over the exact master commit already accepted by
+# both required workflows. The first attempt packs and uploads one immutable candidate. A rerun
+# retrieves that artifact by ID and reconciles public state; it never rebuilds or silently skips a
+# collision.
 on:
   push:
     tags:
       - 'v3.*'
 
 permissions:
-  contents: write      # create the GitHub release
-  id-token: write      # OIDC, for both the build attestation and the nuget.org token exchange
-  attestations: write  # record the provenance attestation
+  actions: read
+  attestations: write
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   DOTNET_NOLOGO: 'true'
   DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  RELEASE_SIGNING_FINGERPRINT: CEF2B1528A812CC3D0BCBC32AD3E63ADB89CAE86
+  REQUIRED_CI_WORKFLOW_ID: '327594363'
+  REQUIRED_ANSIBLE_WORKFLOW_ID: '337970278'
 
 jobs:
   release:
     runs-on: ubuntu-latest
     environment: nuget
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           global-json-file: global.json
 
-      - name: The tag must name the version the build produces
+      - name: Verify the stable tag, signature, and exact master identity
+        id: identity
         shell: bash
+        env:
+          RELEASE_SIGNING_PUBLIC_KEY: ${{ secrets.RELEASE_SIGNING_PUBLIC_KEY }}
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME#v}"
+
+          version="${GITHUB_REF_NAME#v}"
           declared=$(grep -oPm1 '(?<=<Version>)[^<]+' Directory.Build.props)
-          if [ "$tag" != "$declared" ]; then
+          if [[ ! "$version" =~ ^3\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::$GITHUB_REF_NAME is not a stable 3.x semantic version tag"
+            exit 1
+          fi
+          if [ "$version" != "$declared" ]; then
             echo "::error::tag $GITHUB_REF_NAME does not match <Version>$declared</Version>"
             exit 1
           fi
-          echo "version=$declared" >> "$GITHUB_ENV"
+          if [ "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" != tag ]; then
+            echo "::error::$GITHUB_REF_NAME is lightweight; releases require an annotated tag"
+            exit 1
+          fi
 
-      - run: dotnet restore namespace2xml.slnx
+          tag_object=$(git rev-parse "refs/tags/$GITHUB_REF_NAME")
+          tag_target=$(git rev-parse "$GITHUB_REF_NAME^{commit}")
+          if [ "$tag_target" != "$GITHUB_SHA" ]; then
+            echo "::error::checkout $GITHUB_SHA differs from tag target $tag_target"
+            exit 1
+          fi
 
-      - name: Assemble the release notes before anything irreversible happens
+          git fetch --force origin refs/heads/master:refs/remotes/origin/master
+          master=$(git rev-parse refs/remotes/origin/master)
+          if [ "$GITHUB_RUN_ATTEMPT" -eq 1 ]; then
+            if [ "$tag_target" != "$master" ]; then
+              echo "::error::tag target $tag_target is not current origin/master $master"
+              exit 1
+            fi
+          elif ! git merge-base --is-ancestor "$tag_target" "$master"; then
+            echo "::error::tag target $tag_target is not an ancestor of current origin/master $master"
+            exit 1
+          fi
+
+          if [ -z "$RELEASE_SIGNING_PUBLIC_KEY" ]; then
+            echo "::error::RELEASE_SIGNING_PUBLIC_KEY is not configured"
+            exit 1
+          fi
+
+          export GNUPGHOME="$RUNNER_TEMP/release-gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+          printf '%s\n' "$RELEASE_SIGNING_PUBLIC_KEY" | gpg --batch --import
+          imported=$(gpg --batch --with-colons --fingerprint |
+            awk -F: '$1 == "fpr" { print toupper($10) }' |
+            sort -u)
+          if ! grep -qx "$RELEASE_SIGNING_FINGERPRINT" <<< "$imported"; then
+            echo "::error::the imported release key does not contain fingerprint $RELEASE_SIGNING_FINGERPRINT"
+            exit 1
+          fi
+
+          verification=$(git verify-tag --raw "$GITHUB_REF_NAME" 2>&1) || {
+            printf '%s\n' "$verification"
+            echo "::error::$GITHUB_REF_NAME does not have a valid signature"
+            exit 1
+          }
+          if ! grep -q "\\[GNUPG:\\] VALIDSIG $RELEASE_SIGNING_FINGERPRINT " <<< "$verification"; then
+            printf '%s\n' "$verification"
+            echo "::error::tag signature is not from $RELEASE_SIGNING_FINGERPRINT"
+            exit 1
+          fi
+
+          {
+            echo "version=$version"
+            echo "package_name=namespace2xml.${version}.nupkg"
+            echo "symbol_name=namespace2xml.${version}.snupkg"
+            echo "candidate_name=namespace2xml-candidate-${GITHUB_REF_NAME}"
+            echo "tag_object=$tag_object"
+            echo "tag_target=$tag_target"
+            echo "GNUPGHOME=$GNUPGHOME"
+          } >> "$GITHUB_ENV"
+          {
+            echo "version=$version"
+            echo "package_name=namespace2xml.${version}.nupkg"
+            echo "symbol_name=namespace2xml.${version}.snupkg"
+            echo "candidate_name=namespace2xml-candidate-${GITHUB_REF_NAME}"
+            echo "tag_object=$tag_object"
+            echo "tag_target=$tag_target"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Require successful master workflows for this exact commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          successful_run() {
+            local workflow_id=$1
+            gh api --method GET \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_id}/runs" \
+              -f branch=master \
+              -f event=push \
+              -f status=completed \
+              -f head_sha="$GITHUB_SHA" \
+              -f per_page=100 |
+              jq -r --arg sha "$GITHUB_SHA" '
+                [.workflow_runs[]
+                  | select(
+                      .head_sha == $sha
+                      and .head_branch == "master"
+                      and .event == "push"
+                      and .conclusion == "success")]
+                | sort_by(.run_number)
+                | last
+                | .id // empty'
+          }
+
+          ci_run_id=$(successful_run "$REQUIRED_CI_WORKFLOW_ID")
+          ansible_run_id=$(successful_run "$REQUIRED_ANSIBLE_WORKFLOW_ID")
+          if [ -z "$ci_run_id" ]; then
+            echo "::error::CI workflow $REQUIRED_CI_WORKFLOW_ID has no successful master push run for $GITHUB_SHA"
+            exit 1
+          fi
+          if [ -z "$ansible_run_id" ]; then
+            echo "::error::Ansible workflow $REQUIRED_ANSIBLE_WORKFLOW_ID has no successful master push run for $GITHUB_SHA"
+            exit 1
+          fi
+
+          {
+            echo "ci_run_id=$ci_run_id"
+            echo "ansible_run_id=$ansible_run_id"
+          } >> "$GITHUB_ENV"
+
+      - name: Assemble release notes before any external write
         shell: bash
         run: |
           set -euo pipefail
-          # Passing the whole changelog buried each version under every earlier one, and would
-          # have got worse with every release. Take the section between this version's heading
-          # and the next top-level heading.
-          #
-          # This runs before the push on purpose. A missing section is worth stopping for, and
-          # stopping is only cheap while nothing has been published: after the push it would
-          # leave a package on nuget.org with no release to explain it.
           awk -v v="## [$version]" '
             index($0, v) == 1 { inside = 1; next }
             inside && /^## / { exit }
             inside { print }
-          ' CHANGELOG.md > /tmp/notes.md
-          if [ ! -s /tmp/notes.md ]; then
-            echo "::error::CHANGELOG.md has no section for $version; refusing to publish a release with empty notes."
+          ' CHANGELOG.md > "$RUNNER_TEMP/changelog-notes.md"
+          if [ ! -s "$RUNNER_TEMP/changelog-notes.md" ]; then
+            echo "::error::CHANGELOG.md has no nonempty section for $version"
             exit 1
           fi
           {
@@ -69,117 +188,694 @@ jobs:
             echo
             echo "Specification: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/specification.md"
             echo
-            cat /tmp/notes.md
-          } > /tmp/release-notes.md
+            cat "$RUNNER_TEMP/changelog-notes.md"
+          } > "$RUNNER_TEMP/release-notes.md"
 
-      - run: dotnet build namespace2xml.slnx --no-restore -c Release
-      - run: dotnet test namespace2xml.slnx --no-build -c Release
-
-      - name: Pack
-        run: dotnet pack src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj --no-build -c Release -o artifacts
-
-      - name: The package must carry symbols and the specification
+      - name: Discover the immutable candidate and public release state
+        id: state
         shell: bash
-        run: |
-          set -euo pipefail
-          # $version is an ordinary environment variable here, exported by GITHUB_ENV above.
-          # Reading it as a shell variable, rather than letting an Actions expression be
-          # substituted into the script text, keeps the workflow free of quoting hazards.
-          test -f "artifacts/namespace2xml.${version}.nupkg"
-          test -f "artifacts/namespace2xml.${version}.snupkg"
-          unzip -l "artifacts/namespace2xml.${version}.nupkg" | grep -q 'docs/specification.md'
-          unzip -l "artifacts/namespace2xml.${version}.nupkg" | grep -q 'diagnostics.registry.json'
-          unzip -l "artifacts/namespace2xml.${version}.snupkg" | grep -q '\.pdb'
-
-      - name: The symbols must reach their source, not merely exist
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        # The check above proves the symbol package contains a .pdb. A .pdb whose documents nobody
-        # can resolve satisfies that and is worth nothing: symbols only pay for themselves if the
-        # path from a stack trace back to source is real. This walks that path for every document,
-        # and compares the bytes served against the checksum the compiler recorded rather than
-        # settling for a 200 - between two adjacent previews 90 of 131 files were byte-identical,
-        # so a status-only check would have accepted a package pinned to the wrong commit.
-        # The tag is pushed by the time this runs, so its SourceLink URLs are already servable.
-        run: pwsh -NoProfile -File tools/verify-sourcelink.ps1 -SymbolPackage "artifacts/namespace2xml.${env:version}.snupkg"
-
-      - name: Install the packed tool and check it reports the released contract
-        shell: bash
         run: |
           set -euo pipefail
-          dotnet tool install --tool-path /tmp/n2x --add-source artifacts --version "$version" namespace2xml
-          /tmp/n2x/namespace2xml --version | tee /tmp/version.txt
-          # Anchored: IncludeSourceRevisionInInformationalVersion is disabled in
-          # Directory.Build.props, so the reported version carries no +sha suffix and this
-          # comparison is exact rather than incidentally passing on a prefix.
-          grep -q "^version: ${version}$" /tmp/version.txt
-          grep -q '^contract-bundle: ' /tmp/version.txt
+          mkdir -p candidate
 
-      - name: The packed tool must satisfy the conformance corpus
-        shell: pwsh
-        run: pwsh -NoProfile -File tools/verify-packaged-corpus.ps1 -Package artifacts
-
-      - name: Every link the tool prints must resolve, and to these bytes
-        shell: bash
-        run: |
-          set -euo pipefail
-          # --version and --help are the tool's discovery surface, and for an automated caller
-          # they are the only one. A link that 404s turns "here is the contract" into a dead end
-          # that nobody notices until someone follows it. The links are pinned to this tag, so
-          # they can be checked now and can never drift afterwards.
-          /tmp/n2x/namespace2xml --help > /tmp/help.txt
-          urls=$(cat /tmp/version.txt /tmp/help.txt | grep -oE 'https://github\.com/[^ ]+' | sort -u)
-          test -n "$urls"
-          for url in $urls; do
-            echo "checking $url"
-            curl -fsSL -o /dev/null "$url"
-          done
-          # The reported hash must be the hash of the bytes the reported link serves, or a report
-          # naming that revision cannot be resolved to anything.
-          raw="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}/docs/specification.md"
-          declared=$(grep '^specification-sha256: ' /tmp/version.txt | cut -d' ' -f2)
-          served=$(curl -fsSL "$raw" | sha256sum | cut -d' ' -f1)
-          if [ "$declared" != "$served" ]; then
-            echo "::error::--version reports $declared but $raw hashes to $served"
+          artifacts=$(gh api --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
+            -f name="$candidate_name" -f per_page=100)
+          artifact_count=$(jq '.artifacts | length' <<< "$artifacts")
+          if [ "$artifact_count" -gt 1 ]; then
+            echo "::error::run $GITHUB_RUN_ID has multiple artifacts named $candidate_name"
             exit 1
           fi
 
-      - uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: 'artifacts/*.nupkg'
+          candidate_exists=false
+          candidate_artifact_id=
+          if [ "$artifact_count" -eq 1 ]; then
+            if [ "$(jq -r '.artifacts[0].expired' <<< "$artifacts")" != false ]; then
+              echo "::error::the immutable candidate artifact has expired"
+              exit 1
+            fi
+            candidate_exists=true
+            candidate_artifact_id=$(jq -r '.artifacts[0].id' <<< "$artifacts")
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${candidate_artifact_id}/zip" \
+              > "$RUNNER_TEMP/candidate.zip"
+            unzip -q "$RUNNER_TEMP/candidate.zip" -d candidate
+          fi
 
-      # Requested immediately before the push on purpose: nuget.org's short-lived key is valid for
-      # one hour and each OIDC token buys exactly one key, so anything slow placed between this
-      # step and the push is a way to expire a credential mid-release.
+          package_url="https://api.nuget.org/v3-flatcontainer/namespace2xml/${version,,}/${package_name}"
+          symbol_url="https://www.nuget.org/api/v2/symbolpackage/namespace2xml/${version}"
+          probe_public() {
+            local label=$1
+            local url=$2
+            local status
+            if ! status=$(curl --silent --show-error --location \
+              --retry 2 --retry-all-errors --output /dev/null \
+              --write-out '%{http_code}' "$url"); then
+              echo "::error::transport failure while probing public $label at $url" >&2
+              exit 1
+            fi
+            case "$status" in
+              2??) printf '%s\n' true ;;
+              404) printf '%s\n' false ;;
+              *)
+                echo "::error::public $label probe returned HTTP $status from $url" >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          package_present=$(probe_public package "$package_url")
+          symbols_present=$(probe_public symbols "$symbol_url")
+          releases=$(gh api --paginate --slurp \
+            "repos/${GITHUB_REPOSITORY}/releases?per_page=100")
+          release_count=$(jq --arg tag "$GITHUB_REF_NAME" \
+            '[.[][] | select(.tag_name == $tag)] | length' <<< "$releases")
+          if [ "$release_count" -gt 1 ]; then
+            echo "::error::more than one GitHub release uses tag $GITHUB_REF_NAME"
+            exit 1
+          fi
+          release_state=absent
+          if [ "$release_count" -eq 1 ]; then
+            release_state=$(jq -r --arg tag "$GITHUB_REF_NAME" \
+              '.[][] | select(.tag_name == $tag) | if .draft then "draft" else "published" end' \
+              <<< "$releases")
+          fi
+
+          if [ "$symbols_present" = true ] && [ "$package_present" = false ]; then
+            echo "::error::nuget.org serves symbols without the package; public state is inconsistent"
+            exit 1
+          fi
+          if [ "$release_state" = published ] &&
+             { [ "$package_present" = false ] || [ "$symbols_present" = false ]; }; then
+            echo "::error::published GitHub release exists before both NuGet artifacts are public"
+            exit 1
+          fi
+          if [ "$candidate_exists" = false ] &&
+             { [ "$package_present" = true ] || [ "$symbols_present" = true ] ||
+               [ "$release_state" != absent ]; }; then
+            echo "::error::public artifacts exist but this run has no immutable candidate to reconcile"
+            exit 1
+          fi
+          if [ "$candidate_exists" = false ] && [ "$GITHUB_RUN_ATTEMPT" -ne 1 ]; then
+            echo "::error::a re-run cannot rebuild the missing immutable candidate for this signed tag"
+            exit 1
+          fi
+
+          mode=initial
+          if [ "$candidate_exists" = true ]; then mode=reconciliation; fi
+          {
+            echo "candidate_exists=$candidate_exists"
+            echo "candidate_artifact_id=$candidate_artifact_id"
+            echo "package_present=$package_present"
+            echo "symbols_present=$symbols_present"
+            echo "release_state=$release_state"
+            echo "mode=$mode"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "CANDIDATE_ARTIFACT_ID=$candidate_artifact_id"
+            echo "RELEASE_MODE=$mode"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore the immutable candidate on reconciliation
+        if: steps.state.outputs.candidate_exists == 'true'
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/verify-release-candidate.ps1
+          -CandidateDirectory candidate
+          -Version $env:version
+          -Commit $env:GITHUB_SHA
+          -Tag $env:GITHUB_REF_NAME
+          -TagObject $env:tag_object
+          -TagTarget $env:tag_target
+          -RunId $env:GITHUB_RUN_ID
+          -CiRunId $env:ci_run_id
+          -AnsibleRunId $env:ansible_run_id
+          -PackageName $env:package_name
+          -SymbolName $env:symbol_name
+          -SigningFingerprint $env:RELEASE_SIGNING_FINGERPRINT
+
+      - name: Restore
+        if: steps.state.outputs.candidate_exists == 'false'
+        run: dotnet restore namespace2xml.slnx
+
+      - name: Build
+        if: steps.state.outputs.candidate_exists == 'false'
+        run: dotnet build namespace2xml.slnx --no-restore -c Release
+
+      - name: Test
+        if: steps.state.outputs.candidate_exists == 'false'
+        run: dotnet test namespace2xml.slnx --no-build -c Release
+
+      - name: Pack exactly once
+        if: steps.state.outputs.candidate_exists == 'false'
+        run: >
+          dotnet pack src/Namespace2Xml.Cli/Namespace2Xml.Cli.csproj
+          --no-build -c Release -o candidate
+
+      - name: Require the sole package, symbols, and offline contract
+        if: steps.state.outputs.candidate_exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find candidate -maxdepth 1 -type f -name '*.nupkg' ! -name '*.snupkg')
+          mapfile -t symbols < <(find candidate -maxdepth 1 -type f -name '*.snupkg')
+          if [ "${#packages[@]}" -ne 1 ] || [ "${packages[0]##*/}" != "$package_name" ]; then
+            echo "::error::pack must produce exactly $package_name"
+            exit 1
+          fi
+          if [ "${#symbols[@]}" -ne 1 ] || [ "${symbols[0]##*/}" != "$symbol_name" ]; then
+            echo "::error::pack must produce exactly $symbol_name"
+            exit 1
+          fi
+          unzip -l "candidate/$package_name" | grep -q 'docs/specification.md'
+          unzip -l "candidate/$package_name" | grep -q 'contract-bundle.json'
+          unzip -l "candidate/$package_name" | grep -q 'diagnostics.registry.json'
+          unzip -l "candidate/$symbol_name" | grep -q '\.pdb'
+
+      - name: Verify SourceLink reaches the tagged source bytes
+        if: steps.state.outputs.candidate_exists == 'false'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          pwsh -NoProfile -File tools/verify-sourcelink.ps1
+          -SymbolPackage "candidate/${env:symbol_name}"
+
+      - name: Verify the installed candidate identity
+        if: steps.state.outputs.candidate_exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet tool install --tool-path "$RUNNER_TEMP/candidate-tool" \
+            --add-source candidate --version "$version" namespace2xml
+          "$RUNNER_TEMP/candidate-tool/namespace2xml" --version |
+            tee "$RUNNER_TEMP/version.txt"
+          grep -qx "version: $version" "$RUNNER_TEMP/version.txt"
+          grep -q '^contract-bundle: ' "$RUNNER_TEMP/version.txt"
+
+      - name: The candidate must satisfy the complete conformance corpus
+        if: steps.state.outputs.candidate_exists == 'false'
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/verify-packaged-corpus.ps1
+          -Package candidate
+
+      - name: The candidate must satisfy issue 24's exact acceptance gate
+        if: steps.state.outputs.candidate_exists == 'false'
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/verify-issue-24.ps1
+          -Package candidate
+          -EvidencePath candidate/issue-24-evidence.json
+
+      - name: Every discovery link must resolve to the tagged contract bytes
+        if: steps.state.outputs.candidate_exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/candidate-tool/namespace2xml" --help > "$RUNNER_TEMP/help.txt"
+          urls=$(cat "$RUNNER_TEMP/version.txt" "$RUNNER_TEMP/help.txt" |
+            grep -oE 'https://github\.com/[^ ]+' | sort -u)
+          test -n "$urls"
+          for url in $urls; do curl -fsSL -o /dev/null "$url"; done
+          raw="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}/docs/specification.md"
+          declared=$(grep '^specification-sha256: ' "$RUNNER_TEMP/version.txt" | cut -d' ' -f2)
+          served=$(curl -fsSL "$raw" | sha256sum | cut -d' ' -f1)
+          test "$declared" = "$served"
+
+      - name: Verify every existing NuGet artifact before publishing its missing counterpart
+        if: steps.state.outputs.package_present == 'true' || steps.state.outputs.symbols_present == 'true'
+        shell: pwsh
+        env:
+          PACKAGE_PRESENT: ${{ steps.state.outputs.package_present }}
+          SYMBOLS_PRESENT: ${{ steps.state.outputs.symbols_present }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $artifacts = @()
+          if ($env:PACKAGE_PRESENT -ceq 'true') {
+              $artifacts += 'package'
+          }
+          if ($env:SYMBOLS_PRESENT -ceq 'true') {
+              $artifacts += 'symbols'
+          }
+          & "$PWD/tools/verify-nuget-publication.ps1" `
+              -CandidateDirectory candidate `
+              -Version $env:version `
+              -EvidenceDirectory "$env:RUNNER_TEMP/existing-nuget-evidence" `
+              -Artifacts $artifacts
+
+      - name: Seal the candidate manifest and source identity
+        if: steps.state.outputs.candidate_exists == 'false'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @($env:package_name, $env:symbol_name)
+          $manifest = foreach ($name in $files) {
+              $hash = (Get-FileHash -LiteralPath "candidate/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash  $name"
+          }
+          [IO.File]::WriteAllText(
+              (Join-Path $PWD 'candidate/SHA256SUMS'),
+              ($manifest -join "`n") + "`n",
+              [Text.UTF8Encoding]::new($false))
+          $metadata = [ordered] @{
+              version = $env:version
+              commit = $env:GITHUB_SHA
+              tag = $env:GITHUB_REF_NAME
+              tagObject = $env:tag_object
+              tagTarget = $env:tag_target
+              runId = $env:GITHUB_RUN_ID
+              initialAttempt = $env:GITHUB_RUN_ATTEMPT
+              ciRunId = $env:ci_run_id
+              ansibleRunId = $env:ansible_run_id
+              packageName = $env:package_name
+              symbolName = $env:symbol_name
+              signingFingerprint = $env:RELEASE_SIGNING_FINGERPRINT
+          }
+          [IO.File]::WriteAllText(
+              (Join-Path $PWD 'candidate/candidate-metadata.json'),
+              ($metadata | ConvertTo-Json) + "`n",
+              [Text.UTF8Encoding]::new($false))
+
+      - name: Verify the sealed candidate before retention
+        if: steps.state.outputs.candidate_exists == 'false'
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/verify-release-candidate.ps1
+          -CandidateDirectory candidate
+          -Version $env:version
+          -Commit $env:GITHUB_SHA
+          -Tag $env:GITHUB_REF_NAME
+          -TagObject $env:tag_object
+          -TagTarget $env:tag_target
+          -RunId $env:GITHUB_RUN_ID
+          -CiRunId $env:ci_run_id
+          -AnsibleRunId $env:ansible_run_id
+          -PackageName $env:package_name
+          -SymbolName $env:symbol_name
+          -SigningFingerprint $env:RELEASE_SIGNING_FINGERPRINT
+
+      - name: Upload the immutable release candidate
+        if: steps.state.outputs.candidate_exists == 'false'
+        id: upload-candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.identity.outputs.candidate_name }}
+          path: candidate/*
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+      - name: Record the immutable candidate artifact ID
+        if: steps.state.outputs.candidate_exists == 'false'
+        shell: bash
+        env:
+          ARTIFACT_ID: ${{ steps.upload-candidate.outputs.artifact-id }}
+        run: |
+          set -euo pipefail
+          test -n "$ARTIFACT_ID"
+          echo "CANDIDATE_ARTIFACT_ID=$ARTIFACT_ID" >> "$GITHUB_ENV"
+
+      - name: Revalidate the signed tag immediately before candidate attestation
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/verify-release-tag.ps1
+          -Tag $env:GITHUB_REF_NAME
+          -ExpectedTagObject $env:tag_object
+          -ExpectedTagTarget $env:tag_target
+          -SigningFingerprint $env:RELEASE_SIGNING_FINGERPRINT
+
+      - name: Attest the package candidate
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-path: candidate/${{ steps.identity.outputs.package_name }}
+
+      - name: Attest the symbol candidate
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-path: candidate/${{ steps.identity.outputs.symbol_name }}
+
+      # Authentication happens only after every read-only check, candidate gate, hash, upload, and
+      # attestation. It is skipped when both public NuGet artifacts already exist.
+      - name: Revalidate the signed tag immediately before OIDC exchange
+        if: steps.state.outputs.package_present == 'false' || steps.state.outputs.symbols_present == 'false'
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/verify-release-tag.ps1
+          -Tag $env:GITHUB_REF_NAME
+          -ExpectedTagObject $env:tag_object
+          -ExpectedTagTarget $env:tag_target
+          -SigningFingerprint $env:RELEASE_SIGNING_FINGERPRINT
+
       - name: Exchange this run's OIDC identity for a short-lived nuget.org key
-        uses: NuGet/login@v1
+        if: steps.state.outputs.package_present == 'false' || steps.state.outputs.symbols_present == 'false'
+        uses: NuGet/login@ebc737b6fc418a6ca0073cf116ec8dc156d8b81e # v1
         id: nuget-login
         with:
-          # The nuget.org profile name, which is public -- it is printed on the package page. A
-          # secret here would buy nothing and would reintroduce the failure this workflow already
-          # had once: an undefined secret expands to the empty string rather than to an error.
           user: stop-cran
 
-      - name: Push to nuget.org
+      - name: Publish only absent NuGet artifacts
+        if: steps.state.outputs.package_present == 'false' || steps.state.outputs.symbols_present == 'false'
+        shell: bash
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           set -euo pipefail
           if [ -z "$NUGET_API_KEY" ]; then
-            echo "::error::the OIDC exchange returned no key; nothing was published."
+            echo "::error::the OIDC exchange returned no key"
             exit 1
           fi
-          dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
-          dotnet nuget push "artifacts/*.snupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          if [ '${{ steps.state.outputs.package_present }}' = false ]; then
+            dotnet nuget push "candidate/$package_name" \
+              --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json \
+              --no-symbols
+          fi
+          if [ '${{ steps.state.outputs.symbols_present }}' = false ]; then
+            dotnet nuget push "candidate/$symbol_name" \
+              --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json
+          fi
 
-      - name: GitHub release
+      - name: Verify the bytes served by nuget.org
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -File tools/verify-nuget-publication.ps1
+          -CandidateDirectory candidate
+          -Version "${env:version}"
+          -EvidenceDirectory publication-evidence
+
+      - name: Record release provenance
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $candidate = Get-Content -LiteralPath candidate/candidate-metadata.json -Raw |
+              ConvertFrom-Json
+          $hashes = [ordered] @{}
+          foreach ($line in Get-Content -LiteralPath candidate/SHA256SUMS) {
+              if ($line -notmatch '^(?<hash>[0-9a-f]{64})  (?<name>.+)$') {
+                  throw "Invalid candidate manifest line: $line"
+              }
+              $hashes[$Matches.name] = $Matches.hash
+          }
+          $record = [ordered] @{
+              version = $env:version
+              tag = $env:GITHUB_REF_NAME
+              tagObject = $candidate.tagObject
+              tagTarget = $candidate.tagTarget
+              commit = $env:GITHUB_SHA
+              workflowRunId = $env:GITHUB_RUN_ID
+              workflowRunAttempt = $candidate.initialAttempt
+              mode = 'immutable-candidate'
+              candidateArtifactId = $env:CANDIDATE_ARTIFACT_ID
+              ciRunId = $candidate.ciRunId
+              ansibleRunId = $candidate.ansibleRunId
+              signingFingerprint = $env:RELEASE_SIGNING_FINGERPRINT
+              hashes = $hashes
+          }
+          [IO.Directory]::CreateDirectory('publication-evidence') | Out-Null
+          [IO.File]::WriteAllText(
+              (Join-Path $PWD 'publication-evidence/release-provenance.json'),
+              ($record | ConvertTo-Json -Depth 5) + "`n",
+              [Text.UTF8Encoding]::new($false))
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value @"
+          ## namespace2xml $($env:version)
+
+          - Commit: ``$($env:GITHUB_SHA)``
+          - Signed tag fingerprint: ``$($env:RELEASE_SIGNING_FINGERPRINT)``
+          - CI run: ``$($env:ci_run_id)``
+          - Ansible run: ``$($env:ansible_run_id)``
+          - Candidate artifact: ``$($env:CANDIDATE_ARTIFACT_ID)``
+          - Release mode: ``$($env:RELEASE_MODE)``
+          "@
+
+      - name: Install and smoke-test the stable package from nuget.org
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 15); do
+            rm -rf "$RUNNER_TEMP/public-tool"
+            if dotnet tool install --tool-path "$RUNNER_TEMP/public-tool" \
+              --version "$version" namespace2xml; then
+              break
+            fi
+            if [ "$attempt" -eq 15 ]; then
+              echo "::error::the stable package was not installable after 15 attempts"
+              exit 1
+            fi
+            sleep 20
+          done
+          "$RUNNER_TEMP/public-tool/namespace2xml" --version |
+            grep -qx "version: $version"
+
+          smoke="$RUNNER_TEMP/public-smoke"
+          mkdir "$smoke"
+          printf 'a.b.x=1\n' > "$smoke/input.properties"
+          printf 'a.output=xml,json,yaml,ini,namespace\n' > "$smoke/scheme.properties"
+          (
+            cd "$smoke"
+            "$RUNNER_TEMP/public-tool/namespace2xml" \
+              -i input.properties \
+              -s scheme.properties
+            test -f a.xml
+            test -f a.json
+            test -f a.yaml
+            test -f a.ini
+            test -f a.properties
+            grep -q '<x>1</x>' a.xml
+          )
+
+      - name: Create or reconcile the GitHub release from the same candidate
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          prerelease=""
-          case "$version" in *-*) prerelease="--prerelease";; esac
-          gh release create "$GITHUB_REF_NAME" artifacts/*.nupkg artifacts/*.snupkg \
-            --title "namespace2xml $version" \
-            --notes-file /tmp/release-notes.md $prerelease
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+
+          function Get-TaggedRelease {
+              $pages = & gh api --paginate --slurp `
+                  "repos/$env:GITHUB_REPOSITORY/releases?per_page=100"
+              if ($LASTEXITCODE -ne 0) {
+                  throw 'Failed to enumerate GitHub releases.'
+              }
+
+              $json = $pages |
+                  & jq --compact-output --arg tag $env:GITHUB_REF_NAME `
+                      '[.[][] | select(.tag_name == $tag)]'
+              if ($LASTEXITCODE -ne 0) {
+                  throw 'Failed to select the signed-tag GitHub release.'
+              }
+
+              $matches = @($json | ConvertFrom-Json)
+              if ($matches.Count -gt 1) {
+                  throw "More than one GitHub release uses tag '$env:GITHUB_REF_NAME'."
+              }
+
+              if ($matches.Count -eq 0) {
+                  return $null
+              }
+
+              return $matches[0]
+          }
+
+          function Get-ReleaseAsset {
+              param(
+                  [Parameter(Mandatory)] $Release,
+                  [Parameter(Mandatory)] [string] $Name)
+
+              $assets = @($Release.assets | Where-Object { $_.name -ceq $Name })
+              if ($assets.Count -gt 1) {
+                  throw "The GitHub release has duplicate assets named '$Name'."
+              }
+
+              if ($assets.Count -eq 0) {
+                  return $null
+              }
+
+              $asset = $assets[0]
+              if ([string] $asset.state -cne 'uploaded') {
+                  if (-not [bool] $Release.draft) {
+                      throw (
+                          "Published GitHub release asset '$Name' is not in the uploaded state."
+                      )
+                  }
+
+                  & gh api --method DELETE `
+                      "repos/$env:GITHUB_REPOSITORY/releases/assets/$($asset.id)" |
+                      Out-Null
+                  if ($LASTEXITCODE -ne 0) {
+                      throw "Failed to remove interrupted draft release asset '$Name'."
+                  }
+                  return $null
+              }
+
+              return $asset
+          }
+
+          function Save-ReleaseAsset {
+              param(
+                  [Parameter(Mandatory)] $Asset,
+                  [Parameter(Mandatory)] [string] $Destination)
+
+              & curl --fail --silent --show-error --location `
+                  --header "Authorization: Bearer $env:GH_TOKEN" `
+                  --header 'Accept: application/octet-stream' `
+                  --header 'X-GitHub-Api-Version: 2022-11-28' `
+                  --output $Destination `
+                  "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/assets/$($Asset.id)"
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Failed to download release asset '$($Asset.name)'."
+              }
+          }
+
+          function Assert-ReleaseMetadata {
+              param([Parameter(Mandatory)] $Release)
+
+              $expectedTitle = "namespace2xml $env:version"
+              $expectedBody = (
+                  [IO.File]::ReadAllText("$env:RUNNER_TEMP/release-notes.md") -replace "`r`n", "`n"
+              ).TrimEnd()
+              $actualBody = ([string] $Release.body -replace "`r`n", "`n").TrimEnd()
+              if ($Release.tag_name -cne $env:GITHUB_REF_NAME -or
+                  [bool] $Release.prerelease -or
+                  $Release.name -cne $expectedTitle -or
+                  $actualBody -cne $expectedBody) {
+                  throw (
+                      'The existing GitHub release does not match the signed tag, stable status, ' +
+                      'title, and generated notes.'
+                  )
+              }
+          }
+
+          & "$PWD/tools/verify-release-tag.ps1" `
+              -Tag $env:GITHUB_REF_NAME `
+              -ExpectedTagObject $env:tag_object `
+              -ExpectedTagTarget $env:tag_target `
+              -SigningFingerprint $env:RELEASE_SIGNING_FINGERPRINT
+
+          $release = Get-TaggedRelease
+          if ($null -eq $release) {
+              & gh release create $env:GITHUB_REF_NAME `
+                  --verify-tag `
+                  --draft `
+                  --title "namespace2xml $env:version" `
+                  --notes-file "$env:RUNNER_TEMP/release-notes.md"
+              if ($LASTEXITCODE -ne 0) {
+                  $release = Get-TaggedRelease
+                  if ($null -eq $release) {
+                      throw 'Failed to create the draft GitHub release.'
+                  }
+              }
+              else {
+                  $release = Get-TaggedRelease
+              }
+          }
+
+          if ($null -eq $release) {
+              throw 'The GitHub release is absent after draft creation.'
+          }
+          Assert-ReleaseMetadata $release
+
+          $sources = [ordered] @{}
+          $sources[$env:package_name] = "candidate/$env:package_name"
+          $sources[$env:symbol_name] = "candidate/$env:symbol_name"
+          $sources['SHA256SUMS'] = 'candidate/SHA256SUMS'
+          $sources['candidate-metadata.json'] = 'candidate/candidate-metadata.json'
+          $sources['issue-24-evidence.json'] = 'candidate/issue-24-evidence.json'
+          $sources['nuget-package-comparison.json'] =
+              'publication-evidence/nuget-package-comparison.json'
+          $sources['nuget-symbol-comparison.json'] =
+              'publication-evidence/nuget-symbol-comparison.json'
+          $sources['release-provenance.json'] =
+              'publication-evidence/release-provenance.json'
+          $unexpected = @(
+              $release.assets |
+                  Where-Object { -not $sources.Contains([string] $_.name) })
+          if ($unexpected.Count -ne 0) {
+              throw (
+                  'The GitHub release contains unexpected assets: ' +
+                  (($unexpected | ForEach-Object { $_.name }) -join ', ')
+              )
+          }
+
+          $downloadRoot = Join-Path $env:RUNNER_TEMP 'release-assets'
+          [IO.Directory]::CreateDirectory($downloadRoot) | Out-Null
+          foreach ($name in $sources.Keys) {
+              $asset = Get-ReleaseAsset -Release $release -Name $name
+              if ($null -eq $asset) {
+                  if (-not [bool] $release.draft) {
+                      throw "Published GitHub release is missing immutable asset '$name'."
+                  }
+
+                  & gh release upload $env:GITHUB_REF_NAME $sources[$name]
+                  if ($LASTEXITCODE -ne 0) {
+                      throw "Failed to upload draft release asset '$name'."
+                  }
+                  continue
+              }
+
+              $assetRoot = Join-Path $downloadRoot ([guid]::NewGuid().ToString('n'))
+              [IO.Directory]::CreateDirectory($assetRoot) | Out-Null
+              $downloaded = Join-Path $assetRoot $name
+              Save-ReleaseAsset -Asset $asset -Destination $downloaded
+              $expectedHash = (Get-FileHash -LiteralPath $sources[$name] -Algorithm SHA256).Hash
+              $actualHash = (Get-FileHash -LiteralPath $downloaded -Algorithm SHA256).Hash
+              if ($actualHash -cne $expectedHash) {
+                  throw "GitHub release asset '$name' differs from the immutable candidate."
+              }
+          }
+
+          $release = Get-TaggedRelease
+          Assert-ReleaseMetadata $release
+          $actualAssetNames = [string[]] @(
+              $release.assets |
+                  Sort-Object -Property name |
+                  ForEach-Object { $_.name })
+          $expectedAssetNames = [string[]] @($sources.Keys | Sort-Object)
+          if ([string]::Join("`n", $actualAssetNames) -cne
+              [string]::Join("`n", $expectedAssetNames)) {
+              throw 'The draft GitHub release does not contain exactly the release asset set.'
+          }
+
+          foreach ($name in $sources.Keys) {
+              $assetRoot = Join-Path $downloadRoot ([guid]::NewGuid().ToString('n'))
+              [IO.Directory]::CreateDirectory($assetRoot) | Out-Null
+              $asset = Get-ReleaseAsset -Release $release -Name $name
+              if ($null -eq $asset) {
+                  throw "Failed to find release asset '$name' before publication."
+              }
+              $expectedHash = (Get-FileHash -LiteralPath $sources[$name] -Algorithm SHA256).Hash
+              $downloaded = Join-Path $assetRoot $name
+              Save-ReleaseAsset -Asset $asset -Destination $downloaded
+              $actualHash = (Get-FileHash -LiteralPath $downloaded -Algorithm SHA256).Hash
+              if ($actualHash -cne $expectedHash) {
+                  throw "GitHub release asset '$name' changed before publication."
+              }
+          }
+
+          if ([bool] $release.draft) {
+              & "$PWD/tools/verify-release-tag.ps1" `
+                  -Tag $env:GITHUB_REF_NAME `
+                  -ExpectedTagObject $env:tag_object `
+                  -ExpectedTagTarget $env:tag_target `
+                  -SigningFingerprint $env:RELEASE_SIGNING_FINGERPRINT
+              & gh release edit $env:GITHUB_REF_NAME --draft=false --latest
+              if ($LASTEXITCODE -ne 0) {
+                  throw 'Failed to publish the verified draft GitHub release.'
+              }
+          }
+
+          $published = Get-TaggedRelease
+          Assert-ReleaseMetadata $published
+          if ([bool] $published.draft -or [bool] $published.prerelease) {
+              throw 'GitHub release did not reach the stable published state.'
+          }
+
+      - name: Upload publication evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: publication-evidence/*
+          if-no-files-found: error

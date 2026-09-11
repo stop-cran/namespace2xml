@@ -108,9 +108,8 @@ Refusing them is the reading that leaves the rest of the specification consisten
 
 Merge keys (`<<`) are refused for the same reason `RestrictedYaml1` refuses duplicate keys: a
 merge key is a hidden override, and §17.1's deep-merge rules already cover the same job
-explicitly. Note that the specification is under-determined here about whether an unsupported
-merge key is a `PARSE001` or an ordinary key; this preview refuses plain `<<` and accepts quoted
-`"<<"` as an ordinary key. See `KNOWN-LIMITS.md` §1.2.
+explicitly. Section 10.2 makes a plain `<<` merge key `PARSE001`; a quoted `"<<"` is an ordinary
+string key and is accepted.
 
 Quote style, block-scalar style, indentation, and comment spacing are lexical, not semantic.
 Nothing downstream can tell whether a value came from a double-quoted or single-quoted scalar, so
@@ -220,7 +219,7 @@ binds to the document, not to the first entry. This differs from namespace-profi
 the difference because a document-leading comment and a first-entry leading comment emit in the
 same place, but they diverge once the first entry stops being emitted — for example, under an
 ignore mask or when the first entry is unselected by the output view. The document comment
-survives to the output; the entry-bound one does not. See `KNOWN-LIMITS.md` §1.16.
+survives to the output; the entry-bound one does not.
 
 The fixture `yaml-comment-positions-survive-a-round-trip` pins a YAML→YAML run in which every
 supported comment position — document-leading, leading of an entry, inline on an entry, trailing
@@ -323,10 +322,10 @@ alias, a value beginning `{` or `[` that would start a flow collection, the stri
 U+FEFF is escaped as `"\uFEFF"`, U+2028 and U+2029 are escaped as `"\u2028"` and `"\u2029"`, and
 a supplementary character is written as itself rather than as two surrogate escapes. Its
 `legacy.md` explains that these choices follow from §3.3, not from §19.4's one explicit rule.
-`KNOWN-LIMITS.md` §1.15 records the same qualification more generally, filed as a specification
-gap in [#52](https://github.com/stop-cran/namespace2xml/issues/52).
+The same qualification is pinned by
+`conformance/yaml-indentation-block-scalars-and-quoting`.
 
-Under this preview, verified: a string starting with `!`, `&`, `*`, `{`, `${`, or containing `: `
+Under 3.0, verified: a string starting with `!`, `&`, `*`, `{`, `${`, or containing `: `
 is single-quoted; `...` and `---` as standalone values are single-quoted. Do not rely on the
 exact set — rely on the guarantee that whatever the writer emits, feeding it back through the
 reader produces the same string.
@@ -345,9 +344,8 @@ to fall last. Making the spelling depend on where it sorts among its siblings wo
 unrelated key silently rewrite an untouched value, so the uniform rule wins even at the cost of
 losing the block form. The fixture `yaml-indentation-block-scalars-and-quoting` pins this: the
 input's `kept: |+` block, whose value ends in a blank line, is written `kept: "solo\n\n"`.
-`KNOWN-LIMITS.md` §1.15 records the underlying issue that §19.4's blanket "uses literal block
-scalars for multiline values" has never been the whole rule; a block scalar cannot carry a value
-containing CR, a control character, lines with trailing whitespace, or a first non-empty line
+Section 19.4's scalar-style precedence supplies the complete rule: a block scalar cannot carry a
+value containing CR, a control character, lines with trailing whitespace, or a first non-empty line
 that is indented, and the writer has always quoted those.
 
 ### Shape conflicts
@@ -482,8 +480,7 @@ that is refused is an empty mapping, which is `PARSE001` — see the wildcard se
 
 **A comment at the top of a YAML file is document-scoped, not first-entry-scoped.** Under an
 ignore mask on the first entry, a top-of-namespace-profile comment is dropped with the entry;
-the equivalent top-of-YAML comment survives. §20 and §8.5 give the two different rules. See
-`KNOWN-LIMITS.md` §1.16.
+the equivalent top-of-YAML comment survives. §20 and §8.5 give the two different rules.
 
 **A numeric-key YAML mapping renders as a sequence unless `type=mapping` says otherwise.**
 §8.7 makes this a normative deliberate normalization, and it is how cross-file sequence
@@ -492,8 +489,8 @@ your intent is a mapping keyed on decimal strings, force it with `type=mapping` 
 the warning in the stream.
 
 **A value ending in a blank line is written double-quoted, not as a block scalar.** §19.4 says
-the writer "uses literal block scalars for multiline values", but §24 requires a text output to
-end in exactly one LF, and a keep-chomped block ends in two. See `KNOWN-LIMITS.md` §1.15.
+the writer applies the safe-style precedence before considering a literal block scalar, and §24
+requires a text output to end in exactly one LF; a keep-chomped block ends in two.
 
 **Anchors, aliases, tags, and merge keys are refused, not silently accepted.** §10.2 lists them
 all as blocking `PARSE001` errors. A file that used to load under a permissive parser will
