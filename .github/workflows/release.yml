@@ -57,17 +57,14 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME does not match <Version>$declared</Version>"
             exit 1
           fi
-          if [ "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" != tag ]; then
-            echo "::error::$GITHUB_REF_NAME is lightweight; releases require an annotated tag"
-            exit 1
-          fi
 
-          tag_object=$(git rev-parse "refs/tags/$GITHUB_REF_NAME")
-          tag_target=$(git rev-parse "$GITHUB_REF_NAME^{commit}")
-          if [ "$tag_target" != "$GITHUB_SHA" ]; then
-            echo "::error::checkout $GITHUB_SHA differs from tag target $tag_target"
+          tag_ref="refs/tags/$GITHUB_REF_NAME"
+          tag_object=$(git ls-remote --refs origin "$tag_ref" | cut -f1)
+          if [[ ! "$tag_object" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::origin does not expose exactly one $tag_ref object"
             exit 1
           fi
+          tag_target="$GITHUB_SHA"
 
           git fetch --force origin refs/heads/master:refs/remotes/origin/master
           master=$(git rev-parse refs/remotes/origin/master)
@@ -97,16 +94,11 @@ jobs:
             exit 1
           fi
 
-          verification=$(git verify-tag --raw "$GITHUB_REF_NAME" 2>&1) || {
-            printf '%s\n' "$verification"
-            echo "::error::$GITHUB_REF_NAME does not have a valid signature"
-            exit 1
-          }
-          if ! grep -q "\\[GNUPG:\\] VALIDSIG $RELEASE_SIGNING_FINGERPRINT " <<< "$verification"; then
-            printf '%s\n' "$verification"
-            echo "::error::tag signature is not from $RELEASE_SIGNING_FINGERPRINT"
-            exit 1
-          fi
+          pwsh -NoProfile -File tools/verify-release-tag.ps1 \
+            -Tag "$GITHUB_REF_NAME" \
+            -ExpectedTagObject "$tag_object" \
+            -ExpectedTagTarget "$tag_target" \
+            -SigningFingerprint "$RELEASE_SIGNING_FINGERPRINT"
 
           {
             echo "version=$version"

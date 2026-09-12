@@ -103,7 +103,20 @@ try {
         $tagTarget = (& git rev-parse 'v3.0.0^{commit}').Trim()
         $tagObject = (& git rev-parse refs/tags/v3.0.0).Trim()
         $env:GITHUB_SHA = $tagTarget
+
+        Invoke-Git tag --delete v3.0.0
+        Invoke-Git tag v3.0.0 $tagTarget
+        $localType = (& git cat-file -t refs/tags/v3.0.0).Trim()
+        if ($localType -cne 'commit') {
+            throw 'The controlled checkout shape did not create a lightweight local tag.'
+        }
+
         Invoke-Validator $tagObject $tagTarget $fingerprint $true
+        $restoredType = (& git cat-file -t refs/tags/v3.0.0).Trim()
+        $restoredObject = (& git rev-parse refs/tags/v3.0.0).Trim()
+        if ($restoredType -cne 'tag' -or $restoredObject -cne $tagObject) {
+            throw 'The validator did not restore the authoritative remote annotated tag.'
+        }
 
         Invoke-Git tag --force --sign v3.0.0 -m 'mutated stable candidate' $tagTarget
         $mutatedObject = (& git rev-parse refs/tags/v3.0.0).Trim()
@@ -122,8 +135,9 @@ try {
     }
 
     Write-Host (
-        'Release-tag validator accepted the sealed signed identity and rejected tag-object, ' +
-        'target, and signer mutations.'
+        'Release-tag validator restored the remote annotated tag over a lightweight local ' +
+        'checkout, accepted the sealed identity, and rejected tag-object, target, and signer ' +
+        'mutations.'
     )
 }
 finally {
