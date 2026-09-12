@@ -1,9 +1,10 @@
 name: release
 
 # A stable release is one signed annotated tag over the exact master commit already accepted by
-# both required workflows. The first attempt packs and uploads one immutable candidate. A rerun
-# retrieves that artifact by ID and reconciles public state; it never rebuilds or silently skips a
-# collision.
+# both required workflows. The first attempt packs one immutable candidate, seals it into a draft
+# release before NuGet publication, and also uploads it as a workflow artifact. A rerun restores
+# from either location and reconciles public state; it never rebuilds after an external artifact
+# exists or silently skips a collision.
 on:
   push:
     tags:
@@ -203,6 +204,7 @@ jobs:
 
           candidate_exists=false
           candidate_artifact_id=
+          candidate_source=
           if [ "$artifact_count" -eq 1 ]; then
             if [ "$(jq -r '.artifacts[0].expired' <<< "$artifacts")" != false ]; then
               echo "::error::the immutable candidate artifact has expired"
@@ -213,6 +215,7 @@ jobs:
             gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${candidate_artifact_id}/zip" \
               > "$RUNNER_TEMP/candidate.zip"
             unzip -q "$RUNNER_TEMP/candidate.zip" -d candidate
+            candidate_source=actions-artifact
           fi
 
           package_url="https://api.nuget.org/v3-flatcontainer/namespace2xml/${version,,}/${package_name}"
@@ -248,10 +251,113 @@ jobs:
             exit 1
           fi
           release_state=absent
+          release_id=
+          release_json=
           if [ "$release_count" -eq 1 ]; then
-            release_state=$(jq -r --arg tag "$GITHUB_REF_NAME" \
-              '.[][] | select(.tag_name == $tag) | if .draft then "draft" else "published" end' \
-              <<< "$releases")
+            release_json=$(jq -c --arg tag "$GITHUB_REF_NAME" \
+              '.[][] | select(.tag_name == $tag)' <<< "$releases")
+            release_state=$(jq -r 'if .draft then "draft" else "published" end' \
+              <<< "$release_json")
+            release_id=$(jq -r '.id' <<< "$release_json")
+          fi
+
+          retention_name="${candidate_name}.zip"
+          download_release_asset() {
+            local asset_id=$1
+            local destination=$2
+            curl --fail --silent --show-error --location \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header 'Accept: application/octet-stream' \
+              --header 'X-GitHub-Api-Version: 2022-11-28' \
+              --output "$destination" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}"
+          }
+
+          if [ "$candidate_exists" = false ] && [ -n "$release_json" ]; then
+            retention_count=$(jq --arg name "$retention_name" \
+              '[.assets[] | select(.name == $name)] | length' <<< "$release_json")
+            if [ "$retention_count" -gt 1 ]; then
+              echo "::error::release $release_id has duplicate assets named $retention_name"
+              exit 1
+            fi
+            retention_uploaded=false
+            retention_interrupted=false
+            if [ "$retention_count" -eq 1 ]; then
+              retention_id=$(jq -r --arg name "$retention_name" \
+                '.assets[] | select(.name == $name) | .id' <<< "$release_json")
+              retention_state=$(jq -r --arg name "$retention_name" \
+                '.assets[] | select(.name == $name) | .state' <<< "$release_json")
+              if [ "$retention_state" = uploaded ]; then
+                retention_uploaded=true
+              else
+                retention_interrupted=true
+              fi
+            fi
+            if [ "$retention_uploaded" = true ]; then
+              download_release_asset "$retention_id" "$RUNNER_TEMP/candidate-retention.zip"
+              unzip -q "$RUNNER_TEMP/candidate-retention.zip" -d candidate
+              candidate_exists=true
+              candidate_source=release-retention
+            else
+              core_assets=(
+                "$package_name"
+                "$symbol_name"
+                SHA256SUMS
+                candidate-metadata.json
+                issue-24-evidence.json
+              )
+              complete_core=true
+              for name in "${core_assets[@]}"; do
+                asset_count=$(jq --arg name "$name" \
+                  '[.assets[] | select(.name == $name)] | length' <<< "$release_json")
+                if [ "$asset_count" -gt 1 ]; then
+                  echo "::error::release $release_id has duplicate assets named $name"
+                  exit 1
+                fi
+                if [ "$asset_count" -ne 1 ] ||
+                   [ "$(jq -r --arg name "$name" \
+                      '.assets[] | select(.name == $name) | .state' \
+                      <<< "$release_json")" != uploaded ]; then
+                  complete_core=false
+                fi
+              done
+              if [ "$complete_core" = true ]; then
+                if [ "$retention_interrupted" = true ]; then
+                  if [ "$release_state" != draft ]; then
+                    echo "::error::published release contains an interrupted retention asset"
+                    exit 1
+                  fi
+                  gh api --method DELETE \
+                    "repos/${GITHUB_REPOSITORY}/releases/assets/${retention_id}"
+                  release_json=$(jq --argjson id "$retention_id" \
+                    '.assets = [.assets[] | select(.id != $id)]' <<< "$release_json")
+                fi
+                for name in "${core_assets[@]}"; do
+                  asset_id=$(jq -r --arg name "$name" \
+                    '.assets[] | select(.name == $name) | .id' <<< "$release_json")
+                  download_release_asset "$asset_id" "candidate/$name"
+                done
+                candidate_exists=true
+                candidate_source=release-assets
+              elif [ "$retention_interrupted" = true ]; then
+                release_asset_count=$(jq '.assets | length' <<< "$release_json")
+                if [ "$release_state" != draft ] ||
+                   [ "$release_asset_count" -ne 1 ] ||
+                   [ "$package_present" = true ] ||
+                   [ "$symbols_present" = true ]; then
+                  echo "::error::the release contains an interrupted retention asset in non-rebuildable state"
+                  exit 1
+                fi
+                gh api --method DELETE \
+                  "repos/${GITHUB_REPOSITORY}/releases/assets/${retention_id}"
+                release_json=$(jq --argjson id "$retention_id" \
+                  '.assets = [.assets[] | select(.id != $id)]' <<< "$release_json")
+              fi
+            fi
+          fi
+          release_asset_count=0
+          if [ -n "$release_json" ]; then
+            release_asset_count=$(jq '.assets | length' <<< "$release_json")
           fi
 
           if [ "$symbols_present" = true ] && [ "$package_present" = false ]; then
@@ -265,27 +371,31 @@ jobs:
           fi
           if [ "$candidate_exists" = false ] &&
              { [ "$package_present" = true ] || [ "$symbols_present" = true ] ||
-               [ "$release_state" != absent ]; }; then
+               [ "$release_state" = published ] || [ "$release_asset_count" -ne 0 ]; }; then
             echo "::error::public artifacts exist but this run has no immutable candidate to reconcile"
             exit 1
           fi
-          if [ "$candidate_exists" = false ] && [ "$GITHUB_RUN_ATTEMPT" -ne 1 ]; then
-            echo "::error::a re-run cannot rebuild the missing immutable candidate for this signed tag"
-            exit 1
-          fi
-
           mode=initial
-          if [ "$candidate_exists" = true ]; then mode=reconciliation; fi
+          if [ "$candidate_exists" = false ] && [ "$GITHUB_RUN_ATTEMPT" -ne 1 ]; then
+            mode=initial-retry-before-retention
+          fi
+          if [ "$candidate_exists" = true ]; then
+            mode="reconciliation-${candidate_source}"
+          fi
           {
             echo "candidate_exists=$candidate_exists"
             echo "candidate_artifact_id=$candidate_artifact_id"
+            echo "candidate_source=$candidate_source"
             echo "package_present=$package_present"
             echo "symbols_present=$symbols_present"
             echo "release_state=$release_state"
+            echo "release_id=$release_id"
             echo "mode=$mode"
           } >> "$GITHUB_OUTPUT"
           {
             echo "CANDIDATE_ARTIFACT_ID=$candidate_artifact_id"
+            echo "CANDIDATE_RETENTION_NAME=$retention_name"
+            echo "GITHUB_RELEASE_ID=$release_id"
             echo "RELEASE_MODE=$mode"
           } >> "$GITHUB_ENV"
 
@@ -301,6 +411,7 @@ jobs:
           -TagObject $env:tag_object
           -TagTarget $env:tag_target
           -RunId $env:GITHUB_RUN_ID
+          -CurrentAttempt $env:GITHUB_RUN_ATTEMPT
           -CiRunId $env:ci_run_id
           -AnsibleRunId $env:ansible_run_id
           -PackageName $env:package_name
@@ -462,11 +573,300 @@ jobs:
           -TagObject $env:tag_object
           -TagTarget $env:tag_target
           -RunId $env:GITHUB_RUN_ID
+          -CurrentAttempt $env:GITHUB_RUN_ATTEMPT
           -CiRunId $env:ci_run_id
           -AnsibleRunId $env:ansible_run_id
           -PackageName $env:package_name
           -SymbolName $env:symbol_name
           -SigningFingerprint $env:RELEASE_SIGNING_FINGERPRINT
+
+      - name: Retain the candidate outside the workflow-run artifact lifecycle
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+
+          function Get-TaggedRelease {
+              $pages = & gh api --paginate --slurp `
+                  "repos/$env:GITHUB_REPOSITORY/releases?per_page=100"
+              if ($LASTEXITCODE -ne 0) {
+                  throw 'Failed to enumerate GitHub releases.'
+              }
+
+              $json = $pages |
+                  & jq --compact-output --arg tag $env:GITHUB_REF_NAME `
+                      '[.[][] | select(.tag_name == $tag)]'
+              if ($LASTEXITCODE -ne 0) {
+                  throw 'Failed to select the signed-tag GitHub release.'
+              }
+
+              $matches = @($json | ConvertFrom-Json)
+              if ($matches.Count -gt 1) {
+                  throw "More than one GitHub release uses tag '$env:GITHUB_REF_NAME'."
+              }
+              if ($matches.Count -eq 0) {
+                  return $null
+              }
+              return $matches[0]
+          }
+
+          function Get-ReleaseAsset {
+              param(
+                  [Parameter(Mandatory)] $Release,
+                  [Parameter(Mandatory)] [string] $Name)
+
+              $assets = @($Release.assets | Where-Object { $_.name -ceq $Name })
+              if ($assets.Count -gt 1) {
+                  throw "The GitHub release has duplicate assets named '$Name'."
+              }
+              if ($assets.Count -eq 0) {
+                  return $null
+              }
+              return $assets[0]
+          }
+
+          function Save-ReleaseAsset {
+              param(
+                  [Parameter(Mandatory)] $Asset,
+                  [Parameter(Mandatory)] [string] $Destination)
+
+              & curl --fail --silent --show-error --location `
+                  --header "Authorization: Bearer $env:GH_TOKEN" `
+                  --header 'Accept: application/octet-stream' `
+                  --header 'X-GitHub-Api-Version: 2022-11-28' `
+                  --output $Destination `
+                  "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/assets/$($Asset.id)"
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Failed to download release asset '$($Asset.name)'."
+              }
+          }
+
+          function Assert-ReleaseMetadata {
+              param([Parameter(Mandatory)] $Release)
+
+              $expectedTitle = "namespace2xml $env:version"
+              $expectedBody = (
+                  [IO.File]::ReadAllText("$env:RUNNER_TEMP/release-notes.md") -replace "`r`n", "`n"
+              ).TrimEnd()
+              $actualBody = ([string] $Release.body -replace "`r`n", "`n").TrimEnd()
+              if ($Release.tag_name -cne $env:GITHUB_REF_NAME -or
+                  [bool] $Release.prerelease -or
+                  $Release.name -cne $expectedTitle -or
+                  $actualBody -cne $expectedBody) {
+                  throw (
+                      'The existing GitHub release does not match the signed tag, stable status, ' +
+                      'title, and generated notes.'
+                  )
+              }
+          }
+
+          $release = Get-TaggedRelease
+          if ($null -eq $release) {
+              $payload = [ordered] @{
+                  tag_name = $env:GITHUB_REF_NAME
+                  target_commitish = $env:GITHUB_SHA
+                  name = "namespace2xml $env:version"
+                  body = [IO.File]::ReadAllText("$env:RUNNER_TEMP/release-notes.md")
+                  draft = $true
+                  prerelease = $false
+              }
+              $payloadPath = Join-Path $env:RUNNER_TEMP 'create-release.json'
+              [IO.File]::WriteAllText(
+                  $payloadPath,
+                  ($payload | ConvertTo-Json -Depth 3),
+                  [Text.UTF8Encoding]::new($false))
+              $createdJson = & gh api --method POST `
+                  "repos/$env:GITHUB_REPOSITORY/releases" `
+                  --input $payloadPath
+              if ($LASTEXITCODE -eq 0) {
+                  # Use the write response directly; list endpoints need not be read-after-write consistent.
+                  $release = ($createdJson -join "`n") | ConvertFrom-Json
+              }
+              else {
+                  foreach ($delay in @(1, 2, 4, 8, 16)) {
+                      Start-Sleep -Seconds $delay
+                      $release = Get-TaggedRelease
+                      if ($null -ne $release) {
+                          break
+                      }
+                  }
+                  if ($null -eq $release) {
+                      throw 'Failed to create or recover the draft GitHub release.'
+                  }
+              }
+          }
+
+          Assert-ReleaseMetadata $release
+          "GITHUB_RELEASE_ID=$($release.id)" | Add-Content -LiteralPath $env:GITHUB_ENV
+          if (-not [bool] $release.draft) {
+              return
+          }
+
+          $candidateFiles = @(
+              Get-ChildItem -LiteralPath candidate -File |
+                  Sort-Object -Property Name)
+          if ($candidateFiles.Count -ne 5) {
+              throw "The retained candidate must contain exactly five files."
+          }
+          $archive = Join-Path $env:RUNNER_TEMP $env:CANDIDATE_RETENTION_NAME
+          Compress-Archive -LiteralPath $candidateFiles.FullName -DestinationPath $archive
+
+          $asset = Get-ReleaseAsset -Release $release -Name $env:CANDIDATE_RETENTION_NAME
+          if ($null -eq $asset) {
+              $responsePath = Join-Path $env:RUNNER_TEMP 'candidate-retention-upload.json'
+              $escapedName = [Uri]::EscapeDataString($env:CANDIDATE_RETENTION_NAME)
+              & curl --fail --silent --show-error `
+                  --request POST `
+                  --header "Authorization: Bearer $env:GH_TOKEN" `
+                  --header 'Accept: application/vnd.github+json' `
+                  --header 'X-GitHub-Api-Version: 2022-11-28' `
+                  --header 'Content-Type: application/zip' `
+                  --data-binary "@$archive" `
+                  --output $responsePath `
+                  "https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets?name=$escapedName"
+              if ($LASTEXITCODE -ne 0) {
+                  throw 'Failed to retain the candidate in the draft GitHub release.'
+              }
+              $asset = Get-Content -LiteralPath $responsePath -Raw | ConvertFrom-Json
+          }
+          if ([string] $asset.state -cne 'uploaded') {
+              throw 'The retained candidate release asset is not in the uploaded state.'
+          }
+
+          $downloaded = Join-Path $env:RUNNER_TEMP 'candidate-retention-redownload.zip'
+          Save-ReleaseAsset -Asset $asset -Destination $downloaded
+          $expanded = Join-Path $env:RUNNER_TEMP 'candidate-retention-redownload'
+          Expand-Archive -LiteralPath $downloaded -DestinationPath $expanded
+          $retainedFiles = @(Get-ChildItem -LiteralPath $expanded -File | Sort-Object -Property Name)
+          if ([string]::Join("`n", @($retainedFiles.Name)) -cne
+              [string]::Join("`n", @($candidateFiles.Name))) {
+              throw 'The retained candidate has a different file set.'
+          }
+          foreach ($candidateFile in $candidateFiles) {
+              $retainedPath = Join-Path $expanded $candidateFile.Name
+              $expectedHash = (
+                  Get-FileHash -LiteralPath $candidateFile.FullName -Algorithm SHA256
+              ).Hash
+              $actualHash = (Get-FileHash -LiteralPath $retainedPath -Algorithm SHA256).Hash
+              if ($actualHash -cne $expectedHash) {
+                  throw (
+                      "Retained candidate file '$($candidateFile.Name)' differs from the " +
+                      'locally verified candidate.'
+                  )
+              }
+          }
+
+      - name: Validate draft assets before publication
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_PRESENT: ${{ steps.state.outputs.package_present }}
+          SYMBOLS_PRESENT: ${{ steps.state.outputs.symbols_present }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+
+          function Save-ReleaseAsset {
+              param(
+                  [Parameter(Mandatory)] $Asset,
+                  [Parameter(Mandatory)] [string] $Destination)
+
+              & curl --fail --silent --show-error --location `
+                  --header "Authorization: Bearer $env:GH_TOKEN" `
+                  --header 'Accept: application/octet-stream' `
+                  --header 'X-GitHub-Api-Version: 2022-11-28' `
+                  --output $Destination `
+                  "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/assets/$($Asset.id)"
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Failed to download release asset '$($Asset.name)'."
+              }
+          }
+
+          $releaseJson = & gh api `
+              "repos/$env:GITHUB_REPOSITORY/releases/$env:GITHUB_RELEASE_ID"
+          if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to read the retained GitHub release by ID.'
+          }
+          $release = ($releaseJson -join "`n") | ConvertFrom-Json
+
+          $candidateSources = [ordered] @{}
+          $candidateSources[$env:package_name] = "candidate/$env:package_name"
+          $candidateSources[$env:symbol_name] = "candidate/$env:symbol_name"
+          $candidateSources['SHA256SUMS'] = 'candidate/SHA256SUMS'
+          $candidateSources['candidate-metadata.json'] = 'candidate/candidate-metadata.json'
+          $candidateSources['issue-24-evidence.json'] = 'candidate/issue-24-evidence.json'
+          $allowedNames = [Collections.Generic.HashSet[string]]::new(
+              [StringComparer]::Ordinal)
+          $allowedNames.Add($env:CANDIDATE_RETENTION_NAME) | Out-Null
+          foreach ($name in $candidateSources.Keys) {
+              $allowedNames.Add($name) | Out-Null
+          }
+          foreach ($name in @(
+                  'nuget-package-comparison.json',
+                  'nuget-symbol-comparison.json',
+                  'release-provenance.json')) {
+              $allowedNames.Add($name) | Out-Null
+          }
+
+          $seenNames = [Collections.Generic.HashSet[string]]::new(
+              [StringComparer]::Ordinal)
+          $finalAssets = @()
+          $nugetPublicationIncomplete = (
+              $env:PACKAGE_PRESENT -cne 'true' -or
+              $env:SYMBOLS_PRESENT -cne 'true')
+          foreach ($asset in @($release.assets)) {
+              $name = [string] $asset.name
+              if (-not $allowedNames.Contains($name)) {
+                  throw "The GitHub release contains unexpected asset '$name'."
+              }
+              if (-not $seenNames.Add($name)) {
+                  throw "The GitHub release has duplicate assets named '$name'."
+              }
+              if ([string] $asset.state -cne 'uploaded') {
+                  if ($nugetPublicationIncomplete -or
+                      -not [bool] $release.draft -or
+                      $name -ceq $env:CANDIDATE_RETENTION_NAME) {
+                      throw "GitHub release asset '$name' is not in the uploaded state."
+                  }
+                  # Final reconciliation deletes and replaces interrupted expected draft assets.
+                  continue
+              }
+              if ($name -cne $env:CANDIDATE_RETENTION_NAME) {
+                  $finalAssets += $asset
+              }
+          }
+
+          if ($nugetPublicationIncomplete -and $finalAssets.Count -ne 0) {
+              throw (
+                  'The draft contains final release assets before both NuGet artifacts are ' +
+                  'confirmed public; refusing an irreversible publication from inconsistent state.'
+              )
+          }
+
+          $downloadRoot = Join-Path $env:RUNNER_TEMP 'pre-publication-release-assets'
+          [IO.Directory]::CreateDirectory($downloadRoot) | Out-Null
+          foreach ($asset in $finalAssets) {
+              $name = [string] $asset.name
+              if (-not $candidateSources.Contains($name)) {
+                  continue
+              }
+              $downloaded = Join-Path $downloadRoot $name
+              Save-ReleaseAsset -Asset $asset -Destination $downloaded
+              $expectedHash = (
+                  Get-FileHash -LiteralPath $candidateSources[$name] -Algorithm SHA256
+              ).Hash
+              $actualHash = (
+                  Get-FileHash -LiteralPath $downloaded -Algorithm SHA256
+              ).Hash
+              if ($actualHash -cne $expectedHash) {
+                  throw (
+                      "GitHub release asset '$name' differs from the immutable candidate " +
+                      'before publication.'
+                  )
+              }
+          }
 
       - name: Upload the immutable release candidate
         if: steps.state.outputs.candidate_exists == 'false'
@@ -580,7 +980,7 @@ jobs:
               workflowRunId = $env:GITHUB_RUN_ID
               workflowRunAttempt = $candidate.initialAttempt
               mode = 'immutable-candidate'
-              candidateArtifactId = $env:CANDIDATE_ARTIFACT_ID
+              candidateRetentionReleaseId = $env:GITHUB_RELEASE_ID
               ciRunId = $candidate.ciRunId
               ansibleRunId = $candidate.ansibleRunId
               signingFingerprint = $env:RELEASE_SIGNING_FINGERPRINT
@@ -646,30 +1046,39 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Set-StrictMode -Version Latest
 
-          function Get-TaggedRelease {
-              $pages = & gh api --paginate --slurp `
-                  "repos/$env:GITHUB_REPOSITORY/releases?per_page=100"
+          function Get-ReleaseById {
+              if ([string]::IsNullOrEmpty($env:GITHUB_RELEASE_ID)) {
+                  throw 'The candidate was not retained in a GitHub release.'
+              }
+
+              $json = & gh api `
+                  "repos/$env:GITHUB_REPOSITORY/releases/$env:GITHUB_RELEASE_ID"
               if ($LASTEXITCODE -ne 0) {
-                  throw 'Failed to enumerate GitHub releases.'
+                  throw "Failed to read GitHub release $env:GITHUB_RELEASE_ID."
               }
 
-              $json = $pages |
-                  & jq --compact-output --arg tag $env:GITHUB_REF_NAME `
-                      '[.[][] | select(.tag_name == $tag)]'
-              if ($LASTEXITCODE -ne 0) {
-                  throw 'Failed to select the signed-tag GitHub release.'
-              }
+              return ($json -join "`n") | ConvertFrom-Json
+          }
 
-              $matches = @($json | ConvertFrom-Json)
-              if ($matches.Count -gt 1) {
-                  throw "More than one GitHub release uses tag '$env:GITHUB_REF_NAME'."
-              }
+          function Wait-ForReleaseEndpoint {
+              param(
+                  [Parameter(Mandatory)] [string] $Path,
+                  [Parameter(Mandatory)] [long] $ExpectedId,
+                  [Parameter(Mandatory)] [string] $Label)
 
-              if ($matches.Count -eq 0) {
-                  return $null
+              foreach ($delay in @(0, 1, 2, 4, 8, 16)) {
+                  if ($delay -ne 0) {
+                      Start-Sleep -Seconds $delay
+                  }
+                  $json = & gh api $Path 2>$null
+                  if ($LASTEXITCODE -eq 0) {
+                      $release = ($json -join "`n") | ConvertFrom-Json
+                      if ([long] $release.id -eq $ExpectedId) {
+                          return $release
+                      }
+                  }
               }
-
-              return $matches[0]
+              throw "The published release did not become visible through $Label."
           }
 
           function Get-ReleaseAsset {
@@ -722,6 +1131,34 @@ jobs:
               }
           }
 
+          function Add-ReleaseAsset {
+              param(
+                  [Parameter(Mandatory)] $Release,
+                  [Parameter(Mandatory)] [string] $Name,
+                  [Parameter(Mandatory)] [string] $Source)
+
+              if (-not [bool] $Release.draft) {
+                  throw "Published GitHub release is missing immutable asset '$Name'."
+              }
+
+              $responsePath = Join-Path $env:RUNNER_TEMP (
+                  "release-upload-$([guid]::NewGuid().ToString('n')).json")
+              $escapedName = [Uri]::EscapeDataString($Name)
+              & curl --fail --silent --show-error `
+                  --request POST `
+                  --header "Authorization: Bearer $env:GH_TOKEN" `
+                  --header 'Accept: application/vnd.github+json' `
+                  --header 'X-GitHub-Api-Version: 2022-11-28' `
+                  --header 'Content-Type: application/octet-stream' `
+                  --data-binary "@$Source" `
+                  --output $responsePath `
+                  "https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$($Release.id)/assets?name=$escapedName"
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Failed to upload draft release asset '$Name'."
+              }
+              return Get-Content -LiteralPath $responsePath -Raw | ConvertFrom-Json
+          }
+
           function Assert-ReleaseMetadata {
               param([Parameter(Mandatory)] $Release)
 
@@ -747,27 +1184,7 @@ jobs:
               -ExpectedTagTarget $env:tag_target `
               -SigningFingerprint $env:RELEASE_SIGNING_FINGERPRINT
 
-          $release = Get-TaggedRelease
-          if ($null -eq $release) {
-              & gh release create $env:GITHUB_REF_NAME `
-                  --verify-tag `
-                  --draft `
-                  --title "namespace2xml $env:version" `
-                  --notes-file "$env:RUNNER_TEMP/release-notes.md"
-              if ($LASTEXITCODE -ne 0) {
-                  $release = Get-TaggedRelease
-                  if ($null -eq $release) {
-                      throw 'Failed to create the draft GitHub release.'
-                  }
-              }
-              else {
-                  $release = Get-TaggedRelease
-              }
-          }
-
-          if ($null -eq $release) {
-              throw 'The GitHub release is absent after draft creation.'
-          }
+          $release = Get-ReleaseById
           Assert-ReleaseMetadata $release
 
           $sources = [ordered] @{}
@@ -784,7 +1201,10 @@ jobs:
               'publication-evidence/release-provenance.json'
           $unexpected = @(
               $release.assets |
-                  Where-Object { -not $sources.Contains([string] $_.name) })
+                  Where-Object {
+                      -not $sources.Contains([string] $_.name) -and
+                      [string] $_.name -cne $env:CANDIDATE_RETENTION_NAME
+                  })
           if ($unexpected.Count -ne 0) {
               throw (
                   'The GitHub release contains unexpected assets: ' +
@@ -797,14 +1217,8 @@ jobs:
           foreach ($name in $sources.Keys) {
               $asset = Get-ReleaseAsset -Release $release -Name $name
               if ($null -eq $asset) {
-                  if (-not [bool] $release.draft) {
-                      throw "Published GitHub release is missing immutable asset '$name'."
-                  }
-
-                  & gh release upload $env:GITHUB_REF_NAME $sources[$name]
-                  if ($LASTEXITCODE -ne 0) {
-                      throw "Failed to upload draft release asset '$name'."
-                  }
+                  Add-ReleaseAsset -Release $release -Name $name -Source $sources[$name] |
+                      Out-Null
                   continue
               }
 
@@ -819,18 +1233,8 @@ jobs:
               }
           }
 
-          $release = Get-TaggedRelease
+          $release = Get-ReleaseById
           Assert-ReleaseMetadata $release
-          $actualAssetNames = [string[]] @(
-              $release.assets |
-                  Sort-Object -Property name |
-                  ForEach-Object { $_.name })
-          $expectedAssetNames = [string[]] @($sources.Keys | Sort-Object)
-          if ([string]::Join("`n", $actualAssetNames) -cne
-              [string]::Join("`n", $expectedAssetNames)) {
-              throw 'The draft GitHub release does not contain exactly the release asset set.'
-          }
-
           foreach ($name in $sources.Keys) {
               $assetRoot = Join-Path $downloadRoot ([guid]::NewGuid().ToString('n'))
               [IO.Directory]::CreateDirectory($assetRoot) | Out-Null
@@ -847,23 +1251,69 @@ jobs:
               }
           }
 
+          $retention = Get-ReleaseAsset `
+              -Release $release `
+              -Name $env:CANDIDATE_RETENTION_NAME
+          if ($null -ne $retention) {
+              if (-not [bool] $release.draft) {
+                  throw 'The published release exposes the internal candidate-retention asset.'
+              }
+              & gh api --method DELETE `
+                  "repos/$env:GITHUB_REPOSITORY/releases/assets/$($retention.id)" |
+                  Out-Null
+              if ($LASTEXITCODE -ne 0) {
+                  throw 'Failed to remove the internal candidate-retention asset.'
+              }
+          }
+
+          $release = Get-ReleaseById
+          Assert-ReleaseMetadata $release
+          $actualAssetNames = [string[]] @(
+              $release.assets |
+                  Sort-Object -Property name |
+                  ForEach-Object { $_.name })
+          $expectedAssetNames = [string[]] @($sources.Keys | Sort-Object)
+          if ([string]::Join("`n", $actualAssetNames) -cne
+              [string]::Join("`n", $expectedAssetNames)) {
+              throw 'The draft GitHub release does not contain exactly the release asset set.'
+          }
+
           if ([bool] $release.draft) {
               & "$PWD/tools/verify-release-tag.ps1" `
                   -Tag $env:GITHUB_REF_NAME `
                   -ExpectedTagObject $env:tag_object `
                   -ExpectedTagTarget $env:tag_target `
                   -SigningFingerprint $env:RELEASE_SIGNING_FINGERPRINT
-              & gh release edit $env:GITHUB_REF_NAME --draft=false --latest
+              $publishedJson = & gh api --method PATCH `
+                  "repos/$env:GITHUB_REPOSITORY/releases/$env:GITHUB_RELEASE_ID" `
+                  -F draft=false `
+                  -f make_latest=true
               if ($LASTEXITCODE -ne 0) {
                   throw 'Failed to publish the verified draft GitHub release.'
               }
+              $published = ($publishedJson -join "`n") | ConvertFrom-Json
+          }
+          else {
+              $published = $release
           }
 
-          $published = Get-TaggedRelease
-          Assert-ReleaseMetadata $published
-          if ([bool] $published.draft -or [bool] $published.prerelease) {
+          $publishedById = Get-ReleaseById
+          Assert-ReleaseMetadata $publishedById
+          if ([long] $publishedById.id -ne [long] $published.id -or
+              [bool] $publishedById.draft -or
+              [bool] $publishedById.prerelease) {
               throw 'GitHub release did not reach the stable published state.'
           }
+          $publishedByTag = Wait-ForReleaseEndpoint `
+              -Path "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:GITHUB_REF_NAME" `
+              -ExpectedId ([long] $published.id) `
+              -Label 'the tag endpoint'
+          Assert-ReleaseMetadata $publishedByTag
+          $latest = Wait-ForReleaseEndpoint `
+              -Path "repos/$env:GITHUB_REPOSITORY/releases/latest" `
+              -ExpectedId ([long] $published.id) `
+              -Label 'the latest-release endpoint'
+          Assert-ReleaseMetadata $latest
 
       - name: Upload publication evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

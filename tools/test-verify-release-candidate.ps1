@@ -25,6 +25,7 @@ $tag = 'v3.0.0'
 $tagObject = '1111111111111111111111111111111111111111'
 $tagTarget = $commit
 $runId = '1001'
+$currentAttempt = 1
 $ciRunId = '1002'
 $ansibleRunId = '1003'
 $fingerprint = 'CEF2B1528A812CC3D0BCBC32AD3E63ADB89CAE86'
@@ -63,6 +64,7 @@ function Invoke-Validator {
         -TagObject $tagObject `
         -TagTarget $tagTarget `
         -RunId $runId `
+        -CurrentAttempt $currentAttempt `
         -CiRunId $ciRunId `
         -AnsibleRunId $ansibleRunId `
         -PackageName $packageName `
@@ -143,6 +145,32 @@ try {
         $utf8)
 
     Invoke-Validator -Directory $canonical -ShouldPass $true
+
+    $retryConstruction = New-Case -Name 'retry-construction'
+    $retryMetadata = Get-Content `
+        -LiteralPath (Join-Path $retryConstruction 'candidate-metadata.json') `
+        -Raw |
+        ConvertFrom-Json
+    $retryMetadata.initialAttempt = 2
+    [IO.File]::WriteAllText(
+        (Join-Path $retryConstruction 'candidate-metadata.json'),
+        ($retryMetadata | ConvertTo-Json) + "`n",
+        $utf8)
+    $currentAttempt = 2
+    Invoke-Validator -Directory $retryConstruction -ShouldPass $true
+    $currentAttempt = 1
+
+    $futureConstruction = New-Case -Name 'future-construction'
+    $futureMetadata = Get-Content `
+        -LiteralPath (Join-Path $futureConstruction 'candidate-metadata.json') `
+        -Raw |
+        ConvertFrom-Json
+    $futureMetadata.initialAttempt = 2
+    [IO.File]::WriteAllText(
+        (Join-Path $futureConstruction 'candidate-metadata.json'),
+        ($futureMetadata | ConvertTo-Json) + "`n",
+        $utf8)
+    Invoke-Validator $futureConstruction $false 'construction attempt'
 
     $missing = New-Case -Name 'missing'
     Remove-Item -LiteralPath (Join-Path $missing $symbolName)
