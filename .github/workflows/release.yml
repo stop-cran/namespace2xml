@@ -8,11 +8,6 @@ on:
   push:
     tags:
       - 'v3.*'
-  pull_request:
-    branches:
-      - master
-    paths:
-      - '.github/workflows/release.yml'
 
 permissions:
   actions: read
@@ -33,7 +28,7 @@ env:
 
 jobs:
   oidc-probe:
-    if: github.event_name == 'pull_request'
+    if: github.ref == 'refs/tags/v3.999.999-oidc-probe'
     runs-on: ubuntu-latest
     environment: nuget
     steps:
@@ -56,7 +51,7 @@ jobs:
           echo "::notice::nuget.org trusted publishing is configured for release.yml"
 
   release:
-    if: github.event_name == 'push'
+    if: github.ref != 'refs/tags/v3.999.999-oidc-probe'
     runs-on: ubuntu-latest
     environment: nuget
     steps:
