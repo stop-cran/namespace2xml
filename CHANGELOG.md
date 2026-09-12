@@ -13,6 +13,16 @@ independently.
 
 ## [Unreleased]
 
+### Fixed
+
+- Stable release reconciliation now stores a verified five-file candidate envelope in the draft
+  GitHub Release before NuGet authentication, so rerunning a failed publication no longer depends
+  on artifacts that GitHub deletes with the previous workflow attempt. Draft creation uses the
+  create response's release ID directly instead of assuming immediate list visibility; final asset
+  uploads, retention cleanup, and publication are also bound to that ID. A pre-publication gate
+  rejects unexpected, duplicate, incomplete, or conflicting draft assets before an immutable
+  package version can be consumed.
+
 ## [3.0.0] - 2026-09-11
 
 ### Contract

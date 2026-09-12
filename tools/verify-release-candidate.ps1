@@ -34,6 +34,9 @@ param(
     [string] $RunId,
 
     [Parameter(Mandatory)]
+    [int] $CurrentAttempt,
+
+    [Parameter(Mandatory)]
     [string] $CiRunId,
 
     [Parameter(Mandatory)]
@@ -153,6 +156,7 @@ Assert-PropertySet -Value $metadata -Label 'Candidate metadata' -Expected @(
     'symbolName',
     'signingFingerprint')
 
+$constructionAttempt = [int] $metadata.initialAttempt
 if ($metadata.commit -cne $Commit -or
     $metadata.runId -cne $RunId -or
     $metadata.version -cne $Version -or
@@ -165,10 +169,11 @@ if ($metadata.commit -cne $Commit -or
     $metadata.packageName -cne $PackageName -or
     $metadata.symbolName -cne $SymbolName -or
     $metadata.signingFingerprint -cne $SigningFingerprint -or
-    [int] $metadata.initialAttempt -ne 1) {
+    $constructionAttempt -lt 1 -or
+    $constructionAttempt -gt $CurrentAttempt) {
     throw (
         'Candidate metadata does not identify this source, signed tag, package set, ' +
-        'first attempt, and required workflow runs.'
+        'construction attempt, and required workflow runs.'
     )
 }
 
