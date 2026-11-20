@@ -37,9 +37,8 @@ Set-StrictMode -Version Latest
 $repository = Split-Path -Parent $PSScriptRoot
 $unique = [guid]::NewGuid().ToString('n')
 $packDirectory = Join-Path ([IO.Path]::GetTempPath()) "n2x-pack-$unique"
-# The literal %2F must survive the package URI round-trip as filename text.
-$toolDirectory = Join-Path ([IO.Path]::GetTempPath()) "n2x tool # %2F $unique"
 $workDirectory = Join-Path ([IO.Path]::GetTempPath()) "n2x-work-$unique"
+$toolDirectory = Join-Path $workDirectory '%41'
 
 function Assert-LastExitCode {
     param([string] $What)
@@ -166,6 +165,7 @@ try {
             'README.md' = @('docs/migration-2.x-to-3.0.md', 'ansible/README.md', 'CHANGELOG.md')
             'CONTRIBUTING.md' = @('tools/integration-rig/README.md', 'CODE_OF_CONDUCT.md', 'SECURITY.md')
             'llms.txt' = @('CHANGELOG.md')
+            'KNOWN-LIMITS.md' = @('CHANGELOG.md')
         }
         foreach ($item in $supportingLinks.Keys) {
             $text = [IO.File]::ReadAllText((Join-Path $extracted $item))
@@ -223,14 +223,37 @@ try {
         throw 'The installed tool must report exactly one local documentation field.'
     }
     $uri = [Uri]$localField[0].Substring('local-documentation: '.Length)
+    $expectedRoot = (Get-ChildItem -LiteralPath $toolDirectory -Filter 'namespace2xml.dll' -Recurse -Force |
+        Where-Object { $_.FullName -match '[\\/]tools[\\/]' } | Select-Object -First 1).Directory.Parent.Parent.Parent.FullName
+    $expectedIndex = Join-Path $expectedRoot 'llms.txt'
+    if ($uri.LocalPath -cne $expectedIndex) {
+        throw "The reported index is not from the running package: $($uri.LocalPath)"
+    }
     if (-not $uri.IsFile -or -not (Test-Path -LiteralPath $uri.LocalPath -PathType Leaf)) {
         throw "The installed index is not a readable file URI: $($localField[0])"
     }
-    $expectedRoot = (Get-ChildItem -LiteralPath $toolDirectory -Filter 'namespace2xml.dll' -Recurse -Force |
-        Where-Object { $_.FullName -match '[\\/]tools[\\/]' } | Select-Object -First 1).Directory.Parent.Parent.Parent.FullName
-    if ($uri.LocalPath -cne (Join-Path $expectedRoot 'llms.txt')) {
-        throw "The reported index is not from the running package: $($uri.LocalPath)"
+    Write-Host "Installed local-documentation URI resolved to: $($uri.LocalPath)"
+
+    $savedPath = $env:PATH
+    try {
+        $env:PATH = "$toolDirectory$([IO.Path]::PathSeparator)$savedPath"
+        $line = namespace2xml --version | Where-Object { $_ -clike 'local-documentation: *' }
+        Assert-LastExitCode 'README recipe version command'
+        $location = $line.Substring('local-documentation: '.Length)
+        if ($location -eq 'unavailable') {
+            throw 'The README recipe reported unavailable documentation.'
+        }
+        $readmePath = ([uri]$location).LocalPath
+        $readmeIndex = Get-Content -LiteralPath $readmePath -Raw
+        if (-not $readmeIndex.Contains('## Start here', [StringComparison]::Ordinal)) {
+            throw 'The README recipe did not read the installed documentation index.'
+        }
+        Write-Host "README recipe resolved local-documentation to: $readmePath"
     }
+    finally {
+        $env:PATH = $savedPath
+    }
+
     $localSpecification = Join-Path $expectedRoot 'docs/specification.md'
     if (-not (Test-Path -LiteralPath $localSpecification -PathType Leaf)) {
         throw 'The installed specification is missing.'

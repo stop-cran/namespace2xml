@@ -3,8 +3,10 @@
 **Describes `3.1.0-preview.1` at contract bundle `r120+bd8ab99360ea`.**
 
 The published `3.0.0` release carries the earlier `r118+33da7b7912fc` contract. This file lists
-current boundaries of the candidate and work deliberately deferred beyond it. Resolved findings live in
-`CHANGELOG.md`; they are not limits of the stable binary.
+current boundaries of the candidate and work deliberately deferred beyond it. Resolved findings
+live in the [versioned online
+changelog](https://github.com/stop-cran/namespace2xml/blob/master/CHANGELOG.md); they are not
+limits of the stable binary.
 
 If a boundary here blocks a real deployment, add that case to its linked issue. A concrete input,
 consumer, or failed workflow is the evidence that should change the next contract revision.

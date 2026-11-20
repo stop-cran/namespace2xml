@@ -409,6 +409,29 @@ internal static class HelpText
             return "unavailable";
         }
 
-        return new Uri(index).AbsoluteUri;
+        return ToFileUri(index);
+    }
+
+    private static string ToFileUri(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        // Encode path segments directly: Uri canonicalization decodes unreserved escapes such as %41.
+        if (OperatingSystem.IsWindows())
+        {
+            var normalizedPath = fullPath.Replace('\\', '/');
+            if (normalizedPath.StartsWith("//", StringComparison.Ordinal))
+            {
+                var segments = normalizedPath[2..].Split('/');
+                var authority = new Uri($"file://{segments[0]}/", UriKind.Absolute).Authority;
+                return $"file://{authority}/{string.Join("/", segments[1..].Select(Uri.EscapeDataString))}";
+            }
+
+            var driveRoot = normalizedPath[..3];
+            var pathSegments = normalizedPath[3..].Split('/');
+            return $"file:///{driveRoot}{string.Join("/", pathSegments.Select(Uri.EscapeDataString))}";
+        }
+
+        var unixSegments = fullPath.Split('/');
+        return "file://" + string.Join("/", unixSegments.Select(Uri.EscapeDataString));
     }
 }

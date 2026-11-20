@@ -139,11 +139,14 @@ public class HelpTextLinkTests
         HelpText.Render().ShouldContain("local-documentation", Case.Sensitive);
     }
 
-    [Test]
-    public void LocalDocumentationUsesTheRunningPackageAndRequiresBothDocuments()
+    [TestCase("%41")]
+    [TestCase("%2F")]
+    [TestCase("%")]
+    public void LocalDocumentationUsesTheRunningPackageAndRequiresBothDocuments(string pathSegment)
     {
-        // A URI escape-looking filename must remain literal when the URI is read back.
-        var root = Path.Combine(Path.GetTempPath(), "n2x docs # %2F " + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "n2x docs # " + pathSegment + " " + Guid.NewGuid().ToString("N"));
         var package = Path.Combine(root, "3.0.0");
         var other = Path.Combine(root, "other");
         var binary = Path.Combine(package, "tools", "net10.0", "any");
@@ -157,9 +160,9 @@ public class HelpTextLinkTests
             File.WriteAllText(Path.Combine(package, "llms.txt"), "index");
             HelpText.LocalDocumentation(binary).ShouldBe("unavailable");
             File.WriteAllText(Path.Combine(package, "docs", "specification.md"), "contract");
-            HelpText.LocalDocumentation(binary).ShouldBe(
-                new Uri(Path.Combine(package, "llms.txt")).AbsoluteUri);
-            new Uri(HelpText.LocalDocumentation(binary)).LocalPath.ShouldBe(Path.Combine(package, "llms.txt"));
+            var uri = new Uri(HelpText.LocalDocumentation(binary));
+            uri.LocalPath.ShouldBe(Path.Combine(package, "llms.txt"));
+            File.ReadAllText(uri.LocalPath).ShouldBe("index");
             HelpText.LocalDocumentation(other).ShouldBe("unavailable");
         }
         finally
