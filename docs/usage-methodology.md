@@ -54,6 +54,118 @@ Base rarely changes. Environment changes per target. Instance changes per deploy
 on their own schedule and come from a different place. Because last-wins is deterministic and
 positional, that order makes "which layer set this value" answerable by inspection.
 
+For missing layers and the optional all-warnings publication policy, see the
+[README overlay note](../README.md#overlaying). For a template that refers to values overridden
+by a later layer, see [Layered wildcard references](#layered-wildcard-references) below.
+
+### Reading generated diffs
+
+Mapping keys follow the winning contribution's position, not their first position
+([§5.2](specification.md#spec-5-2)). For example, with these files:
+
+```properties
+# base.properties
+svc.api.port=8080
+svc.api.host=api.internal
+svc.api.url=http://${svc.api.host}:${svc.api.port}/
+```
+
+```properties
+# prod.properties
+svc.api.host=api.prod.example.com
+```
+
+Use `svc.output=yaml,json` in the scheme. The base-only and layered outputs respectively are:
+
+```yaml
+api:
+  port: 8080
+  host: api.internal
+  url: http://api.internal:8080/
+```
+
+```yaml
+api:
+  port: 8080
+  url: http://api.prod.example.com:8080/
+  host: api.prod.example.com
+```
+
+The corresponding JSON objects have the same ordering:
+
+```json
+{"api":{"port":8080,"host":"api.internal","url":"http://api.internal:8080/"}}
+```
+
+```json
+{"api":{"port":8080,"url":"http://api.prod.example.com:8080/","host":"api.prod.example.com"}}
+```
+
+The direct override moves `host`; contributing only a descendant does not move its parent key. The `url`
+entry retains its position but its reference resolves to the winning host. Even an overlay
+repeating the same host value can move the key. Identical ordered inputs remain byte-identical;
+different layers need not produce minimal textual diffs. Review such movement rather than sorting
+blindly: sequences and XML mixed content have semantic order. See the existing
+[JSON](format-json.md) and [YAML](format-yaml.md#merge) merge guidance.
+
+### Layered wildcard references
+
+Define a URL for each existing service, then override a host in a later layer:
+
+```properties
+# base.properties
+svc.api.host=api.internal
+svc.api.port=8080
+svc.web.host=web.internal
+svc.web.port=80
+svc.*[s].url=http://${svc.*[s].host}:${svc.*[s].port}/
+```
+
+```properties
+# prod.properties
+svc.api.host=api.prod.example.com
+```
+
+```properties
+# scheme.properties
+svc.output=json
+svc.root=services
+svc.*.port.type=string
+```
+
+```text
+namespace2xml -i base.properties -i prod.properties -s scheme.properties -o out
+```
+
+The resulting `out/svc.json` is:
+
+```json
+{
+  "services": {
+    "api": {
+      "port": "8080",
+      "url": "http://api.prod.example.com:8080/",
+      "host": "api.prod.example.com"
+    },
+    "web": {
+      "host": "web.internal",
+      "port": "80",
+      "url": "http://web.internal:80/"
+    }
+  }
+}
+```
+
+The input template binds `s` to each existing service and its scalar references reuse that same
+capture, not a free wildcard lookup ([§12.2–12.3](specification.md#spec-12-2)). Later source
+order wins, not pattern specificity ([§5.1](specification.md#spec-5-1)); references resolve after
+wildcard generation and merging ([§13.1](specification.md#spec-13-1)). The literal `svc.output`
+selects one output. `svc.*.port.type` transforms paths within that view, whereas
+`svc.*.output=json` would select separate service output instances
+([§14.1](specification.md#spec-14-1), [§15.2](specification.md#spec-15-2)). Output `type`
+transformations happen after reference resolution and do not change the source scalar copied or
+interpolated by a reference ([§13.2](specification.md#spec-13-2)).
+
 ### The anti-pattern
 
 Encoding the environment in the *namespace* instead of in the overlay order:
@@ -82,6 +194,16 @@ into it and override a single leaf without reproducing the rest.
 ```text
 namespace2xml -i app.xml -i env/dev.properties -s scheme.properties -o out
 ```
+
+The output root defaults to the current directory. An ordinary destination can be the same path
+as an already-read input or scheme: this invocation uses the consumed model, but publication
+replaces that source, and later invocations read the replacement. To preserve sources, choose
+non-overlapping destinations, for example a fresh `out` directory containing no inputs or schemes.
+Replacement is logged at information level, not as a warning; `--fail-on-warning` is not a
+no-overwrite option. Semantic validation and serialization finish before publication, but a storage
+failure can leave completed files updated and the failing file partial: there is no atomic
+publication or rollback ([§21.2–21.4](specification.md#spec-21-2)). For containment and hard-link
+limits, see [KNOWN-LIMITS](../KNOWN-LIMITS.md).
 
 It also has the sharpest edges, because you are now writing paths into a namespace you did not
 design. Four of them are worth knowing before you start, and one habit — with two XML modes —
@@ -186,8 +308,9 @@ But an override is the whole reason you are here, and it lands on the same wrong
 base.server.host=prod.example.com
 ```
 
-Now `base` *does* select something — the override's own nodes, and nothing else. The warning
-stops, the run exits `0`, and it writes a well-formed `base.json`:
+Now `base` *does* select something — the override's own nodes, and nothing else. `WARN009` stops,
+but `WARN014` identifies the separate, wholly unaddressed `base.json` source. The default run
+still exits `0` and writes a well-formed `base.json`:
 
 ```json
 {
@@ -197,14 +320,22 @@ stops, the run exits `0`, and it writes a well-formed `base.json`:
 }
 ```
 
-`port` and the whole of `logging` are gone, and nothing said so. YAML behaves the same way and
-loses more: the same input as YAML, with the same single override, renders as two lines.
+`port` and the whole of `logging` are outside the output. To refuse this warning:
 
-This is the shape of the whole section at its purest — the diagnostic is absent from the only
-case in which the mistake is actually made, because writing the override is what silences it. For
-this mapping-shaped input, the habit above is the entire defence: the wildcard render names
-`server` and `logging` as the top-level keys, and there is nothing left to guess. Reported as
-[#122](https://github.com/stop-cran/namespace2xml/issues/122).
+```text
+namespace2xml -i base.json -i overlay.properties -s scheme.properties -o out --fail-on-warning
+```
+
+This exits `1` and publishes nothing, but the policy rejects **every** warning, including
+intentional XML normalization's `WARN007`.
+
+`WARN014` accounts for source-level addressing, not every omitted key or final winning value
+([§14.5](specification.md#spec-14-5)). For example, a single profile containing
+`server.port=8080` and `base.server.host=prod`, selected by `base`, is partly addressed and can
+publish without a warning even with `--fail-on-warning`. Discovery remains essential: it names
+`server` and `logging`. Use `server.host=prod.example.com` with `server.output=json` to preserve
+the selected server subtree, including `port`; it does not include unrelated `logging` or the
+original `server` wrapper.
 
 ### Indentation in the source is data, and it will silently defeat your override
 

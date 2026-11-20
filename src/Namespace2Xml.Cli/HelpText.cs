@@ -22,6 +22,8 @@ internal static class HelpText
     internal static readonly string DocumentIndexUrl = DocumentUrl("llms.txt");
     internal static readonly string KnownLimitsUrl = DocumentUrl("KNOWN-LIMITS.md");
     internal static readonly string ReportingGuideUrl = DocumentUrl("CONTRIBUTING.md");
+    internal static readonly string UsageGuideUrl = DocumentUrl("docs/usage-methodology.md");
+    internal static readonly string InputFormatsUrl = DocumentUrl("docs/format-namespace.md");
 
     /// <summary>
     /// A link to a document as it stood in the release being run, rather than on a branch.
@@ -216,6 +218,14 @@ internal static class HelpText
         COMMON
         {commonOptions}
 
+        INPUT READER (-i)
+          Extensions are case-insensitive: .json uses JSON, .yaml and .yml use YAML,
+          and .xml uses XML. Every other extension or no extension uses namespace
+          profiles, including .ini and .sh. Valid namespace text in those files works;
+          native INI and shell assignment input are not supported. The output
+          tokens 'ini' and 'quotednamespace' do not enable those input readers.
+          See the input format guide and specification section 7.1 below.
+
         SCHEME BASICS
           A scheme file is a namespace profile whose last name part is a directive. Every
           run needs an 'output' declaration, which selects the formats a subtree renders
@@ -254,13 +264,13 @@ internal static class HelpText
           gives the paths server.host, server.port and logging.level. There is no 'base',
           and the scheme is 'server.output=json' whatever the file happens to be called.
 
-          Getting this wrong is quiet. On its own, 'base.output=json' warns that 'base'
-          selects nothing (WARN009). But add an override on the same wrong path — say
-          'base.server.host=prod' — and the selector now matches the override's own nodes,
-          the warning stops, and the run writes a well-formed file assembled from the
-          overrides alone. Every key the input supplied and no override named is gone, at
-          exit 0. The warning cannot reach this case, because writing the override is what
-          silences it.
+          On its own, 'base.output=json' warns that 'base' selects nothing (WARN009).
+          Adding 'base.server.host=prod' makes the selection nonempty, silencing WARN009.
+          If the original is a separate, wholly unaddressed input source, WARN014 names
+          it; the default run still exits 0 and publishes only the override subtree.
+          WARN014 does not detect every omitted key in a partly addressed source. For
+          warning-free automation, --fail-on-warning refuses publication for any warning,
+          but cannot detect a warning-free partial selection. See section 14.5.
 
           To see the real paths when XML formatting whitespace is not data, render the
           inputs with wildcards before writing anything:
@@ -338,11 +348,13 @@ internal static class HelpText
           build can emit, each with the clause it enforces.
 
           Document index    {DocumentIndexUrl}
+          Usage guide       {UsageGuideUrl}
+          Input formats     {InputFormatsUrl}
           Specification     {SpecificationUrl}
           Diagnostic codes  {DiagnosticsUrl}
           Known limits      {KnownLimitsUrl}
           Reporting guide   {ReportingGuideUrl}
-          Agent guide       {AgentGuideUrl}
+          Contributor guide {AgentGuideUrl}
           Report a defect   {ReportUrl}
 
           Read the known limits before reporting: a gap documented there is known, and the

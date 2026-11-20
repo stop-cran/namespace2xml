@@ -86,6 +86,8 @@ public class HelpTextLinkTests
         [
             "docs/specification.md",
             "docs/diagnostics.md",
+            "docs/usage-methodology.md",
+            "docs/format-namespace.md",
             "KNOWN-LIMITS.md",
             "CONTRIBUTING.md",
             "AGENTS.md",
@@ -100,6 +102,8 @@ public class HelpTextLinkTests
                 $"--help must link {document}; an agent that cannot reach it from the tool has no " +
                 "way to find it that does not involve guessing");
         }
+
+        HelpText.Render().ShouldContain("Contributor guide", Case.Sensitive);
     }
 
     /// <summary>

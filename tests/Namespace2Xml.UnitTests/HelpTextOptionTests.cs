@@ -96,6 +96,16 @@ public sealed partial class HelpTextOptionTests
             Case.Sensitive);
     }
 
+    [Test]
+    public void InputHelpExplainsExtensionDispatchAndFallback()
+    {
+        var help = HelpText.Render();
+        help.ShouldContain(".json uses JSON, .yaml and .yml use YAML,", Case.Sensitive);
+        help.ShouldContain(".xml uses XML. Every other extension or no extension uses namespace", Case.Sensitive);
+        help.ShouldContain("profiles, including .ini and .sh. Valid namespace text in those files works;", Case.Sensitive);
+        help.ShouldContain("native INI and shell assignment input are not supported.", Case.Sensitive);
+    }
+
     private static Dictionary<string, HelpOptionRow> ParseRows()
     {
         var rows = new Dictionary<string, HelpOptionRow>(StringComparer.Ordinal);

@@ -116,6 +116,14 @@ a.b.x.type=attribute
 
 renders `<b x="1" />` in XML while JSON keeps `"x": 1` as an ordinary member.
 
+An explicit `a.filename=services` is the complete destination for *every* format: no extension is
+appended. With `a.output=json,yaml,xml`, all three collide, produce two `WARN005` warnings and
+leave XML in `services` at exit `0`; the last listed format wins. Omit `filename` to get `a.json`,
+`a.yaml` and `a.xml`. For custom names, use separate single-format invocations with distinct complete
+filenames. Repeated `a.output` declarations in one invocation replace, rather than accumulate, the
+format set. See [§16.2](docs/specification.md#spec-16-2) and
+[§17.5](docs/specification.md#spec-17-5).
+
 ### Overlaying
 
 Inputs are applied in command-line order, and later files win:
@@ -127,6 +135,18 @@ namespace2xml -i base.properties -i production.properties -i secrets.properties 
 Layer by lifetime — base, then environment, then instance, then secrets — not by topic. See
 [docs/usage-methodology.md](docs/usage-methodology.md) for why, and for the anti-patterns that
 follow from getting it backwards.
+
+A nonexistent layer emits `WARN001`, contributes no data, and can leave the run successful and
+publishing the remaining layers. An existing unreadable file or directory instead blocks the run.
+To refuse publication on warnings:
+
+```
+namespace2xml -i base.properties -i missing-production.properties -s scheme.properties -o out --fail-on-warning
+```
+
+This exits `1` and leaves existing destinations unchanged. The policy rejects **all** warnings,
+including intentional XML normalization's `WARN007`, not only missing layers. See
+[For automation and AI agents](#for-automation-and-ai-agents).
 
 ### Reading XML that was formatted for humans
 
@@ -173,7 +193,7 @@ This tool is designed to be used by programs, and to be **argued with** by them.
   [docs/diagnostics.md](docs/diagnostics.md).
 - **`--version`** prints one `<field>: <value>` line per field, including the `contract-bundle`
   revision that identifies exactly which specification and diagnostic registry the binary implements.
-- **`--fail-on-warning` makes warning-free output an atomic publication policy.** If any warning
+- **`--fail-on-warning` applies a pre-publication warning policy.** If any warning
   is emitted, the tool completes serialization, preserves the original diagnostic stream, exits
   `1`, and publishes no file. Diagnostic verbosity cannot bypass the policy. This includes
   `WARN007` when XML formatting whitespace is normalized.
@@ -190,7 +210,10 @@ This tool is designed to be used by programs, and to be **argued with** by them.
   in place, idempotently. `ansible-doc -t filter` and `-t module` on
   `stop_cran.namespace2xml.render` are their argument references.
 
-Start at [AGENTS.md](AGENTS.md). The machine-readable index is [llms.txt](llms.txt).
+To use the installed tool, start with the [basic example](#basic-usage) and
+[layering and discovery guidance](docs/usage-methodology.md#2-layer-by-lifetime-not-by-topic).
+To change the repository, start at [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+The machine-readable index is [llms.txt](llms.txt).
 
 ---
 
