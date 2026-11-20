@@ -13,6 +13,19 @@ independently.
 
 ## [Unreleased]
 
+### Contract
+
+- `contract-bundle` `r120+bd8ab99360ea`.
+
+### Fixed
+
+- Resolve report parent aliases, including macOS temporary directory paths, and reject
+  collisions against resolved paths before publication. Report-leaf links are still refused
+  ([#167](https://github.com/stop-cran/namespace2xml/issues/167)).
+- Treat explicit NTFS default-stream names as their unsuffixed names during report collision
+  checks, without changing the policy for named streams
+  ([#168](https://github.com/stop-cran/namespace2xml/issues/168)).
+
 ## [3.1.0-preview.1] - 2026-11-20
 
 ### Contract

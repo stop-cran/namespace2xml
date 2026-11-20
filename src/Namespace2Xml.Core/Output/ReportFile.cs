@@ -7,63 +7,75 @@ internal static class ReportFile
 {
     internal static Stream Prepare(CommandLine command, ImmutableArray<PlannedOutput> outputs)
     {
-        var path = Path.GetFullPath(command.ReportFile!);
-        var root = Path.GetPathRoot(path);
-        if (string.IsNullOrEmpty(root) || Path.TrimEndingDirectorySeparator(path) == Path.TrimEndingDirectorySeparator(root))
-        {
-            throw new UncontainableDestinationException("the report path must name a file.");
-        }
-
-        var outputRoot = Path.GetFullPath(command.OutputRoot);
-        if (IsSameOrAncestor(path, outputRoot))
-        {
-            throw new UncontainableDestinationException("the report conflicts with the output root.");
-        }
-
-        foreach (var source in command.Inputs.Concat(command.Schemes))
-        {
-            if (SamePath(path, Path.GetFullPath(source)))
-            {
-                throw new UncontainableDestinationException("the report conflicts with an input or scheme file.");
-            }
-        }
-
-        foreach (var output in outputs)
-        {
-            var destination = Path.GetFullPath(Path.Combine(
-                outputRoot, output.Path.Canonical.Replace('/', Path.DirectorySeparatorChar)));
-            if (IsSameOrAncestor(path, destination) || IsSameOrAncestor(destination, path))
-            {
-                throw new UncontainableDestinationException("the report conflicts with a configuration destination.");
-            }
-        }
-
-        var components = path[root.Length..].Split(
-            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
-            StringSplitOptions.RemoveEmptyEntries);
-        if (components.Length == 0)
-        {
-            throw new UncontainableDestinationException("the report path must name a file.");
-        }
-
+        var (resolvedParent, leaf) = Validate(command, outputs);
+        var root = Path.GetPathRoot(resolvedParent)!;
+        var components = Parts(resolvedParent[root.Length..]);
         using var anchor = OpenRoot(root);
         var opened = new List<ISecureReportDirectory>();
         try
         {
             var current = anchor;
-            foreach (var component in components[..^1])
+            foreach (var component in components)
             {
-                current = current.OpenExistingChildDirectory(component);
+                current = current.OpenExistingChildDirectory(component, "21.5");
                 opened.Add(current);
             }
 
-            return current.CreateOrTruncateChildFile(components[^1]);
+            return current.CreateOrTruncateReportFile(leaf);
         }
         finally
         {
             for (var index = opened.Count - 1; index >= 0; index--)
             {
                 opened[index].Dispose();
+            }
+        }
+    }
+
+    internal static (string Parent, string Leaf) Validate(CommandLine command, ImmutableArray<PlannedOutput> outputs)
+    {
+        var path = ReportPath.Normalize(command.ReportFile!);
+        var parent = Path.GetDirectoryName(path);
+        if (string.IsNullOrEmpty(parent))
+        {
+            throw new UncontainableDestinationException("the report path must name a file.");
+        }
+
+        var outputRoot = ReportPath.Normalize(command.OutputRoot);
+        var sources = command.Inputs.Concat(command.Schemes).Select(ReportPath.Normalize).ToArray();
+        var destinations = outputs.Select(output => ReportPath.Normalize(Path.Combine(
+            outputRoot, output.Path.Canonical.Replace('/', Path.DirectorySeparatorChar)))).ToArray();
+        CheckCollisions(path, outputRoot, sources, destinations);
+
+        var resolvedParent = ReportPath.ResolveParent(parent);
+        var comparison = new ReportPath();
+        var leaf = Path.GetFileName(path);
+        CheckCollisions(comparison.Resolve(Path.Combine(resolvedParent, leaf)), comparison.Resolve(outputRoot),
+            sources.Select(comparison.Resolve), destinations.Select(comparison.Resolve));
+        return (resolvedParent, leaf);
+    }
+
+    private static void CheckCollisions(
+        string path, string outputRoot, IEnumerable<string> sources, IEnumerable<string> destinations)
+    {
+        if (IsSameOrAncestor(path, outputRoot))
+        {
+            throw new UncontainableDestinationException("the report conflicts with the output root.");
+        }
+
+        foreach (var source in sources)
+        {
+            if (SamePath(path, source))
+            {
+                throw new UncontainableDestinationException("the report conflicts with an input or scheme file.");
+            }
+        }
+
+        foreach (var destination in destinations)
+        {
+            if (IsSameOrAncestor(path, destination) || IsSameOrAncestor(destination, path))
+            {
+                throw new UncontainableDestinationException("the report conflicts with a configuration destination.");
             }
         }
     }

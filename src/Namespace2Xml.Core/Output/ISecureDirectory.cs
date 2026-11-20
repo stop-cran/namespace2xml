@@ -22,7 +22,9 @@ public interface ISecureDirectory : IDisposable
 
 internal interface ISecureReportDirectory : ISecureDirectory
 {
-    ISecureReportDirectory OpenExistingChildDirectory(string component);
+    ISecureReportDirectory OpenExistingChildDirectory(string component, string section = "21.1");
+
+    Stream CreateOrTruncateReportFile(string component);
 
     Stream? OpenExistingChildFile(string component);
 }

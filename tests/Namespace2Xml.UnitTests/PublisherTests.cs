@@ -590,7 +590,7 @@ public class PublisherTests
     }
 
     [Test]
-    public void ReportPreparationRefusesLinksInTheParentChainAndLeaf()
+    public void ReportPreparationFollowsTheParentAliasButRefusesTheLeafLink()
     {
         var root = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
         var outside = Path.Combine(root, "outside");
@@ -606,9 +606,13 @@ public class PublisherTests
             var command = new CommandLine(
                 [], [], [], Path.Combine(root, "out"), Verbosity.Information, DiagnosticFormat.Json,
                 ResourceLimits.Defaults, ReportFile: Path.Combine(link, "report.json"));
-            Should.Throw<UncontainableDestinationException>(() => ReportFile.Prepare(command, []));
+            using (var report = ReportFile.Prepare(command, []))
+            {
+                report.Write("report"u8);
+            }
+
             Should.Throw<UncontainableDestinationException>(() => ReportFile.Prepare(command with { ReportFile = link }, []));
-            File.Exists(Path.Combine(outside, "report.json")).ShouldBeFalse();
+            File.ReadAllText(Path.Combine(outside, "report.json")).ShouldBe("report");
         }
         finally
         {

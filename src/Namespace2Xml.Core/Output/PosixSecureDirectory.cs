@@ -68,13 +68,13 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
         return new PosixSecureDirectory(new SafeFileHandle((IntPtr)fd, ownsHandle: true));
     }
 
-    public ISecureReportDirectory OpenExistingChildDirectory(string component)
+    public ISecureReportDirectory OpenExistingChildDirectory(string component, string section = "21.1")
     {
         ValidateComponent(component);
         var fd = OpenChildDirectory(component);
         if (fd < 0)
         {
-            ThrowOpenFailure(component, directory: true);
+            ThrowOpenFailure(component, directory: true, section);
         }
 
         return new PosixSecureDirectory(new SafeFileHandle((IntPtr)fd, ownsHandle: true));
@@ -106,7 +106,11 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     }
 
     /// <inheritdoc/>
-    public Stream CreateOrTruncateChildFile(string component)
+    public Stream CreateOrTruncateChildFile(string component) => CreateOrTruncateChildFile(component, "21.1");
+
+    public Stream CreateOrTruncateReportFile(string component) => CreateOrTruncateChildFile(component, "21.5");
+
+    private FileStream CreateOrTruncateChildFile(string component, string section)
     {
         ValidateComponent(component);
 
@@ -122,7 +126,7 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
 
         if (fd < 0)
         {
-            ThrowOpenFailure(component, directory: false);
+            ThrowOpenFailure(component, directory: false, section);
         }
 
         // openat is variadic in C, and the Apple arm64 calling convention passes variadic
@@ -220,7 +224,7 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     private int OpenChildDirectory(string component) =>
         NativeMethods.openat(DirectoryFd, component, DirectoryOpenFlags, ExistingDirectoryMode);
 
-    private void ThrowOpenFailure(string component, bool directory)
+    private void ThrowOpenFailure(string component, bool directory, string section = "21.1")
     {
         var error = Marshal.GetLastPInvokeError();
 
@@ -228,8 +232,13 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
         {
             throw new UncontainableDestinationException(
                 $"the {(directory ? "directory component" : "final component")} '{component}' "
-                + "is a symbolic link, and Section 21.1 requires opening destinations without "
+                + $"is a symbolic link, and Section {section} requires opening destinations without "
                 + "following symbolic links.");
+        }
+
+        if (!directory && section == "21.5" && error == Errno.IsDirectory)
+        {
+            throw new UncontainableDestinationException("the report path names an existing directory, not a file.");
         }
 
         throw new IOException(
@@ -261,6 +270,7 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     {
         internal const int Exists = 17;
         internal const int NoEntry = 2;
+        internal const int IsDirectory = 21;
         internal static int TooManySymbolicLinks => OperatingSystem.IsMacOS() ? 62 : 40;
     }
 

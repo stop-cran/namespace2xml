@@ -3536,13 +3536,20 @@ must already exist. Help, version, and invalid command lines produce no report.
 Without the option, existing behavior is unchanged. The report never uses standard
 output or standard error, and does not implement the deferred streaming interface.
 
-Before opening the report, establish containment through no-follow operations and refuse
-links, junctions and reparse points in its parent chain and leaf. Hard-link aliases and
-concurrent mutation of the report path or output root are outside the guarantee. Reject
-an identity collision with an input, scheme, output root or final configuration
+Before opening the report, resolve its existing caller-selected parent to a canonical
+directory, following aliases in the supplied parent path. Reopen and pin that directory
+through its resolved path with no-follow operations. Open the report leaf relative to the
+pinned parent without following links, junctions or reparse points, and refuse such a leaf.
+Hard-link aliases and concurrent mutation of the report path or output root are outside
+the guarantee.
+
+Reject an identity collision with an input, scheme, output root or final configuration
 destination, and a file/directory prefix conflict with the output root or a configuration
-destination. Compare normalized absolute path segments using host identity rules and
-also ASCII-case-folded segment vectors on every host.
+destination. Check both the normalized absolute spellings and the resolved paths, using
+host identity rules and ASCII-case-folded segment vectors on every host. For paths not
+yet present, resolve the existing prefix and append the remaining components. On Windows,
+an explicit `::$DATA` suffix, in any ASCII case, denotes the same default stream as the
+unsuffixed filename on either side of a comparison.
 
 After semantic processing stops, validate the report path against the complete final
 plan when one exists. Open or create and truncate the report before any configuration

@@ -79,7 +79,7 @@ internal sealed partial class WindowsSecureDirectory : ISecureReportDirectory
         }
     }
 
-    public ISecureReportDirectory OpenExistingChildDirectory(string component)
+    public ISecureReportDirectory OpenExistingChildDirectory(string component, string section = "21.1")
     {
         ValidateComponent(component);
         var child = OpenRelative(
@@ -93,7 +93,7 @@ internal sealed partial class WindowsSecureDirectory : ISecureReportDirectory
 
         try
         {
-            RefuseReparse(child, component, finalComponent: false);
+            RefuseReparse(child, component, finalComponent: false, section);
             return new WindowsSecureDirectory(child);
         }
         catch
@@ -155,6 +155,34 @@ internal sealed partial class WindowsSecureDirectory : ISecureReportDirectory
         return new FileStream(file, FileAccess.Write);
     }
 
+    public Stream CreateOrTruncateReportFile(string component)
+    {
+        ValidateComponent(component);
+        RefuseExistingReparseLeaf(component, "21.5");
+        var file = OpenRelative(
+            component,
+            NativeMethods.FileAccess | NativeMethods.FileReadAttributes,
+            NativeMethods.FileAttributeNormal,
+            NativeMethods.FileShareRead | NativeMethods.FileShareDelete,
+            NativeMethods.FileOpenIf,
+            NativeMethods.FileNonDirectoryFile | NativeMethods.FileOpenReparsePoint
+                | NativeMethods.FileSynchronousIoNonalert);
+        FileStream? stream = null;
+        try
+        {
+            RefuseReparse(file, component, finalComponent: true, "21.5");
+            stream = new FileStream(file, FileAccess.Write);
+            stream.SetLength(0);
+            return stream;
+        }
+        catch
+        {
+            stream?.Dispose();
+            file.Dispose();
+            throw;
+        }
+    }
+
     /// <inheritdoc/>
     public void Dispose() => handle.Dispose();
 
@@ -171,7 +199,7 @@ internal sealed partial class WindowsSecureDirectory : ISecureReportDirectory
         }
     }
 
-    private void RefuseExistingReparseLeaf(string component)
+    private void RefuseExistingReparseLeaf(string component, string section = "21.1")
     {
         SafeFileHandle? probe = null;
 
@@ -196,15 +224,21 @@ internal sealed partial class WindowsSecureDirectory : ISecureReportDirectory
 
         using (probe)
         {
-            RefuseReparse(probe, component, finalComponent: true);
+            var attributes = QueryAttributes(probe).FileAttributes;
+            RefuseReparse(attributes, component, finalComponent: true, section);
+            if (section == "21.5" && (attributes & NativeMethods.FileAttributeDirectory) != 0)
+            {
+                throw new UncontainableDestinationException("the report path names an existing directory, not a file.");
+            }
         }
     }
 
-    private static void RefuseReparse(SafeFileHandle target, string component, bool finalComponent)
-    {
-        var info = QueryAttributes(target);
+    private static void RefuseReparse(SafeFileHandle target, string component, bool finalComponent, string section = "21.1") =>
+        RefuseReparse(QueryAttributes(target).FileAttributes, component, finalComponent, section);
 
-        if ((info.FileAttributes & NativeMethods.FileAttributeReparsePoint) == 0)
+    private static void RefuseReparse(uint attributes, string component, bool finalComponent, string section)
+    {
+        if ((attributes & NativeMethods.FileAttributeReparsePoint) == 0)
         {
             return;
         }
@@ -212,7 +246,7 @@ internal sealed partial class WindowsSecureDirectory : ISecureReportDirectory
         var place = finalComponent ? "final component" : "directory component";
 
         throw new UncontainableDestinationException(
-            $"the {place} '{component}' is a reparse point, and Section 21.1 requires "
+            $"the {place} '{component}' is a reparse point, and Section {section} requires "
             + "opening destinations without following reparse points.");
     }
 
@@ -398,6 +432,7 @@ internal sealed partial class WindowsSecureDirectory : ISecureReportDirectory
         internal const uint FileOpenReparsePoint = 0x00200000;
 
         internal const uint FileAttributeNormal = 0x00000080;
+        internal const uint FileAttributeDirectory = 0x00000010;
         internal const uint FileAttributeReparsePoint = 0x00000400;
 
         internal const uint ObjCaseInsensitive = 0x00000040;

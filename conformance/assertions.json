@@ -8532,6 +8532,33 @@
           }
         },
         {
+          "text": "An aliased report parent is accepted while resolved source, destination and output-root conflicts are refused before publication.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.AliasedReportParentsAreAcceptedAndProtectedPathsStayIntact",
+            "artifact": "nunit-result",
+            "observation": "A symlink or junction and, on Windows, a substituted drive permit a non-colliding report; conflicting paths leave protected bytes and absent destinations unchanged."
+          }
+        },
+        {
+          "text": "Windows explicit default-stream spellings on either comparison side are equivalent to the plain path.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.DefaultStreamsAreComparedOnBothSides",
+            "artifact": "nunit-result",
+            "observation": "Uppercase and lowercase default-stream spellings are refused against input, scheme, output root and planned output, with REPORT001 and no changes."
+          }
+        },
+        {
+          "text": "A report leaf cannot be a link or directory.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.LeafLinksAndDirectoriesAreRefusedUnderTheReportSection",
+            "artifact": "nunit-result",
+            "observation": "A symbolic link or junction and a plain directory emit REPORT001 under Section 21.5 and leave the sentinel and absent output root unchanged."
+          }
+        },
+        {
           "text": "An unestablishable root attributes the existing confinement failure to the first planned destination.",
           "evidence": {
             "kind": "gate",
@@ -8572,6 +8599,9 @@
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.SuccessfulEmptyPlanDoesNotCreateOrValidateOutputRoot",
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.DestinationFoldTests.ReportHistoryRetainsReplacedContributionsInFoldOrder",
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.PreparationUsesExistingParentsAndRefusesAliases",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.AliasedReportParentsAreAcceptedAndProtectedPathsStayIntact",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.DefaultStreamsAreComparedOnBothSides",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.LeafLinksAndDirectoriesAreRefusedUnderTheReportSection",
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationAttributesRootFailureToFirstOutput",
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationTracksFailuresAtEveryStreamBoundary",
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureLifecycleCoversPreparationAndFinalization"
