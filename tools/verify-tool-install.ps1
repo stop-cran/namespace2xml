@@ -52,6 +52,19 @@ Push-Location $repository
 try {
     New-Item -ItemType Directory -Path $packDirectory -Force | Out-Null
     New-Item -ItemType Directory -Path $workDirectory -Force | Out-Null
+    if (-not $IsWindows) {
+        # The tool host resolves ancestors such as macOS /var before loading the DLL.
+        Push-Location -LiteralPath $workDirectory
+        try {
+            $physicalWorkDirectory = & /bin/pwd -P
+            Assert-LastExitCode 'resolve physical test directory'
+            $workDirectory = $physicalWorkDirectory
+            $toolDirectory = Join-Path $workDirectory '%41'
+        }
+        finally {
+            Pop-Location
+        }
+    }
 
     # The declared version is the contract this script holds the built artifact to. XPath, rather
     # than property access, because Directory.Build.props has several PropertyGroup elements and
