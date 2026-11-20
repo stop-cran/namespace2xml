@@ -148,7 +148,7 @@ public sealed class PublicationReportTests
                 Verbosity = Verbosity.None,
             };
 
-            Transformation.Run(command).ExitCode.ShouldBe(1);
+            Transformation.Run(command, sink: new ForbiddenPublicationSink()).ExitCode.ShouldBe(1);
             using (var refusal = JsonDocument.Parse(File.ReadAllBytes(report)))
             {
                 refusal.RootElement.GetProperty("outcome").GetString().ShouldBe("warningPolicyRefused");
@@ -172,6 +172,17 @@ public sealed class PublicationReportTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    private sealed class ForbiddenPublicationSink : IPublicationSink
+    {
+        public bool SupportsSecureContainment => throw new InvalidOperationException("Configuration sink was accessed.");
+
+        public void CreateDirectory(string root, string relative) =>
+            throw new InvalidOperationException("Configuration sink was accessed.");
+
+        public bool Write(string root, string relative, OutputBuffer buffer) =>
+            throw new InvalidOperationException("Configuration sink was accessed.");
     }
 
     [Test]
@@ -234,6 +245,15 @@ public sealed class PublicationReportTests
         finally
         {
             Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void ReportFailureLifecycleCoversPreparationAndFinalization()
+    {
+        foreach (var fault in new[] { "prepare", "write", "tooLargeWrite", "flush", "close" })
+        {
+            ReportFailuresRefuseOrFollowConfigurationPublication(fault);
         }
     }
 

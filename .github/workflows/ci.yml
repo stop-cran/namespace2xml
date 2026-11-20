@@ -323,6 +323,7 @@ jobs:
           echo "all platforms agree across ${#files[@]} artifacts"
 
   contract-gates:
+    name: 'ci:.github/workflows/ci.yml::contract-gates'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -350,6 +351,8 @@ jobs:
         run: pwsh -NoProfile -File tools/sync-assertion-manifest.ps1
       - name: Regenerate the derived documentation
         run: pwsh -NoProfile -File tools/sync-docs.ps1
+      - name: Validate the publication report schema
+        run: pwsh -NoProfile -File tools/test-publication-report-candidate.ps1
       - name: The contract must not drift from the specification
         shell: bash
         run: |

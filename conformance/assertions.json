@@ -8438,8 +8438,8 @@
     {
       "item": 100,
       "text": "Publication reports: the explicit report channel, closed schema and canonical bytes, complete-plan and warning-policy outcomes, ordered fold history, immediate pre-write observations, completed and failed publication statuses, truthful partial side effects, confinement and collision checks, and report preparation and finalization failures.",
-      "milestone": "unassigned",
-      "status": "pending",
+      "milestone": "3.1.0",
+      "status": "required",
       "assertions": [
         {
           "text": "A report path equal to an input is refused without configuration publication or input modification.",
@@ -8476,6 +8476,87 @@
             "artifact": "nunit-result",
             "observation": "Injected configuration and report write failures emit PATH002 followed by REPORT001."
           }
+        },
+        {
+          "text": "The option accepts detached and inline paths including a literal dash.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.CommandLineParserTests.ReportFileAcceptsDetachedInlineAndLiteralDash",
+            "artifact": "nunit-result",
+            "observation": "Parsed report paths preserve the later occurrence and a literal dash."
+          }
+        },
+        {
+          "text": "The schema rejects incompatible versions, unknown members and invalid status combinations.",
+          "evidence": {
+            "kind": "gate",
+            "name": "ci:.github/workflows/ci.yml::contract-gates",
+            "artifact": "ci-job-result",
+            "observation": "The publication report schema checks validate valid shapes, reject invalid shapes and kill fifth-status and PATH001 mutants."
+          }
+        },
+        {
+          "text": "A policy refusal has a complete plan without calling the configuration sink; a semantic error has no complete plan.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.PipelineDistinguishesWarningRefusalFromIncompletePlan",
+            "artifact": "nunit-result",
+            "observation": "A nonempty warning-refused plan leaves its output unattempted and never accesses the throwing sink; an invalid scheme gives an incomplete plan."
+          }
+        },
+        {
+          "text": "A successful empty plan neither publishes nor validates the output root.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.SuccessfulEmptyPlanDoesNotCreateOrValidateOutputRoot",
+            "artifact": "nunit-result",
+            "observation": "An empty report succeeds with both effect flags false even when the configured root is a file."
+          }
+        },
+        {
+          "text": "Destination fold history retains replaced contributions in fold order.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.DestinationFoldTests.ReportHistoryRetainsReplacedContributionsInFoldOrder",
+            "artifact": "nunit-result",
+            "observation": "Same-format and cross-format replacement retain all three contribution selectors in fold order."
+          }
+        },
+        {
+          "text": "Report preparation rejects aliases and file-directory conflicts without creating missing parents.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.PreparationUsesExistingParentsAndRefusesAliases",
+            "artifact": "nunit-result",
+            "observation": "Input and destination aliases, conflicting topology and an absent parent are refused."
+          }
+        },
+        {
+          "text": "An unestablishable root attributes the existing confinement failure to the first planned destination.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationAttributesRootFailureToFirstOutput",
+            "artifact": "nunit-result",
+            "observation": "The first destination fails with PATH001, the second is unattempted, and there is exactly one diagnostic."
+          }
+        },
+        {
+          "text": "Configuration stream failures retain prior completions and observed comparison facts without attempting later outputs.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationTracksFailuresAtEveryStreamBoundary",
+            "artifact": "nunit-result",
+            "observation": "Injected comparison reads and closes and configuration write, flush and close failures produce published, failed and unattempted entries with PATH002."
+          }
+        },
+        {
+          "text": "A report preparation failure prevents configuration writes, while finalization failures retain completed configuration writes.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureLifecycleCoversPreparationAndFinalization",
+            "artifact": "nunit-result",
+            "observation": "Injected preparation, report write, flush and close failures emit one REPORT001, with configuration output present only after preparation."
+          }
         }
       ],
       "fixtures": [
@@ -8484,7 +8565,16 @@
       "gates": [
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.WarningRefusalHasCanonicalBytesAndNoFabricatedObservations",
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationComparesImmediatelyBeforeEveryRewrite",
-        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureCoexistsWithAConfigurationFailure"
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureCoexistsWithAConfigurationFailure",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.CommandLineParserTests.ReportFileAcceptsDetachedInlineAndLiteralDash",
+        "ci:.github/workflows/ci.yml::contract-gates",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.PipelineDistinguishesWarningRefusalFromIncompletePlan",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.SuccessfulEmptyPlanDoesNotCreateOrValidateOutputRoot",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.DestinationFoldTests.ReportHistoryRetainsReplacedContributionsInFoldOrder",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.PreparationUsesExistingParentsAndRefusesAliases",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationAttributesRootFailureToFirstOutput",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationTracksFailuresAtEveryStreamBoundary",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureLifecycleCoversPreparationAndFinalization"
       ]
     }
   ]

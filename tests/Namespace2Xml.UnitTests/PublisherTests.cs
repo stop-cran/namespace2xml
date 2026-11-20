@@ -338,7 +338,17 @@ public class PublisherTests
         var root = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
         try
         {
-            var publisher = new Publisher(root, diagnostics);
+            var writeOpens = 0;
+            var sink = new FileSystemPublicationSink((_, comparison, stream) =>
+            {
+                if (!comparison)
+                {
+                    writeOpens++;
+                }
+
+                return stream;
+            });
+            var publisher = new Publisher(root, diagnostics, sink);
             var output = Planned("a.json");
             var first = publisher.PublishWithReport([output]);
             first.Outcome.ShouldBe(PublicationOutcome.Success);
@@ -352,6 +362,7 @@ public class PublisherTests
             second.Outputs.ShouldHaveSingleItem().Status.ShouldBe(PublicationStatus.Unchanged);
             second.Outputs[0].ExistedBefore.ShouldBe(true);
             second.Outputs[0].BytesDiffered.ShouldBe(false);
+            writeOpens.ShouldBe(2);
 
             File.WriteAllText(Path.Combine(root, "a.json"), "different");
             var third = publisher.PublishWithReport([output]);
@@ -437,6 +448,16 @@ public class PublisherTests
         finally
         {
             Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void ReportPublicationTracksFailuresAtEveryStreamBoundary()
+    {
+        foreach (var fault in new[] { "read", "readClose", "shortWrite", "tooLargeWrite", "flush", "close" })
+        {
+            SetUp();
+            ReportPublicationRetainsCompletedAndFailedActionsAtRealIoSeams(fault);
         }
     }
 
