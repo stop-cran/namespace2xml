@@ -271,7 +271,7 @@ plus the live issue tracker.
 | [CONTRIBUTING.md](CONTRIBUTING.md) | The change protocol and the feedback forms. |
 | [KNOWN-LIMITS.md](KNOWN-LIMITS.md) | What is deliberately not covered yet. |
 | [Ansible README](https://github.com/stop-cran/namespace2xml/blob/master/ansible/README.md) (online only) | The `stop_cran.namespace2xml` Ansible collection: the `render` filter and the `render` module, which one to pick, their arguments, and the filter's fidelity limits. |
-| [AGENTS.md](AGENTS.md) | Entry point for automated agents. |
+| [AGENTS.md](AGENTS.md) | Instructions for agents changing this repository. Tool users should start with [llms.txt](llms.txt). |
 
 ---
 
