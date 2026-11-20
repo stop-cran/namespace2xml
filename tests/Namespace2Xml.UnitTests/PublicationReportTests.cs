@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -19,6 +20,228 @@ public sealed class PublicationReportTests
 {
     private static CommandLine Command(string report, string outputRoot) =>
         new([], [], [], outputRoot, Verbosity.Information, DiagnosticFormat.Json, ResourceLimits.Defaults, ReportFile: report);
+
+    [Test]
+    public void AliasedReportParentsAreAcceptedAndProtectedPathsStayIntact()
+    {
+        CheckReportParentAlias(useSubstitutedDrive: false);
+        if (OperatingSystem.IsWindows())
+        {
+            CheckReportParentAlias(useSubstitutedDrive: true);
+        }
+    }
+
+    private static void CheckReportParentAlias(bool useSubstitutedDrive)
+    {
+        var root = Directory.CreateTempSubdirectory("n2x-report-alias-").FullName;
+        var real = Directory.CreateDirectory(Path.Combine(root, "real")).FullName;
+        var alias = Path.Combine(root, "alias");
+        var substituted = false;
+        var linked = false;
+        try
+        {
+            if (useSubstitutedDrive)
+            {
+                var used = DriveInfo.GetDrives().Select(drive => drive.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                alias = "ZYXWVUTSRQPONMLKJIHGFE".Select(letter => $"{letter}:\\")
+                    .First(candidate => !used.Contains(candidate));
+                RunLinkTool("subst.exe", alias[..2], real);
+                substituted = true;
+            }
+            else
+            {
+                CreateDirectoryAlias(alias, real);
+                linked = true;
+            }
+
+            var input = Path.Combine(real, "input.properties");
+            var scheme = Path.Combine(real, "scheme.properties");
+            const string InputText = "a.x=1\n";
+            const string SchemeText = "a.output=json\n";
+            File.WriteAllText(input, InputText);
+            File.WriteAllText(scheme, SchemeText);
+            var report = Path.Combine(alias, "report.json");
+            var absentRoot = Path.Combine(real, "absent");
+            var command = Command(report, absentRoot) with { Inputs = [input], Schemes = [scheme] };
+            Transformation.Run(command with { OutputRoot = Path.Combine(alias, "out") }).ExitCode.ShouldBe(0);
+            File.Exists(Path.Combine(real, "report.json")).ShouldBeTrue();
+            var outputRoot = Path.Combine(real, "out");
+            var destination = Path.Combine(outputRoot, "a.json");
+            var destinationBytes = File.ReadAllBytes(destination);
+            var planned = PlannedJson();
+
+            AssertCollision(command with { ReportFile = Path.Combine(alias, Path.GetFileName(input)) }, planned, "input or scheme");
+            AssertCollision(command with { ReportFile = input, Inputs = [Path.Combine(alias, Path.GetFileName(input))] }, planned, "input or scheme");
+            AssertCollision(command with { ReportFile = Path.Combine(alias, Path.GetFileName(scheme)) }, planned, "input or scheme");
+            AssertCollision(command with { ReportFile = scheme, Schemes = [Path.Combine(alias, Path.GetFileName(scheme))] }, planned, "input or scheme");
+            AssertCollision(command with { ReportFile = destination, OutputRoot = Path.Combine(alias, "out") }, planned, "configuration destination");
+            AssertCollision(command with { ReportFile = Path.Combine(alias, "out", "a.json"), OutputRoot = outputRoot }, planned, "configuration destination");
+            AssertCollision(command with { ReportFile = Path.Combine(alias, "absent"), OutputRoot = Path.Combine(real, "absent", "nested") }, planned, "output root");
+            AssertCollision(command with { ReportFile = Path.Combine(alias, "a.json"), OutputRoot = real }, planned, "configuration destination");
+            File.Exists(Path.Combine(real, "a.json")).ShouldBeFalse();
+            File.ReadAllText(input).ShouldBe(InputText);
+            File.ReadAllText(scheme).ShouldBe(SchemeText);
+            File.ReadAllBytes(destination).ShouldBe(destinationBytes);
+            Directory.Exists(absentRoot).ShouldBeFalse();
+            File.Exists(absentRoot).ShouldBeFalse();
+        }
+        finally
+        {
+            if (substituted)
+            {
+                RunLinkTool("subst.exe", alias[..2], "/D");
+            }
+            else if (linked)
+            {
+                Directory.Delete(alias);
+            }
+
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void DefaultStreamsAreComparedOnBothSides()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Ignore("NTFS default streams are Windows-specific.");
+        }
+
+        CheckDefaultStream("::$DATA");
+        CheckDefaultStream("::$data");
+    }
+
+    private static void CheckDefaultStream(string suffix)
+    {
+        var root = Directory.CreateTempSubdirectory("n2x-report-stream-").FullName;
+        try
+        {
+            var input = Path.Combine(root, "input.properties");
+            var scheme = Path.Combine(root, "scheme.properties");
+            const string InputText = "a.x=1\n";
+            const string SchemeText = "a.output=json\n";
+            File.WriteAllText(input, InputText);
+            File.WriteAllText(scheme, SchemeText);
+            var output = Path.Combine(root, "out");
+            var command = Command(input + suffix, output) with { Inputs = [input], Schemes = [scheme] };
+            var planned = PlannedJson();
+            AssertCollision(command, planned, "input or scheme");
+            AssertCollision(command with { ReportFile = input, Inputs = [input + suffix] }, planned, "input or scheme");
+            AssertCollision(command with { ReportFile = scheme + suffix }, planned, "input or scheme");
+            AssertCollision(command with { ReportFile = scheme, Schemes = [scheme + suffix] }, planned, "input or scheme");
+            AssertCollision(command with { ReportFile = output + suffix }, planned, "output root");
+            AssertCollision(command with { ReportFile = output, OutputRoot = output + suffix }, planned, "output root");
+            Directory.Exists(output).ShouldBeFalse();
+
+            Directory.CreateDirectory(output);
+            var destination = Path.Combine(output, "a.json");
+            File.WriteAllText(destination, "previous");
+            AssertCollision(command with { ReportFile = destination + suffix }, planned, "configuration destination");
+            File.ReadAllText(input).ShouldBe(InputText);
+            File.ReadAllText(scheme).ShouldBe(SchemeText);
+            File.ReadAllText(destination).ShouldBe("previous");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void LeafLinksAndDirectoriesAreRefusedUnderTheReportSection()
+    {
+        var root = Directory.CreateTempSubdirectory("n2x-report-leaf-").FullName;
+        var link = Path.Combine(root, "link");
+        var linked = false;
+        try
+        {
+            var input = Path.Combine(root, "input.properties");
+            var scheme = Path.Combine(root, "scheme.properties");
+            File.WriteAllText(input, "a.x=1\n");
+            File.WriteAllText(scheme, "a.output=json\n");
+            var directory = Directory.CreateDirectory(Path.Combine(root, "directory")).FullName;
+            var sentinel = Path.Combine(directory, "sentinel");
+            File.WriteAllText(sentinel, "protected");
+            if (OperatingSystem.IsWindows())
+            {
+                CreateDirectoryAlias(link, directory);
+            }
+            else
+            {
+                File.CreateSymbolicLink(link, sentinel);
+            }
+
+            linked = true;
+            var output = Path.Combine(root, "out");
+            var command = Command(link, output) with { Inputs = [input], Schemes = [scheme] };
+            AssertReportError(command, "Section 21.5");
+            AssertReportError(command with { ReportFile = directory }, "existing directory, not a file");
+            File.ReadAllText(sentinel).ShouldBe("protected");
+            Directory.Exists(output).ShouldBeFalse();
+        }
+        finally
+        {
+            if (linked)
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    Directory.Delete(link);
+                }
+                else
+                {
+                    File.Delete(link);
+                }
+            }
+
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static PlannedOutput PlannedJson() =>
+        new(new DestinationPath("a.json"), new FoldKey(0, 0, 0, ""), OutputBuffer.Empty);
+
+    private static void AssertCollision(CommandLine command, PlannedOutput planned, string conflict)
+    {
+        // The read-only oracle also lets C7 mutations fail without opening a report.
+        Should.Throw<UncontainableDestinationException>(() => ReportFile.Validate(command, [planned]))
+            .Message.ShouldContain(conflict);
+        AssertReportError(command, conflict);
+    }
+
+    private static void AssertReportError(CommandLine command, string reason)
+    {
+        var result = Transformation.Run(command);
+        result.ExitCode.ShouldBe(1);
+        var diagnostic = result.Diagnostics.ShouldHaveSingleItem();
+        diagnostic.Code.ShouldBe("REPORT001");
+        diagnostic.Spec.ShouldBe("§21.5");
+        diagnostic.Message.ShouldContain(reason);
+    }
+
+    private static void CreateDirectoryAlias(string alias, string target)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            RunLinkTool("cmd.exe", "/c", "mklink", "/J", alias, target);
+        }
+        else
+        {
+            Directory.CreateSymbolicLink(alias, target);
+        }
+    }
+
+    private static void RunLinkTool(string executable, params string[] arguments)
+    {
+        using var process = Process.Start(new ProcessStartInfo(executable, arguments)
+        {
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        }).ShouldNotBeNull();
+        process.WaitForExit();
+        process.ExitCode.ShouldBe(0, process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd());
+    }
 
     [Test]
     public void PreparationUsesExistingParentsAndRefusesAliases()

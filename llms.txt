@@ -7,6 +7,9 @@
 > Version 3.0 is a complete rewrite against a normative specification written before the
 > implementation. The specification is the contract; the code is an attempt to satisfy it. Every
 > diagnostic carries a stable code and the specification anchor it enforces.
+>
+> Stable release: 3.0.0. The current 3.1.0-preview.1 candidate is prerelease and does not replace
+> the stable release.
 
 ## Start here
 
@@ -15,9 +18,9 @@ network access and point to this release's source; the Ansible collection is dis
 From an installed command, `--version` reports the index as a `local-documentation` file URI, or
 `unavailable` when the index or specification is missing.
 
-- Using the installed tool: start with the [README example](README.md), then the
+- **Using the installed tool:** start with the [README example](README.md), then the
   layering and discovery guidance in [usage methodology](docs/usage-methodology.md).
-- Changing this repository: start with [AGENTS.md](AGENTS.md) and
+- **Changing this repository:** start with [AGENTS.md](AGENTS.md) and
   [CONTRIBUTING.md](CONTRIBUTING.md), the repository read order and binding change protocol.
 - [docs/specification.md](docs/specification.md): the contract. Normative, self-contained.
 
@@ -34,6 +37,7 @@ From an installed command, `--version` reports the index as a `local-documentati
 - [docs/usage-methodology.md](docs/usage-methodology.md): when to use this tool, how to layer overlays, how to specialize an existing document with a cross-format override, and known anti-patterns.
 - [Usage methodology](docs/usage-methodology.md) includes "Layered wildcard references", a runnable capture and reference example with a later overlay.
 - [Migration guide](https://github.com/stop-cran/namespace2xml/blob/master/docs/migration-2.x-to-3.0.md) (online only): every intentional behaviour change from 2.4.0.
+- [Changelog](https://github.com/stop-cran/namespace2xml/blob/master/CHANGELOG.md) (online only): release history, pinned to this package's release tag.
 - [KNOWN-LIMITS.md](KNOWN-LIMITS.md): what is deliberately not covered yet.
 
 ## Formats
@@ -70,6 +74,10 @@ explicitly where the specification does not settle a question.
 
 - Run with `--diagnostics-format json` for the whole diagnostic stream on standard error as one canonical JSON array. Operational messages are suppressed in that mode.
 - Add `--fail-on-warning` when automation must reject every warning. Any warning makes the completed render exit `1` and publish nothing; verbosity does not alter the policy, and `WARN007` triggers it.
+- Add `--report-file <path>` to write the publication report. Its parent directory must exist;
+  validate it against [the bundled version 1 schema](docs/publication-report.schema.json), require
+  diagnostics at `error` or more verbose, and check the exit status because `critical` or `none`
+  can hide `REPORT001`.
 - Run `--version` for `<field>: <value>` lines including `contract-bundle`.
 - Exit code `0` means success, including success with warnings by default. Exit code `1` means failure or a `--fail-on-warning` publication refusal.
 

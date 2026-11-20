@@ -11,7 +11,7 @@
     <Description>Deterministic configuration transformer. Merges and templates namespace profiles into XML, JSON, YAML, INI and shell outputs from a single normative specification. Every diagnostic carries a stable code and a specification anchor, and --diagnostics-format json makes the whole diagnostic stream machine-readable for automation and AI agents.</Description>
     <PackageTags>configuration;codegen;xml;json;yaml;ini;templating;deterministic;ai-agent;dotnet-tool</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Stable 3.0 specification-first rewrite with deterministic multi-format output, machine-readable diagnostics, and a complete offline contract. Online changelog: https://github.com/stop-cran/namespace2xml/blob/v$(Version)/CHANGELOG.md</PackageReleaseNotes>
+    <PackageReleaseNotes>Prerelease 3.1.0 preview: publication reports, offline documentation discovery, and clearer consumer guidance. Stable release: 3.0.0. Online release notes: https://github.com/stop-cran/namespace2xml/blob/v$(Version)/CHANGELOG.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,7 +33,6 @@
       the migration guide, Ansible collection and conformance fixtures, are labelled online-only.
     -->
     <None Include="..\..\AGENTS.md" Pack="true" PackagePath="\" />
-    <None Include="..\..\KNOWN-LIMITS.md" Pack="true" PackagePath="\" />
     <None Include="..\..\docs\specification.md" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\publication-report.schema.json" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\diagnostics.md" Pack="true" PackagePath="docs\" />
@@ -53,6 +52,7 @@
     <ReleaseDocument Include="..\..\README.md" PackagePath="\" />
     <ReleaseDocument Include="..\..\llms.txt" PackagePath="\" />
     <ReleaseDocument Include="..\..\CONTRIBUTING.md" PackagePath="\" />
+    <ReleaseDocument Include="..\..\KNOWN-LIMITS.md" PackagePath="\" />
     <ReleaseDocument Include="..\..\docs\format-xml.md" PackagePath="docs\" />
   </ItemGroup>
 

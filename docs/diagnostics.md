@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r119+ded94ff55ad0`.** 42 codes.
+**Contract bundle `r120+bd8ab99360ea`.** 42 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces under [Section 22](specification.md#spec-22).

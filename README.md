@@ -20,12 +20,17 @@ The specification is the contract; the implementation is an attempt to satisfy i
 2.4.0 left undefined is now defined, and the intentional differences are listed in
 [online migration guide](https://github.com/stop-cran/namespace2xml/blob/master/docs/migration-2.x-to-3.0.md).
 
-`3.0.0` is the permanent release of that contract. See [KNOWN-LIMITS.md](KNOWN-LIMITS.md) for the
-deliberate boundaries of 3.0 and the contract work deferred to 3.1.
+`3.0.0` is the current stable release of that contract. `3.1.0-preview.1` is an opt-in prerelease,
+not the stable support baseline. See [KNOWN-LIMITS.md](KNOWN-LIMITS.md) for the deliberate
+boundaries of each version and the
+[versioned changelog](https://github.com/stop-cran/namespace2xml/blob/master/CHANGELOG.md).
 
 ---
 
 ## Install
+
+The command below installs the latest stable version. To opt in to an available prerelease, add
+`--prerelease`; the current candidate is `3.1.0-preview.1`.
 
 ```
 dotnet tool install --global namespace2xml
@@ -204,7 +209,8 @@ This tool is designed to be used by programs, and to be **argued with** by them.
 - **`--report-file <path>`** writes a separate publication report describing the staged outputs,
   their provenance and publication outcomes. Its parent must already exist. An `unchanged` status
   means an equal-byte rewrite completed, not that the write was skipped. A `REPORT001` diagnostic
-  invalidates the report; use error verbosity or higher to detect it. See
+  invalidates the report; use `error` or more verbose diagnostics and check the exit status, since
+  `critical` and `none` can hide that error. See
   [Section 21.5](docs/specification.md#spec-21-5) and the
   [version 1 schema](docs/publication-report.schema.json).
 - **Exit codes are contractual.** `0` is success, including success with warnings by default;
@@ -243,9 +249,9 @@ running installation, not a search of other installed versions. For a local-mani
 
 ## Documentation
 
-The relative links below resolve in a clone and in the extracted NuGet package. The migration and
-Ansible links are online-only; neither is bundled in the .NET package. On nuget.org relative links
-are stripped and will not be clickable: browse the
+The relative links below resolve in a clone and in the extracted NuGet package. The migration,
+changelog and Ansible links are online-only; none is bundled in the .NET package. On nuget.org
+relative links are stripped and will not be clickable: browse the
 same documents at <https://github.com/stop-cran/namespace2xml>, or run `namespace2xml --version`,
 which prints release-pinned URLs for the specification, the diagnostics reference and `llms.txt`,
 plus the live issue tracker.
@@ -261,10 +267,11 @@ plus the live issue tracker.
 | [docs/format-xml.md](docs/format-xml.md) | XML input and output, typed components, CDATA, comments. |
 | [docs/format-ini.md](docs/format-ini.md) | INI output, the two-level projection, `PortableIni1`. |
 | [Migration guide](https://github.com/stop-cran/namespace2xml/blob/master/docs/migration-2.x-to-3.0.md) (online only) | Every intentional behaviour change from 2.4.0. |
+| [Changelog](https://github.com/stop-cran/namespace2xml/blob/master/CHANGELOG.md) (online only) | Release history for this version; package links are pinned to its release tag. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | The change protocol and the feedback forms. |
 | [KNOWN-LIMITS.md](KNOWN-LIMITS.md) | What is deliberately not covered yet. |
 | [Ansible README](https://github.com/stop-cran/namespace2xml/blob/master/ansible/README.md) (online only) | The `stop_cran.namespace2xml` Ansible collection: the `render` filter and the `render` module, which one to pick, their arguments, and the filter's fidelity limits. |
-| [AGENTS.md](AGENTS.md) | Entry point for automated agents. |
+| [AGENTS.md](AGENTS.md) | Instructions for agents changing this repository. Tool users should start with [llms.txt](llms.txt). |
 
 ---
 
