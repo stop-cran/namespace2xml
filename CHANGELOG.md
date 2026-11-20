@@ -19,6 +19,10 @@ independently.
 
 ### Fixed
 
+- Request mode `0600` when creating POSIX outputs and publication reports, leaving umask and
+  inherited ACL policy to the operating system, and preserve existing modes and ACLs on rewrite.
+  Remove the post-open permission reset and pass the mode correctly on Darwin arm64
+  ([private advisory GHSA-j57v-q6cr-2mwq](https://github.com/stop-cran/namespace2xml/security/advisories/GHSA-j57v-q6cr-2mwq)).
 - Resolve report parent aliases, including macOS temporary directory paths, and reject
   collisions against resolved paths before publication. Report-leaf links are still refused
   ([#167](https://github.com/stop-cran/namespace2xml/issues/167)).
