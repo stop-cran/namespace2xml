@@ -106,6 +106,7 @@ public static class SchemePhase
             loaded, budget, _ => DiagnosticPhase.Scheme, diagnostics);
 
         var entries = ImmutableArray.CreateBuilder<SchemeEntry>();
+        var rootDiagnostics = new DiagnosticBuffer();
 
         foreach (var source in admitted)
         {
@@ -120,7 +121,7 @@ public static class SchemePhase
                         document,
                         source.Ordinal,
                         source.Origin.Identity,
-                        diagnostics).Entries
+                        document is StructuredMapping ? diagnostics : rootDiagnostics).Entries
                     : SchemeReader.Read(
                         source.Records,
                         source.Ordinal,
@@ -136,7 +137,12 @@ public static class SchemePhase
         // indistinguishable from a correct one.
         var resolved = SchemeReferenceResolver.Resolve(parsed, budget, diagnostics);
 
-        return diagnostics.HasBlockingError
+        // Section 15.4: a non-mapping root contributes no directives. Its error still blocks
+        // the next phase, but it does not invalidate the other sources' resolved entries.
+        var cannotCompile = diagnostics.HasBlockingError;
+        diagnostics.Merge(rootDiagnostics);
+
+        return cannotCompile
             ? StepOutcome.Failed<ImmutableArray<SchemeEntry>>()
             : StepOutcome.Produced(resolved);
     }

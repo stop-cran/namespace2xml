@@ -5311,7 +5311,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (69)
+## Same observable result as 2.4.0 (70)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -6211,6 +6211,14 @@ those that name a shared reason are behaviour 3.0 preserved.
   under §22's once-per-failing-source cardinality — but it cannot, against this baseline,
   evidence anything about diagnostic layout, because the baseline has nothing structured to
   compare.
+
+### `nonmapping-scheme-root-keeps-sibling-validation`
+
+- namespace2xml 2.4.0: **agrees** on exit status and output tree. It exits `1` and creates no
+  output root because its argument parser rejects repeated `-s`, before checking either scheme.
+- Clean behavior: Sections 15 and 15.4 discard the non-mapping root and report `SCHEME003`, but
+  still check the other source and report `SCHEME001` for its invalid `substitute` mode under
+  Section 16.7. Both diagnostics are emitted before the scheme phase aborts.
 
 ### `reference-alias-ambiguity-lists-candidates`
 

@@ -6013,6 +6013,15 @@
           }
         },
         {
+          "text": "A non-mapping structured scheme root does not suppress validation of a literal substitute declaration in an independent scheme source.",
+          "evidence": {
+            "kind": "fixture",
+            "name": "nonmapping-scheme-root-keeps-sibling-validation",
+            "artifact": "expected-diagnostics.json",
+            "observation": "The stream contains SCHEME003 for the first scheme source, then SCHEME001 for cfg.substitute in the second source, both in the scheme phase."
+          }
+        },
+        {
           "text": "An invalid input option does not suppress validation of independent substitute and merge declarations in the same scheme phase, and a blocking scheme phase prevents the later type transformation.",
           "evidence": {
             "kind": "fixture",
@@ -6033,6 +6042,7 @@
       ],
       "fixtures": [
         "structured-scheme-nonmapping-roots",
+        "nonmapping-scheme-root-keeps-sibling-validation",
         "independent-scheme-option-and-substitute-errors",
         "cross-destination-diagnostic-order"
       ],

@@ -1,0 +1,8 @@
+-i
+inputs/input.properties
+-o
+o
+-s
+schemes/array-root.json
+-s
+schemes/sub.properties
