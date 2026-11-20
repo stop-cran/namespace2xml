@@ -10,6 +10,29 @@ namespace Namespace2Xml.UnitTests;
 [TestFixture]
 public class ProgramInvariantTests
 {
+    [TestCase("--version", "--diagnostics-format=json")]
+    [TestCase("--version=ignored", "--diagnostics-format=invalid")]
+    public void VersionRemainsAnImmediateLfDelimitedInformationalMode(string option, string format)
+    {
+        var stdout = new StringWriter();
+        var stderr = new StringWriter();
+        using var json = new MemoryStream();
+
+        var exitCode = Program.Execute(
+            [format, option],
+            stdout,
+            stderr,
+            (_, _) => throw new InvalidOperationException("Transformation must not run"),
+            json);
+
+        exitCode.ShouldBe(0);
+        stderr.ToString().ShouldBeEmpty();
+        json.ToArray().ShouldBeEmpty();
+        stdout.ToString().ShouldContain("\nlocal-documentation: ", Case.Sensitive);
+        stdout.ToString().ShouldNotContain("\r", Case.Sensitive);
+        stdout.ToString().ShouldEndWith("\n", Case.Sensitive);
+    }
+
     [Test]
     public void TextInvariantFailureIsOneLfTerminatedMessage()
     {

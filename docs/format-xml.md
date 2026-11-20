@@ -832,5 +832,6 @@ namespace-qualified name.
 - Diagnostic codes referenced above (`XML001`, `PARSE002`, `TYPE001`, `WARN003`, `WARN006`,
   `WARN007`, `REFERENCE004`, `WARN002`) are in [diagnostics.md](diagnostics.md).
 - Worked XML fixtures live under
-  [`conformance/`](../conformance) with names beginning `xml-` or `limit-xml-`; each has a
+  [source corpus](https://github.com/stop-cran/namespace2xml/tree/master/conformance) (online only)
+  with names beginning `xml-` or `limit-xml-`; each has a
   `legacy.md` explaining what it pins and why.

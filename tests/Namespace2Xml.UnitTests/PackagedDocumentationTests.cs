@@ -18,37 +18,12 @@ namespace Namespace2Xml.UnitTests;
 [TestFixture]
 public class PackagedDocumentationTests
 {
-    /// <summary>
-    /// Index entries deliberately not packed, each with the reason. An entry here is a link that
-    /// dangles offline, which is a cost paid on purpose rather than an oversight.
-    /// </summary>
-    private static readonly Dictionary<string, string> DeliberateOmissions = new(StringComparer.Ordinal)
-    {
-        ["docs/migration-2.x-to-3.0.md"] =
-            "300 KB describing the version this one replaces: the least useful document to carry " +
-            "offline and by some distance the most expensive",
-        ["ansible/README.md"] =
-            "documentation for a different artefact — the stop_cran.namespace2xml collection " +
-            "ships through Galaxy carrying its own copy, and a .NET tool's package is not where " +
-            "anyone looks for it",
-        ["ansible/docs/specification-summary.md"] =
-            "the collection's abridgement of the contract, carried inside the collection tarball " +
-            "for readers who hold that and not this; this package already carries " +
-            "docs/specification.md unabridged, which is the better document to reach for here",
-        ["ansible/plugins/filter/render.py"] =
-            "the collection's source rather than a document, rendered for its own readers by " +
-            "ansible-doc from the copy Galaxy serves",
-        ["ansible/plugins/modules/render.py"] =
-            "the collection's source rather than a document, rendered for its own readers by " +
-            "ansible-doc from the copy Galaxy serves",
-    };
-
     private static readonly Regex RelativeLink = new(
         @"\]\((?<path>(?!https?:)[^)]+)\)",
         RegexOptions.ExplicitCapture | RegexOptions.CultureInvariant);
 
     private static readonly Regex PackedFile = new(
-        @"<None\s+Include=""(?<include>[^""]+)""\s+Pack=""true""\s+PackagePath=""(?<packagePath>[^""]*)""",
+        @"<(?:None\s+Include=""(?<include>[^""]+)""\s+Pack=""true""|ReleaseDocument\s+Include=""(?<include>[^""]+)"")\s+PackagePath=""(?<packagePath>[^""]*)""",
         RegexOptions.ExplicitCapture | RegexOptions.CultureInvariant);
 
     private static string ProjectFile =>
@@ -83,26 +58,16 @@ public class PackagedDocumentationTests
             .Order(StringComparer.Ordinal)];
 
     [Test]
-    public void EveryIndexedDocumentIsPackedOrDeliberatelyOmitted()
+    public void EveryLocalIndexedDocumentIsPacked()
     {
         var packed = PackedDocuments();
 
         foreach (var document in IndexedDocuments())
         {
-            if (DeliberateOmissions.TryGetValue(document, out var reason))
-            {
-                packed.ShouldNotContainKey(
-                    document,
-                    $"{document} is recorded as a deliberate omission because it is {reason}, but " +
-                    "the project packs it. One of the two statements is stale.");
-
-                continue;
-            }
-
             packed.ShouldContainKey(
                 document,
                 $"llms.txt indexes {document}, so an agent reading the index inside the package " +
-                "will look for it there. Either pack it or record why it is omitted.");
+                "will look for it there. Pack it or make the link explicitly online-only.");
         }
     }
 

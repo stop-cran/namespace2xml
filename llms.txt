@@ -10,6 +10,11 @@
 
 ## Start here
 
+Relative document links below are bundled in the .NET package. Links marked online-only require
+network access and point to this release's source; the Ansible collection is distributed separately.
+From an installed command, `--version` reports the index as a `local-documentation` file URI, or
+`unavailable` when the index or specification is missing.
+
 - [AGENTS.md](AGENTS.md): entry point for automated agents; read order, repository map, reporting rules.
 - [CONTRIBUTING.md](CONTRIBUTING.md): the binding change protocol and the feedback report forms.
 - [docs/specification.md](docs/specification.md): the contract. Normative, self-contained.
@@ -25,7 +30,7 @@
 
 - [README.md](README.md): installation and a first example.
 - [docs/usage-methodology.md](docs/usage-methodology.md): when to use this tool, how to layer overlays, how to specialize an existing document with a cross-format override, and known anti-patterns.
-- [docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md): every intentional behaviour change from 2.4.0.
+- [Migration guide](https://github.com/stop-cran/namespace2xml/blob/master/docs/migration-2.x-to-3.0.md) (online only): every intentional behaviour change from 2.4.0.
 - [KNOWN-LIMITS.md](KNOWN-LIMITS.md): what is deliberately not covered yet.
 
 ## Formats
@@ -41,17 +46,22 @@ explicitly where the specification does not settle a question.
 
 ## Integrations
 
-- [ansible/README.md](ansible/README.md): the `stop_cran.namespace2xml` Ansible collection — two plugins over this tool. Which one to pick, requirements, arguments, memoization, and the four fidelity limits of the filter's data-to-profile mapping.
-- [ansible/docs/specification-summary.md](ansible/docs/specification-summary.md): the contract in brief, and the only copy of it that ships inside the collection. Read this instead of `docs/specification.md` when you need the rules without the 300 KB. Its normative claims are blockquotes checked verbatim against the specification by `tools/check-specification-quotations.ps1`, so it cannot drift; where it and the specification disagree, the specification wins.
-- [ansible/plugins/filter/render.py](ansible/plugins/filter/render.py): the `render` filter. Renders play variables on the controller and returns a string. Its `DOCUMENTATION` block is what `ansible-doc -t filter stop_cran.namespace2xml.render` prints, and is the authoritative argument reference.
-- [ansible/plugins/modules/render.py](ansible/plugins/modules/render.py): the `render` module. Runs on a managed node, over files that already live there, and writes rendered documents to a directory on that node — idempotently, by comparing bytes. `ansible-doc -t module stop_cran.namespace2xml.render` prints its arguments.
+- [Ansible README](https://github.com/stop-cran/namespace2xml/blob/master/ansible/README.md) (online only): the collection's plugins and usage.
+- [Ansible specification summary](https://github.com/stop-cran/namespace2xml/blob/master/ansible/docs/specification-summary.md) (online only): the collection's abbreviated contract.
+- [Filter source](https://github.com/stop-cran/namespace2xml/blob/master/ansible/plugins/filter/render.py) (online only): the controller-side `render` filter.
+- [Module source](https://github.com/stop-cran/namespace2xml/blob/master/ansible/plugins/modules/render.py) (online only): the managed-node `render` module.
 - The collection is a separate artefact with its own version and its own compatibility promise. `v3.*` tags release the .NET tool; `ansible-v*` tags release the collection. The collection pins no tool version, but refuses a binary that reports no `contract-bundle`.
 - Pick by where the truth lives. If the configuration is in your play's variables, use the filter: it evaluates on the controller and target nodes need neither .NET nor the tool. If each node's own file is the input and determines that node's state, use the module: it needs the tool installed on the node, and no file it reads is ever a file it writes.
 
 ## Verification
 
-- [conformance/](conformance/): the portable conformance corpus, which is the independent oracle. Layout is specification Appendix C.
-- [conformance/assertions.json](conformance/assertions.json): every acceptance requirement, its status, and its fixture coverage.
+- [conformance/assertions.json](conformance/assertions.json): acceptance metadata only, not the
+  fixtures or executable gates needed to rerun verification. Historical milestone values record
+  provenance, not the current release.
+- [Complete corpus](https://github.com/stop-cran/namespace2xml/tree/master/conformance),
+  [traceability harness](https://github.com/stop-cran/namespace2xml/tree/master/tests/Namespace2Xml.Conformance),
+  and [CI definitions](https://github.com/stop-cran/namespace2xml/blob/master/.github/workflows/ci.yml)
+  (online only): matching release source needed to rerun verification.
 
 ## Machine interface
 

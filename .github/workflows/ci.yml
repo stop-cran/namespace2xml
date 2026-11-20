@@ -112,6 +112,10 @@ jobs:
       - name: Pack, install and smoke-test the tool
         shell: pwsh
         run: pwsh -NoProfile -File tools/verify-tool-install.ps1
+      # A synthetic version catches links accidentally frozen to the checked-in product version.
+      - name: Verify release-specific documentation links
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/verify-tool-install.ps1 -VersionOverride 99.98.97
 
   # The release workflow proves the published symbols can actually reach their source. That check
   # lived only there, so no per-push job ever ran it -- and the first time it executed on Linux it

@@ -125,5 +125,41 @@ public class HelpTextLinkTests
                 $"--version must link {document}; it is the only discovery surface a caller that " +
                 "parses fields rather than prose will read");
         }
+
+    }
+
+    [Test]
+    public void VersionAndHelpExplainOfflineDiscovery()
+    {
+        HelpText.RenderVersion().ShouldContain("local-documentation: ", Case.Sensitive);
+        HelpText.Render().ShouldContain("local-documentation", Case.Sensitive);
+    }
+
+    [Test]
+    public void LocalDocumentationUsesTheRunningPackageAndRequiresBothDocuments()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "n2x docs # " + Guid.NewGuid().ToString("N"));
+        var package = Path.Combine(root, "3.0.0");
+        var other = Path.Combine(root, "other");
+        var binary = Path.Combine(package, "tools", "net10.0", "any");
+        try
+        {
+            Directory.CreateDirectory(binary);
+            Directory.CreateDirectory(Path.Combine(package, "docs"));
+            Directory.CreateDirectory(other);
+            File.WriteAllText(Path.Combine(other, "llms.txt"), "wrong version");
+            HelpText.LocalDocumentation(binary).ShouldBe("unavailable");
+            File.WriteAllText(Path.Combine(package, "llms.txt"), "index");
+            HelpText.LocalDocumentation(binary).ShouldBe("unavailable");
+            File.WriteAllText(Path.Combine(package, "docs", "specification.md"), "contract");
+            HelpText.LocalDocumentation(binary).ShouldBe(
+                new Uri(Path.Combine(package, "llms.txt")).AbsoluteUri);
+            new Uri(HelpText.LocalDocumentation(binary)).LocalPath.ShouldBe(Path.Combine(package, "llms.txt"));
+            HelpText.LocalDocumentation(other).ShouldBe("unavailable");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 }
