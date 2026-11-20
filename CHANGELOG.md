@@ -25,6 +25,10 @@ independently.
 - Treat explicit NTFS default-stream names as their unsuffixed names during report collision
   checks, without changing the policy for named streams
   ([#168](https://github.com/stop-cran/namespace2xml/issues/168)).
+- Preserve literal percent escapes when the installed CLI reports the local documentation index
+  as a file URI ([#155](https://github.com/stop-cran/namespace2xml/issues/155)).
+- Continue validating sibling scheme sources when one structured scheme has a non-mapping root,
+  without allowing publication ([#169](https://github.com/stop-cran/namespace2xml/issues/169)).
 
 ## [3.1.0-preview.1] - 2026-11-20
 
@@ -50,8 +54,7 @@ independently.
 - **Packaged documentation distinguishes bundled files from online-only guidance**, and online
   release links lead to the matching version's documents.
   [#154](https://github.com/stop-cran/namespace2xml/issues/154).
-- **The installed CLI exposes its own bundled documentation index as a local file URI**, and the
-  URI round-trips paths containing literal percent escapes.
+- **The installed CLI exposes its own bundled documentation index as a local file URI.**
   [#155](https://github.com/stop-cran/namespace2xml/issues/155).
 - **Consumer and contributor reading routes are distinct** across the README, index and help.
   [#156](https://github.com/stop-cran/namespace2xml/issues/156).
