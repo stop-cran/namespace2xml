@@ -8,9 +8,8 @@ namespace Namespace2Xml.Output;
 /// </summary>
 internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
 {
-    private const int ExistingDirectoryMode = 0;
     private const int CreatedDirectoryMode = 0x1FF;
-    private const int CreatedFileMode = 0x1B6;
+    private const UnixFileMode CreatedFileMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
     private const int OpenReadOnly = 0;
     private const int OpenWriteOnly = 1;
 
@@ -19,6 +18,46 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     private PosixSecureDirectory(SafeFileHandle handle)
     {
         this.handle = handle;
+    }
+
+    private FileStream CreateNewChildFileWithExclusiveOpen(string component)
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            throw new PlatformNotSupportedException("exclusive managed creation is used only on Darwin arm64.");
+        }
+
+        // A fixed-arity P/Invoke cannot pass openat's variadic mode correctly on Darwin arm64.
+        // Use the runtime's native open shim for exclusive creation through the held directory
+        // descriptor; O_EXCL prevents following a leaf symlink, and the kernel applies the
+        // restrictive mode together with the process umask and any inherited ACL mask.
+        var path = Path.Combine(
+            "/dev/fd",
+            DirectoryFd.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            component);
+
+        try
+        {
+            return new FileStream(path, new FileStreamOptions
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                Share = FileShare.ReadWrite | FileShare.Delete,
+                UnixCreateMode = CreatedFileMode,
+            });
+        }
+        catch (IOException exception)
+        {
+            if (IsSymbolicLink(component))
+            {
+                throw new UncontainableDestinationException(
+                    $"the final component '{component}' is a symbolic link, and Section 21.1 requires "
+                    + "opening destinations without following symbolic links.",
+                    exception);
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
@@ -30,8 +69,7 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     {
         var fd = NativeMethods.open(
             Path.GetFullPath(outputRootPath),
-            OpenDirectory | OpenCloseOnExec,
-            ExistingDirectoryMode);
+            OpenDirectory | OpenCloseOnExec);
 
         if (fd < 0)
         {
@@ -84,7 +122,7 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     {
         ValidateComponent(component);
         var fd = NativeMethods.openat(
-            DirectoryFd, component, OpenReadOnly | OpenNoFollow | OpenCloseOnExec | OpenNonBlock, ExistingDirectoryMode);
+            DirectoryFd, component, OpenReadOnly | OpenNoFollow | OpenCloseOnExec | OpenNonBlock);
         if (fd < 0)
         {
             if (Marshal.GetLastPInvokeError() == Errno.NoEntry)
@@ -110,7 +148,24 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     {
         ValidateComponent(component);
 
-        var fd = NativeMethods.openat(
+        var existingFlags = OpenWriteOnly | OpenTruncate | OpenNoFollow | OpenCloseOnExec;
+        var fd = NativeMethods.openat(DirectoryFd, component, existingFlags);
+        if (fd >= 0)
+        {
+            return new FileStream(new SafeFileHandle((IntPtr)fd, ownsHandle: true), FileAccess.Write);
+        }
+
+        if (Marshal.GetLastPInvokeError() != Errno.NoEntry)
+        {
+            ThrowOpenFailure(component, directory: false);
+        }
+
+        if (UsesManagedCreateFor(OperatingSystem.IsMacOS(), RuntimeInformation.ProcessArchitecture))
+        {
+            return CreateNewChildFileWithExclusiveOpen(component);
+        }
+
+        fd = NativeMethods.openatWithMode(
             DirectoryFd,
             component,
             OpenWriteOnly
@@ -118,28 +173,11 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
                 | OpenTruncate
                 | OpenNoFollow
                 | OpenCloseOnExec,
-            CreatedFileMode);
+            (int)CreatedFileMode);
 
         if (fd < 0)
         {
             ThrowOpenFailure(component, directory: false);
-        }
-
-        // openat is variadic in C, and the Apple arm64 calling convention passes variadic
-        // arguments on the stack while a fixed-arity P/Invoke passes them in registers, so the
-        // creation mode can arrive as an arbitrary value there. A file created with a mode that
-        // denies its own owner would fail the next read rather than this write, which makes the
-        // defect surface far from its cause. Setting the mode explicitly through a non-variadic
-        // call removes the question, and gives destinations the same permissions on every
-        // platform -- which is the answer this tool should prefer anyway.
-        if (NativeMethods.fchmod(fd, CreatedFileMode) != 0)
-        {
-            var error = Marshal.GetLastPInvokeError();
-            NativeMethods.close(fd);
-
-            throw new IOException(
-                $"setting permissions on '{component}' failed: "
-                + new System.ComponentModel.Win32Exception(error).Message);
         }
 
         return new FileStream(new SafeFileHandle((IntPtr)fd, ownsHandle: true), FileAccess.Write);
@@ -164,6 +202,9 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     private static int OpenCloseOnExec => OperatingSystem.IsMacOS() ? 0x1000000 : 0x80000;
 
     private static int OpenNonBlock => OperatingSystem.IsMacOS() ? 0x4 : 0x800;
+
+    internal static bool UsesManagedCreateFor(bool macOS, Architecture architecture) =>
+        macOS && architecture == Architecture.Arm64;
 
     private static (int Directory, int NoFollow) NoFollowFlags { get; } =
         NoFollowFlagsFor(OperatingSystem.IsMacOS(), RuntimeInformation.ProcessArchitecture);
@@ -218,7 +259,7 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     }
 
     private int OpenChildDirectory(string component) =>
-        NativeMethods.openat(DirectoryFd, component, DirectoryOpenFlags, ExistingDirectoryMode);
+        NativeMethods.openat(DirectoryFd, component, DirectoryOpenFlags);
 
     private void ThrowOpenFailure(string component, bool directory)
     {
@@ -267,10 +308,17 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     private static partial class NativeMethods
     {
         [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-        internal static partial int open(string path, int flags, int mode);
+        internal static partial int open(string path, int flags);
 
         [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-        internal static partial int openat(int directoryFd, string path, int flags, int mode);
+        internal static partial int openat(int directoryFd, string path, int flags);
+
+        [LibraryImport(
+            "libc",
+            EntryPoint = "openat",
+            SetLastError = true,
+            StringMarshalling = StringMarshalling.Utf8)]
+        internal static partial int openatWithMode(int directoryFd, string path, int flags, int mode);
 
         [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
         internal static partial int mkdirat(int directoryFd, string path, int mode);
@@ -278,10 +326,5 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
         [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
         internal static partial nint readlinkat(int directoryFd, string path, IntPtr buffer, nuint bufferSize);
 
-        [LibraryImport("libc", SetLastError = true)]
-        internal static partial int fchmod(int fd, int mode);
-
-        [LibraryImport("libc", SetLastError = true)]
-        internal static partial int close(int fd);
     }
 }

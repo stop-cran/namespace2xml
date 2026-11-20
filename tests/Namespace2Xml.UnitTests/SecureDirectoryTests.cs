@@ -40,6 +40,48 @@ public sealed class SecureDirectoryTests
         }
     }
 
+    /// <summary>New POSIX destinations are private, and truncating an existing one preserves its mode.</summary>
+    [Test]
+    public void PosixFileCreationIsPrivateAndRewritePreservesPermissions()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Ignore("POSIX file modes are not available on Windows.");
+            return;
+        }
+
+        var work = NewScratchDirectory();
+        var root = Path.Combine(work, "out");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var destination = Path.Combine(root, "a.txt");
+            using var secureRoot = new SecureRootFactory().OpenRoot(root);
+
+            using (var stream = secureRoot.CreateOrTruncateChildFile("a.txt"))
+            {
+                stream.Write("first"u8);
+            }
+
+            var privateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            ((int)File.GetUnixFileMode(destination) & ~(int)privateMode).ShouldBe(0);
+
+            var existingMode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead;
+            File.SetUnixFileMode(destination, existingMode);
+            using (var stream = secureRoot.CreateOrTruncateChildFile("a.txt"))
+            {
+                stream.Write("x"u8);
+            }
+
+            ((int)File.GetUnixFileMode(destination)).ShouldBe((int)existingMode);
+        }
+        finally
+        {
+            Directory.Delete(work, recursive: true);
+        }
+    }
+
     /// <summary>Section 21.1 refuses a junction before traversing an intermediate component.</summary>
     [Test]
     public void ARefusedJunctionIsReported()
@@ -201,6 +243,16 @@ public sealed class SecureDirectoryTests
             .ShouldBe((0x100000, 0x100));
     }
 
+    /// <summary>Darwin arm64 avoids passing a variadic open mode through fixed-arity interop.</summary>
+    [TestCase(true, Architecture.Arm64, true)]
+    [TestCase(true, Architecture.X64, false)]
+    [TestCase(false, Architecture.Arm64, false)]
+    public void ManagedCreateIsUsedOnlyForDarwinArm64(
+        bool macOS, Architecture architecture, bool expected)
+    {
+        PosixSecureDirectory.UsesManagedCreateFor(macOS, architecture).ShouldBe(expected);
+    }
+
     /// <summary>
     /// Every architecture the runtime can report has had its flags checked against that
     /// architecture's kernel header.
@@ -248,7 +300,17 @@ public sealed class SecureDirectoryTests
     private static string NewScratchDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), $"n2x-secure-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(path);
+        if (OperatingSystem.IsWindows())
+        {
+            Directory.CreateDirectory(path);
+        }
+        else
+        {
+            Directory.CreateDirectory(
+                path,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
         return path;
     }
 
