@@ -357,6 +357,10 @@ internal static class HelpText
           Contributor guide {AgentGuideUrl}
           Report a defect   {ReportUrl}
 
+          For installed offline documentation, run --version and read the
+          local-documentation file URI. "unavailable" means the index or specification
+          was not found in the running tool's package.
+
           Read the known limits before reporting: a gap documented there is known, and the
           entry says whether this build has it. The reporting guide routes a finding to the
           right form — code defect, specification ambiguity, usage gap, or feature request —
@@ -381,8 +385,30 @@ internal static class HelpText
         diagnostics: {DiagnosticsUrl}
         known-limits: {KnownLimitsUrl}
         documentation: {DocumentIndexUrl}
+        local-documentation: {LocalDocumentation(AppContext.BaseDirectory)}
         repository: {RepositoryUrl}
         report: {ReportUrl}
 
         """.ReplaceLineEndings("\n");
+
+    internal static string LocalDocumentation(string baseDirectory)
+    {
+        var any = new DirectoryInfo(baseDirectory);
+        var framework = any.Parent;
+        var tools = framework?.Parent;
+        var package = tools?.Parent;
+        if (any.Name != "any" || tools?.Name != "tools" || package is null)
+        {
+            return "unavailable";
+        }
+
+        var index = Path.Combine(package.FullName, "llms.txt");
+        var specification = Path.Combine(package.FullName, "docs", "specification.md");
+        if (!File.Exists(index) || !File.Exists(specification))
+        {
+            return "unavailable";
+        }
+
+        return new Uri(index).AbsoluteUri;
+    }
 }

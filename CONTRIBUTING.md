@@ -358,7 +358,7 @@ rather than re-running it and observing that nothing moved.
 
 `ansible-test units` and `ansible-test integration` both stay on the controller, so neither can see
 the module's central claim: that it renders a remote node's files from that node's own inputs, using
-a binary installed on that node. [`tools/integration-rig`](tools/integration-rig/README.md) stands
+a binary installed on that node. The [integration rig](https://github.com/stop-cran/namespace2xml/blob/master/tools/integration-rig/README.md) (online only) stands
 that topology up in Docker — a controller, two nodes with deliberately divergent variables, real
 SSH, the collection installed from Galaxy.
 
@@ -693,8 +693,8 @@ section exists to prevent.
 
 ## Code of conduct
 
-Participation is governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Participation is governed by the [code of conduct](https://github.com/stop-cran/namespace2xml/blob/master/CODE_OF_CONDUCT.md) (online only).
 
 ## Security
 
-Do not open a public issue for a vulnerability. See [SECURITY.md](SECURITY.md).
+Do not open a public issue for a vulnerability. See the [security policy](https://github.com/stop-cran/namespace2xml/blob/master/SECURITY.md) (online only).

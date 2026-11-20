@@ -2,7 +2,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/namespace2xml.svg)](https://www.nuget.org/packages/namespace2xml)
 [![Ansible Galaxy](https://img.shields.io/ansible/collection/v/stop_cran/namespace2xml?label=galaxy)](https://galaxy.ansible.com/ui/repo/published/stop_cran/namespace2xml/)
-[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![CI](https://github.com/stop-cran/namespace2xml/actions/workflows/ci.yml/badge.svg)](https://github.com/stop-cran/namespace2xml/actions/workflows/ci.yml)
 
 A deterministic configuration transformer. It reads ordered namespace profiles and structured
 inputs, applies scheme directives, and renders **many outputs from one overlaid model** — XML, JSON,
@@ -18,7 +18,7 @@ locale, on every run.
 3.0 replaces the 2.x implementation entirely, against a specification written **before** the code.
 The specification is the contract; the implementation is an attempt to satisfy it. Behaviour that
 2.4.0 left undefined is now defined, and the intentional differences are listed in
-[docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md).
+[online migration guide](https://github.com/stop-cran/namespace2xml/blob/master/docs/migration-2.x-to-3.0.md).
 
 `3.0.0` is the permanent release of that contract. See [KNOWN-LIMITS.md](KNOWN-LIMITS.md) for the
 deliberate boundaries of 3.0 and the contract work deferred to 3.1.
@@ -42,7 +42,7 @@ need neither .NET nor the tool:
 ansible-galaxy collection install stop_cran.namespace2xml
 ```
 
-See [ansible/README.md](ansible/README.md) for arguments, memoization and the fidelity limits of the
+See the [online Ansible README](https://github.com/stop-cran/namespace2xml/blob/master/ansible/README.md) for arguments, memoization and the fidelity limits of the
 data-to-profile mapping.
 
 ## Basic usage
@@ -193,6 +193,10 @@ This tool is designed to be used by programs, and to be **argued with** by them.
   [docs/diagnostics.md](docs/diagnostics.md).
 - **`--version`** prints one `<field>: <value>` line per field, including the `contract-bundle`
   revision that identifies exactly which specification and diagnostic registry the binary implements.
+  Its `local-documentation` field is a percent-encoded file URI for the installed index, or
+  `unavailable` if the index or specification is missing. Open that URI locally to reach the
+  bundled specification; no browser or network request is required. Development builds may report
+  `unavailable`.
 - **`--fail-on-warning` applies a pre-publication warning policy.** If any warning
   is emitted, the tool completes serialization, preserves the original diagnostic stream, exits
   `1`, and publishes no file. Diagnostic verbosity cannot bypass the policy. This includes
@@ -210,20 +214,38 @@ This tool is designed to be used by programs, and to be **argued with** by them.
   in place, idempotently. `ansible-doc -t filter` and `-t module` on
   `stop_cran.namespace2xml.render` are their argument references.
 
+<<<<<<< HEAD
 To use the installed tool, start with the [basic example](#basic-usage) and
 [layering and discovery guidance](docs/usage-methodology.md#2-layer-by-lifetime-not-by-topic).
 To change the repository, start at [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 The machine-readable index is [llms.txt](llms.txt).
+=======
+Start at [AGENTS.md](AGENTS.md). The machine-readable index is [llms.txt](llms.txt).
+For example, in PowerShell, read the installed index from the running command without guessing its
+store location:
+
+```powershell
+$line = namespace2xml --version | Where-Object { $_ -clike 'local-documentation: *' }
+$location = $line.Substring('local-documentation: '.Length)
+if ($location -eq 'unavailable') { throw 'Installed documentation is unavailable.' }
+Get-Content -LiteralPath ([uri]$location).LocalPath
+```
+
+Follow the index's `docs/specification.md` link relative to the index. The URI is specific to the
+running installation, not a search of other installed versions. For a local-manifest tool, replace
+`namespace2xml` in the example with `dotnet tool run namespace2xml`.
+>>>>>>> cf55db9 (Make installed documentation discoverable offline)
 
 ---
 
 ## Documentation
 
-These links are relative, so they resolve in a clone and inside the extracted NuGet package, which
-mirrors this layout. On nuget.org relative links are stripped and will not be clickable: browse the
+The relative links below resolve in a clone and in the extracted NuGet package. The migration and
+Ansible links are online-only; neither is bundled in the .NET package. On nuget.org relative links
+are stripped and will not be clickable: browse the
 same documents at <https://github.com/stop-cran/namespace2xml>, or run `namespace2xml --version`,
-which prints release-pinned URLs for the specification, the diagnostics registry, `llms.txt` and
-the issue tracker.
+which prints release-pinned URLs for the specification, the diagnostics reference and `llms.txt`,
+plus the live issue tracker.
 
 | File | What it is |
 |---|---|
@@ -235,10 +257,10 @@ the issue tracker.
 | [docs/format-yaml.md](docs/format-yaml.md) | YAML input and output, the `RestrictedYaml1` subset. |
 | [docs/format-xml.md](docs/format-xml.md) | XML input and output, typed components, CDATA, comments. |
 | [docs/format-ini.md](docs/format-ini.md) | INI output, the two-level projection, `PortableIni1`. |
-| [docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md) | Every intentional behaviour change from 2.4.0. |
+| [Migration guide](https://github.com/stop-cran/namespace2xml/blob/master/docs/migration-2.x-to-3.0.md) (online only) | Every intentional behaviour change from 2.4.0. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | The change protocol and the feedback forms. |
 | [KNOWN-LIMITS.md](KNOWN-LIMITS.md) | What is deliberately not covered yet. |
-| [ansible/README.md](ansible/README.md) | The `stop_cran.namespace2xml` Ansible collection: the `render` filter and the `render` module, which one to pick, their arguments, and the filter's fidelity limits. |
+| [Ansible README](https://github.com/stop-cran/namespace2xml/blob/master/ansible/README.md) (online only) | The `stop_cran.namespace2xml` Ansible collection: the `render` filter and the `render` module, which one to pick, their arguments, and the filter's fidelity limits. |
 | [AGENTS.md](AGENTS.md) | Entry point for automated agents. |
 
 ---
@@ -251,10 +273,10 @@ Before filing, ask one question: **what would have to change so this never surpr
 
 | Answer | File this |
 |---|---|
-| The code should have matched the specification | [Bug report](../../issues/new?template=bug_report.yml) |
-| The specification does not say, or says two things | [Specification ambiguity](../../issues/new?template=spec_ambiguity.yml) |
-| Both are right; I could not find out how to do this | [Usage gap](../../issues/new?template=usage_gap.yml) |
-| The tool cannot express this at all | [Feature request](../../issues/new?template=feature_request.yml) |
+| The code should have matched the specification | [Bug report](https://github.com/stop-cran/namespace2xml/issues/new?template=bug_report.yml) |
+| The specification does not say, or says two things | [Specification ambiguity](https://github.com/stop-cran/namespace2xml/issues/new?template=spec_ambiguity.yml) |
+| Both are right; I could not find out how to do this | [Usage gap](https://github.com/stop-cran/namespace2xml/issues/new?template=usage_gap.yml) |
+| The tool cannot express this at all | [Feature request](https://github.com/stop-cran/namespace2xml/issues/new?template=feature_request.yml) |
 
 Always include the `contract-bundle` revision from `--version`. A report against an unknown contract
 revision cannot be acted on. Set the **Component** field to say which surface you were using — the
