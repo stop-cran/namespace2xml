@@ -314,6 +314,7 @@ public sealed class PublicationReportTests
             }
 
             ((int)File.GetUnixFileMode(report)).ShouldBe((int)existingMode);
+            File.ReadAllText(report).ShouldBe("x");
         }
         finally
         {

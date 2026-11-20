@@ -75,6 +75,7 @@ public sealed class SecureDirectoryTests
             }
 
             ((int)File.GetUnixFileMode(destination)).ShouldBe((int)existingMode);
+            File.ReadAllText(destination).ShouldBe("x");
         }
         finally
         {
@@ -247,10 +248,10 @@ public sealed class SecureDirectoryTests
     [TestCase(true, Architecture.Arm64, true)]
     [TestCase(true, Architecture.X64, false)]
     [TestCase(false, Architecture.Arm64, false)]
-    public void ManagedCreateIsUsedOnlyForDarwinArm64(
+    public void StackModeIsUsedOnlyForDarwinArm64(
         bool macOS, Architecture architecture, bool expected)
     {
-        PosixSecureDirectory.UsesManagedCreateFor(macOS, architecture).ShouldBe(expected);
+        PosixSecureDirectory.UsesStackModeFor(macOS, architecture).ShouldBe(expected);
     }
 
     /// <summary>

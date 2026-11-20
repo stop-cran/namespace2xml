@@ -9,6 +9,7 @@ namespace Namespace2Xml.Output;
 internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
 {
     private const int CreatedDirectoryMode = 0x1FF;
+    // Apply the mode at creation; the kernel owns umask and ACL inheritance. Never chmod a rewrite.
     private const UnixFileMode CreatedFileMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
     private const int OpenReadOnly = 0;
     private const int OpenWriteOnly = 1;
@@ -18,46 +19,6 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     private PosixSecureDirectory(SafeFileHandle handle)
     {
         this.handle = handle;
-    }
-
-    private FileStream CreateNewChildFileWithExclusiveOpen(string component)
-    {
-        if (!OperatingSystem.IsMacOS())
-        {
-            throw new PlatformNotSupportedException("exclusive managed creation is used only on Darwin arm64.");
-        }
-
-        // A fixed-arity P/Invoke cannot pass openat's variadic mode correctly on Darwin arm64.
-        // Use the runtime's native open shim for exclusive creation through the held directory
-        // descriptor; O_EXCL prevents following a leaf symlink, and the kernel applies the
-        // restrictive mode together with the process umask and any inherited ACL mask.
-        var path = Path.Combine(
-            "/dev/fd",
-            DirectoryFd.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            component);
-
-        try
-        {
-            return new FileStream(path, new FileStreamOptions
-            {
-                Mode = FileMode.CreateNew,
-                Access = FileAccess.Write,
-                Share = FileShare.ReadWrite | FileShare.Delete,
-                UnixCreateMode = CreatedFileMode,
-            });
-        }
-        catch (IOException exception)
-        {
-            if (IsSymbolicLink(component))
-            {
-                throw new UncontainableDestinationException(
-                    $"the final component '{component}' is a symbolic link, and Section 21.1 requires "
-                    + "opening destinations without following symbolic links.",
-                    exception);
-            }
-
-            throw;
-        }
     }
 
     /// <summary>
@@ -152,32 +113,8 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     {
         ValidateComponent(component);
 
-        var existingFlags = OpenWriteOnly | OpenTruncate | OpenNoFollow | OpenCloseOnExec;
-        var fd = NativeMethods.openat(DirectoryFd, component, existingFlags);
-        if (fd >= 0)
-        {
-            return new FileStream(new SafeFileHandle((IntPtr)fd, ownsHandle: true), FileAccess.Write);
-        }
-
-        if (Marshal.GetLastPInvokeError() != Errno.NoEntry)
-        {
-            ThrowOpenFailure(component, directory: false);
-        }
-
-        if (UsesManagedCreateFor(OperatingSystem.IsMacOS(), RuntimeInformation.ProcessArchitecture))
-        {
-            return CreateNewChildFileWithExclusiveOpen(component);
-        }
-
-        fd = NativeMethods.openatWithMode(
-            DirectoryFd,
-            component,
-            OpenWriteOnly
-                | OpenCreate
-                | OpenTruncate
-                | OpenNoFollow
-                | OpenCloseOnExec,
-            (int)CreatedFileMode);
+        var flags = OpenWriteOnly | OpenCreate | OpenTruncate | OpenNoFollow | OpenCloseOnExec;
+        var fd = OpenFileWithMode(component, flags);
 
         if (fd < 0)
         {
@@ -207,8 +144,22 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
 
     private static int OpenNonBlock => OperatingSystem.IsMacOS() ? 0x4 : 0x800;
 
-    internal static bool UsesManagedCreateFor(bool macOS, Architecture architecture) =>
+    internal static bool UsesStackModeFor(bool macOS, Architecture architecture) =>
         macOS && architecture == Architecture.Arm64;
+
+    private int OpenFileWithMode(string component, int flags)
+    {
+        if (UsesStackModeFor(OperatingSystem.IsMacOS(), RuntimeInformation.ProcessArchitecture))
+        {
+            // Apple arm64 passes openat's variadic mode at sp, not in x3. Fill x3-x7 with
+            // unused arguments so the promoted mode is the first stack argument. Keep the
+            // no-follow directory-relative open; /dev/fd is not a portable directory path.
+            return NativeMethods.openatWithStackMode(
+                DirectoryFd, component, flags, 0, 0, 0, 0, 0, (int)CreatedFileMode);
+        }
+
+        return NativeMethods.openatWithMode(DirectoryFd, component, flags, (int)CreatedFileMode);
+    }
 
     private static (int Directory, int NoFollow) NoFollowFlags { get; } =
         NoFollowFlagsFor(OperatingSystem.IsMacOS(), RuntimeInformation.ProcessArchitecture);
@@ -330,11 +281,19 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
             StringMarshalling = StringMarshalling.Utf8)]
         internal static partial int openatWithMode(int directoryFd, string path, int flags, int mode);
 
+        [LibraryImport(
+            "libc",
+            EntryPoint = "openat",
+            SetLastError = true,
+            StringMarshalling = StringMarshalling.Utf8)]
+        internal static partial int openatWithStackMode(
+            int directoryFd, string path, int flags,
+            nint unused3, nint unused4, nint unused5, nint unused6, nint unused7, int mode);
+
         [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
         internal static partial int mkdirat(int directoryFd, string path, int mode);
 
         [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
         internal static partial nint readlinkat(int directoryFd, string path, IntPtr buffer, nuint bufferSize);
-
     }
 }
