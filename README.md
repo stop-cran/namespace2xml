@@ -214,13 +214,11 @@ This tool is designed to be used by programs, and to be **argued with** by them.
   in place, idempotently. `ansible-doc -t filter` and `-t module` on
   `stop_cran.namespace2xml.render` are their argument references.
 
-<<<<<<< HEAD
 To use the installed tool, start with the [basic example](#basic-usage) and
 [layering and discovery guidance](docs/usage-methodology.md#2-layer-by-lifetime-not-by-topic).
 To change the repository, start at [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 The machine-readable index is [llms.txt](llms.txt).
-=======
-Start at [AGENTS.md](AGENTS.md). The machine-readable index is [llms.txt](llms.txt).
+
 For example, in PowerShell, read the installed index from the running command without guessing its
 store location:
 
@@ -234,7 +232,6 @@ Get-Content -LiteralPath ([uri]$location).LocalPath
 Follow the index's `docs/specification.md` link relative to the index. The URI is specific to the
 running installation, not a search of other installed versions. For a local-manifest tool, replace
 `namespace2xml` in the example with `dotnet tool run namespace2xml`.
->>>>>>> cf55db9 (Make installed documentation discoverable offline)
 
 ---
 
