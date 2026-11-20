@@ -39,9 +39,22 @@ independently.
   `REPORT001`; equal-byte outputs are still rewritten. The Ansible filter and module use reports
   when the installed CLI advertises support, while preserving compatibility with 3.0.0.
   [#116](https://github.com/stop-cran/namespace2xml/issues/116).
-- **Installed documentation is discoverable offline**, and CLI help and diagnostics provide
-  clearer recovery guidance. Independent scheme compilation errors are reported together.
+- **Independent scheme checks continue after successful parsing and reference resolution.** An
+  unrelated blocking validation error no longer suppresses other independent checks in that same
+  scheme phase; later phases still wait for it to complete successfully.
   [#163](https://github.com/stop-cran/namespace2xml/issues/163).
+- **WARN014 guidance identifies the wrong-selector remedy** in help and the usage methodology.
+  [#153](https://github.com/stop-cran/namespace2xml/issues/153).
+- **Input extension dispatch and namespace fallback are explicit in help.**
+  [#158](https://github.com/stop-cran/namespace2xml/issues/158).
+- **Packaged documentation distinguishes bundled files from online-only guidance**, and online
+  release links lead to the matching version's documents.
+  [#154](https://github.com/stop-cran/namespace2xml/issues/154).
+- **The installed CLI exposes its own bundled documentation index as a local file URI**, and the
+  URI round-trips paths containing literal percent escapes.
+  [#155](https://github.com/stop-cran/namespace2xml/issues/155).
+- **Consumer and contributor reading routes are distinct** across the README, index and help.
+  [#156](https://github.com/stop-cran/namespace2xml/issues/156).
 
 ### Removed
 

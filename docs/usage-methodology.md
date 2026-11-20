@@ -561,6 +561,11 @@ If a program consumes this tool's output, have it consume the *contract*:
   tool finishes serialization and reports the unchanged, complete diagnostic stream, then exits
   `1` without publishing any file. This policy is independent of diagnostic verbosity and includes
   `WARN007` when `NormalizeFormattingWhitespace` was requested;
+- `--report-file <path>` when automation needs a record of the staged destinations, provenance and
+  publication outcomes. Its parent directory must already exist; validate the report with
+  [`docs/publication-report.schema.json`](publication-report.schema.json). A failed run's report
+  is unverified unless diagnostics are received at `error` or more verbose and contain no
+  `REPORT001`; check the exit status too, because `critical` and `none` can hide that error;
 - the `contract-bundle` revision from `--version` recorded in your logs, so a future failure can be
   attributed to a contract change rather than guessed at.
 

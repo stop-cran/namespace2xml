@@ -32,9 +32,10 @@ consumer, or failed workflow is the evidence that should change the next contrac
   current JSON behavior; [#92](https://github.com/stop-cran/namespace2xml/issues/92) owns future
   text/JSON sink-failure semantics and additive diagnostic-code compatibility.
 - **Publication reports require an explicit file and do not attest their own failures.** A failed
-  run's report is unverified unless its diagnostics are received at error verbosity or higher and
-  do not contain `REPORT001`. Hard-link aliases and concurrent path mutation remain outside the
-  containment guarantee.
+  run's report is unverified unless its diagnostics are received at `error` or more verbose and
+  do not contain `REPORT001`; check the exit status as well, since `critical` and `none` can hide
+  that error. Hard-link aliases and concurrent path mutation remain outside the containment
+  guarantee.
 - *(Resolved in the candidate.)* In `3.1.0-preview.1`, report paths could reject linked
   parents or miss collisions spelled through filesystem aliases. The candidate resolves
   parent paths and checks resolved destinations, including explicit NTFS default-stream

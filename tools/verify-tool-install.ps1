@@ -37,7 +37,8 @@ Set-StrictMode -Version Latest
 $repository = Split-Path -Parent $PSScriptRoot
 $unique = [guid]::NewGuid().ToString('n')
 $packDirectory = Join-Path ([IO.Path]::GetTempPath()) "n2x-pack-$unique"
-$toolDirectory = Join-Path ([IO.Path]::GetTempPath()) "n2x tool # % $unique"
+# The literal %2F must survive the package URI round-trip as filename text.
+$toolDirectory = Join-Path ([IO.Path]::GetTempPath()) "n2x tool # %2F $unique"
 $workDirectory = Join-Path ([IO.Path]::GetTempPath()) "n2x-work-$unique"
 
 function Assert-LastExitCode {
@@ -162,8 +163,9 @@ try {
             }
         }
         $supportingLinks = @{
-            'README.md' = @('docs/migration-2.x-to-3.0.md', 'ansible/README.md')
+            'README.md' = @('docs/migration-2.x-to-3.0.md', 'ansible/README.md', 'CHANGELOG.md')
             'CONTRIBUTING.md' = @('tools/integration-rig/README.md', 'CODE_OF_CONDUCT.md', 'SECURITY.md')
+            'llms.txt' = @('CHANGELOG.md')
         }
         foreach ($item in $supportingLinks.Keys) {
             $text = [IO.File]::ReadAllText((Join-Path $extracted $item))

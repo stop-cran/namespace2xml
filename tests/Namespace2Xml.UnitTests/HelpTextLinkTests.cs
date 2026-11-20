@@ -142,7 +142,8 @@ public class HelpTextLinkTests
     [Test]
     public void LocalDocumentationUsesTheRunningPackageAndRequiresBothDocuments()
     {
-        var root = Path.Combine(Path.GetTempPath(), "n2x docs # " + Guid.NewGuid().ToString("N"));
+        // A URI escape-looking filename must remain literal when the URI is read back.
+        var root = Path.Combine(Path.GetTempPath(), "n2x docs # %2F " + Guid.NewGuid().ToString("N"));
         var package = Path.Combine(root, "3.0.0");
         var other = Path.Combine(root, "other");
         var binary = Path.Combine(package, "tools", "net10.0", "any");
