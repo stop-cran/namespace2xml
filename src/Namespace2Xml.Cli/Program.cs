@@ -52,7 +52,7 @@ public static class Program
             // validation failed — including, when it was '--verbosity' itself that was invalid, a
             // refusal that could not be filtered by the value being refused. Exit 1 with an empty
             // stream would leave the caller nothing to act on.
-            Emit(stderr, format, [invalid], Verbosity.Information);
+            Emit(stderr, format, [invalid], Verbosity.Information, jsonStream);
             return 1;
         }
 

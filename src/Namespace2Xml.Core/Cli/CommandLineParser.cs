@@ -159,7 +159,13 @@ public static class CommandLineParser
 
             if (current is null)
             {
-                return Failure("§6.2", $"'{token}' is not attached to any option.");
+                var message = $"'{token}' is not attached to any option.";
+                if (token is "help" or "/?")
+                {
+                    message += " Run 'namespace2xml --help' for the complete list.";
+                }
+
+                return Failure("§6.2", message);
             }
 
             if (state.Accept(current, token) is { } fault)
