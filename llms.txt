@@ -10,8 +10,10 @@
 
 ## Start here
 
-- [AGENTS.md](AGENTS.md): entry point for automated agents; read order, repository map, reporting rules.
-- [CONTRIBUTING.md](CONTRIBUTING.md): the binding change protocol and the feedback report forms.
+- Using the installed tool: start with the [README example](README.md), then the
+  layering and discovery guidance in [usage methodology](docs/usage-methodology.md).
+- Changing this repository: start with [AGENTS.md](AGENTS.md) and
+  [CONTRIBUTING.md](CONTRIBUTING.md), the repository read order and binding change protocol.
 - [docs/specification.md](docs/specification.md): the contract. Normative, self-contained.
 
 ## Contract
@@ -25,6 +27,7 @@
 
 - [README.md](README.md): installation and a first example.
 - [docs/usage-methodology.md](docs/usage-methodology.md): when to use this tool, how to layer overlays, how to specialize an existing document with a cross-format override, and known anti-patterns.
+- [Usage methodology](docs/usage-methodology.md) includes "Layered wildcard references", a runnable capture and reference example with a later overlay.
 - [docs/migration-2.x-to-3.0.md](docs/migration-2.x-to-3.0.md): every intentional behaviour change from 2.4.0.
 - [KNOWN-LIMITS.md](KNOWN-LIMITS.md): what is deliberately not covered yet.
 

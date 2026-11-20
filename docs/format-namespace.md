@@ -18,8 +18,11 @@ by design (§7.1).
 
 That default is a trap worth naming: a file that looks like a Windows-style INI, with `[section]`
 headers, is not read as INI. `[section]` is a record that is neither empty, comment, mask, nor an
-entry with a separating `=`, and §8.1 rule 5 makes it a blocking `PARSE001`. Rename the file, or
-convert it to namespace form, before feeding it in.
+entry with a separating `=`, and §8.1 rule 5 makes it a blocking `PARSE001`. Convert its content to
+namespace form or another supported input format; renaming alone does not convert it.
+
+For a complete layered wildcard-template and reference example, see
+[Layered wildcard references](usage-methodology.md#layered-wildcard-references).
 
 ## Physical records
 
