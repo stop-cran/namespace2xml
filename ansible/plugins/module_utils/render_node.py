@@ -36,8 +36,10 @@ import errno
 import math
 import os
 import stat
+import tempfile
 
-from .n2x import Namespace2XmlError, encode_value, resolve, run_tool, tool_identity
+from .n2x import (Namespace2XmlError, encode_value, read_success_report, resolve, run_tool,
+                  supports_report, tool_identity)
 
 __all__ = [
     "build_argv",
@@ -580,9 +582,17 @@ def render(src, schemes, dest, scratch, variables=None, tool=None, check_mode=Fa
     prepare_dest(dest, create=False)
 
     argv = build_argv(src, schemes, variables, scratch, fail_on_warning)
-    diagnostics = (runner or run_tool)(executable, argv)
-
-    produced = discover(scratch)
+    if supports_report(executable):
+        with tempfile.TemporaryDirectory(prefix="n2x-report-",
+                                         dir=os.path.dirname(os.path.abspath(scratch))) as directory:
+            report_path = os.path.join(directory, "report.json")
+            diagnostics = (runner or run_tool)(
+                executable, argv + ["--report-file=%s" % report_path])
+            outputs = read_success_report(report_path, scratch, identity)
+            produced = sorted(output["destination"] for output in outputs)
+    else:
+        diagnostics = (runner or run_tool)(executable, argv)
+        produced = discover(scratch)
 
     if not produced:
         raise Namespace2XmlError(
