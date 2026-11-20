@@ -307,6 +307,7 @@ def tool(monkeypatch):
     """A resolved binary and a proven identity, so a test can exercise the logic around them."""
     monkeypatch.setattr(render_node, "resolve", lambda tool=None: "/stand-in/namespace2xml")
     monkeypatch.setattr(render_node, "tool_identity", lambda tool=None: "3.0.0|r99+aaaa")
+    monkeypatch.setattr(render_node, "supports_report", lambda executable: False)
 
 
 def producing(files, diagnostics=""):

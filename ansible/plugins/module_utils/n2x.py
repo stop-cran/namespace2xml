@@ -22,9 +22,12 @@ of agreement with the original while both still pass their own tests.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import shutil
+import stat
 import subprocess
 
 __all__ = [
@@ -51,6 +54,7 @@ class Namespace2XmlError(Exception):
 
 _IDENTITY_CACHE: dict = {}
 _RESOLVE_CACHE: dict = {}
+_REPORT_CAPABILITY_CACHE: dict = {}
 
 _VALUE_CONTAINER_SENTINELS = {"{}": "\\{}", "[]": "\\[]"}
 
@@ -626,3 +630,148 @@ def run_tool(executable, argv):
                support_hint(executable)))
 
     return completed.stderr or ""
+
+
+def supports_report(executable):
+    """Detect the option itself, not a release number that may name a pre-report build."""
+    key = _identity_key(executable)
+    if key is not None and key in _REPORT_CAPABILITY_CACHE:
+        return _REPORT_CAPABILITY_CACHE[key]
+
+    completed = subprocess.run(
+        [executable, "--help"], capture_output=True, text=True, encoding="utf-8",
+        errors="replace", check=False)
+    if completed.returncode != 0:
+        raise Namespace2XmlError(
+            "'%s --help' exited %d: %s"
+            % (executable, completed.returncode, (completed.stderr or "").strip()))
+    supported = bool(re.search(r"(?<![\w-])--report-file(?![\w-])", completed.stdout))
+    if key is not None:
+        _REPORT_CAPABILITY_CACHE[key] = supported
+    return supported
+
+
+def _unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate member: %s" % key)
+        result[key] = value
+    return result
+
+
+def _shape(value, keys):
+    return isinstance(value, dict) and list(value) == list(keys)
+
+
+def _number(value, minimum=0):
+    return type(value) is int and minimum <= value <= 9223372036854775807
+
+
+def _digest(value):
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def read_success_report(path, output_dir, identity):
+    """Read a closed v1 report from a successful invocation and verify its staged files."""
+    try:
+        with open(path, "r", encoding="utf-8", newline="") as handle:
+            text = handle.read()
+        report = json.loads(text, object_pairs_hook=_unique_object)
+        if text != json.dumps(report, ensure_ascii=False, separators=(",", ":")) + "\n":
+            raise ValueError("noncanonical report encoding")
+        text.encode("utf-8")
+        _validate_success_report(report, output_dir, identity)
+    except (OSError, UnicodeError, ValueError, TypeError, RecursionError) as error:
+        raise Namespace2XmlError("invalid or unavailable publication report: %s" % error) from error
+    return report["outputs"]
+
+
+def _validate_success_report(report, output_dir, identity):
+    envelope = ("schemaVersion", "productVersion", "contract", "exitCode", "outcome",
+                "planComplete", "publicationOccurred", "sideEffectsPossible", "outputs")
+    contract_fields = ("revision", "hash", "specificationSha256", "registrySha256")
+    if not _shape(report, envelope):
+        raise ValueError("invalid envelope")
+    contract = report["contract"]
+    if not _shape(contract, contract_fields):
+        raise ValueError("invalid contract identity")
+    version = report["productVersion"]
+    revision = contract["revision"]
+    if (not isinstance(version, str) or not version or not isinstance(revision, str)
+            or re.fullmatch(r"r[1-9][0-9]*\+[0-9a-f]{12}", revision) is None
+            or any(not _digest(contract[key]) for key in contract_fields[1:])
+            or version + "|" + revision != identity):
+        raise ValueError("report identity does not match the invoked tool")
+    expected_hash = hashlib.sha256(
+        (contract["specificationSha256"] + "\n" + contract["registrySha256"])
+        .encode("utf-8")).hexdigest()
+    if contract["hash"] != expected_hash or not revision.endswith("+" + expected_hash[:12]):
+        raise ValueError("invalid contract hash")
+    outputs = report["outputs"]
+    if (type(report["schemaVersion"]) is not int or report["schemaVersion"] != 1
+            or type(report["exitCode"]) is not int or report["exitCode"] != 0
+            or report["outcome"] != "success" or report["planComplete"] is not True
+            or not isinstance(outputs, list)
+            or report["publicationOccurred"] is not bool(outputs)
+            or report["sideEffectsPossible"] is not bool(outputs)):
+        raise ValueError("report does not describe a complete successful invocation")
+
+    output_fields = ("destination", "format", "contributions", "byteLength", "sha256",
+                     "existedBefore", "bytesDiffered", "status", "failureCode",
+                     "unattemptedReason")
+    contribution_fields = ("source", "sourceIndex", "line", "declaration", "formatIndex",
+                           "matchIndex", "selector", "root", "format")
+    formats = ("namespace", "quotednamespace", "json", "yaml", "xml", "ini")
+    names = set()
+    for output in outputs:
+        if not _shape(output, output_fields):
+            raise ValueError("invalid output entry")
+        name = output["destination"]
+        if (not isinstance(name, str)
+                or re.fullmatch(r"(?:[A-Za-z0-9_.-]|%[0-9A-F]{2})+"
+                                r"(?:/(?:[A-Za-z0-9_.-]|%[0-9A-F]{2})+)*", name) is None
+                or any(part in (".", "..") for part in name.split("/"))
+                or name.lower() in names):
+            raise ValueError("invalid or duplicate output destination")
+        names.add(name.lower())
+        contributions = output["contributions"]
+        if (output["format"] not in formats or not _number(output["byteLength"])
+                or not _digest(output["sha256"]) or not isinstance(contributions, list)
+                or not contributions or output["failureCode"] is not None
+                or output["unattemptedReason"] is not None
+                or type(output["existedBefore"]) is not bool
+                or type(output["bytesDiffered"]) is not bool
+                or (output["status"] == "published" and output["bytesDiffered"] is not True)
+                or (output["status"] == "unchanged" and
+                    (output["existedBefore"] is not True or output["bytesDiffered"] is not False))
+                or output["status"] not in ("published", "unchanged")
+                or (output["existedBefore"] is False and output["bytesDiffered"] is not True)):
+            raise ValueError("invalid successful output")
+        for item in contributions:
+            if (not _shape(item, contribution_fields)
+                    or not all(isinstance(item[key], str) for key in
+                               ("source", "declaration", "selector", "root", "format"))
+                    or not item["source"] or not item["declaration"]
+                    or item["format"] not in formats
+                    or not _number(item["sourceIndex"], 1) or not _number(item["line"], 1)
+                    or not _number(item["formatIndex"]) or not _number(item["matchIndex"])):
+                raise ValueError("invalid contribution")
+        if contributions[-1]["format"] != output["format"]:
+            raise ValueError("effective format disagrees with final contribution")
+        current = output_dir
+        parts = name.split("/")
+        for index, part in enumerate(parts):
+            current = os.path.join(current, part)
+            mode = os.lstat(current).st_mode
+            if (index < len(parts) - 1 and not stat.S_ISDIR(mode)) or (
+                    index == len(parts) - 1 and not stat.S_ISREG(mode)):
+                raise ValueError("output is not a regular confined file: %s" % name)
+        digest = hashlib.sha256()
+        length = 0
+        with open(current, "rb") as handle:
+            for block in iter(lambda: handle.read(65536), b""):
+                digest.update(block)
+                length += len(block)
+        if length != output["byteLength"] or digest.hexdigest() != output["sha256"]:
+            raise ValueError("output bytes do not match report: %s" % name)

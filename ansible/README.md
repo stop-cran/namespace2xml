@@ -183,10 +183,11 @@ ansible-doc -t filter stop_cran.namespace2xml.render
 
 > **What a render costs.** `ansible-playbook` forks a worker per (host, task) pair, and every
 > cache the filter keeps — the memoized render, the resolved binary path, the tool's contract
-> identity — lives and dies inside that worker. Five identical renders in one task on one host
-> cost one `--version` probe and one tool subprocess; one render in each of three tasks across
-> eight hosts costs twenty-four of each. Rendering several documents in one task stays at the
-> floor; spreading them over tasks does not. `ansible-doc` has the measurements.
+> identity — lives and dies inside that worker. Before report support, five identical renders
+> in one task on one host measured one `--version` probe and one render subprocess; one render
+> in each of three tasks across eight hosts measured twenty-four of each. The additional
+> `--help` capability probe is cached per executable identity within the worker but was not part
+> of those measurements. `ansible-doc` has the details.
 
 ### `root` is required for XML with more than one top-level key
 
@@ -391,6 +392,13 @@ The module renders into a scratch directory and compares every produced file aga
 [§24](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-24) makes the
 tool's output deterministic for identical inputs. `check_mode` and `--diff` fall out of the same
 comparison, so a dry run reports precisely what a real run would do.
+
+When the installed CLI advertises `--report-file`, both plugins use its validated report from
+the successful scratch render: the filter checks the effective format and the module identifies
+the produced files without scanning scratch. Report observations describe scratch, not `dest`,
+so the module still compares the actual destination for idempotence, check mode and diffs.
+CLIs without the option, including 3.0 and pre-report 3.1 builds, retain the previous behavior.
+A failed invocation or invalid report is an error, never a reason to retry without a report.
 
 Publication follows [§21.1](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-21-1):
 each file is written through a handle-relative, no-follow open and renamed into place, so a
