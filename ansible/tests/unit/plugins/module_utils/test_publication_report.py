@@ -139,13 +139,18 @@ def test_filter_rejects_mismatched_effective_format(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize("mutate", [
     lambda r: r.update(schemaVersion=2),
+    lambda r: r.update(schemaVersion=True),
     lambda r: r.update(extra=True),
     lambda r: r.update(exitCode=1),
+    lambda r: r.update(exitCode=False),
     lambda r: r.update(outcome="warningPolicyRefused"),
     lambda r: r["contract"].update(hash="0" * 64),
     lambda r: r["outputs"][0].update(destination="../escape"),
     lambda r: r["outputs"][0].update(sha256="0" * 64),
     lambda r: r["outputs"][0].update(status="failed"),
+    lambda r: r["outputs"][0].update(byteLength=True),
+    lambda r: r["outputs"][0].update(existedBefore=0),
+    lambda r: r["outputs"][0].update(bytesDiffered=1),
     lambda r: r["outputs"][0]["contributions"][0].update(line=True),
     lambda r: r["outputs"][0].update(unexpected="field"),
 ])

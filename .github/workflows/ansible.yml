@@ -301,9 +301,8 @@ jobs:
           set -euo pipefail
           python -m pip install --quiet --disable-pip-version-check 'ansible-core>=2.21,<2.22'
 
-      # ansible-test units reports success when it collects nothing at all, so the five modules are
-      # named here. Adding a sixth is meant to fail this line: an unlisted test file is a test file
-      # nobody notices has stopped running.
+      # ansible-test units reports success when it collects nothing at all. Count the staged
+      # modules so adding or losing a test file requires reviewing this gate.
       - name: Stage the collection
         shell: bash
         run: |
@@ -312,8 +311,8 @@ jobs:
           mkdir -p "$(dirname "$dest")"
           cp -a ansible "$dest"
           mapfile -t modules < <(find "$dest/tests/unit" -name 'test_*.py' | sort)
-          if [ "${#modules[@]}" -ne 9 ]; then
-            printf 'Expected 9 unit test modules, found %d:\n' "${#modules[@]}" >&2
+          if [ "${#modules[@]}" -ne 10 ]; then
+            printf 'Expected 10 unit test modules, found %d:\n' "${#modules[@]}" >&2
             printf '  %s\n' "${modules[@]}" >&2
             exit 1
           fi

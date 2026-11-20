@@ -665,7 +665,8 @@ def _shape(value, keys):
 
 
 def _number(value, minimum=0):
-    return type(value) is int and minimum <= value <= 9223372036854775807
+    return (isinstance(value, int) and not isinstance(value, bool)
+            and minimum <= value <= 9223372036854775807)
 
 
 def _digest(value):
@@ -709,8 +710,8 @@ def _validate_success_report(report, output_dir, identity):
     if contract["hash"] != expected_hash or not revision.endswith("+" + expected_hash[:12]):
         raise ValueError("invalid contract hash")
     outputs = report["outputs"]
-    if (type(report["schemaVersion"]) is not int or report["schemaVersion"] != 1
-            or type(report["exitCode"]) is not int or report["exitCode"] != 0
+    if (not _number(report["schemaVersion"]) or report["schemaVersion"] != 1
+            or not _number(report["exitCode"]) or report["exitCode"] != 0
             or report["outcome"] != "success" or report["planComplete"] is not True
             or not isinstance(outputs, list)
             or report["publicationOccurred"] is not bool(outputs)
@@ -740,8 +741,8 @@ def _validate_success_report(report, output_dir, identity):
                 or not _digest(output["sha256"]) or not isinstance(contributions, list)
                 or not contributions or output["failureCode"] is not None
                 or output["unattemptedReason"] is not None
-                or type(output["existedBefore"]) is not bool
-                or type(output["bytesDiffered"]) is not bool
+                or not isinstance(output["existedBefore"], bool)
+                or not isinstance(output["bytesDiffered"], bool)
                 or (output["status"] == "published" and output["bytesDiffered"] is not True)
                 or (output["status"] == "unchanged" and
                     (output["existedBefore"] is not True or output["bytesDiffered"] is not False))
