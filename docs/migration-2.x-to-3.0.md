@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r118+33da7b7912fc`.**
+**Contract bundle `r119+ded94ff55ad0`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -5311,7 +5311,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (69)
+## Same observable result as 2.4.0 (70)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -6340,6 +6340,14 @@ those that name a shared reason are behaviour 3.0 preserved.
   Section 24 ordering claim (`REFERENCE002` before `REFERENCE001` because of source position rather
   than code) and the specific codes and anchors the diagnostic stream carries; both live in
   `expected-diagnostics.json`, which the verdict does not score.
+
+### `report-file-collides-with-input`
+
+- namespace2xml 2.4.0: **agrees** on exit and output tree, but for a different reason. Under these
+  exact arguments it reports the unknown `report-file` option and exits 1 before processing the
+  input; the input remains unchanged. The differential lane does not compare the diagnostic.
+- Contract: Section 21.5; Section 26 item 100.
+- The report must not truncate an input, and configuration publication must not begin.
 
 ### `selector-candidates-consume-the-wildcard-limit`
 

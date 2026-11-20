@@ -119,6 +119,7 @@
   - [21.2 Global validation and warning-policy gates](#spec-21-2)
   - [21.3 Direct publication](#spec-21-3)
   - [21.4 Existing files](#spec-21-4)
+  - [21.5 Publication report](#spec-21-5)
 - [22. Diagnostics](#spec-22)
 - [23. Complexity and resource limits](#spec-23)
 - [24. Determinism requirements](#spec-24)
@@ -617,6 +618,7 @@ Presence is decided by scanning the raw token vector for the option token, in ei
 | `-v`, `--variables` | no | Ordered namespace entries applied after all input files. |
 | `--verbosity` | no | `trace`, `debug`, `information`, `warning`, `error`, `critical`, or `none`, case-insensitively. Default: `information`. |
 | `--diagnostics-format` | no | `text` or `json`, case-insensitively. Selects the encoding of the diagnostic stream on standard error. Default: `text`. See Section 6.4. |
+| `--report-file` | no | Write the publication report to the named file. See Section 21.5. |
 | `--fail-on-warning` | no | Valueless opt-in policy. After all semantic work and serialization, any warning refuses every publication, reports `Published = 0`, and makes the invocation exit `1`. Default: disabled. See Sections 15.1 and 21.2. |
 | `--max-input-bytes` | no | Maximum bytes per input file. Default: 256 MiB. |
 | `--max-total-input-bytes` | no | Maximum total input bytes. Default: 1 GiB. |
@@ -3524,6 +3526,90 @@ Replacing an existing destination is allowed and is logged at information level.
 
 Replacing or merging because of two output declarations emits a warning as described under file collisions.
 
+<a id="spec-21-5"></a>
+### 21.5 Publication report
+
+An operational invocation with `--report-file` produces a separate publication report.
+The option takes one nonempty path, with the usual inline form and later-occurrence-wins
+rule. `-` is a literal filename. Resolve it against the working directory; its parent
+must already exist. Help, version, and invalid command lines produce no report.
+Without the option, existing behavior is unchanged. The report never uses standard
+output or standard error, and does not implement the deferred streaming interface.
+
+Before opening the report, establish containment through no-follow operations and refuse
+links, junctions and reparse points in its parent chain and leaf. Hard-link aliases and
+concurrent mutation of the report path or output root are outside the guarantee. Reject
+an identity collision with an input, scheme, output root or final configuration
+destination, and a file/directory prefix conflict with the output root or a configuration
+destination. Compare normalized absolute path segments using host identity rules and
+also ASCII-case-folded segment vectors on every host.
+
+After semantic processing stops, validate the report path against the complete final
+plan when one exists. Open or create and truncate the report before any configuration
+publication, retain the handle, then write, flush and close the final report after
+publication. The report is not an output entry, is not included in the output-byte
+budget and is not atomic. A report failure emits one `REPORT001`, makes the exit code
+`1`, and invalidates the report; no old-report preservation or configuration rollback
+is promised. Report preparation is not a configuration sink call and does not relax
+the Section 21.2 warning-policy prohibition. An incomplete report may nevertheless
+look like valid JSON. Consumers must reject reports on `REPORT001`, invalid schema or
+semantic relationships, or mismatch with the process exit code. For failed invocations
+the diagnostic stream must be received at verbosity `error` or more verbose to establish
+report authority; at `critical` or `none` a failed report is unverified.
+
+The normative closed version-1 JSON schema is
+[`publication-report.schema.json`](publication-report.schema.json), whose SHA-256 is
+`415c7b6d785d8125c0c480b214d48c238c1aba8ce9504b6cc3ebe802236d61a4`.
+All members are required and object shapes are closed. A shape change requires a new
+schema version. Integers are nonnegative signed 64-bit values except source indices and
+lines, which are positive. Digests are lowercase SHA-256. `contract.hash` hashes the
+UTF-8 specification SHA-256, one LF, then the registry SHA-256, with no final LF; its
+first twelve digits equal the suffix of `contract.revision`.
+
+The report is UTF-8 without BOM, one compact JSON object followed by exactly one LF.
+Object members appear in the order of the schema's `required` arrays. Strings follow
+Section 6.4.3 escaping and numbers use unsigned ASCII decimal. The schema alone does
+not enforce ordering, canonical spelling, digest relationships or cross-entry facts.
+Reports depend on destination observations and sink outcomes; Section 24's guarantee
+for configuration bytes does not make those external facts deterministic.
+
+`planComplete` is true only after every step-19 buffer and the complete validated
+configuration path and directory plan exist. An incomplete plan has no output entries.
+The `outcome` is `validationFailed` (exit 1, incomplete plan), `warningPolicyRefused`
+(exit 1, complete plan), `publicationFailed` (exit 1, complete plan), or `success`
+(exit 0, complete plan). A blocking error precedes warning refusal. Refusal leaves all
+entries `unattempted` with reason `warningPolicy`, null observations and no configuration
+sink calls, even when warnings are hidden by verbosity. Zero-output success is distinct.
+
+There is one output entry per final folded destination in Section 21.3 publication
+order. It contains the final format, canonical relative destination, staged byte length
+and digest, and a nonempty contribution history in Section 17.5 fold-key order,
+including contributions later replaced. Each contribution records the original scheme
+path token with backslashes replaced by `/`, its one-based scheme-source occurrence,
+physical line, canonical original output directive path, zero-based format and match
+indices, canonical concrete selector, effective configured root, and format. The
+selector is the removed prefix; the root is the wrapper and may be empty. Suppressed
+instances and declarations producing no contribution are omitted.
+
+For each destination, after preparing its parents and immediately before writing, compare
+the existing file with the exact staged bytes through confined no-follow reads. An absent
+file has `existedBefore: false` and `bytesDiffered: true`; an existing file has boolean
+observations from byte equality. A comparison failure aborts before opening that
+destination for writing. Observations not made are null. Equal bytes do not skip the
+create/truncate, write, flush and close operations and do not promise preserved metadata.
+
+`published` means a completed write whose bytes differed or whose destination was absent;
+`unchanged` means a completed equal-byte rewrite. `failed` means the current destination
+failed, and carries its actual `PATH001` confinement or `PATH002` I/O diagnostic code.
+If the output root cannot be established for a nonempty plan, attribute the failure to
+the first destination requiring it without adding a diagnostic. Completed entries precede
+the failed entry; later entries are `unattempted` for `previousPublicationFailure`.
+No later destination is inspected, and no rollback occurs. `publicationOccurred` means
+at least one destination completed, including an equal-byte rewrite. `sideEffectsPossible`
+becomes true immediately before the first potentially mutating configuration sink call
+and remains true; report-file operations do not set it. A zero-output plan never creates
+or validates a root solely to manufacture a failed entry.
+
 <a id="spec-22"></a>
 ## 22. Diagnostics
 
@@ -3636,6 +3722,7 @@ The normative diagnostic registry is:
 | `SERIALIZE001` | error | Output view cannot be serialized under the selected format/options | once per output instance |
 | `PATH001` | error | Invalid, escaping, insecure, or topologically conflicting output path | once per destination |
 | `PATH002` | error | Publication/open/write/flush failure | once, for the failing destination |
+| `REPORT001` | error | Invalid, unsafe, colliding, or unwritable publication report | once per invocation |
 | `LIMIT001` | error | Non-wildcard resource limit exceeded | once per invocation |
 | `WARN001` | warning | Missing input or scheme file | once per missing-file occurrence on the command line |
 | `WARN002` | warning | Deprecated alias | once per alias category and scheme |
@@ -4219,6 +4306,7 @@ An implementation is conforming only when automated black-box tests cover:
 97. Generated blank-record bytes: namespace and quoted-namespace output insert no blank records, XML pretty-printing inserts no empty lines, preserved XML whitespace may remain visibly blank, and every nonempty text output retains exactly one final LF.
 98. Explicit empty-container projection: namespace, JSON, YAML, and XML empty mappings remain represented without `WARN015`; quoted namespace and INI report discarded empty mappings and sequences; XML reports discarded empty sequences but not empty mappings; nested and repeated selected empties contribute exact category counts in fixed mapping-then-sequence message order; destination folding counts only final surviving facets; projection-created empty ancestors and facets lost to another shape do not contribute; XML sequences rejected as `TYPE001` do not contribute; and `--fail-on-warning` retains the complete planning diagnostics while refusing every publication.
 99. XML document-envelope comments: comments before and after the document element are retained as unaddressable document-leading and document-trailing metadata in lexical and source-occurrence order; every output instance receives the complete envelope without that metadata making an otherwise empty selection non-empty or suppressing `WARN009`; destination folding retains one copy per stable source occurrence per final file; XML writes the comments outside every selected or configured-root element; non-XML output discards content and envelope XML comments under one destination-scoped `xml-comments` `WARN003`; comment-count and decoded-comment-byte budgets include envelope comments while `--max-nodes` does not; and selectors, references, wildcards, directives, masks, and internal XML comment addressing remain unaffected.
+100. Publication reports: the explicit report channel, closed schema and canonical bytes, complete-plan and warning-policy outcomes, ordered fold history, immediate pre-write observations, completed and failed publication statuses, truthful partial side effects, confinement and collision checks, and report preparation and finalization failures.
 
 <a id="spec-27"></a>
 ## 27. Deferred features
@@ -4392,6 +4480,7 @@ Every blocking or warning condition maps to exactly one most-specific code. This
 | Final output model cannot be serialized under its selected format/options | `SERIALIZE001` |
 | Invalid, escaping, insecure, traversal, portability-key-colliding, proper-segment-prefix-conflicting, or uncontainable destination path | `PATH001` |
 | Destination open, create, write, flush, or close failure after publication starts | `PATH002` |
+| Invalid, unsafe, colliding, or failed publication report destination | `REPORT001` |
 | Ordering-value overflow or any non-wildcard resource limit | `LIMIT001` |
 | Missing CLI input/scheme path | `WARN001` |
 | Deprecated alias | `WARN002` |

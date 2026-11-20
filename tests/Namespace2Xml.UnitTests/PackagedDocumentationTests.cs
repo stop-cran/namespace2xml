@@ -107,6 +107,7 @@ public class PackagedDocumentationTests
             "README.md",
             "llms.txt",
             "docs/specification.md",
+            "docs/publication-report.schema.json",
             "docs/diagnostics.md",
             "KNOWN-LIMITS.md",
             "CONTRIBUTING.md",

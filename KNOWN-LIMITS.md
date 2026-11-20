@@ -1,9 +1,9 @@
 # Known limits
 
-**Describes `3.0.0` at contract bundle `r118+33da7b7912fc`. Dated 2026-09-11.**
+**Describes `3.0.0` at contract bundle `r119+ded94ff55ad0` (candidate source build).**
 
-`3.0.0` carries this contract bundle. This file lists only current, verified boundaries of that
-release and work deliberately deferred beyond it. Resolved preview findings live in
+The published `3.0.0` release carries the earlier `r118+33da7b7912fc` contract. This file lists
+current boundaries of the candidate and work deliberately deferred beyond it. Resolved findings live in
 `CHANGELOG.md`; they are not limits of the stable binary.
 
 If a boundary here blocks a real deployment, add that case to its linked issue. A concrete input,
@@ -23,7 +23,7 @@ consumer, or failed workflow is the evidence that should change the next contrac
   boundary. The .NET apphost can replace an unpaired surrogate with U+FFFD before managed code sees
   it; the tool cannot distinguish that replacement from a U+FFFD the caller intentionally supplied.
 
-## Interfaces deferred to 3.1
+## Interface boundaries
 
 - **No stdin/stdout transformation mode.** Inputs, schemes, and outputs are file-backed in 3.0.
   [#26](https://github.com/stop-cran/namespace2xml/issues/26) owns the channel, buffering,
@@ -31,10 +31,13 @@ consumer, or failed workflow is the evidence that should change the next contrac
 - **Diagnostic-sink failure has no expanded compatibility contract.** Section 6.4.3 defines the
   current JSON behavior; [#92](https://github.com/stop-cran/namespace2xml/issues/92) owns future
   text/JSON sink-failure semantics and additive diagnostic-code compatibility.
-- **No machine-readable publication report.** Callers can consume canonical diagnostics but must
-  inspect expected destination files themselves after success.
-  [#116](https://github.com/stop-cran/namespace2xml/issues/116) owns a future report derived from
-  the immutable output plan and staged bytes.
+- **Publication reports require an explicit file and do not attest their own failures.** A failed
+  run's report is unverified unless its diagnostics are received at error verbosity or higher and
+  do not contain `REPORT001`. Hard-link aliases and concurrent path mutation remain outside the
+  containment guarantee.
+- *(Resolved in the candidate.)* Published `3.0.0` has no `--report-file`; callers of that binary
+  must inspect destination files themselves. [#116](https://github.com/stop-cran/namespace2xml/issues/116)
+  adds a separate report derived from the staged plan.
 
 ## Interoperability envelopes
 

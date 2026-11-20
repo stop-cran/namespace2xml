@@ -332,6 +332,274 @@ public class PublisherTests
         }
     }
 
+    [Test]
+    public void ReportPublicationComparesImmediatelyBeforeEveryRewrite()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
+        try
+        {
+            var publisher = new Publisher(root, diagnostics);
+            var output = Planned("a.json");
+            var first = publisher.PublishWithReport([output]);
+            first.Outcome.ShouldBe(PublicationOutcome.Success);
+            first.PublicationOccurred.ShouldBeTrue();
+            first.SideEffectsPossible.ShouldBeTrue();
+            first.Outputs.ShouldHaveSingleItem().Status.ShouldBe(PublicationStatus.Published);
+            first.Outputs[0].ExistedBefore.ShouldBe(false);
+            first.Outputs[0].BytesDiffered.ShouldBe(true);
+
+            var second = publisher.PublishWithReport([output]);
+            second.Outputs.ShouldHaveSingleItem().Status.ShouldBe(PublicationStatus.Unchanged);
+            second.Outputs[0].ExistedBefore.ShouldBe(true);
+            second.Outputs[0].BytesDiffered.ShouldBe(false);
+
+            File.WriteAllText(Path.Combine(root, "a.json"), "different");
+            var third = publisher.PublishWithReport([output]);
+            third.Outputs[0].Status.ShouldBe(PublicationStatus.Published);
+            third.Outputs[0].ExistedBefore.ShouldBe(true);
+            third.Outputs[0].BytesDiffered.ShouldBe(true);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Test]
+    public void ReportPublicationAttributesRootFailureToFirstOutput()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
+        File.WriteAllText(root, "not a directory");
+        try
+        {
+            var result = new Publisher(root, diagnostics).PublishWithReport(
+                [Planned("a.json"), Planned("b.json", declarationOrder: 1)]);
+            result.Outcome.ShouldBe(PublicationOutcome.PublicationFailed);
+            result.PublicationOccurred.ShouldBeFalse();
+            result.SideEffectsPossible.ShouldBeTrue();
+            result.Outputs[0].Status.ShouldBe(PublicationStatus.Failed);
+            result.Outputs[0].FailureCode.ShouldBe("PATH001");
+            result.Outputs[0].ExistedBefore.ShouldBeNull();
+            result.Outputs[1].Status.ShouldBe(PublicationStatus.Unattempted);
+            result.Outputs[1].UnattemptedReason.ShouldBe("previousPublicationFailure");
+            diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("PATH001");
+        }
+        finally
+        {
+            File.Delete(root);
+        }
+    }
+
+    [TestCase("read")]
+    [TestCase("readClose")]
+    [TestCase("shortWrite")]
+    [TestCase("tooLargeWrite")]
+    [TestCase("flush")]
+    [TestCase("close")]
+    public void ReportPublicationRetainsCompletedAndFailedActionsAtRealIoSeams(string fault)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "b.json"), "old");
+        try
+        {
+            var actualSink = new FileSystemPublicationSink((path, comparison, stream) =>
+                path == "b.json" && comparison == (fault is "read" or "readClose")
+                    ? new FaultingStream(stream, fault)
+                    : stream);
+            var result = new Publisher(root, diagnostics, actualSink).PublishWithReport(
+                [Planned("a.json"), Planned("b.json", 1), Planned("c.json", 2)]);
+
+            result.Outcome.ShouldBe(PublicationOutcome.PublicationFailed);
+            result.PublicationOccurred.ShouldBeTrue();
+            result.SideEffectsPossible.ShouldBeTrue();
+            result.Outputs.Select(output => output.Status).ShouldBe(
+                [PublicationStatus.Published, PublicationStatus.Failed, PublicationStatus.Unattempted]);
+            result.Outputs[1].FailureCode.ShouldBe("PATH002");
+            result.Outputs[1].ExistedBefore.ShouldBe(true);
+            result.Outputs[1].BytesDiffered.ShouldBe(fault == "read" ? null : true);
+            result.Outputs[2].UnattemptedReason.ShouldBe("previousPublicationFailure");
+            File.ReadAllText(Path.Combine(root, "a.json")).ShouldBe("a.json");
+            File.Exists(Path.Combine(root, "c.json")).ShouldBeFalse();
+            diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("PATH002");
+            if (fault == "shortWrite")
+            {
+                File.ReadAllText(Path.Combine(root, "b.json")).ShouldBe("b");
+            }
+            else if (fault is "read" or "readClose")
+            {
+                File.ReadAllText(Path.Combine(root, "b.json")).ShouldBe("old");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void FilesystemLengthFailureWithoutAReportIsStillPath002()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
+        try
+        {
+            var actualSink = new FileSystemPublicationSink((_, comparison, stream) =>
+                comparison ? stream : new FaultingStream(stream, "tooLargeWrite"));
+            new Publisher(root, diagnostics, actualSink).TryPublish([Planned("a.json")]).ShouldBeFalse();
+            diagnostics.Drain().ShouldHaveSingleItem().Code.ShouldBe("PATH002");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private sealed class FaultingStream(Stream inner, string fault) : Stream
+    {
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => inner.CanSeek;
+        public override bool CanWrite => inner.CanWrite;
+        public override long Length => inner.Length;
+        public override long Position { get => inner.Position; set => inner.Position = value; }
+        public override int Read(byte[] buffer, int offset, int count) =>
+            fault == "read" ? throw new IOException("injected read failure") : inner.Read(buffer, offset, count);
+        public override int Read(Span<byte> buffer) =>
+            fault == "read" ? throw new IOException("injected read failure") : inner.Read(buffer);
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+        public override void SetLength(long value) => inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            if (fault == "shortWrite")
+            {
+                inner.Write(buffer[..Math.Min(1, buffer.Length)]);
+                throw new IOException("injected short write");
+            }
+
+            if (fault == "tooLargeWrite")
+            {
+                throw LengthFailure("Specified file length was too large for the file system");
+            }
+
+            inner.Write(buffer);
+        }
+
+        public override void Flush()
+        {
+            inner.Flush();
+            if (fault == "flush")
+            {
+                throw new IOException("injected flush failure");
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+                if (fault is "close" or "readClose")
+                {
+                    throw new IOException("injected close failure");
+                }
+            }
+
+            base.Dispose(disposing);
+        }
+
+        private static ArgumentOutOfRangeException LengthFailure(string value) => new(nameof(value), value);
+    }
+
+    [Test]
+    public void ReportReadsExistingFilesWithoutCreatingMissingEntries()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(root, "sub"));
+        File.WriteAllText(Path.Combine(root, "sub", "existing"), "contents");
+        try
+        {
+            using var anchor = (ISecureReportDirectory)new SecureRootFactory().OpenRoot(root);
+            using var sub = anchor.OpenExistingChildDirectory("sub");
+            using var file = sub.OpenExistingChildFile("existing").ShouldNotBeNull();
+            using var reader = new StreamReader(file);
+            reader.ReadToEnd().ShouldBe("contents");
+            sub.OpenExistingChildFile("missing").ShouldBeNull();
+            Should.Throw<IOException>(() => anchor.OpenExistingChildDirectory("missing"));
+            Directory.Exists(Path.Combine(root, "missing")).ShouldBeFalse();
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void ReportReadsRefuseIntermediateAndFinalLinks()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
+        var outside = Path.Combine(root, "outside");
+        var link = Path.Combine(root, "link");
+        Directory.CreateDirectory(outside);
+        try
+        {
+            if (!TryLinkDirectory(link, outside))
+            {
+                Assert.Ignore("this host does not permit creating directory links.");
+            }
+
+            using var anchor = (ISecureReportDirectory)new SecureRootFactory().OpenRoot(root);
+            Should.Throw<UncontainableDestinationException>(() => anchor.OpenExistingChildDirectory("link"));
+            Should.Throw<UncontainableDestinationException>(() => anchor.OpenExistingChildFile("link"));
+        }
+        finally
+        {
+            if (Directory.Exists(link))
+            {
+                Directory.Delete(link);
+            }
+
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void ReportPreparationRefusesLinksInTheParentChainAndLeaf()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"n2x-{Guid.NewGuid():N}");
+        var outside = Path.Combine(root, "outside");
+        var link = Path.Combine(root, "link");
+        Directory.CreateDirectory(outside);
+        try
+        {
+            if (!TryLinkDirectory(link, outside))
+            {
+                Assert.Ignore("this host does not permit creating directory links.");
+            }
+
+            var command = new CommandLine(
+                [], [], [], Path.Combine(root, "out"), Verbosity.Information, DiagnosticFormat.Json,
+                ResourceLimits.Defaults, ReportFile: Path.Combine(link, "report.json"));
+            Should.Throw<UncontainableDestinationException>(() => ReportFile.Prepare(command, []));
+            Should.Throw<UncontainableDestinationException>(() => ReportFile.Prepare(command with { ReportFile = link }, []));
+            File.Exists(Path.Combine(outside, "report.json")).ShouldBeFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(link))
+            {
+                Directory.Delete(link);
+            }
+
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     /// <summary>
     /// Section 21.1 requires verifying "symbolic-link, junction, and reparse-point containment when
     /// opening each destination". Syntactic validation cannot see a link, so a path that was inside

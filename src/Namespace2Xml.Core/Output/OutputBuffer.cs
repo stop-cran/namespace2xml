@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Security.Cryptography;
 
 namespace Namespace2Xml.Output;
 
@@ -44,6 +45,44 @@ public sealed class OutputBuffer
 
     /// <summary>The segments, in order. Concatenating them yields the destination's exact bytes.</summary>
     public ImmutableArray<ReadOnlyMemory<byte>> Segments => segments;
+
+    /// <summary>Returns the lowercase SHA-256 digest of the staged bytes.</summary>
+    /// <returns>The digest in hexadecimal.</returns>
+    public string Sha256()
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var segment in segments)
+        {
+            hash.AppendData(segment.Span);
+        }
+
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    /// <summary>Compares a readable stream with the staged bytes without materializing the buffer.</summary>
+    /// <param name="stream">The stream positioned at the beginning of the existing file.</param>
+    /// <returns>Whether the stream has exactly the same bytes.</returns>
+    public bool ContentEquals(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        Span<byte> readBuffer = stackalloc byte[8192];
+        foreach (var segment in segments)
+        {
+            var remaining = segment.Span;
+            while (!remaining.IsEmpty)
+            {
+                var read = stream.Read(readBuffer[..Math.Min(readBuffer.Length, remaining.Length)]);
+                if (read == 0 || !remaining[..read].SequenceEqual(readBuffer[..read]))
+                {
+                    return false;
+                }
+
+                remaining = remaining[read..];
+            }
+        }
+
+        return stream.ReadByte() == -1;
+    }
 
     /// <summary>
     /// Whether this buffer satisfies the Section 24 termination rule: content ends with exactly one

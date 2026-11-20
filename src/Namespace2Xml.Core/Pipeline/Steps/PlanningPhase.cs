@@ -67,6 +67,9 @@ public sealed record OutputView(
 /// <param name="Key">Its Section 17.5 fold key.</param>
 public sealed record DestinationContribution(OutputView View, DestinationPath Path, FoldKey Key)
 {
+    /// <summary>Contributions entering this destination's fold, in fold-key order.</summary>
+    public ImmutableArray<PublicationContribution> History { get; init; } = [];
+
     /// <summary>Orders destinations as Section 21.3 publishes them.</summary>
     /// <param name="contributions">The folded plan, one contribution per destination.</param>
     /// <returns>The contributions in Section 21.3 destination order.</returns>
@@ -84,6 +87,27 @@ public sealed record DestinationContribution(OutputView View, DestinationPath Pa
             .OrderBy(contribution => contribution.Key)
             .ThenBy(contribution => contribution.Path, DestinationPath.Utf8Bytes);
 }
+
+/// <summary>One contribution's report identity before destination folding.</summary>
+/// <param name="Source">The written scheme source path.</param>
+/// <param name="SourceIndex">The one-based scheme source occurrence.</param>
+/// <param name="Line">The declaration's physical line.</param>
+/// <param name="Declaration">The canonical original output directive path.</param>
+/// <param name="FormatIndex">The zero-based position in the declaration's format list.</param>
+/// <param name="MatchIndex">The zero-based concrete selector match index.</param>
+/// <param name="Selector">The canonical concrete selector.</param>
+/// <param name="Root">The configured wrapper path.</param>
+/// <param name="Format">The contribution's effective format.</param>
+public sealed record PublicationContribution(
+    string Source,
+    long SourceIndex,
+    int Line,
+    string Declaration,
+    int FormatIndex,
+    int MatchIndex,
+    string Selector,
+    string Root,
+    OutputFormat Format);
 
 /// <summary>
 /// Specification Section 15.1 steps 13 to 18: the transformation and output-planning phase.
@@ -1367,7 +1391,10 @@ public static class PlanningPhase
         foreach (var contribution in contributions.OrderBy(c => c.Key))
         {
             var canonical = contribution.Path.Canonical;
-            var rooted = Rooted(contribution);
+            var rooted = Rooted(contribution with
+            {
+                History = [DescribeContribution(contribution.View)],
+            });
 
             if (!folded.TryGetValue(canonical, out var accumulated))
             {
@@ -1419,6 +1446,22 @@ public static class PlanningPhase
             ? StepOutcome.Failed<ImmutableArray<DestinationContribution>>()
             : StepOutcome.Produced(
                 ImmutableArray.CreateRange(order.Select(canonical => folded[canonical])));
+    }
+
+    private static PublicationContribution DescribeContribution(OutputView view)
+    {
+        var instance = view.Instance;
+        var declaration = instance.Declaration;
+        return new PublicationContribution(
+            declaration.Source.Replace('\\', '/'),
+            declaration.SourceIndex,
+            declaration.Line,
+            declaration.Canonical ?? declaration.Text,
+            view.FormatOrdinal,
+            instance.WildcardMatchOrder,
+            instance.Selector.ToString(),
+            CanonicalPath.Of(instance.Root) ?? string.Empty,
+            view.Format);
     }
 
     /// <summary>
@@ -1674,7 +1717,7 @@ public static class PlanningPhase
             // that destination, including document data, comments, renderer state, sequence
             // provenance, and every destination high-water mark." Taking the later contribution
             // whole is exactly that, and it is also what resets the publication key.
-            return later;
+            return later with { History = accumulated.History.AddRange(later.History) };
         }
 
         var merger = new OverlayMerger(
@@ -1689,6 +1732,7 @@ public static class PlanningPhase
         // declaration", and Section 17.5 says the same of the renderer option set.
         return accumulated with
         {
+            History = accumulated.History.AddRange(later.History),
             View = later.View with
             {
                 View = merger.Merge(accumulated.View.View, later.View.View),

@@ -242,6 +242,7 @@ public static class CommandLineParser
         private DiagnosticFormat diagnosticsFormat = DiagnosticFormat.Text;
         private ResourceLimits limits = ResourceLimits.Defaults;
         private bool failOnWarning;
+        private string? reportFile;
 
         /// <summary>Accepts one valueless operational flag.</summary>
         public void AcceptFlag(CommandLineOption spec)
@@ -270,6 +271,9 @@ public static class CommandLineParser
 
                 case "--output":
                     return Path(spec, value, () => outputRoot = value);
+
+                case "--report-file":
+                    return Path(spec, value, () => reportFile = value);
 
                 case "--verbosity":
                     return AcceptVerbosity(value);
@@ -329,7 +333,8 @@ public static class CommandLineParser
             verbosity,
             diagnosticsFormat,
             limits,
-            failOnWarning);
+            failOnWarning,
+            reportFile);
 
         private string? AcceptVerbosity(string value)
         {

@@ -117,6 +117,10 @@ public static partial class DiagnosticCodes
             "once, for the failing destination",
             "Publication/open/write/flush failure",
             ["destination"]),
+        new DiagnosticCodeInfo("REPORT001", DiagnosticSeverity.Error,
+            "once per invocation",
+            "Invalid, unsafe, colliding, or unwritable publication report",
+            []),
         new DiagnosticCodeInfo("LIMIT001", DiagnosticSeverity.Error,
             "once per invocation",
             "Non-wildcard resource limit exceeded",
@@ -676,6 +680,18 @@ public static partial class DiagnosticCodes
         string? destination = null) =>
         Create("PATH002", DiagnosticSeverity.Error, phase, spec, message,
             cardinalityKey, destination: destination);
+
+    /// <summary><c>REPORT001</c> (error) — Invalid, unsafe, colliding, or unwritable publication report.</summary>
+    /// <param name="phase">Emission phase of this occurrence.</param>
+    /// <param name="spec">Anchor of the clause being enforced, for example <c>§13.1</c>.</param>
+    /// <param name="message">Localizable prose. Never compared by the conformance harness.</param>
+    /// <remarks>Cardinality: once per invocation.</remarks>
+    public static DiagnosticOccurrence Report001(
+        DiagnosticPhase phase,
+        string spec,
+        string message) =>
+        Create("REPORT001", DiagnosticSeverity.Error, phase, spec, message,
+            Invocation);
 
     /// <summary><c>LIMIT001</c> (error) — Non-wildcard resource limit exceeded.</summary>
     /// <param name="phase">Emission phase of this occurrence.</param>

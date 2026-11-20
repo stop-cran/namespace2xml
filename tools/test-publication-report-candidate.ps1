@@ -1,4 +1,4 @@
-# Validates the unratified #116 proposal, not runtime report behavior.
+# Validates the version 1 schema and historical example, not runtime report behavior.
 [CmdletBinding()]
 param()
 
@@ -74,6 +74,9 @@ $failed.outputs[0].status = 'failed'
 $failed.outputs[0].failureCode = 'PATH002'
 $failed.outputs[0].unattemptedReason = $null
 Assert-Candidate 'first comparison failed without mutation' $failed $true
+$failed.outputs[0].failureCode = 'PATH001'
+Assert-Candidate 'confinement refusal preserves PATH001' $failed $true
+$failed.outputs[0].failureCode = 'PATH002'
 $failed.sideEffectsPossible = $true
 Assert-Candidate 'first write failed with possible partial side effects' $failed $true
 
@@ -101,6 +104,13 @@ $invalidCases = [ordered]@{
     'zero source index' = { param($r) $r.outputs[0].contributions[0].sourceIndex = 0 }
     'uppercase digest' = { param($r) $r.outputs[0].sha256 = $r.outputs[0].sha256.ToUpperInvariant() }
     'unknown format' = { param($r) $r.outputs[0].format = 'ignore' }
+    'unrelated failure code' = {
+        param($r)
+        $r.outcome = 'publicationFailed'
+        $r.outputs[0].status = 'failed'
+        $r.outputs[0].failureCode = 'REPORT001'
+        $r.outputs[0].unattemptedReason = $null
+    }
     'fifth output status' = {
         param($r)
         $r.outcome = 'publicationFailed'
@@ -149,4 +159,26 @@ if (-not $killed) {
     throw 'C7 proof failed: admitting a fifth status did not break its rejection test.'
 }
 
-Write-Output "$checks candidate schema checks passed; the fifth-status schema mutant was killed. No runtime behavior was tested."
+$mutant = ConvertFrom-Json $schema -AsHashtable
+$mutant.'$defs'.output.allOf[2].then.properties.failureCode.enum = @('PATH002')
+$mutantText = ConvertTo-Json $mutant -Depth 40 -Compress
+$refusal = Copy-Example
+$refusal.outcome = 'publicationFailed'
+$refusal.outputs[0].status = 'failed'
+$refusal.outputs[0].failureCode = 'PATH001'
+$refusal.outputs[0].unattemptedReason = $null
+$killed = $false
+try {
+    Assert-Candidate 'confinement refusal preserves PATH001' $refusal $true $mutantText
+}
+catch {
+    if (-not $_.Exception.Message.StartsWith("Candidate schema case 'confinement refusal preserves PATH001': expected True, got False.", [StringComparison]::Ordinal)) {
+        throw
+    }
+    $killed = $true
+}
+if (-not $killed) {
+    throw 'C7 proof failed: rejecting PATH001 did not break the confinement refusal test.'
+}
+
+Write-Output "$checks candidate schema checks passed; the fifth-status and PATH001 schema mutants were killed. No runtime behavior was tested."

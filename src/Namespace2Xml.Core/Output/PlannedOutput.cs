@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Namespace2Xml.Overlay;
+using Namespace2Xml.Pipeline.Steps;
 
 namespace Namespace2Xml.Output;
 
@@ -79,6 +80,9 @@ public sealed record PlannedOutput(
     FoldKey PublicationKey,
     OutputBuffer Buffer)
 {
+    /// <summary>The ordered history of contributions to this destination.</summary>
+    public ImmutableArray<PublicationContribution> History { get; init; } = [];
+
     /// <summary>
     /// Section 21.3's destination order: by publication key, then by canonical relative path
     /// compared as unsigned UTF-8 bytes.

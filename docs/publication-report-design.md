@@ -1,22 +1,22 @@
-# Publication report: candidate contract for #116
+# Publication report: historical proposal for #116
 
-**Status: decision handoff, not a normative amendment or an implemented interface.**
+**Status: historical r118 proposal, superseded by [Section 21.5](specification.md#spec-21-5)
+and the distributed [version 1 schema](publication-report.schema.json).** The
+D1-D7 candidate was approved and implemented in the 3.1 candidate. The
+specification and schema, not this historical design, govern the interface.
 
 This record covers [#116](https://github.com/stop-cran/namespace2xml/issues/116)
 against product `3.0.0`, contract `r118+33da7b7912fc`. It incorporates the
 [user-validated evidence](https://github.com/stop-cran/namespace2xml/issues/116#issuecomment-7033309727)
-without treating that comment's proposed changes as ratified decisions.
+as it stood before approval.
 
 **Verified-in-session (document inspection):** the full issue and comment thread,
 [#26](https://github.com/stop-cran/namespace2xml/issues/26), `CONTRIBUTING.md`,
 `KNOWN-LIMITS.md`, and specification Sections 6, 15, 17.5, 21, 22 and 24 were read.
-The issue still calls for ratification before implementation, and neither its
-comment nor the current specification supplies the decisions below. The released
-binary experiments in the comment were not repeated during this review.
-
-**Proposed-but-untested:** all proposed runtime behavior and acceptance cases below.
-The recommended candidate resolves D1-D7 for review; it is not ratification,
-an implementation, passing runtime tests, or registered conformance coverage.
+At the time, the issue called for ratification before implementation. The released
+binary experiments in the comment were not repeated during that review. The
+proposal and acceptance cases below are retained as historical design context,
+not as claims about current test results.
 
 ## What is already constrained
 
@@ -24,22 +24,21 @@ an implementation, passing runtime tests, or registered conformance coverage.
 |---|---|
 | Record internal planning and staging facts | #116 requires immutable planner/staging records, never a directory rescan to rediscover outputs. Comparing one planned destination with its staged bytes is distinct from rediscovering outputs. |
 | Required output facts | #116 requires destination, effective format, concrete instance identity and declaration, selected root/prefix, staged byte length and SHA-256, prior existence, byte difference, and publication status with applicable failure code or unattempted reason. |
-| Required envelope facts | #116 requires schema version, product version, contract revision/hash, exit result, and whether publication occurred. Exact JSON spellings and representations are not specified yet. |
+| Required envelope facts | #116 requires schema version, product version, contract revision/hash, exit result, and whether publication occurred. The later normative amendment specifies their representation. |
 | Four output statuses only | #116 fixes `published`, `unchanged`, `failed`, `unattempted`. No pruning, deletion behavior, or fifth output status is requested. |
 | Canonical diagnostic channel | [Section 6.4.3](specification.md#spec-6-4-3) requires exactly one canonical JSON array on stderr, including late publication diagnostics. Neither report data nor a second JSON document may be appended there. |
-| Warning refusal is explicit state | [Section 21.2](specification.md#spec-21-2) already distinguishes policy refusal from successful zero-output execution. It forbids publication sink calls and synthetic policy diagnostics. The report's representation remains undecided. |
+| Warning refusal is explicit state | [Section 21.2](specification.md#spec-21-2) distinguishes policy refusal from successful zero-output execution. It forbids configuration publication sink calls and synthetic policy diagnostics. |
 | Serialization precedes publication | [Section 15.1](specification.md#spec-15-1) and Section 21.2 require complete immutable serialized buffers and global validation before configuration publication. |
 | Partial failure is not rollback | [Section 21.3](specification.md#spec-21-3) leaves completed files updated, permits the failing destination to be partial, and leaves later destinations untouched. A report cannot call a failed or incomplete action successfully published. |
 | Existing writes are not silent | [Section 21.4](specification.md#spec-21-4) provides information-level replacement logging; Section 6.2 provides trace publication details. #116 adds structured facts, not replacement operational logging. |
 | Equal bytes are not a metadata guarantee | The issue comment measured equal-byte replacement with a changed mtime. [Section 24](specification.md#spec-24) guarantees configuration bytes, not preservation of filesystem metadata. |
 | Streaming is separate work | #26 owns stdin/stdout transformation. Its proposed stdout content channel cannot also carry a report payload. Implementing stdout transformation is not part of #116. |
 
-## Decisions proposed for ratification
+## Decisions approved
 
-These are observable contract choices, not implementation details. The existing
-specification and issue do not select them; the candidate below recommends:
+These were the proposal's observable contract choices:
 
-| ID | Recommended answer, pending approval |
+| ID | Approved answer |
 |---|---|
 | D1 | Explicit `--report-file`, relative to the working directory; existing parent required; no channel multiplexing; secure path and collision checks. |
 | D2 | `unchanged` means a completed equal-byte rewrite, not a skipped write or preserved mtime. |
@@ -49,13 +48,12 @@ specification and issue do not select them; the candidate below recommends:
 | D6 | Closed schema version 1, exact canonical bytes and digest definitions; new fields require a new schema version. |
 | D7 | Compare each destination immediately before its write; preserve unknown facts and distinguish completed publication from possible partial side effects. |
 
-## Acceptance cases ready for contract authoring
+## Historical acceptance cases
 
-These cases preserve #116's definition of done. They deliberately do not invent
-option names or report JSON. After ratification, author the schema and normative
-text first, then expected fixtures independently of the implementation.
+These cases preserve the proposal's acceptance intent. The specification and
+registered evidence are authoritative for the implemented contract.
 
-| Case | Required discriminating observation | Pending decisions |
+| Case | Required discriminating observation | Decisions |
 |---|---|---|
 | Successful zero destinations | Use `a.output=ignore`. Exit `0` and no configuration publication, distinguished explicitly from policy refusal. | D1, D3, D6 |
 | First single output | Input `a.x=1`, scheme `a.output=json`: configuration content is `{\n  "x": 1\n}\n`, 13 UTF-8 bytes. The comment records SHA-256 `c5e1c113d5c75240d109ea470244fa988c5d9970f26bdbbb885876ae1da9d2d7`; this length/digest was independently verified from the hand-authored bytes, not tool output. Report provenance, absent destination, staged length/hash and completed action. | D1, D5-D7 |
@@ -76,29 +74,9 @@ Where Appendix C cannot portably express prior filesystem state, timestamp or
 write/flush failure observations, use exact executable gates under Appendix C.5
 rather than claiming a portable fixture proves them. Apply CONTRIBUTING C7:
 watch each new test reject a compiling defect, confirm the expected tests ran,
-restore source and rebuild. No acceptance item is marked covered by this record.
+restore source and rebuild. Coverage is tracked in the assertion manifest, not this record.
 
-## Implementation boundary and resumption
-
-No CLI option, publication behavior, Ansible consumer, normative schema,
-diagnostic mapping, or contract revision changes with this handoff. The current
-limit remains real. Adding runtime fixture expectations now would choose the
-unratified contract through tests instead of through review; the included checks
-validate only the proposed schema.
-
-Once the candidate's D1-D7 answers are ratified or revised, amend Sections 6, 15,
-21, 22, 24 and the applicable acceptance items/Appendix B and C clauses. Include
-the closed schema in the
-ratified contract and its drift checks, and author the independent fixtures and
-failure gates before implementation. Regenerate navigation, registry, diagnostic
-codes, contract bundle, assertion manifest and docs in CONTRIBUTING's order;
-re-read `KNOWN-LIMITS.md`, then run the quotation and known-limits gates as well as
-the relevant build/test/format and corpus checks.
-
-Only then implement the report from retained plan/staging/comparison records and
-successful or failed publisher actions. Migrate the Ansible filter/module only
-where that accepted report removes their duplicate renders or directory
-reconstruction. Do not extend the work to pruning or #26's streaming interface.
+## Consumer boundary
 
 **Verified-in-session (consumer inspection):**
 `ansible/plugins/module_utils/render_node.py` renders into scratch, enumerates
@@ -109,18 +87,13 @@ destinations, not the real target. A report can replace scratch enumeration and
 effective-format discovery, but cannot replace those distinct real-destination
 comparisons, file-attribute handling, or before/after diff generation.
 
-## Recommended candidate contract (not ratified)
+## Original candidate design
 
-The following is one coherent proposal, using prospective requirements. Its
-[closed schema](publication-report.schema.json) and
-[policy-refusal example](publication-report-policy-refusal.example.json) are
-review artifacts, not distributed contract artifacts. They are deliberately
-outside `spec/contract-bundle.json`. Approving only this document's existence
-does not approve its runtime behavior.
-
-These source-only proposal files are not included in the NuGet documentation
-inventory. The packaged `KNOWN-LIMITS.md` continues to point to #116, not to an
-unshipped package-relative draft.
+The following retains the proposal's prospective wording. The
+[policy-refusal example](publication-report-policy-refusal.example.json) is
+historical; the [schema](publication-report.schema.json) is the implemented,
+distributed version. In particular, the later D7 reconciliation below permits
+the actual `PATH001` or `PATH002` configuration diagnostic.
 
 ### D1: explicit report file, unchanged standard channels
 
@@ -173,13 +146,20 @@ There are exactly four per-destination statuses:
 |---|---|
 | `published` | Create/truncate, write, flush and close completed, and the compared bytes differed or the file was absent. |
 | `unchanged` | Those same publication operations completed, but compared bytes were equal. This does **not** mean skipped write, preserved mtime, or no side effects. |
-| `failed` | This destination's comparison, parent-directory preparation, open, write, flush or close failed. It may be partial. `failureCode` is `PATH002`. |
+| `failed` | This destination's comparison, parent-directory preparation, open, write, flush or close failed. It may be partial. `failureCode` is the actual publication diagnostic: `PATH001` for a confinement refusal, or `PATH002` for an I/O failure. |
 | `unattempted` | No publication work for this destination began. `unattemptedReason` is `warningPolicy` or `previousPublicationFailure`. |
 
 `failureCode` and `unattemptedReason` are otherwise null. Unobserved existence or
 equality is null, never false. Retain observations made before a failed action;
 do not inspect later destinations after failure. Where preparation fails before
 comparison, both observation fields remain null.
+
+This reconciles D7 with the existing Section 21.1 confinement contract: the
+original candidate named only `PATH002`, but confinement refusals remain
+`PATH001`. If a nonempty plan cannot establish its output root, attribute the
+failure to the first destination requiring that root and leave later destinations
+unattempted. This is report bookkeeping, not a second diagnostic. A zero-output
+plan does not establish a root merely to create a failed entry.
 
 `publicationOccurred` means at least one destination completed (`published` or
 `unchanged`), **not** that at least one byte differs. `sideEffectsPossible` is set
@@ -243,8 +223,7 @@ and `message` only: `destination` remains reserved for canonical configuration
 paths. It sorts after configuration diagnostics carrying destinations under
 Section 24 group 3. Report-only permission/path failures do not reuse `PATH002`'s
 once-per-failing-configuration-destination slot. Malformed option syntax remains
-`CLI001`. Add corresponding Section 22, Appendix B and registry/schema mappings
-only after ratification.
+`CLI001`. The normative specification and generated registry now contain the mapping.
 
 A report failure always makes the process exit `1`, including after completed
 configuration side effects. Do not attempt to rewrite the report to report its
@@ -317,8 +296,7 @@ one LF, with Section 6.4.3 string escaping and unsigned ASCII decimal integers.
 Members appear in the order listed by each object's schema `required` array.
 JSON Schema does not enforce member order, escaping, termination, canonical
 paths, fold ordering, identity uniqueness, digest correctness, or relationships
-between separate entries; those are additional normative checks to ratify and
-test independently.
+between separate entries; the normative specification provides additional checks.
 
 Report bytes are identical only when invocation identity, staged buffers,
 contribution history, destination observations and sink outcomes agree.
@@ -360,7 +338,7 @@ plus LF. `out` remains absent if absent initially. The report has a complete
 This excerpt omits required identity/staging members for readability; the linked
 example file is complete. Its product/contract identity deliberately uses the
 reviewed 3.0.0 baseline for an illustrative shape, **not** a claim that this
-baseline implements reports. Ratified examples must name the amended bundle.
+baseline implements reports; an actual report names its own amended bundle.
 At verbosity `none`, a failed invocation's report cannot establish its own
 authority if the report sink also fails; use `--verbosity error` for a consumer
 that needs the `REPORT001` invalidation signal.
@@ -371,16 +349,9 @@ successful zero-output execution instead reports `outcome: success`,
 flags false. Zero publications and an empty visible diagnostic array therefore
 never stand in for the explicit policy outcome.
 
-### Single-pass review decision
+### Schema checks
 
-Approve or revise this candidate as a whole, especially the equal-byte rewrite
-meaning of `unchanged`, report pre-opening/truncation, the failed-run authority
-limitation at hidden verbosity, and the new `REPORT001` mapping. Until then,
-schema validation proves only the proposal's shape; no runtime behavior or
-Ansible consumer is changed.
-
-Run the proposal's schema checks with
+Run the schema checks with
 `pwsh -NoProfile -File tools\test-publication-report-candidate.ps1`. They exercise
 valid outcome shapes, reject malformed reports, and prove that allowing a fifth
-output status breaks its rejection check. These are schema-proposal checks, not
-evidence that a runtime report feature exists.
+output status breaks its rejection check. Runtime behavior needs separate tests.

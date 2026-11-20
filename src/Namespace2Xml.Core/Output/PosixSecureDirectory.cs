@@ -6,7 +6,7 @@ namespace Namespace2Xml.Output;
 /// <summary>
 /// POSIX implementation of Section 21.1 handle-relative, no-follow publication opens.
 /// </summary>
-internal sealed partial class PosixSecureDirectory : ISecureDirectory
+internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
 {
     private const int ExistingDirectoryMode = 0;
     private const int CreatedDirectoryMode = 0x1FF;
@@ -68,6 +68,43 @@ internal sealed partial class PosixSecureDirectory : ISecureDirectory
         return new PosixSecureDirectory(new SafeFileHandle((IntPtr)fd, ownsHandle: true));
     }
 
+    public ISecureReportDirectory OpenExistingChildDirectory(string component)
+    {
+        ValidateComponent(component);
+        var fd = OpenChildDirectory(component);
+        if (fd < 0)
+        {
+            ThrowOpenFailure(component, directory: true);
+        }
+
+        return new PosixSecureDirectory(new SafeFileHandle((IntPtr)fd, ownsHandle: true));
+    }
+
+    public Stream? OpenExistingChildFile(string component)
+    {
+        ValidateComponent(component);
+        var fd = NativeMethods.openat(
+            DirectoryFd, component, OpenReadOnly | OpenNoFollow | OpenCloseOnExec | OpenNonBlock, ExistingDirectoryMode);
+        if (fd < 0)
+        {
+            if (Marshal.GetLastPInvokeError() == Errno.NoEntry)
+            {
+                return null;
+            }
+
+            ThrowOpenFailure(component, directory: false);
+        }
+
+        var stream = new FileStream(new SafeFileHandle((IntPtr)fd, ownsHandle: true), FileAccess.Read);
+        if (!stream.CanSeek)
+        {
+            stream.Dispose();
+            throw new IOException($"the destination '{component}' is not a seekable file.");
+        }
+
+        return stream;
+    }
+
     /// <inheritdoc/>
     public Stream CreateOrTruncateChildFile(string component)
     {
@@ -125,6 +162,8 @@ internal sealed partial class PosixSecureDirectory : ISecureDirectory
     private static int OpenNoFollow => NoFollowFlags.NoFollow;
 
     private static int OpenCloseOnExec => OperatingSystem.IsMacOS() ? 0x1000000 : 0x80000;
+
+    private static int OpenNonBlock => OperatingSystem.IsMacOS() ? 0x4 : 0x800;
 
     private static (int Directory, int NoFollow) NoFollowFlags { get; } =
         NoFollowFlagsFor(OperatingSystem.IsMacOS(), RuntimeInformation.ProcessArchitecture);

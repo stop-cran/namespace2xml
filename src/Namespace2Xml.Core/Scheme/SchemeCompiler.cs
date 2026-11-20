@@ -38,7 +38,14 @@ public readonly record struct SelectorKey(QualifiedName? Name)
 /// <param name="Text">The written directive text.</param>
 /// <param name="Source">The source name diagnostics report.</param>
 /// <param name="Line">The one-based line it was written on.</param>
-public readonly record struct DeclarationSite(string Text, string Source, int Line);
+public readonly record struct DeclarationSite(string Text, string Source, int Line)
+{
+    /// <summary>The one-based occurrence of the scheme source.</summary>
+    public long SourceIndex { get; init; } = 1;
+
+    /// <summary>The canonical directive path, when retained for a publication report.</summary>
+    public string? Canonical { get; init; }
+}
 
 /// <summary>
 /// One Section 15.2 concrete output instance and the configuration bound to it.
@@ -503,7 +510,13 @@ public static class SchemeCompiler
                 Site(winners, selector, SchemeDirective.XmlOutputOptions),
                 Site(winners, selector, SchemeDirective.NamespaceOutputOptions),
                 new DeclarationSite(
-                    winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)));
+                    winner.Entry.Declaration, winner.Entry.Source, winner.Entry.Line)
+                {
+                    SourceIndex = winner.Entry.Order.SourceOrdinal + 1,
+                    Canonical = winner.Entry.Selector is null
+                        ? "output"
+                        : CanonicalPath.Of(winner.Entry.Selector) + ".output",
+                }));
         }
 
         // Section 15.2's cross-selector "one source-ordered override stream" and its Section 22

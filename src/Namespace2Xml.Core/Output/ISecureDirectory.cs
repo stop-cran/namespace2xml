@@ -20,6 +20,13 @@ public interface ISecureDirectory : IDisposable
     Stream CreateOrTruncateChildFile(string component);
 }
 
+internal interface ISecureReportDirectory : ISecureDirectory
+{
+    ISecureReportDirectory OpenExistingChildDirectory(string component);
+
+    Stream? OpenExistingChildFile(string component);
+}
+
 /// <summary>
 /// Opens Section 21.1 secure publication roots on hosts that provide no-follow relative opens.
 /// </summary>

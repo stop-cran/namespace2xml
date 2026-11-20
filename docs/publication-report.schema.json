@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "Unratified #116 candidate. Not part of the distributed contract bundle.",
-  "title": "Candidate publication report, schema version 1",
+  "$comment": "Normative publication report schema version 1; see specification Section 21.5.",
+  "title": "Publication report, schema version 1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "productVersion", "contract", "exitCode", "outcome", "planComplete", "publicationOccurred", "sideEffectsPossible", "outputs"],
@@ -149,7 +149,7 @@
         "existedBefore": { "type": ["boolean", "null"] },
         "bytesDiffered": { "type": ["boolean", "null"] },
         "status": { "enum": ["published", "unchanged", "failed", "unattempted"] },
-        "failureCode": { "enum": [null, "PATH002"] },
+        "failureCode": { "enum": [null, "PATH001", "PATH002"] },
         "unattemptedReason": { "enum": [null, "warningPolicy", "previousPublicationFailure"] }
       },
       "allOf": [
@@ -173,7 +173,7 @@
         },
         {
           "if": { "properties": { "status": { "const": "failed" } } },
-          "then": { "properties": { "failureCode": { "const": "PATH002" } } },
+          "then": { "properties": { "failureCode": { "enum": ["PATH001", "PATH002"] } } },
           "else": { "properties": { "failureCode": { "const": null } } }
         },
         {

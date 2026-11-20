@@ -35,6 +35,7 @@
     <None Include="..\..\AGENTS.md" Pack="true" PackagePath="\" />
     <None Include="..\..\KNOWN-LIMITS.md" Pack="true" PackagePath="\" />
     <None Include="..\..\docs\specification.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\docs\publication-report.schema.json" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\diagnostics.md" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\usage-methodology.md" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\format-ini.md" Pack="true" PackagePath="docs\" />

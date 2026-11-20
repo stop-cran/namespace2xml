@@ -57,7 +57,10 @@ public static class PublicationPhase
         {
             if (TrySerialize(contribution, budget, diagnostics, order, out var buffer))
             {
-                planned.Add(new PlannedOutput(contribution.Path, contribution.Key, buffer));
+                planned.Add(new PlannedOutput(contribution.Path, contribution.Key, buffer)
+                {
+                    History = contribution.History,
+                });
             }
 
             order++;

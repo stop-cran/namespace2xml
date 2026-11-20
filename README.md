@@ -201,6 +201,12 @@ This tool is designed to be used by programs, and to be **argued with** by them.
   is emitted, the tool completes serialization, preserves the original diagnostic stream, exits
   `1`, and publishes no file. Diagnostic verbosity cannot bypass the policy. This includes
   `WARN007` when XML formatting whitespace is normalized.
+- **`--report-file <path>`** writes a separate publication report describing the staged outputs,
+  their provenance and publication outcomes. Its parent must already exist. An `unchanged` status
+  means an equal-byte rewrite completed, not that the write was skipped. A `REPORT001` diagnostic
+  invalidates the report; use error verbosity or higher to detect it. See
+  [Section 21.5](docs/specification.md#spec-21-5) and the
+  [version 1 schema](docs/publication-report.schema.json).
 - **Exit codes are contractual.** `0` is success, including success with warnings by default;
   `1` is failure or a `--fail-on-warning` publication refusal. Specification Section 6.3 fixes
   those two and no others.

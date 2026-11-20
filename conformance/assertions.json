@@ -8434,6 +8434,58 @@
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PlanningPhaseEnvelopeTests.AddressBasedOperationsNeverObserveEnvelopeMetadata",
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.DestinationFoldTests.EnvelopeCommentsAreUnionedByStableSourceOccurrence"
       ]
+    },
+    {
+      "item": 100,
+      "text": "Publication reports: the explicit report channel, closed schema and canonical bytes, complete-plan and warning-policy outcomes, ordered fold history, immediate pre-write observations, completed and failed publication statuses, truthful partial side effects, confinement and collision checks, and report preparation and finalization failures.",
+      "milestone": "unassigned",
+      "status": "pending",
+      "assertions": [
+        {
+          "text": "A report path equal to an input is refused without configuration publication or input modification.",
+          "evidence": {
+            "kind": "fixture",
+            "name": "report-file-collides-with-input",
+            "artifact": "expected-diagnostics.json",
+            "observation": "The fixture observes REPORT001, exit 1, an empty output tree, and unchanged input bytes."
+          }
+        },
+        {
+          "text": "A policy-refusal report has the canonical version-1 object bytes and null observations.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.WarningRefusalHasCanonicalBytesAndNoFabricatedObservations",
+            "artifact": "nunit-result",
+            "observation": "Exact independently authored bytes include the staged length, digest, member order, and LF."
+          }
+        },
+        {
+          "text": "A real destination comparison and equal-byte rewrite report their observed outcomes.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationComparesImmediatelyBeforeEveryRewrite",
+            "artifact": "nunit-result",
+            "observation": "A real file is created, rewritten with equal bytes, and then rewritten after different bytes."
+          }
+        },
+        {
+          "text": "A report failure and a configuration failure both appear in the diagnostic stream.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureCoexistsWithAConfigurationFailure",
+            "artifact": "nunit-result",
+            "observation": "Injected configuration and report write failures emit PATH002 followed by REPORT001."
+          }
+        }
+      ],
+      "fixtures": [
+        "report-file-collides-with-input"
+      ],
+      "gates": [
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.WarningRefusalHasCanonicalBytesAndNoFabricatedObservations",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationComparesImmediatelyBeforeEveryRewrite",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureCoexistsWithAConfigurationFailure"
+      ]
     }
   ]
 }
