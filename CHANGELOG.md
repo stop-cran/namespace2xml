@@ -13,6 +13,28 @@ independently.
 
 ## [Unreleased]
 
+## [3.1.0-preview.1] - 2026-11-20
+
+### Contract
+
+- `contract-bundle` `r119+ded94ff55ad0`.
+
+### Added
+
+- **Publication reports** record the final staged destinations, ordered provenance, byte digests,
+  observations and publication outcomes in a separate versioned JSON file. Report failures use
+  `REPORT001`; equal-byte outputs are still rewritten. The Ansible filter and module use reports
+  when the installed CLI advertises support, while preserving compatibility with 3.0.0.
+  [#116](https://github.com/stop-cran/namespace2xml/issues/116).
+- **Installed documentation is discoverable offline**, and CLI help and diagnostics provide
+  clearer recovery guidance. Independent scheme compilation errors are reported together.
+  [#163](https://github.com/stop-cran/namespace2xml/issues/163).
+
+### Removed
+
+- For report-capable CLIs, the Ansible consumers no longer need a separate format-probe render or
+  scratch-directory discovery; older supported CLIs retain their existing fallback.
+
 ### Fixed
 
 - Stable release reconciliation now stores a verified five-file candidate envelope in the draft

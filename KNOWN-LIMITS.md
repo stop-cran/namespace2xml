@@ -1,6 +1,6 @@
 # Known limits
 
-**Describes `3.0.0` at contract bundle `r119+ded94ff55ad0` (candidate source build).**
+**Describes `3.1.0-preview.1` at contract bundle `r119+ded94ff55ad0`.**
 
 The published `3.0.0` release carries the earlier `r118+33da7b7912fc` contract. This file lists
 current boundaries of the candidate and work deliberately deferred beyond it. Resolved findings live in
