@@ -156,16 +156,16 @@ public static class Transformation
             schemes,
             SchemePhase.CompileInputOptions);
 
+        // Section 15.4: each compiler depends on resolved entries, not sibling results.
         var substitutes = run.Run(
             PipelineStep.CompileSubstitutePatterns,
-            options,
-            (both, diagnostics) =>
-                SchemePhase.CompileSubstitutePatterns(both.Entries, diagnostics));
+            schemes,
+            SchemePhase.CompileSubstitutePatterns);
 
         var configuration = run.Run(
             PipelineStep.CompileInputMerges,
-            substitutes,
-            (both, diagnostics) => SchemePhase.CompileInputMerges(both.Entries, diagnostics));
+            schemes,
+            SchemePhase.CompileInputMerges);
 
         var inputs = run.Run(
             PipelineStep.ParseInputs,

@@ -433,6 +433,13 @@ If a program consumes this tool's output, have it consume the *contract*:
 - the `contract-bundle` revision from `--version` recorded in your logs, so a future failure can be
   attributed to a contract change rather than guessed at.
 
+When an error blocks a run, inspect the whole diagnostic set for that phase, repair the reported
+problems, and rerun. Under [§15.4](specification.md#spec-15-4), an earlier step can fail without
+preventing independent checks in the same phase: for example, input options, `substitute`, and
+literal-path `merge` are checked in separate steps of the scheme phase. A blocking error
+stops the run before the next phase, so the absence of input or planning diagnostics after a
+scheme error does not mean those phases would pass.
+
 ## 8. A candidate, not a principle
 
 There is a general shape visible in this project: a specification owning an implementation through an

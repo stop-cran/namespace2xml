@@ -3980,7 +3980,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs 2.4.0 could not process (59)
+## Inputs 2.4.0 could not process (60)
 
 The baseline exited nonzero on every sample of these, so no run of it completed: it refused the
 input, terminated abnormally, or gave up part way through, and each entry below says which. 3.0
@@ -4437,6 +4437,18 @@ either accepts the input or reports a diagnostic and exits deliberately.
 - Contract: Sections 6.2 and 21.2; Section 26 item 92.
 - Clean behavior: repeating the valueless option is idempotent, and a warning-free run publishes
   the same bytes and exits 0.
+
+### `independent-scheme-option-and-substitute-errors`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 6.4.3, 15.1, and 15.4 put these declaration checks in the
+  scheme phase and require independent checks to finish before that phase aborts.
+  Sections 16.7, 16.8, 16.10, and 22 require a `SCHEME001` for each invalid declaration.
+- Legacy observation: 2.4.0 terminates with an unhandled `ArgumentException`
+  for the unsupported substitute type `Invalid` and publishes no output.
+- Clean behavior: all three invalid declarations are reported in source order before
+  the later planning phase can attempt the scalar-to-array conversion. The run
+  exits `1` without publishing anything.
 
 ### `input-extensions-match-case-insensitively`
 
