@@ -6013,6 +6013,15 @@
           }
         },
         {
+          "text": "An invalid input option does not suppress validation of independent substitute and merge declarations in the same scheme phase, and a blocking scheme phase prevents the later type transformation.",
+          "evidence": {
+            "kind": "fixture",
+            "name": "independent-scheme-option-and-substitute-errors",
+            "artifact": "expected-diagnostics.json",
+            "observation": "The stream contains exactly three SCHEME001 errors in source order: xmlinputoptions at line 1 (§16.8), cfg.substitute at line 2 (§16.7), and cfg.*.merge at line 3 (§16.10), with no planning TYPE001 for the scalar-to-array conversion."
+          }
+        },
+        {
           "text": "Planning-phase diagnostics are collected and deterministically ordered within the phase.",
           "evidence": {
             "kind": "fixture",
@@ -6024,6 +6033,7 @@
       ],
       "fixtures": [
         "structured-scheme-nonmapping-roots",
+        "independent-scheme-option-and-substitute-errors",
         "cross-destination-diagnostic-order"
       ],
       "gates": [

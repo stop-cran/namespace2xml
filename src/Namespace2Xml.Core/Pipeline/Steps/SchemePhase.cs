@@ -158,7 +158,7 @@ public static class SchemePhase
     }
 
     /// <summary>Section 15.1 step 3: compile <c>substitute</c> path patterns.</summary>
-    /// <param name="entries">Step 2's product.</param>
+    /// <param name="entries">Step 1's parsed, reference-resolved entries.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>The same entries, paired with the Section 16.7 mode every input entry reads.</returns>
     /// <remarks>
@@ -183,7 +183,7 @@ public static class SchemePhase
     }
 
     /// <summary>Section 15.1 step 4: compile literal-path input <c>merge</c> directives.</summary>
-    /// <param name="entries">Step 3's product.</param>
+    /// <param name="entries">Step 1's parsed, reference-resolved entries.</param>
     /// <param name="diagnostics">This step's buffer.</param>
     /// <returns>The compiled configuration.</returns>
     public static StepOutcome<SchemeConfiguration> CompileInputMerges(
