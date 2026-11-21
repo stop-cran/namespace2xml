@@ -70,7 +70,7 @@ public static class Transformation
         ISourceReader? reader = null,
         IPublicationSink? sink = null,
         IOperationalLog? log = null) =>
-        RunObserved(command, reader, sink, log, observer: null);
+        RunObserved(command, reader, sink, log, observer: null, prepareReport: null);
 
     internal static TransformationResult Run(
         CommandLine command,
@@ -78,14 +78,23 @@ public static class Transformation
         IPublicationSink? sink,
         IOperationalLog? log,
         IPipelineObserver observer) =>
-        RunObserved(command, reader, sink, log, observer);
+        RunObserved(command, reader, sink, log, observer, prepareReport: null);
+
+    internal static TransformationResult Run(
+        CommandLine command,
+        ISourceReader? reader,
+        IPublicationSink? sink,
+        IOperationalLog? log,
+        Func<CommandLine, ImmutableArray<PlannedOutput>, Stream> prepareReport) =>
+        RunObserved(command, reader, sink, log, observer: null, prepareReport);
 
     private static TransformationResult RunObserved(
         CommandLine command,
         ISourceReader? reader,
         IPublicationSink? sink,
         IOperationalLog? log,
-        IPipelineObserver? observer)
+        IPipelineObserver? observer,
+        Func<CommandLine, ImmutableArray<PlannedOutput>, Stream>? prepareReport)
     {
         ArgumentNullException.ThrowIfNull(command);
 
@@ -102,7 +111,8 @@ public static class Transformation
                         reader,
                         sink,
                         log ?? SilentOperationalLog.Instance,
-                        observer);
+                        observer,
+                        prepareReport);
                 }
                 catch (Exception error)
                 {
@@ -136,7 +146,8 @@ public static class Transformation
         ISourceReader? reader,
         IPublicationSink? sink,
         IOperationalLog log,
-        IPipelineObserver? observer)
+        IPipelineObserver? observer,
+        Func<CommandLine, ImmutableArray<PlannedOutput>, Stream>? prepareReport)
     {
         using var instrumentation = observer is null
             ? null
@@ -156,16 +167,16 @@ public static class Transformation
             schemes,
             SchemePhase.CompileInputOptions);
 
+        // Section 15.4: each compiler depends on resolved entries, not sibling results.
         var substitutes = run.Run(
             PipelineStep.CompileSubstitutePatterns,
-            options,
-            (both, diagnostics) =>
-                SchemePhase.CompileSubstitutePatterns(both.Entries, diagnostics));
+            schemes,
+            SchemePhase.CompileSubstitutePatterns);
 
         var configuration = run.Run(
             PipelineStep.CompileInputMerges,
-            substitutes,
-            (both, diagnostics) => SchemePhase.CompileInputMerges(both.Entries, diagnostics));
+            schemes,
+            SchemePhase.CompileInputMerges);
 
         var inputs = run.Run(
             PipelineStep.ParseInputs,
@@ -274,20 +285,91 @@ public static class Transformation
         var warningPolicyTriggered =
             serialized is not null && command.FailOnWarning && run.Diagnostics.HasWarning;
 
+        Stream? reportStream = null;
+        var reportPreparationFailed = false;
+        PublicationReport? report = null;
+        if (command.ReportFile is not null)
+        {
+            try
+            {
+                reportStream = (prepareReport ?? ReportFile.Prepare)(command, serialized?.Value ?? []);
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException
+                or ArgumentException or NotSupportedException)
+            {
+                AddReportFailure(run.Diagnostics, error);
+                reportPreparationFailed = true;
+            }
+        }
+
         var published = run.Run(
             PipelineStep.Publish,
             serialized,
             (outputs, diagnostics) =>
-                warningPolicyTriggered
-                    ? StepOutcome.Produced(0)
-                    : PublicationPhase.Publish(outputs, command.OutputRoot, diagnostics, sink, log));
+            {
+                if (reportPreparationFailed)
+                {
+                    return StepOutcome.Produced(0);
+                }
+
+                if (warningPolicyTriggered)
+                {
+                    if (reportStream is not null)
+                    {
+                        report = new PublicationReport(
+                            PublicationOutcome.WarningPolicyRefused, true, false, false,
+                            [.. outputs.Select(output => new PublicationObservation(
+                                output, null, null, PublicationStatus.Unattempted, null, "warningPolicy"))]);
+                    }
+
+                    return StepOutcome.Produced(0);
+                }
+
+                if (reportStream is null)
+                {
+                    return PublicationPhase.Publish(outputs, command.OutputRoot, diagnostics, sink, log);
+                }
+
+                report = new Publisher(command.OutputRoot, diagnostics, sink, log).PublishWithReport(outputs);
+                return report.Outcome == PublicationOutcome.Success
+                    ? StepOutcome.Produced(outputs.Length)
+                    : StepOutcome.Failed<int>();
+            });
+
+        if (reportStream is not null)
+        {
+            report ??= new PublicationReport(PublicationOutcome.ValidationFailed, false, false, false, []);
+            try
+            {
+                using (reportStream)
+                {
+                    reportStream.Write(report.ToCanonicalBytes());
+                    reportStream.Flush();
+                }
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                AddReportFailure(run.Diagnostics, error);
+            }
+            catch (ArgumentOutOfRangeException error) when (error.ParamName == "value")
+            {
+                AddReportFailure(run.Diagnostics, error);
+            }
+        }
 
         return new TransformationResult(
             run.Diagnostics.Drain(),
             run.State,
-            published?.Value ?? 0,
+            report is null
+                ? published?.Value ?? 0
+                : report.Outputs.Count(output =>
+                    output.Status is PublicationStatus.Published or PublicationStatus.Unchanged),
             warningPolicyTriggered);
     }
+
+    private static void AddReportFailure(DiagnosticBuffer diagnostics, Exception error) =>
+        diagnostics.Add(new BufferedDiagnostic(
+            DiagnosticCodes.Report001(DiagnosticPhase.Publication, "§21.5", error.Message)));
 
     private static void ObserveInputEnvelopes(
         PipelineStep step,

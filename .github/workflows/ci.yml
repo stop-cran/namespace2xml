@@ -112,6 +112,10 @@ jobs:
       - name: Pack, install and smoke-test the tool
         shell: pwsh
         run: pwsh -NoProfile -File tools/verify-tool-install.ps1
+      # A synthetic version catches links accidentally frozen to the checked-in product version.
+      - name: Verify release-specific documentation links
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/verify-tool-install.ps1 -VersionOverride 99.98.97
 
   # The release workflow proves the published symbols can actually reach their source. That check
   # lived only there, so no per-push job ever ran it -- and the first time it executed on Linux it
@@ -319,6 +323,7 @@ jobs:
           echo "all platforms agree across ${#files[@]} artifacts"
 
   contract-gates:
+    name: 'ci:.github/workflows/ci.yml::contract-gates'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -346,6 +351,8 @@ jobs:
         run: pwsh -NoProfile -File tools/sync-assertion-manifest.ps1
       - name: Regenerate the derived documentation
         run: pwsh -NoProfile -File tools/sync-docs.ps1
+      - name: Validate the publication report schema
+        run: pwsh -NoProfile -File tools/test-publication-report-candidate.ps1
       - name: The contract must not drift from the specification
         shell: bash
         run: |

@@ -1,0 +1,6 @@
+-i
+inputs/data.properties
+-s
+schemes/main.properties
+-o
+out

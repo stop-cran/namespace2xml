@@ -50,7 +50,8 @@ public sealed class CommandLineParserTests
         line.Verbosity.ToString(),
         line.DiagnosticsFormat.ToString(),
         line.Limits.ToString(),
-        line.FailOnWarning.ToString(CultureInfo.InvariantCulture));
+        line.FailOnWarning.ToString(CultureInfo.InvariantCulture),
+        line.ReportFile);
 
     // ---- required options and defaults -------------------------------------------------
 
@@ -77,6 +78,7 @@ public sealed class CommandLineParserTests
         line.Limits.ShouldBe(ResourceLimits.Defaults);
         line.Variables.ShouldBeEmpty();
         line.FailOnWarning.ShouldBeFalse();
+        line.ReportFile.ShouldBeNull();
     }
 
     // ---- list options ------------------------------------------------------------------
@@ -148,6 +150,15 @@ public sealed class CommandLineParserTests
     [Test]
     public void ALaterSingleValuedOccurrenceOverridesAnEarlierOne() =>
         ParseOk([.. Minimal, "-o", "first", "--output", "second"]).OutputRoot.ShouldBe("second");
+
+    [Test]
+    public void ReportFileAcceptsDetachedInlineAndLiteralDash()
+    {
+        ParseOk([.. Minimal, "--report-file", "first", "--report-file=report.json"])
+            .ReportFile.ShouldBe("report.json");
+        ParseOk([.. Minimal, "--report-file=-"]).ReportFile.ShouldBe("-");
+        ParseFail([.. Minimal, "--report-file="]).Code.ShouldBe("CLI001");
+    }
 
     /// <summary>"second" is attached to no option once <c>--output</c> is satisfied.</summary>
     [Test]

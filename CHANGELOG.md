@@ -13,6 +13,57 @@ independently.
 
 ## [Unreleased]
 
+### Contract
+
+- `contract-bundle` `r120+bd8ab99360ea`.
+
+### Fixed
+
+- Resolve report parent aliases, including macOS temporary directory paths, and reject
+  collisions against resolved paths before publication. Report-leaf links are still refused
+  ([#167](https://github.com/stop-cran/namespace2xml/issues/167)).
+- Treat explicit NTFS default-stream names as their unsuffixed names during report collision
+  checks, without changing the policy for named streams
+  ([#168](https://github.com/stop-cran/namespace2xml/issues/168)).
+- Preserve literal percent escapes when the installed CLI reports the local documentation index
+  as a file URI ([#155](https://github.com/stop-cran/namespace2xml/issues/155)).
+- Continue validating sibling scheme sources when one structured scheme has a non-mapping root,
+  without allowing publication ([#169](https://github.com/stop-cran/namespace2xml/issues/169)).
+
+## [3.1.0-preview.1] - 2026-11-20
+
+### Contract
+
+- `contract-bundle` `r119+ded94ff55ad0`.
+
+### Added
+
+- **Publication reports** record the final staged destinations, ordered provenance, byte digests,
+  observations and publication outcomes in a separate versioned JSON file. Report failures use
+  `REPORT001`; equal-byte outputs are still rewritten. The Ansible filter and module use reports
+  when the installed CLI advertises support, while preserving compatibility with 3.0.0.
+  [#116](https://github.com/stop-cran/namespace2xml/issues/116).
+- **Independent scheme checks continue after successful parsing and reference resolution.** An
+  unrelated blocking validation error no longer suppresses other independent checks in that same
+  scheme phase; later phases still wait for it to complete successfully.
+  [#163](https://github.com/stop-cran/namespace2xml/issues/163).
+- **WARN014 guidance identifies the wrong-selector remedy** in help and the usage methodology.
+  [#153](https://github.com/stop-cran/namespace2xml/issues/153).
+- **Input extension dispatch and namespace fallback are explicit in help.**
+  [#158](https://github.com/stop-cran/namespace2xml/issues/158).
+- **Packaged documentation distinguishes bundled files from online-only guidance**, and online
+  release links lead to the matching version's documents.
+  [#154](https://github.com/stop-cran/namespace2xml/issues/154).
+- **The installed CLI exposes its own bundled documentation index as a local file URI.**
+  [#155](https://github.com/stop-cran/namespace2xml/issues/155).
+- **Consumer and contributor reading routes are distinct** across the README, index and help.
+  [#156](https://github.com/stop-cran/namespace2xml/issues/156).
+
+### Removed
+
+- For report-capable CLIs, the Ansible consumers no longer need a separate format-probe render or
+  scratch-directory discovery; older supported CLIs retain their existing fallback.
+
 ### Fixed
 
 - Stable release reconciliation now stores a verified five-file candidate envelope in the draft

@@ -251,6 +251,7 @@ def test_warning_policy_applies_to_the_requested_render_but_not_the_format_probe
                                                                                  tmp_path):
     run_tool, calls = _stand_in_run("cfg.xml", "<cfg/>")
     monkeypatch.setattr(n2x, "run_tool", run_tool)
+    monkeypatch.setattr(n2x, "supports_report", lambda executable: False)
     monkeypatch.setattr(n2x, "support_hint", lambda executable: "")
 
     result = filt._marshal_and_run(

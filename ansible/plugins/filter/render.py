@@ -182,12 +182,11 @@ options:
         C(output) is read as the set it declares, following sections 15 and 16.1.
       - Where the scheme carries several C(output) declarations, or one written as a section
         15.1 C(${...}) reference, which of them applies is a precedence question that only the
-        tool can answer. The filter therefore renders a second time with C(<selector>.output)
-        set to O(fmt) - section 15.2 gives that last declaration precedence - and compares the
-        two results. This costs one extra invocation of the tool, and only for schemes of that
-        shape; a single literal C(output) is settled without it. A scheme file this filter
-        cannot read - one named C(.json), C(.yaml) or C(.yml), or one that cannot be opened -
-        is the same question and is settled the same way.
+        tool can answer. When the tool advertises C(--report-file), the filter checks the
+        effective format in the report from the same successful render. Older supported tools
+        instead render a second time with C(<selector>.output) set to O(fmt) and compare the
+        results; a single literal C(output) needs no second render. A scheme file this filter
+        cannot read is handled the same way.
       - A filter returns one document, so a scheme that produces a set of files - several
         formats in one C(output) declaration, or several scheme entries each naming their own
         C(filename) - has no single result to hand back and the render fails. Use the
@@ -308,11 +307,11 @@ options:
         every (host, task) pair, and every cache in this filter - the memoized render, the
         resolved binary path and the tool's contract identity - dies with it. Measured on
         ansible-core 2.17 under the C(linear) strategy - five identical renders in one task on
-        one host cost one binary lookup, one C(--version) probe and one render subprocess; the
-        same five across eight hosts cost eight of each; one render in each of three tasks
-        across eight hosts costs twenty-four of each. The floor is one probe plus one render
-        per (host, task). Rendering several documents in one task keeps you at that floor;
-        spreading them over tasks does not.
+        one host cost one binary lookup, one C(--version) probe and one render subprocess;
+        the same five across eight hosts cost eight of each; one render in each of three tasks
+        across eight hosts cost twenty-four of each. The capability check now also runs
+        C(--help), cached per executable identity within the worker. That additional probe was
+        not part of those measurements.
     type: bool
     default: true
   workdir:
@@ -1182,10 +1181,32 @@ def _marshal_and_run(layered, schemes, executable, workdir, probe=None, fmt=None
 
         os.mkdir(output_dir)
 
-        text = _run_and_read(
-            executable, input_paths, scheme_paths, output_dir, fail_on_warning)
+        report_capable = n2x.supports_report(executable)
+        if report_capable:
+            report_path = os.path.join(directory, "publication-report.json")
+            argv = _argv(input_paths, scheme_paths, output_dir, fail_on_warning)
+            argv.append("--report-file=%s" % report_path)
+            _warn(n2x.run_tool(executable, argv))
+            outputs = n2x.read_success_report(
+                report_path, output_dir, n2x.tool_identity(executable))
+            if len(outputs) != 1:
+                raise Namespace2XmlError(
+                    "expected exactly one output file, got %d. A filter returns one document; "
+                    "use the render module for multiple outputs." % len(outputs))
+            output = outputs[0]
+            if output["format"] != fmt.strip().lower():
+                raise Namespace2XmlError(
+                    "the scheme does not produce '%s' here; its effective output format is "
+                    "'%s'. Make the last matching output declaration name the requested format."
+                    % (fmt, output["format"]))
+            with open(os.path.join(output_dir, *output["destination"].split("/")),
+                      "r", encoding="utf-8", newline="") as handle:
+                text = handle.read()
+        else:
+            text = _run_and_read(
+                executable, input_paths, scheme_paths, output_dir, fail_on_warning)
 
-        if probe is not None:
+        if probe is not None and not report_capable:
             _confirm_the_format_asked_for(executable, input_paths, scheme_paths, output_dir,
                                           directory, probe, fmt)
 

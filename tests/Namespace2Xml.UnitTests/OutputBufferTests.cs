@@ -44,6 +44,44 @@ public sealed class OutputBufferTests
         Text(writer.Build()).ShouldBe("alphabeta");
     }
 
+    [Test]
+    public void StagedDigestUsesExactBytesIncludingTheFinalLf()
+    {
+        var writer = Writer();
+        writer.TryWrite("{\n  \"x\": 1\n}\n"u8).ShouldBeTrue();
+
+        writer.Build().Sha256().ShouldBe(
+            "c5e1c113d5c75240d109ea470244fa988c5d9970f26bdbbb885876ae1da9d2d7");
+        OutputBuffer.Empty.Sha256().ShouldBe(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    }
+
+    [Test]
+    public void StreamComparisonChecksAllSegmentsAndRejectsExtraOrMissingBytes()
+    {
+        var writer = Writer();
+        var bytes = DistinctBytes(Segment + 23);
+        writer.TryWrite(bytes).ShouldBeTrue();
+        var buffer = writer.Build();
+
+        using var equal = new ShortReadStream(bytes);
+        buffer.ContentEquals(equal).ShouldBeTrue();
+        using var shortStream = new ShortReadStream(bytes[..^1]);
+        buffer.ContentEquals(shortStream).ShouldBeFalse();
+        using var longStream = new ShortReadStream([.. bytes, 42]);
+        buffer.ContentEquals(longStream).ShouldBeFalse();
+        bytes[Segment + 5] ^= 1;
+        using var different = new ShortReadStream(bytes);
+        buffer.ContentEquals(different).ShouldBeFalse();
+        using var empty = new MemoryStream();
+        OutputBuffer.Empty.ContentEquals(empty).ShouldBeTrue();
+    }
+
+    private sealed class ShortReadStream(byte[] bytes) : MemoryStream(bytes)
+    {
+        public override int Read(Span<byte> buffer) => base.Read(buffer[..Math.Min(3, buffer.Length)]);
+    }
+
     /// <summary>Section 24: UTF-8 without a byte-order mark.</summary>
     [Test]
     public void TextIsEncodedAsUtf8WithoutAByteOrderMark()

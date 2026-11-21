@@ -47,6 +47,19 @@ public class ContractBundleTests
             .ShouldBe(RepositoryLayout.Sha256Of(RepositoryLayout.Registry));
 
     [Test]
+    public void SpecificationPinsTheDistributedPublicationReportSchema()
+    {
+        var text = File.ReadAllText(RepositoryLayout.Specification);
+        var match = Regex.Match(
+            text,
+            @"\[`publication-report\.schema\.json`\]\(publication-report\.schema\.json\), whose SHA-256 is\s+`(?<hash>[0-9a-f]{64})`",
+            RegexOptions.CultureInvariant);
+        match.Success.ShouldBeTrue();
+        match.Groups["hash"].Value.ShouldBe(RepositoryLayout.Sha256Of(
+            Path.Combine(RepositoryLayout.Root, "docs", "publication-report.schema.json")));
+    }
+
+    [Test]
     public void RevisionIsShortEnoughToQuoteInADefectReport() =>
         ContractBundle.Current.Revision.Length.ShouldBeLessThanOrEqualTo(32);
 

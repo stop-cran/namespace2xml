@@ -135,7 +135,7 @@ public static class JsonDiagnosticWriter
         AppendEscaped(builder, value);
     }
 
-    private static void AppendEscaped(StringBuilder builder, string value)
+    internal static void AppendEscaped(StringBuilder builder, string value)
     {
         builder.Append('"');
 

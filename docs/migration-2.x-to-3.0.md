@@ -2,7 +2,7 @@
 
 # Migrating from 2.x to 3.0
 
-**Contract bundle `r118+33da7b7912fc`.**
+**Contract bundle `r120+bd8ab99360ea`.**
 
 3.0 is a complete rewrite against a specification written before the implementation. Behaviour
 that 2.4.0 left undefined is now defined, and behaviour 2.4.0 got wrong is now corrected. This
@@ -3980,7 +3980,7 @@ implemented, its case says so plainly rather than letting the heading imply othe
   still lost or altered under a naive spelling, so the writer applies the syntactic rules the round
   trip requires as well as the semantic one the section names.
 
-## Inputs 2.4.0 could not process (59)
+## Inputs 2.4.0 could not process (60)
 
 The baseline exited nonzero on every sample of these, so no run of it completed: it refused the
 input, terminated abnormally, or gave up part way through, and each entry below says which. 3.0
@@ -4437,6 +4437,18 @@ either accepts the input or reports a diagnostic and exits deliberately.
 - Contract: Sections 6.2 and 21.2; Section 26 item 92.
 - Clean behavior: repeating the valueless option is idempotent, and a warning-free run publishes
   the same bytes and exits 0.
+
+### `independent-scheme-option-and-substitute-errors`
+
+- namespace2xml 2.4.0: **fails**.
+- Contract: Sections 6.4.3, 15.1, and 15.4 put these declaration checks in the
+  scheme phase and require independent checks to finish before that phase aborts.
+  Sections 16.7, 16.8, 16.10, and 22 require a `SCHEME001` for each invalid declaration.
+- Legacy observation: 2.4.0 terminates with an unhandled `ArgumentException`
+  for the unsupported substitute type `Invalid` and publishes no output.
+- Clean behavior: all three invalid declarations are reported in source order before
+  the later planning phase can attempt the scalar-to-array conversion. The run
+  exits `1` without publishing anything.
 
 ### `input-extensions-match-case-insensitively`
 
@@ -5299,7 +5311,7 @@ it, and then found a second unstable case — `json-strict-parsing-refusals`, wh
 appears about once in forty runs and whose rarity is why C.6 does not ask the lane to re-derive
 this verdict.
 
-## Same observable result as 2.4.0 (69)
+## Same observable result as 2.4.0 (71)
 
 The baseline produces this case's expected output tree and exit code. That is a statement about
 the result and not about the reason: two tools exit `1` on the same command line whether they
@@ -6200,6 +6212,14 @@ those that name a shared reason are behaviour 3.0 preserved.
   evidence anything about diagnostic layout, because the baseline has nothing structured to
   compare.
 
+### `nonmapping-scheme-root-keeps-sibling-validation`
+
+- namespace2xml 2.4.0: **agrees** on exit status and output tree. It exits `1` and creates no
+  output root because its argument parser rejects repeated `-s`, before checking either scheme.
+- Clean behavior: Sections 15 and 15.4 discard the non-mapping root and report `SCHEME003`, but
+  still check the other source and report `SCHEME001` for its invalid `substitute` mode under
+  Section 16.7. Both diagnostics are emitted before the scheme phase aborts.
+
 ### `reference-alias-ambiguity-lists-candidates`
 
 - namespace2xml 2.4.0: **agrees** on the observable.
@@ -6328,6 +6348,14 @@ those that name a shared reason are behaviour 3.0 preserved.
   Section 24 ordering claim (`REFERENCE002` before `REFERENCE001` because of source position rather
   than code) and the specific codes and anchors the diagnostic stream carries; both live in
   `expected-diagnostics.json`, which the verdict does not score.
+
+### `report-file-collides-with-input`
+
+- namespace2xml 2.4.0: **agrees** on exit and output tree, but for a different reason. Under these
+  exact arguments it reports the unknown `report-file` option and exits 1 before processing the
+  input; the input remains unchanged. The differential lane does not compare the diagnostic.
+- Contract: Section 21.5; Section 26 item 100.
+- The report must not truncate an input, and configuration publication must not begin.
 
 ### `selector-candidates-consume-the-wildcard-limit`
 

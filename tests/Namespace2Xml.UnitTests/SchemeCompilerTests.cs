@@ -100,6 +100,20 @@ public class SchemeCompilerTests
     public void FormatsKeepTheirDeclarationOrder() =>
         One("output=ini,namespace").Formats.ShouldBe([OutputFormat.Ini, OutputFormat.Namespace]);
 
+    [Test]
+    public void WinningOutputRetainsItsSourceOccurrenceAndCanonicalDeclaration()
+    {
+        var first = SchemeReader.Read(Records(@"a\.b.output=namespace"), 0, @"dir\scheme.txt", diagnostics);
+        var second = SchemeReader.Read(Records(@"a\.b.output=json"), 1, @"dir\scheme.txt", diagnostics);
+        var output = SchemeCompiler.Compile([.. first.Entries, .. second.Entries], diagnostics)
+            .Outputs.ShouldHaveSingleItem();
+
+        output.Declaration.SourceIndex.ShouldBe(2);
+        output.Declaration.Canonical.ShouldBe(@"a\u{2E}b.output");
+        output.Declaration.Line.ShouldBe(1);
+        output.Formats.ShouldBe([OutputFormat.Json]);
+    }
+
     /// <summary>Section 16.1: an unrecognized format name is a scheme error.</summary>
     [Test]
     public void AnUnknownFormatIsRejected() => Only("output=properties").Code.ShouldBe("SCHEME001");

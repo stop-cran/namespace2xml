@@ -1,0 +1,6 @@
+--report-file
+inputs/data.txt
+-i
+inputs/data.txt
+-s
+schemes/scheme.txt

@@ -86,6 +86,8 @@ public class HelpTextLinkTests
         [
             "docs/specification.md",
             "docs/diagnostics.md",
+            "docs/usage-methodology.md",
+            "docs/format-namespace.md",
             "KNOWN-LIMITS.md",
             "CONTRIBUTING.md",
             "AGENTS.md",
@@ -100,6 +102,8 @@ public class HelpTextLinkTests
                 $"--help must link {document}; an agent that cannot reach it from the tool has no " +
                 "way to find it that does not involve guessing");
         }
+
+        HelpText.Render().ShouldContain("Contributor guide", Case.Sensitive);
     }
 
     /// <summary>
@@ -124,6 +128,46 @@ public class HelpTextLinkTests
                 Case.Sensitive,
                 $"--version must link {document}; it is the only discovery surface a caller that " +
                 "parses fields rather than prose will read");
+        }
+
+    }
+
+    [Test]
+    public void VersionAndHelpExplainOfflineDiscovery()
+    {
+        HelpText.RenderVersion().ShouldContain("local-documentation: ", Case.Sensitive);
+        HelpText.Render().ShouldContain("local-documentation", Case.Sensitive);
+    }
+
+    [TestCase("%41")]
+    [TestCase("%2F")]
+    [TestCase("%")]
+    public void LocalDocumentationUsesTheRunningPackageAndRequiresBothDocuments(string pathSegment)
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "n2x docs # " + pathSegment + " " + Guid.NewGuid().ToString("N"));
+        var package = Path.Combine(root, "3.0.0");
+        var other = Path.Combine(root, "other");
+        var binary = Path.Combine(package, "tools", "net10.0", "any");
+        try
+        {
+            Directory.CreateDirectory(binary);
+            Directory.CreateDirectory(Path.Combine(package, "docs"));
+            Directory.CreateDirectory(other);
+            File.WriteAllText(Path.Combine(other, "llms.txt"), "wrong version");
+            HelpText.LocalDocumentation(binary).ShouldBe("unavailable");
+            File.WriteAllText(Path.Combine(package, "llms.txt"), "index");
+            HelpText.LocalDocumentation(binary).ShouldBe("unavailable");
+            File.WriteAllText(Path.Combine(package, "docs", "specification.md"), "contract");
+            var uri = new Uri(HelpText.LocalDocumentation(binary));
+            uri.LocalPath.ShouldBe(Path.Combine(package, "llms.txt"));
+            File.ReadAllText(uri.LocalPath).ShouldBe("index");
+            HelpText.LocalDocumentation(other).ShouldBe("unavailable");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
         }
     }
 }

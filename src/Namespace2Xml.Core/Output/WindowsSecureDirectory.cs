@@ -7,7 +7,7 @@ namespace Namespace2Xml.Output;
 /// <summary>
 /// Windows implementation of Section 21.1 handle-relative, no-follow publication opens.
 /// </summary>
-internal sealed partial class WindowsSecureDirectory : ISecureDirectory
+internal sealed partial class WindowsSecureDirectory : ISecureReportDirectory
 {
     private readonly SafeFileHandle handle;
 
@@ -40,6 +40,18 @@ internal sealed partial class WindowsSecureDirectory : ISecureDirectory
         return new WindowsSecureDirectory(root);
     }
 
+    internal static WindowsSecureDirectory OpenReportRoot(string rootPath)
+    {
+        var ntRoot = @"\??\" + Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
+        var root = OpenAbsolute(
+            ntRoot,
+            NativeMethods.FileTraverse | NativeMethods.FileReadAttributes | NativeMethods.Synchronize,
+            NativeMethods.FileShareAll,
+            NativeMethods.FileOpen,
+            NativeMethods.FileDirectoryFile | NativeMethods.FileSynchronousIoNonalert);
+        return new WindowsSecureDirectory(root);
+    }
+
     /// <inheritdoc/>
     public ISecureDirectory OpenOrCreateChildDirectory(string component)
     {
@@ -67,6 +79,63 @@ internal sealed partial class WindowsSecureDirectory : ISecureDirectory
         }
     }
 
+    public ISecureReportDirectory OpenExistingChildDirectory(string component, string section = "21.1")
+    {
+        ValidateComponent(component);
+        var child = OpenRelative(
+            component,
+            NativeMethods.FileTraverse | NativeMethods.FileReadAttributes | NativeMethods.Synchronize,
+            NativeMethods.FileAttributeNormal,
+            NativeMethods.FileShareAll,
+            NativeMethods.FileOpen,
+            NativeMethods.FileDirectoryFile | NativeMethods.FileOpenReparsePoint
+                | NativeMethods.FileSynchronousIoNonalert);
+
+        try
+        {
+            RefuseReparse(child, component, finalComponent: false, section);
+            return new WindowsSecureDirectory(child);
+        }
+        catch
+        {
+            child.Dispose();
+            throw;
+        }
+    }
+
+    public Stream? OpenExistingChildFile(string component)
+    {
+        ValidateComponent(component);
+        RefuseExistingReparseLeaf(component);
+        SafeFileHandle file;
+        try
+        {
+            file = OpenRelative(
+                component,
+                NativeMethods.GenericRead | NativeMethods.FileReadAttributes | NativeMethods.Synchronize,
+                NativeMethods.FileAttributeNormal,
+                NativeMethods.FileShareAll,
+                NativeMethods.FileOpen,
+                NativeMethods.FileNonDirectoryFile | NativeMethods.FileOpenReparsePoint
+                    | NativeMethods.FileSynchronousIoNonalert);
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+
+        try
+        {
+            RefuseReparse(file, component, finalComponent: true);
+            return new FileStream(file, FileAccess.Read);
+        }
+        catch
+        {
+            file.Dispose();
+            throw;
+        }
+    }
+
     /// <inheritdoc/>
     public Stream CreateOrTruncateChildFile(string component)
     {
@@ -86,6 +155,34 @@ internal sealed partial class WindowsSecureDirectory : ISecureDirectory
         return new FileStream(file, FileAccess.Write);
     }
 
+    public Stream CreateOrTruncateReportFile(string component)
+    {
+        ValidateComponent(component);
+        RefuseExistingReparseLeaf(component, "21.5");
+        var file = OpenRelative(
+            component,
+            NativeMethods.FileAccess | NativeMethods.FileReadAttributes,
+            NativeMethods.FileAttributeNormal,
+            NativeMethods.FileShareRead | NativeMethods.FileShareDelete,
+            NativeMethods.FileOpenIf,
+            NativeMethods.FileNonDirectoryFile | NativeMethods.FileOpenReparsePoint
+                | NativeMethods.FileSynchronousIoNonalert);
+        FileStream? stream = null;
+        try
+        {
+            RefuseReparse(file, component, finalComponent: true, "21.5");
+            stream = new FileStream(file, FileAccess.Write);
+            stream.SetLength(0);
+            return stream;
+        }
+        catch
+        {
+            stream?.Dispose();
+            file.Dispose();
+            throw;
+        }
+    }
+
     /// <inheritdoc/>
     public void Dispose() => handle.Dispose();
 
@@ -102,7 +199,7 @@ internal sealed partial class WindowsSecureDirectory : ISecureDirectory
         }
     }
 
-    private void RefuseExistingReparseLeaf(string component)
+    private void RefuseExistingReparseLeaf(string component, string section = "21.1")
     {
         SafeFileHandle? probe = null;
 
@@ -127,15 +224,21 @@ internal sealed partial class WindowsSecureDirectory : ISecureDirectory
 
         using (probe)
         {
-            RefuseReparse(probe, component, finalComponent: true);
+            var attributes = QueryAttributes(probe).FileAttributes;
+            RefuseReparse(attributes, component, finalComponent: true, section);
+            if (section == "21.5" && (attributes & NativeMethods.FileAttributeDirectory) != 0)
+            {
+                throw new UncontainableDestinationException("the report path names an existing directory, not a file.");
+            }
         }
     }
 
-    private static void RefuseReparse(SafeFileHandle target, string component, bool finalComponent)
-    {
-        var info = QueryAttributes(target);
+    private static void RefuseReparse(SafeFileHandle target, string component, bool finalComponent, string section = "21.1") =>
+        RefuseReparse(QueryAttributes(target).FileAttributes, component, finalComponent, section);
 
-        if ((info.FileAttributes & NativeMethods.FileAttributeReparsePoint) == 0)
+    private static void RefuseReparse(uint attributes, string component, bool finalComponent, string section)
+    {
+        if ((attributes & NativeMethods.FileAttributeReparsePoint) == 0)
         {
             return;
         }
@@ -143,7 +246,7 @@ internal sealed partial class WindowsSecureDirectory : ISecureDirectory
         var place = finalComponent ? "final component" : "directory component";
 
         throw new UncontainableDestinationException(
-            $"the {place} '{component}' is a reparse point, and Section 21.1 requires "
+            $"the {place} '{component}' is a reparse point, and Section {section} requires "
             + "opening destinations without following reparse points.");
     }
 
@@ -306,6 +409,7 @@ internal sealed partial class WindowsSecureDirectory : ISecureDirectory
         internal const uint FileAddFile = 0x0002;
         internal const uint FileAddSubdirectory = 0x0004;
         internal const uint GenericWrite = 0x40000000;
+        internal const uint GenericRead = 0x80000000;
 
         internal const uint DirectoryAccess =
             FileListDirectory | FileTraverse | FileAddFile | FileAddSubdirectory
@@ -328,6 +432,7 @@ internal sealed partial class WindowsSecureDirectory : ISecureDirectory
         internal const uint FileOpenReparsePoint = 0x00200000;
 
         internal const uint FileAttributeNormal = 0x00000080;
+        internal const uint FileAttributeDirectory = 0x00000010;
         internal const uint FileAttributeReparsePoint = 0x00000400;
 
         internal const uint ObjCaseInsensitive = 0x00000040;

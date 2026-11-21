@@ -2,7 +2,7 @@
 
 # Diagnostic codes
 
-**Contract bundle `r118+33da7b7912fc`.** 41 codes.
+**Contract bundle `r120+bd8ab99360ea`.** 42 codes.
 
 Every diagnostic this tool emits carries one of these codes, the phase it was raised in, and
 the specification anchor for the clause it enforces under [Section 22](specification.md#spec-22).
@@ -52,6 +52,7 @@ by preference.
 | [`SERIALIZE001`](#diagnostic-serialize001) | error | once per output instance | Output view cannot be serialized under the selected format/options | `destination` |
 | [`PATH001`](#diagnostic-path001) | error | once per destination | Invalid, escaping, insecure, or topologically conflicting output path | `declaration`, `destination` |
 | [`PATH002`](#diagnostic-path002) | error | once, for the failing destination | Publication/open/write/flush failure | `destination` |
+| [`REPORT001`](#diagnostic-report001) | error | once per invocation | Invalid, unsafe, colliding, or unwritable publication report | — |
 | [`LIMIT001`](#diagnostic-limit001) | error | once per invocation | Non-wildcard resource limit exceeded | `source`, `line`, `column`, `path` |
 | [`WARN001`](#diagnostic-warn001) | warning | once per missing-file occurrence on the command line | Missing input or scheme file | `source` |
 | [`WARN002`](#diagnostic-warn002) | warning | once per alias category and scheme | Deprecated alias | `source`, `line`, `column`, `declaration` |
@@ -247,6 +248,13 @@ Each code below lists the situations the specification maps to it ([Appendix B](
 *error, once, for the failing destination.*
 
 - Destination open, create, write, flush, or close failure after publication starts
+
+<a id="diagnostic-report001"></a>
+### `REPORT001` — Invalid, unsafe, colliding, or unwritable publication report
+
+*error, once per invocation.*
+
+- Invalid, unsafe, colliding, or failed publication report destination
 
 <a id="diagnostic-limit001"></a>
 ### `LIMIT001` — Non-wildcard resource limit exceeded

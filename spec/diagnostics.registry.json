@@ -2,7 +2,7 @@
   "$schema": "./diagnostics.registry.schema.json",
   "specification": {
     "path": "docs/specification.md",
-    "sha256": "438cb49e59183bcdbad9684a79be514680043b8226dbb5fa1590298f74952bf3"
+    "sha256": "a49f7e4730cc6e490497fd538e63b326af72ef78d8513ba3f36ef7e568fd065b"
   },
   "authoritativeFor": [
     "code",
@@ -363,6 +363,16 @@
       ],
       "mappings": [
         "Destination open, create, write, flush, or close failure after publication starts"
+      ]
+    },
+    {
+      "code": "REPORT001",
+      "severity": "error",
+      "cardinality": "once per invocation",
+      "condition": "Invalid, unsafe, colliding, or unwritable publication report",
+      "fields": [],
+      "mappings": [
+        "Invalid, unsafe, colliding, or failed publication report destination"
       ]
     },
     {

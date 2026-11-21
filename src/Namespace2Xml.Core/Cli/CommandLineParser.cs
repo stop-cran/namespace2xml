@@ -159,7 +159,13 @@ public static class CommandLineParser
 
             if (current is null)
             {
-                return Failure("§6.2", $"'{token}' is not attached to any option.");
+                var message = $"'{token}' is not attached to any option.";
+                if (token is "help" or "/?")
+                {
+                    message += " Run 'namespace2xml --help' for the complete list.";
+                }
+
+                return Failure("§6.2", message);
             }
 
             if (state.Accept(current, token) is { } fault)
@@ -236,6 +242,7 @@ public static class CommandLineParser
         private DiagnosticFormat diagnosticsFormat = DiagnosticFormat.Text;
         private ResourceLimits limits = ResourceLimits.Defaults;
         private bool failOnWarning;
+        private string? reportFile;
 
         /// <summary>Accepts one valueless operational flag.</summary>
         public void AcceptFlag(CommandLineOption spec)
@@ -264,6 +271,9 @@ public static class CommandLineParser
 
                 case "--output":
                     return Path(spec, value, () => outputRoot = value);
+
+                case "--report-file":
+                    return Path(spec, value, () => reportFile = value);
 
                 case "--verbosity":
                     return AcceptVerbosity(value);
@@ -323,7 +333,8 @@ public static class CommandLineParser
             verbosity,
             diagnosticsFormat,
             limits,
-            failOnWarning);
+            failOnWarning,
+            reportFile);
 
         private string? AcceptVerbosity(string value)
         {

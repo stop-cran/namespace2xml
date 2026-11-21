@@ -11,7 +11,7 @@
     <Description>Deterministic configuration transformer. Merges and templates namespace profiles into XML, JSON, YAML, INI and shell outputs from a single normative specification. Every diagnostic carries a stable code and a specification anchor, and --diagnostics-format json makes the whole diagnostic stream machine-readable for automation and AI agents.</Description>
     <PackageTags>configuration;codegen;xml;json;yaml;ini;templating;deterministic;ai-agent;dotnet-tool</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Stable 3.0 specification-first rewrite with deterministic multi-format output, machine-readable diagnostics, and a complete offline contract. See CHANGELOG.md.</PackageReleaseNotes>
+    <PackageReleaseNotes>Prerelease 3.1.0 preview: publication reports, offline documentation discovery, and clearer consumer guidance. Stable release: 3.0.0. Online release notes: https://github.com/stop-cran/namespace2xml/blob/v$(Version)/CHANGELOG.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,34 +24,79 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
     <!--
       The contract travels with the package so an agent can read it without network access, and
       llms.txt travels with it so the agent can find the rest. That index links by relative path,
       which resolves inside the package only if the package mirrors the repository layout, so the
-      documents it names are packed at the paths it names them by. The one deliberate omission is
-      docs/migration-2.x-to-3.0.md: it is 300 KB describing the version this one replaces, which
-      is the least useful thing to carry offline and the most expensive. Its link dangles, and an
-      agent that follows it has the release-pinned URL the version option prints to fall back on.
+      documents it names are packed at the paths it names them by. Source-only documents, including
+      the migration guide, Ansible collection and conformance fixtures, are labelled online-only.
     -->
-    <None Include="..\..\llms.txt" Pack="true" PackagePath="\" />
     <None Include="..\..\AGENTS.md" Pack="true" PackagePath="\" />
-    <None Include="..\..\CONTRIBUTING.md" Pack="true" PackagePath="\" />
-    <None Include="..\..\KNOWN-LIMITS.md" Pack="true" PackagePath="\" />
     <None Include="..\..\docs\specification.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\docs\publication-report.schema.json" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\diagnostics.md" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\usage-methodology.md" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\format-ini.md" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\format-json.md" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\format-namespace.md" Pack="true" PackagePath="docs\" />
-    <None Include="..\..\docs\format-xml.md" Pack="true" PackagePath="docs\" />
     <None Include="..\..\docs\format-yaml.md" Pack="true" PackagePath="docs\" />
     <None Include="..\..\spec\diagnostics.registry.json" Pack="true" PackagePath="spec\" />
     <None Include="..\..\spec\contract-bundle.json" Pack="true" PackagePath="spec\" />
     <None Include="..\..\spec\diagnostic-stream.schema.json" Pack="true" PackagePath="spec\" />
     <None Include="..\..\conformance\assertions.json" Pack="true" PackagePath="conformance\" />
   </ItemGroup>
+
+  <!-- These source links follow master in a checkout; package copies are stamped with its version. -->
+  <ItemGroup>
+    <ReleaseDocument Include="..\..\README.md" PackagePath="\" />
+    <ReleaseDocument Include="..\..\llms.txt" PackagePath="\" />
+    <ReleaseDocument Include="..\..\CONTRIBUTING.md" PackagePath="\" />
+    <ReleaseDocument Include="..\..\KNOWN-LIMITS.md" PackagePath="\" />
+    <ReleaseDocument Include="..\..\docs\format-xml.md" PackagePath="docs\" />
+  </ItemGroup>
+
+  <UsingTask TaskName="StampReleaseDocuments" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Documents ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <Destination ParameterType="System.String" Required="true" />
+      <Version ParameterType="System.String" Required="true" />
+      <Stamped ParameterType="Microsoft.Build.Framework.ITaskItem[]" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var result = new System.Collections.Generic.List<Microsoft.Build.Framework.ITaskItem>();
+        foreach (var document in Documents)
+        {
+            var source = document.GetMetadata("FullPath");
+            var directory = document.GetMetadata("PackagePath").Trim('\\', '/');
+            var outputDirectory = System.IO.Path.Combine(Destination, directory);
+            System.IO.Directory.CreateDirectory(outputDirectory);
+            var output = System.IO.Path.Combine(outputDirectory, System.IO.Path.GetFileName(source));
+            var text = System.IO.File.ReadAllText(source)
+                .Replace("https://github.com/stop-cran/namespace2xml/blob/master/",
+                         "https://github.com/stop-cran/namespace2xml/blob/v" + Version + "/")
+                .Replace("https://github.com/stop-cran/namespace2xml/tree/master/",
+                         "https://github.com/stop-cran/namespace2xml/tree/v" + Version + "/");
+            System.IO.File.WriteAllText(output, text, new System.Text.UTF8Encoding(false));
+            var item = new Microsoft.Build.Utilities.TaskItem(output);
+            item.SetMetadata("Pack", "true");
+            item.SetMetadata("PackagePath", document.GetMetadata("PackagePath"));
+            result.Add(item);
+        }
+        Stamped = result.ToArray();
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="PrepareReleaseDocuments" BeforeTargets="_GetPackageFiles">
+    <StampReleaseDocuments Documents="@(ReleaseDocument)"
+                           Destination="$(MSBuildProjectDirectory)\$(IntermediateOutputPath)packaged-docs"
+                           Version="$(Version)">
+      <Output TaskParameter="Stamped" ItemName="None" />
+    </StampReleaseDocuments>
+  </Target>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Namespace2Xml.UnitTests" />

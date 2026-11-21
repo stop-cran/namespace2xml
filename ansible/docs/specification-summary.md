@@ -129,7 +129,8 @@ synthesizing one. `fmt` stays required and is checked against the format the sch
 produces, so a mismatch is reported rather than quietly ignored. Where
 [§15.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-15-2)
 precedence decides that — several `output` declarations, or one written as a `${...}` reference —
-the check costs a second render, because only the tool implements
+the filter checks a report from the same successful render when the tool supports it. Older tools
+need a second render, because only the tool implements
 [§15.2](https://github.com/stop-cran/namespace2xml/blob/ansible-v3.0.2/docs/specification.md#spec-15-2).
 See the plugin documentation for the exact argument rules.
 

@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Normative publication report schema version 1; see specification Section 21.5.",
+  "title": "Publication report, schema version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "productVersion", "contract", "exitCode", "outcome", "planComplete", "publicationOccurred", "sideEffectsPossible", "outputs"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "productVersion": { "type": "string", "minLength": 1 },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "hash", "specificationSha256", "registrySha256"],
+      "properties": {
+        "revision": { "type": "string", "pattern": "^r[1-9][0-9]*\\+[0-9a-f]{12}$" },
+        "hash": { "$ref": "#/$defs/digest" },
+        "specificationSha256": { "$ref": "#/$defs/digest" },
+        "registrySha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "exitCode": { "enum": [0, 1] },
+    "outcome": { "enum": ["success", "validationFailed", "warningPolicyRefused", "publicationFailed"] },
+    "planComplete": { "type": "boolean" },
+    "publicationOccurred": { "type": "boolean" },
+    "sideEffectsPossible": { "type": "boolean" },
+    "outputs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/output" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "outcome": { "const": "success" } } },
+      "then": {
+        "properties": {
+          "exitCode": { "const": 0 },
+          "planComplete": { "const": true },
+          "outputs": { "items": { "properties": { "status": { "enum": ["published", "unchanged"] } } } }
+        }
+      },
+      "else": { "properties": { "exitCode": { "const": 1 } } }
+    },
+    {
+      "if": { "properties": { "outcome": { "const": "validationFailed" } } },
+      "then": {
+        "properties": {
+          "planComplete": { "const": false },
+          "publicationOccurred": { "const": false },
+          "sideEffectsPossible": { "const": false },
+          "outputs": { "maxItems": 0 }
+        }
+      },
+      "else": { "properties": { "planComplete": { "const": true } } }
+    },
+    {
+      "if": { "properties": { "outcome": { "const": "warningPolicyRefused" } } },
+      "then": {
+        "properties": {
+          "publicationOccurred": { "const": false },
+          "sideEffectsPossible": { "const": false },
+          "outputs": {
+            "items": {
+              "properties": {
+                "status": { "const": "unattempted" },
+                "unattemptedReason": { "const": "warningPolicy" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "outcome": { "const": "publicationFailed" } } },
+      "then": {
+        "properties": {
+          "outputs": {
+            "contains": { "properties": { "status": { "const": "failed" } } },
+            "minContains": 1,
+            "maxContains": 1,
+            "items": {
+              "properties": {
+                "unattemptedReason": { "enum": [null, "previousPublicationFailure"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outputs": { "contains": { "properties": { "status": { "enum": ["published", "unchanged"] } } } }
+        }
+      },
+      "then": {
+        "properties": {
+          "publicationOccurred": { "const": true },
+          "sideEffectsPossible": { "const": true }
+        }
+      },
+      "else": { "properties": { "publicationOccurred": { "const": false } } }
+    },
+    {
+      "if": { "properties": { "outputs": { "maxItems": 0 } } },
+      "then": { "properties": { "sideEffectsPossible": { "const": false } } }
+    }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "nonnegative": { "type": "integer", "minimum": 0, "maximum": 9223372036854775807 },
+    "positive": { "type": "integer", "minimum": 1, "maximum": 9223372036854775807 },
+    "format": { "enum": ["namespace", "quotednamespace", "json", "yaml", "xml", "ini"] },
+    "destination": {
+      "type": "string",
+      "pattern": "^(?:[A-Za-z0-9_.-]|%[0-9A-F]{2})+(?:/(?:[A-Za-z0-9_.-]|%[0-9A-F]{2})+)*$",
+      "not": { "pattern": "(^|/)\\.{1,2}(/|$)" }
+    },
+    "contribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "sourceIndex", "line", "declaration", "formatIndex", "matchIndex", "selector", "root", "format"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "sourceIndex": { "$ref": "#/$defs/positive" },
+        "line": { "$ref": "#/$defs/positive" },
+        "declaration": { "type": "string", "minLength": 1 },
+        "formatIndex": { "$ref": "#/$defs/nonnegative" },
+        "matchIndex": { "$ref": "#/$defs/nonnegative" },
+        "selector": { "type": "string" },
+        "root": { "type": "string" },
+        "format": { "$ref": "#/$defs/format" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["destination", "format", "contributions", "byteLength", "sha256", "existedBefore", "bytesDiffered", "status", "failureCode", "unattemptedReason"],
+      "properties": {
+        "destination": { "$ref": "#/$defs/destination" },
+        "format": { "$ref": "#/$defs/format" },
+        "contributions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/contribution" }
+        },
+        "byteLength": { "$ref": "#/$defs/nonnegative" },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "existedBefore": { "type": ["boolean", "null"] },
+        "bytesDiffered": { "type": ["boolean", "null"] },
+        "status": { "enum": ["published", "unchanged", "failed", "unattempted"] },
+        "failureCode": { "enum": [null, "PATH001", "PATH002"] },
+        "unattemptedReason": { "enum": [null, "warningPolicy", "previousPublicationFailure"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "published" } } },
+          "then": {
+            "properties": {
+              "existedBefore": { "type": "boolean" },
+              "bytesDiffered": { "const": true }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "unchanged" } } },
+          "then": {
+            "properties": {
+              "existedBefore": { "const": true },
+              "bytesDiffered": { "const": false }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "failed" } } },
+          "then": { "properties": { "failureCode": { "enum": ["PATH001", "PATH002"] } } },
+          "else": { "properties": { "failureCode": { "const": null } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "unattempted" } } },
+          "then": {
+            "properties": {
+              "existedBefore": { "const": null },
+              "bytesDiffered": { "const": null },
+              "unattemptedReason": { "enum": ["warningPolicy", "previousPublicationFailure"] }
+            }
+          },
+          "else": { "properties": { "unattemptedReason": { "const": null } } }
+        },
+        {
+          "if": { "properties": { "bytesDiffered": { "const": false } } },
+          "then": { "properties": { "existedBefore": { "const": true } } }
+        },
+        {
+          "if": { "properties": { "existedBefore": { "const": false } } },
+          "then": { "properties": { "bytesDiffered": { "const": true } } }
+        },
+        {
+          "if": { "properties": { "existedBefore": { "const": null } } },
+          "then": { "properties": { "bytesDiffered": { "const": null } } }
+        }
+      ]
+    }
+  }
+}

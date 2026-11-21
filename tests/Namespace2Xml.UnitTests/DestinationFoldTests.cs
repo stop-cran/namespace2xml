@@ -200,6 +200,32 @@ public class DestinationFoldTests
         folded[0].Key.DeclarationOrder.ShouldBe(7);
     }
 
+    [Test]
+    public void ReportHistoryRetainsReplacedContributionsInFoldOrder()
+    {
+        var folded = Fold(
+            new DiagnosticBuffer(),
+            Contribution("c", "out.conf", "c", "3", declarationOrder: 2, format: OutputFormat.Ini),
+            Contribution("a", "out.conf", "a", "1", declarationOrder: 0),
+            Contribution("b", "out.conf", "b", "2", declarationOrder: 1, MergeStrategy.Replace));
+
+        folded.ShouldHaveSingleItem().History.Select(item => item.Selector).ShouldBe(["a", "b", "c"]);
+    }
+
+    [Test]
+    public void SerializationRetainsTheFoldHistory()
+    {
+        var folded = Fold(
+            new DiagnosticBuffer(),
+            Contribution("a", "out.conf", "a", "1", declarationOrder: 0),
+            Contribution("b", "out.conf", "b", "2", declarationOrder: 1));
+        var serialized = PublicationPhase.Serialize(
+            folded, new GlobalBudget(new ResourceLimits()), new DiagnosticBuffer());
+
+        serialized.Faulted.ShouldBeFalse();
+        serialized.Value.ShouldHaveSingleItem().History.Select(item => item.Selector).ShouldBe(["a", "b"]);
+    }
+
     /// <summary>
     /// Sections 8.5 and 17.5 union envelope metadata by source occurrence when same-format output
     /// instances converge. A repeated view of one source occurrence must not duplicate it.

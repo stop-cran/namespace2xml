@@ -4868,7 +4868,7 @@
             "kind": "fixture",
             "name": "cli-help-outranks-version",
             "artifact": "expected-stdout.txt",
-            "observation": "Output contains help markers and explicitly does not contain `version: 3.0.0` or `contract-bundle: ${contract-bundle}`."
+            "observation": "Output contains help markers and explicitly does not contain `version: 3.1.0-preview.1` or `contract-bundle: ${contract-bundle}`."
           }
         },
         {
@@ -6013,6 +6013,24 @@
           }
         },
         {
+          "text": "A non-mapping structured scheme root does not suppress validation of a literal substitute declaration in an independent scheme source.",
+          "evidence": {
+            "kind": "fixture",
+            "name": "nonmapping-scheme-root-keeps-sibling-validation",
+            "artifact": "expected-diagnostics.json",
+            "observation": "The stream contains SCHEME003 for the first scheme source, then SCHEME001 for cfg.substitute in the second source, both in the scheme phase."
+          }
+        },
+        {
+          "text": "An invalid input option does not suppress validation of independent substitute and merge declarations in the same scheme phase, and a blocking scheme phase prevents the later type transformation.",
+          "evidence": {
+            "kind": "fixture",
+            "name": "independent-scheme-option-and-substitute-errors",
+            "artifact": "expected-diagnostics.json",
+            "observation": "The stream contains exactly three SCHEME001 errors in source order: xmlinputoptions at line 1 (§16.8), cfg.substitute at line 2 (§16.7), and cfg.*.merge at line 3 (§16.10), with no planning TYPE001 for the scalar-to-array conversion."
+          }
+        },
+        {
           "text": "Planning-phase diagnostics are collected and deterministically ordered within the phase.",
           "evidence": {
             "kind": "fixture",
@@ -6024,6 +6042,8 @@
       ],
       "fixtures": [
         "structured-scheme-nonmapping-roots",
+        "nonmapping-scheme-root-keeps-sibling-validation",
+        "independent-scheme-option-and-substitute-errors",
         "cross-destination-diagnostic-order"
       ],
       "gates": [
@@ -8423,6 +8443,178 @@
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.TransformationTests.Issue24RealLogbackPreservesAllEightCommentsAndStructure",
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PlanningPhaseEnvelopeTests.AddressBasedOperationsNeverObserveEnvelopeMetadata",
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.DestinationFoldTests.EnvelopeCommentsAreUnionedByStableSourceOccurrence"
+      ]
+    },
+    {
+      "item": 100,
+      "text": "Publication reports: the explicit report channel, closed schema and canonical bytes, complete-plan and warning-policy outcomes, ordered fold history, immediate pre-write observations, completed and failed publication statuses, truthful partial side effects, confinement and collision checks, and report preparation and finalization failures.",
+      "milestone": "3.1.0",
+      "status": "required",
+      "assertions": [
+        {
+          "text": "A report path equal to an input is refused without configuration publication or input modification.",
+          "evidence": {
+            "kind": "fixture",
+            "name": "report-file-collides-with-input",
+            "artifact": "expected-diagnostics.json",
+            "observation": "The fixture observes REPORT001, exit 1, an empty output tree, and unchanged input bytes."
+          }
+        },
+        {
+          "text": "A policy-refusal report has the canonical version-1 object bytes and null observations.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.WarningRefusalHasCanonicalBytesAndNoFabricatedObservations",
+            "artifact": "nunit-result",
+            "observation": "Exact independently authored bytes include the staged length, digest, member order, and LF."
+          }
+        },
+        {
+          "text": "A real destination comparison and equal-byte rewrite report their observed outcomes.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationComparesImmediatelyBeforeEveryRewrite",
+            "artifact": "nunit-result",
+            "observation": "A real file is created, rewritten with equal bytes, and then rewritten after different bytes."
+          }
+        },
+        {
+          "text": "A report failure and a configuration failure both appear in the diagnostic stream.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureCoexistsWithAConfigurationFailure",
+            "artifact": "nunit-result",
+            "observation": "Injected configuration and report write failures emit PATH002 followed by REPORT001."
+          }
+        },
+        {
+          "text": "The option accepts detached and inline paths including a literal dash.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.CommandLineParserTests.ReportFileAcceptsDetachedInlineAndLiteralDash",
+            "artifact": "nunit-result",
+            "observation": "Parsed report paths preserve the later occurrence and a literal dash."
+          }
+        },
+        {
+          "text": "The schema rejects incompatible versions, unknown members and invalid status combinations.",
+          "evidence": {
+            "kind": "gate",
+            "name": "ci:.github/workflows/ci.yml::contract-gates",
+            "artifact": "ci-job-result",
+            "observation": "The publication report schema checks validate valid shapes, reject invalid shapes and kill fifth-status and PATH001 mutants."
+          }
+        },
+        {
+          "text": "A policy refusal has a complete plan without calling the configuration sink; a semantic error has no complete plan.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.PipelineDistinguishesWarningRefusalFromIncompletePlan",
+            "artifact": "nunit-result",
+            "observation": "A nonempty warning-refused plan leaves its output unattempted and never accesses the throwing sink; an invalid scheme gives an incomplete plan."
+          }
+        },
+        {
+          "text": "A successful empty plan neither publishes nor validates the output root.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.SuccessfulEmptyPlanDoesNotCreateOrValidateOutputRoot",
+            "artifact": "nunit-result",
+            "observation": "An empty report succeeds with both effect flags false even when the configured root is a file."
+          }
+        },
+        {
+          "text": "Destination fold history retains replaced contributions in fold order.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.DestinationFoldTests.ReportHistoryRetainsReplacedContributionsInFoldOrder",
+            "artifact": "nunit-result",
+            "observation": "Same-format and cross-format replacement retain all three contribution selectors in fold order."
+          }
+        },
+        {
+          "text": "Report preparation rejects aliases and file-directory conflicts without creating missing parents.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.PreparationUsesExistingParentsAndRefusesAliases",
+            "artifact": "nunit-result",
+            "observation": "Input and destination aliases, conflicting topology and an absent parent are refused."
+          }
+        },
+        {
+          "text": "An aliased report parent is accepted while resolved source, destination and output-root conflicts are refused before publication.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.AliasedReportParentsAreAcceptedAndProtectedPathsStayIntact",
+            "artifact": "nunit-result",
+            "observation": "A symlink or junction and, on Windows, a substituted drive permit a non-colliding report; conflicting paths leave protected bytes and absent destinations unchanged."
+          }
+        },
+        {
+          "text": "Windows explicit default-stream spellings on either comparison side are equivalent to the plain path.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.DefaultStreamsAreComparedOnBothSides",
+            "artifact": "nunit-result",
+            "observation": "Uppercase and lowercase default-stream spellings are refused against input, scheme, output root and planned output, with REPORT001 and no changes."
+          }
+        },
+        {
+          "text": "A report leaf cannot be a link or directory.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.LeafLinksAndDirectoriesAreRefusedUnderTheReportSection",
+            "artifact": "nunit-result",
+            "observation": "A symbolic link or junction and a plain directory emit REPORT001 under Section 21.5 and leave the sentinel and absent output root unchanged."
+          }
+        },
+        {
+          "text": "An unestablishable root attributes the existing confinement failure to the first planned destination.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationAttributesRootFailureToFirstOutput",
+            "artifact": "nunit-result",
+            "observation": "The first destination fails with PATH001, the second is unattempted, and there is exactly one diagnostic."
+          }
+        },
+        {
+          "text": "Configuration stream failures retain prior completions and observed comparison facts without attempting later outputs.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationTracksFailuresAtEveryStreamBoundary",
+            "artifact": "nunit-result",
+            "observation": "Injected comparison reads and closes and configuration write, flush and close failures produce published, failed and unattempted entries with PATH002."
+          }
+        },
+        {
+          "text": "A report preparation failure prevents configuration writes, while finalization failures retain completed configuration writes.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureLifecycleCoversPreparationAndFinalization",
+            "artifact": "nunit-result",
+            "observation": "Injected preparation, report write, flush and close failures emit one REPORT001, with configuration output present only after preparation."
+          }
+        }
+      ],
+      "fixtures": [
+        "report-file-collides-with-input"
+      ],
+      "gates": [
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.WarningRefusalHasCanonicalBytesAndNoFabricatedObservations",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationComparesImmediatelyBeforeEveryRewrite",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureCoexistsWithAConfigurationFailure",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.CommandLineParserTests.ReportFileAcceptsDetachedInlineAndLiteralDash",
+        "ci:.github/workflows/ci.yml::contract-gates",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.PipelineDistinguishesWarningRefusalFromIncompletePlan",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.SuccessfulEmptyPlanDoesNotCreateOrValidateOutputRoot",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.DestinationFoldTests.ReportHistoryRetainsReplacedContributionsInFoldOrder",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.PreparationUsesExistingParentsAndRefusesAliases",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.AliasedReportParentsAreAcceptedAndProtectedPathsStayIntact",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.DefaultStreamsAreComparedOnBothSides",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.LeafLinksAndDirectoriesAreRefusedUnderTheReportSection",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationAttributesRootFailureToFirstOutput",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublisherTests.ReportPublicationTracksFailuresAtEveryStreamBoundary",
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.PublicationReportTests.ReportFailureLifecycleCoversPreparationAndFinalization"
       ]
     }
   ]

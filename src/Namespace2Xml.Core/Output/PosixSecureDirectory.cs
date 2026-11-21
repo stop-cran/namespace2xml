@@ -6,7 +6,7 @@ namespace Namespace2Xml.Output;
 /// <summary>
 /// POSIX implementation of Section 21.1 handle-relative, no-follow publication opens.
 /// </summary>
-internal sealed partial class PosixSecureDirectory : ISecureDirectory
+internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
 {
     private const int ExistingDirectoryMode = 0;
     private const int CreatedDirectoryMode = 0x1FF;
@@ -68,8 +68,49 @@ internal sealed partial class PosixSecureDirectory : ISecureDirectory
         return new PosixSecureDirectory(new SafeFileHandle((IntPtr)fd, ownsHandle: true));
     }
 
+    public ISecureReportDirectory OpenExistingChildDirectory(string component, string section = "21.1")
+    {
+        ValidateComponent(component);
+        var fd = OpenChildDirectory(component);
+        if (fd < 0)
+        {
+            ThrowOpenFailure(component, directory: true, section);
+        }
+
+        return new PosixSecureDirectory(new SafeFileHandle((IntPtr)fd, ownsHandle: true));
+    }
+
+    public Stream? OpenExistingChildFile(string component)
+    {
+        ValidateComponent(component);
+        var fd = NativeMethods.openat(
+            DirectoryFd, component, OpenReadOnly | OpenNoFollow | OpenCloseOnExec | OpenNonBlock, ExistingDirectoryMode);
+        if (fd < 0)
+        {
+            if (Marshal.GetLastPInvokeError() == Errno.NoEntry)
+            {
+                return null;
+            }
+
+            ThrowOpenFailure(component, directory: false);
+        }
+
+        var stream = new FileStream(new SafeFileHandle((IntPtr)fd, ownsHandle: true), FileAccess.Read);
+        if (!stream.CanSeek)
+        {
+            stream.Dispose();
+            throw new IOException($"the destination '{component}' is not a seekable file.");
+        }
+
+        return stream;
+    }
+
     /// <inheritdoc/>
-    public Stream CreateOrTruncateChildFile(string component)
+    public Stream CreateOrTruncateChildFile(string component) => CreateOrTruncateChildFile(component, "21.1");
+
+    public Stream CreateOrTruncateReportFile(string component) => CreateOrTruncateChildFile(component, "21.5");
+
+    private FileStream CreateOrTruncateChildFile(string component, string section)
     {
         ValidateComponent(component);
 
@@ -85,7 +126,7 @@ internal sealed partial class PosixSecureDirectory : ISecureDirectory
 
         if (fd < 0)
         {
-            ThrowOpenFailure(component, directory: false);
+            ThrowOpenFailure(component, directory: false, section);
         }
 
         // openat is variadic in C, and the Apple arm64 calling convention passes variadic
@@ -125,6 +166,8 @@ internal sealed partial class PosixSecureDirectory : ISecureDirectory
     private static int OpenNoFollow => NoFollowFlags.NoFollow;
 
     private static int OpenCloseOnExec => OperatingSystem.IsMacOS() ? 0x1000000 : 0x80000;
+
+    private static int OpenNonBlock => OperatingSystem.IsMacOS() ? 0x4 : 0x800;
 
     private static (int Directory, int NoFollow) NoFollowFlags { get; } =
         NoFollowFlagsFor(OperatingSystem.IsMacOS(), RuntimeInformation.ProcessArchitecture);
@@ -181,7 +224,7 @@ internal sealed partial class PosixSecureDirectory : ISecureDirectory
     private int OpenChildDirectory(string component) =>
         NativeMethods.openat(DirectoryFd, component, DirectoryOpenFlags, ExistingDirectoryMode);
 
-    private void ThrowOpenFailure(string component, bool directory)
+    private void ThrowOpenFailure(string component, bool directory, string section = "21.1")
     {
         var error = Marshal.GetLastPInvokeError();
 
@@ -189,8 +232,13 @@ internal sealed partial class PosixSecureDirectory : ISecureDirectory
         {
             throw new UncontainableDestinationException(
                 $"the {(directory ? "directory component" : "final component")} '{component}' "
-                + "is a symbolic link, and Section 21.1 requires opening destinations without "
+                + $"is a symbolic link, and Section {section} requires opening destinations without "
                 + "following symbolic links.");
+        }
+
+        if (!directory && section == "21.5" && error == Errno.IsDirectory)
+        {
+            throw new UncontainableDestinationException("the report path names an existing directory, not a file.");
         }
 
         throw new IOException(
@@ -222,6 +270,7 @@ internal sealed partial class PosixSecureDirectory : ISecureDirectory
     {
         internal const int Exists = 17;
         internal const int NoEntry = 2;
+        internal const int IsDirectory = 21;
         internal static int TooManySymbolicLinks => OperatingSystem.IsMacOS() ? 62 : 40;
     }
 

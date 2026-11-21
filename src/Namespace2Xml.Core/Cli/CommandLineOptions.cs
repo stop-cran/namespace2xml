@@ -170,6 +170,14 @@ internal static class CommandLineOptions
             "Exit 1 and publish nothing if any warning occurs. Diagnostic verbosity does not "
                 + "alter this policy. Default: disabled."),
         new(
+            "--report-file",
+            null,
+            CommandLineOptionArity.Single,
+            OptionsAnchor,
+            CommandLineHelpGroup.Common,
+            "path",
+            "Write a machine-readable publication report to this file."),
+        new(
             "--help",
             null,
             CommandLineOptionArity.Informational,

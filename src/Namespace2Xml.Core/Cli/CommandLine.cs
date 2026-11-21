@@ -19,6 +19,7 @@ namespace Namespace2Xml.Cli;
 /// <param name="FailOnWarning">
 /// Whether a warning after serialization refuses every publication and makes the invocation fail.
 /// </param>
+/// <param name="ReportFile">Optional path for the publication report.</param>
 public sealed record CommandLine(
     ImmutableArray<string> Inputs,
     ImmutableArray<string> Schemes,
@@ -27,4 +28,5 @@ public sealed record CommandLine(
     Verbosity Verbosity,
     DiagnosticFormat DiagnosticsFormat,
     ResourceLimits Limits,
-    bool FailOnWarning = false);
+    bool FailOnWarning = false,
+    string? ReportFile = null);

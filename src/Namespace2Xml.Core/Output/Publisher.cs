@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Namespace2Xml.Diagnostics;
 using Namespace2Xml.Pipeline;
 
@@ -92,6 +93,135 @@ public sealed class Publisher
         return true;
     }
 
+    internal PublicationReport PublishWithReport(ImmutableArray<PlannedOutput> outputs)
+    {
+        var ordered = PlannedOutput.InPublicationOrder(outputs);
+        var observations = ImmutableArray.CreateBuilder<PublicationObservation>(ordered.Length);
+        var sideEffects = false;
+        var completed = false;
+        string? failure = null;
+        var created = new HashSet<string>(StringComparer.Ordinal);
+
+        if (!ordered.IsEmpty)
+        {
+            if (!sink.SupportsSecureContainment)
+            {
+                ReportUncontainable(string.Empty, null, "this host does not provide secure containment.");
+                failure = "PATH001";
+            }
+            else
+            {
+                sideEffects = true;
+                failure = CreateDirectoryForReport(string.Empty, created, null, null);
+            }
+        }
+
+        for (var order = 0; order < ordered.Length; order++)
+        {
+            var output = ordered[order];
+            if (failure is not null)
+            {
+                observations.Add(new PublicationObservation(
+                    output, null, null,
+                    order == 0 ? PublicationStatus.Failed : PublicationStatus.Unattempted,
+                    order == 0 ? failure : null,
+                    order == 0 ? null : "previousPublicationFailure"));
+                continue;
+            }
+
+            var destination = new DestinationRef(output.Path.Canonical, order);
+            var segments = output.Path.Canonical.Split('/');
+            for (var index = 1; index < segments.Length; index++)
+            {
+                sideEffects = true;
+                failure = CreateDirectoryForReport(
+                    string.Join('/', segments.Take(index)), created, destination, output);
+                if (failure is not null)
+                {
+                    break;
+                }
+            }
+
+            bool? existed = null;
+            bool? differed = null;
+            if (failure is null)
+            {
+                try
+                {
+                    if (sink is not IReportPublicationSink reportSink)
+                    {
+                        throw new IOException("the publication sink does not support confined comparison.");
+                    }
+
+                    reportSink.Compare(outputRoot, output.Path.Canonical, output.Buffer, (present, different) =>
+                    {
+                        existed = present;
+                        differed = different;
+                    });
+                    sideEffects = true;
+                    if (sink.Write(outputRoot, output.Path.Canonical, output.Buffer))
+                    {
+                        log.Write(OperationalLevel.Information, $"replaced the existing destination '{output.Path.Canonical}'.");
+                    }
+                    else
+                    {
+                        log.Write(OperationalLevel.Trace, $"wrote the destination '{output.Path.Canonical}'.");
+                    }
+                }
+                catch (UncontainableDestinationException error)
+                {
+                    ReportUncontainable(output.Path.Canonical, destination, error.Message);
+                    failure = "PATH001";
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                {
+                    ReportWriteFailure(output, destination, error.Message);
+                    failure = "PATH002";
+                }
+                catch (ArgumentOutOfRangeException error) when (error.ParamName == "value")
+                {
+                    ReportWriteFailure(output, destination, error.Message);
+                    failure = "PATH002";
+                }
+            }
+
+            var status = failure is not null
+                ? PublicationStatus.Failed
+                : differed == true ? PublicationStatus.Published : PublicationStatus.Unchanged;
+            completed |= failure is null;
+            observations.Add(new PublicationObservation(output, existed, differed, status, failure, null));
+        }
+
+        return new PublicationReport(
+            failure is null ? PublicationOutcome.Success : PublicationOutcome.PublicationFailed,
+            true, completed, sideEffects, observations.ToImmutable());
+    }
+
+    private string? CreateDirectoryForReport(
+        string relative, HashSet<string> created, DestinationRef? destination, PlannedOutput? output)
+    {
+        if (!created.Add(relative))
+        {
+            return null;
+        }
+
+        try
+        {
+            sink.CreateDirectory(outputRoot, relative);
+            return null;
+        }
+        catch (UncontainableDestinationException error)
+        {
+            ReportUncontainable(relative, destination, error.Message);
+            return "PATH001";
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            ReportDirectoryFailure(relative, destination, output, error.Message);
+            return "PATH002";
+        }
+    }
+
     private bool TryPublishOne(PlannedOutput output, int order, HashSet<string> created)
     {
         var destination = new DestinationRef(output.Path.Canonical, order);
@@ -132,6 +262,11 @@ public sealed class Publisher
             return false;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            ReportWriteFailure(output, destination, e.Message);
+            return false;
+        }
+        catch (ArgumentOutOfRangeException e) when (e.ParamName == "value")
         {
             ReportWriteFailure(output, destination, e.Message);
             return false;
@@ -250,12 +385,55 @@ public interface IPublicationSink
     bool SupportsSecureContainment { get; }
 }
 
+internal interface IReportPublicationSink : IPublicationSink
+{
+    void Compare(string root, string relative, OutputBuffer buffer, Action<bool, bool?> observe);
+}
+
 /// <summary>The real filesystem.</summary>
-internal sealed class FileSystemPublicationSink : IPublicationSink
+internal sealed class FileSystemPublicationSink : IReportPublicationSink
 {
     private readonly SecureRootFactory factory = new();
+    private readonly Func<string, bool, Stream, Stream>? wrapStream;
+
+    internal FileSystemPublicationSink(Func<string, bool, Stream, Stream>? wrapStream = null) =>
+        this.wrapStream = wrapStream;
 
     public bool SupportsSecureContainment => factory.SupportsSecureContainment;
+
+    public void Compare(string root, string relative, OutputBuffer buffer, Action<bool, bool?> observe)
+    {
+        var segments = relative.Split('/');
+        using var anchor = (ISecureReportDirectory)factory.OpenRoot(root);
+        var opened = new List<ISecureReportDirectory>();
+        try
+        {
+            var current = anchor;
+            foreach (var segment in segments[..^1])
+            {
+                current = current.OpenExistingChildDirectory(segment);
+                opened.Add(current);
+            }
+
+            var file = current.OpenExistingChildFile(segments[^1]);
+            if (file is null)
+            {
+                observe(false, true);
+                return;
+            }
+
+            observe(true, null);
+            using var stream = Wrap(relative, comparison: true, file);
+            observe(true, !buffer.ContentEquals(stream));
+        }
+        finally
+        {
+            for (var index = opened.Count - 1; index >= 0; index--)
+            {
+                opened[index].Dispose();
+            }
+        }
+    }
 
     public void CreateDirectory(string root, string relative)
     {
@@ -298,7 +476,7 @@ internal sealed class FileSystemPublicationSink : IPublicationSink
         {
             var parent = opened.Count == 0 ? secureRoot : opened[^1];
 
-            using var stream = parent.CreateOrTruncateChildFile(segments[^1]);
+            using var stream = Wrap(relative, comparison: false, parent.CreateOrTruncateChildFile(segments[^1]));
 
             buffer.WriteTo(stream);
             stream.Flush();
@@ -309,6 +487,19 @@ internal sealed class FileSystemPublicationSink : IPublicationSink
         }
 
         return replaced;
+    }
+
+    private Stream Wrap(string relative, bool comparison, Stream stream)
+    {
+        try
+        {
+            return wrapStream?.Invoke(relative, comparison, stream) ?? stream;
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 
     /// <summary>

@@ -1,0 +1,5 @@
+[
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/main.properties","line":1,"declaration":"xmlinputoptions","spec":"§16.8"},
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/main.properties","line":2,"path":"cfg","declaration":"cfg.substitute","spec":"§16.7"},
+{"code":"SCHEME001","severity":"error","phase":"scheme","source":"schemes/main.properties","line":3,"column":1,"path":"cfg.*","declaration":"cfg.*.merge","spec":"§16.10"}
+]
