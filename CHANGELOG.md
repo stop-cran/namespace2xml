@@ -13,16 +13,24 @@ independently.
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-24
+
 ### Contract
 
 - `contract-bundle` `r120+bd8ab99360ea`.
+
+### Changed
+
+- Promote the package identity from `3.1.0-preview.1` to stable `3.1.0`. This release also
+  includes every change listed under `3.1.0-preview.1`, which was a source-only tag never
+  published to NuGet.
 
 ### Fixed
 
 - Request mode `0600` when creating POSIX outputs and publication reports, leaving umask and
   inherited ACL policy to the operating system, and preserve existing modes and ACLs on rewrite.
   Remove the post-open permission reset and pass the mode correctly on Darwin arm64
-  ([private advisory GHSA-j57v-q6cr-2mwq](https://github.com/stop-cran/namespace2xml/security/advisories/GHSA-j57v-q6cr-2mwq)).
+  ([security advisory GHSA-j57v-q6cr-2mwq](https://github.com/stop-cran/namespace2xml/security/advisories/GHSA-j57v-q6cr-2mwq)).
 - Resolve report parent aliases, including macOS temporary directory paths, and reject
   collisions against resolved paths before publication. Report-leaf links are still refused
   ([#167](https://github.com/stop-cran/namespace2xml/issues/167)).

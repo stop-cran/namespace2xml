@@ -17,12 +17,11 @@ Expect an acknowledgement within seven days.
 
 | Version | Supported |
 |---|---|
-| `3.0.x` | Yes |
-| `3.1.0-preview.1` | Prerelease; no stable-support commitment |
+| `3.1.x` | Yes |
+| `3.0.x` | No |
 | `2.x` | No |
 
-`3.1.0-preview.1` is an opt-in prerelease candidate, not a stable release. This does not promise a
-stable 3.1 release; `3.0.x` remains the supported stable line.
+The `3.1.x` line is the supported stable line. Upgrade from `3.0.x` to receive fixes.
 
 The 2.x line is superseded by the 3.0 rewrite and receives no fixes.
 

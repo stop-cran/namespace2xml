@@ -20,17 +20,15 @@ The specification is the contract; the implementation is an attempt to satisfy i
 2.4.0 left undefined is now defined, and the intentional differences are listed in
 [online migration guide](https://github.com/stop-cran/namespace2xml/blob/master/docs/migration-2.x-to-3.0.md).
 
-`3.0.0` is the current stable release of that contract. `3.1.0-preview.1` is an opt-in prerelease,
-not the stable support baseline. See [KNOWN-LIMITS.md](KNOWN-LIMITS.md) for the deliberate
-boundaries of each version and the
+`3.1.0` is the current stable release of that contract. See [KNOWN-LIMITS.md](KNOWN-LIMITS.md)
+for the deliberate boundaries of each version and the
 [versioned changelog](https://github.com/stop-cran/namespace2xml/blob/master/CHANGELOG.md).
 
 ---
 
 ## Install
 
-The command below installs the latest stable version. To opt in to an available prerelease, add
-`--prerelease`; the current candidate is `3.1.0-preview.1`.
+The command below installs the latest stable version.
 
 ```
 dotnet tool install --global namespace2xml

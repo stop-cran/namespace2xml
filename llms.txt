@@ -8,8 +8,7 @@
 > implementation. The specification is the contract; the code is an attempt to satisfy it. Every
 > diagnostic carries a stable code and the specification anchor it enforces.
 >
-> Stable release: 3.0.0. The current 3.1.0-preview.1 candidate is prerelease and does not replace
-> the stable release.
+> Stable release: 3.1.0.
 
 ## Start here
 

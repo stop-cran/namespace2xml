@@ -247,7 +247,7 @@ $lines = @(
     '- **Target framework.** The tool now requires the .NET 10 runtime.'
     '- **Releases come from tags only.** If you pinned to a build produced by a push to `master`,'
     '  there is no longer such a build. Pin to a released version.'
-    '- **3.0 is stable.** Install `namespace2xml` without `--prerelease`; use an exact version pin'
+    '- **3.x is stable.** Install `namespace2xml` without `--prerelease`; use an exact version pin'
     '  when a deployment must remain on one contract build.'
     ''
     "## Observable differences ($($verdicts.differs.Count))"

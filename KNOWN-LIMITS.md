@@ -1,9 +1,9 @@
 # Known limits
 
-**Describes `3.1.0-preview.1` at contract bundle `r120+bd8ab99360ea`.**
+**Describes `3.1.0` at contract bundle `r120+bd8ab99360ea`.**
 
 The published `3.0.0` release carries the earlier `r118+33da7b7912fc` contract. This file lists
-current boundaries of the candidate and work deliberately deferred beyond it. Resolved findings
+current boundaries of the release and work deliberately deferred beyond it. Resolved findings
 live in the [versioned online
 changelog](https://github.com/stop-cran/namespace2xml/blob/master/CHANGELOG.md); they are not
 limits of the stable binary.
@@ -38,13 +38,6 @@ consumer, or failed workflow is the evidence that should change the next contrac
   do not contain `REPORT001`; check the exit status as well, since `critical` and `none` can hide
   that error. Hard-link aliases and concurrent path mutation remain outside the containment
   guarantee.
-- *(Resolved in the candidate.)* In `3.1.0-preview.1`, report paths could reject linked
-  parents or miss collisions spelled through filesystem aliases. The candidate resolves
-  parent paths and checks resolved destinations, including explicit NTFS default-stream
-  spellings. Report-leaf links remain disallowed.
-- *(Resolved in the candidate.)* Published `3.0.0` has no `--report-file`; callers of that binary
-  must inspect destination files themselves. [#116](https://github.com/stop-cran/namespace2xml/issues/116)
-  adds a separate report derived from the staged plan.
 
 ## Interoperability envelopes
 

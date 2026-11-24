@@ -50,7 +50,7 @@ public class ProgramInvariantTests
         exitCode.ShouldBe(1);
         stdout.ToString().ShouldBeEmpty();
         text.ToString().ShouldBe(
-            "namespace2xml 3.1.0-preview.1: internal pipeline invariant failed: deliberate test failure\n");
+            "namespace2xml 3.1.0: internal pipeline invariant failed: deliberate test failure\n");
         json.ToArray().ShouldBeEmpty();
     }
 
