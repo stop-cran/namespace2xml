@@ -279,6 +279,49 @@ public sealed class PublicationReportTests
         }
     }
 
+    /// <summary>New POSIX reports are private, and rewriting one preserves its existing mode.</summary>
+    [Test]
+    public void PosixReportCreationIsPrivateAndRewritePreservesPermissions()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Ignore("POSIX file modes are not available on Windows.");
+            return;
+        }
+
+        var root = Path.Combine(Path.GetTempPath(), $"n2x-report-mode-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(
+            root,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+
+        try
+        {
+            var report = Path.Combine(root, "report.json");
+            var command = Command(report, Path.Combine(root, "out"));
+            using (var stream = ReportFile.Prepare(command, []))
+            {
+                stream.Write("first"u8);
+            }
+
+            var privateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            ((int)File.GetUnixFileMode(report) & ~(int)privateMode).ShouldBe(0);
+
+            var existingMode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead;
+            File.SetUnixFileMode(report, existingMode);
+            using (var stream = ReportFile.Prepare(command, []))
+            {
+                stream.Write("x"u8);
+            }
+
+            ((int)File.GetUnixFileMode(report)).ShouldBe((int)existingMode);
+            File.ReadAllText(report).ShouldBe("x");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Test]
     public void WarningRefusalHasCanonicalBytesAndNoFabricatedObservations()
     {

@@ -8,9 +8,9 @@ namespace Namespace2Xml.Output;
 /// </summary>
 internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
 {
-    private const int ExistingDirectoryMode = 0;
     private const int CreatedDirectoryMode = 0x1FF;
-    private const int CreatedFileMode = 0x1B6;
+    // Apply the mode at creation; the kernel owns umask and ACL inheritance. Never chmod a rewrite.
+    private const UnixFileMode CreatedFileMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
     private const int OpenReadOnly = 0;
     private const int OpenWriteOnly = 1;
 
@@ -30,8 +30,7 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     {
         var fd = NativeMethods.open(
             Path.GetFullPath(outputRootPath),
-            OpenDirectory | OpenCloseOnExec,
-            ExistingDirectoryMode);
+            OpenDirectory | OpenCloseOnExec);
 
         if (fd < 0)
         {
@@ -84,7 +83,7 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     {
         ValidateComponent(component);
         var fd = NativeMethods.openat(
-            DirectoryFd, component, OpenReadOnly | OpenNoFollow | OpenCloseOnExec | OpenNonBlock, ExistingDirectoryMode);
+            DirectoryFd, component, OpenReadOnly | OpenNoFollow | OpenCloseOnExec | OpenNonBlock);
         if (fd < 0)
         {
             if (Marshal.GetLastPInvokeError() == Errno.NoEntry)
@@ -114,36 +113,12 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     {
         ValidateComponent(component);
 
-        var fd = NativeMethods.openat(
-            DirectoryFd,
-            component,
-            OpenWriteOnly
-                | OpenCreate
-                | OpenTruncate
-                | OpenNoFollow
-                | OpenCloseOnExec,
-            CreatedFileMode);
+        var flags = OpenWriteOnly | OpenCreate | OpenTruncate | OpenNoFollow | OpenCloseOnExec;
+        var fd = OpenFileWithMode(component, flags);
 
         if (fd < 0)
         {
             ThrowOpenFailure(component, directory: false, section);
-        }
-
-        // openat is variadic in C, and the Apple arm64 calling convention passes variadic
-        // arguments on the stack while a fixed-arity P/Invoke passes them in registers, so the
-        // creation mode can arrive as an arbitrary value there. A file created with a mode that
-        // denies its own owner would fail the next read rather than this write, which makes the
-        // defect surface far from its cause. Setting the mode explicitly through a non-variadic
-        // call removes the question, and gives destinations the same permissions on every
-        // platform -- which is the answer this tool should prefer anyway.
-        if (NativeMethods.fchmod(fd, CreatedFileMode) != 0)
-        {
-            var error = Marshal.GetLastPInvokeError();
-            NativeMethods.close(fd);
-
-            throw new IOException(
-                $"setting permissions on '{component}' failed: "
-                + new System.ComponentModel.Win32Exception(error).Message);
         }
 
         return new FileStream(new SafeFileHandle((IntPtr)fd, ownsHandle: true), FileAccess.Write);
@@ -168,6 +143,23 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     private static int OpenCloseOnExec => OperatingSystem.IsMacOS() ? 0x1000000 : 0x80000;
 
     private static int OpenNonBlock => OperatingSystem.IsMacOS() ? 0x4 : 0x800;
+
+    internal static bool UsesStackModeFor(bool macOS, Architecture architecture) =>
+        macOS && architecture == Architecture.Arm64;
+
+    private int OpenFileWithMode(string component, int flags)
+    {
+        if (UsesStackModeFor(OperatingSystem.IsMacOS(), RuntimeInformation.ProcessArchitecture))
+        {
+            // Apple arm64 passes openat's variadic mode at sp, not in x3. Fill x3-x7 with
+            // unused arguments so the promoted mode is the first stack argument. Keep the
+            // no-follow directory-relative open; /dev/fd is not a portable directory path.
+            return NativeMethods.openatWithStackMode(
+                DirectoryFd, component, flags, 0, 0, 0, 0, 0, (int)CreatedFileMode);
+        }
+
+        return NativeMethods.openatWithMode(DirectoryFd, component, flags, (int)CreatedFileMode);
+    }
 
     private static (int Directory, int NoFollow) NoFollowFlags { get; } =
         NoFollowFlagsFor(OperatingSystem.IsMacOS(), RuntimeInformation.ProcessArchitecture);
@@ -222,7 +214,7 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     }
 
     private int OpenChildDirectory(string component) =>
-        NativeMethods.openat(DirectoryFd, component, DirectoryOpenFlags, ExistingDirectoryMode);
+        NativeMethods.openat(DirectoryFd, component, DirectoryOpenFlags);
 
     private void ThrowOpenFailure(string component, bool directory, string section = "21.1")
     {
@@ -277,21 +269,31 @@ internal sealed partial class PosixSecureDirectory : ISecureReportDirectory
     private static partial class NativeMethods
     {
         [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-        internal static partial int open(string path, int flags, int mode);
+        internal static partial int open(string path, int flags);
 
         [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-        internal static partial int openat(int directoryFd, string path, int flags, int mode);
+        internal static partial int openat(int directoryFd, string path, int flags);
+
+        [LibraryImport(
+            "libc",
+            EntryPoint = "openat",
+            SetLastError = true,
+            StringMarshalling = StringMarshalling.Utf8)]
+        internal static partial int openatWithMode(int directoryFd, string path, int flags, int mode);
+
+        [LibraryImport(
+            "libc",
+            EntryPoint = "openat",
+            SetLastError = true,
+            StringMarshalling = StringMarshalling.Utf8)]
+        internal static partial int openatWithStackMode(
+            int directoryFd, string path, int flags,
+            nint unused3, nint unused4, nint unused5, nint unused6, nint unused7, int mode);
 
         [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
         internal static partial int mkdirat(int directoryFd, string path, int mode);
 
         [LibraryImport("libc", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
         internal static partial nint readlinkat(int directoryFd, string path, IntPtr buffer, nuint bufferSize);
-
-        [LibraryImport("libc", SetLastError = true)]
-        internal static partial int fchmod(int fd, int mode);
-
-        [LibraryImport("libc", SetLastError = true)]
-        internal static partial int close(int fd);
     }
 }
