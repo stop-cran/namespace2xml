@@ -473,40 +473,84 @@ public static class InputPhase
 
     private static OverlayNode Settle(OverlayNode node)
     {
-        if (PipelineInstrumentation.IsEnabled)
+        var frames = new Stack<ScalarInferenceFrame>();
+        frames.Push(new ScalarInferenceFrame(node));
+
+        while (true)
         {
-            PipelineInstrumentation.Record(PipelineObservationKind.ScalarInferenceNode);
-        }
-
-        var settled = node;
-
-        if (node.Payload is { IsUntyped: true } payload)
-        {
-            settled = settled.WithPayload(
-                ScalarInference.Infer(payload), node.Marks.PayloadMark ?? node.Marks.Position);
-        }
-
-        foreach (var (name, child) in node.OrderedChildren)
-        {
-            var inferred = Settle(child);
-
-            if (!ReferenceEquals(inferred, child))
+            var frame = frames.Peek();
+            if (frame.Next() is { } child)
             {
-                settled = settled.WithChild(name, inferred);
+                frames.Push(new ScalarInferenceFrame(child));
+                continue;
+            }
+
+            frames.Pop();
+            if (frames.Count == 0)
+            {
+                return frame.Settled;
+            }
+
+            frames.Peek().Accept(frame.Settled);
+        }
+    }
+
+    private sealed class ScalarInferenceFrame
+    {
+        private readonly KeyValuePair<NamePart, OverlayNode>[] children;
+        private KeyValuePair<long, SequenceItem>[]? sequence;
+        private int childIndex;
+        private int sequenceIndex;
+
+        internal ScalarInferenceFrame(OverlayNode node)
+        {
+            if (PipelineInstrumentation.IsEnabled)
+            {
+                PipelineInstrumentation.Record(PipelineObservationKind.ScalarInferenceNode);
+            }
+
+            Settled = node.Payload is { IsUntyped: true } payload
+                ? node.WithPayload(
+                    ScalarInference.Infer(payload), node.Marks.PayloadMark ?? node.Marks.Position)
+                : node;
+            children = node.OrderedChildren.ToArray();
+            Node = node;
+        }
+
+        private OverlayNode Node { get; }
+
+        internal OverlayNode Settled { get; private set; }
+
+        internal OverlayNode? Next()
+        {
+            if (childIndex < children.Length)
+            {
+                return children[childIndex++].Value;
+            }
+
+            sequence ??= Node.OrderedSequence.ToArray();
+            return sequenceIndex < sequence.Length ? sequence[sequenceIndex++].Value.Node : null;
+        }
+
+        internal void Accept(OverlayNode inferred)
+        {
+            if (sequence is null)
+            {
+                var (name, child) = children[childIndex - 1];
+                if (!ReferenceEquals(inferred, child))
+                {
+                    Settled = Settled.WithChild(name, inferred);
+                }
+            }
+            else
+            {
+                var (ordering, item) = sequence[sequenceIndex - 1];
+                if (!ReferenceEquals(inferred, item.Node))
+                {
+                    Settled = Settled.WithSequenceItem(ordering, item with { Node = inferred });
+                }
             }
         }
-
-        foreach (var (ordering, item) in node.OrderedSequence)
-        {
-            var inferred = Settle(item.Node);
-
-            if (!ReferenceEquals(inferred, item.Node))
-            {
-                settled = settled.WithSequenceItem(ordering, item with { Node = inferred });
-            }
-        }
-
-        return settled;
     }
 
     /// <summary>

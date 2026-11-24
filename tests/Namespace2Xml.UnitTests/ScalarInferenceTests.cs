@@ -1,4 +1,6 @@
 using Namespace2Xml.Overlay;
+using Namespace2Xml.Pipeline.Steps;
+using Namespace2Xml.Profiles;
 using Namespace2Xml.Scalars;
 using NUnit.Framework;
 using Shouldly;
@@ -111,4 +113,52 @@ public sealed class ScalarInferenceTests
     [Test]
     public void AnUntypedPayloadIsSettled() =>
         ScalarInference.Infer(ScalarPayload.OfString("true")).ToCanonicalText().ShouldBe("true");
+
+    [Test]
+    public void ScalarInferenceHandlesTheDefaultDepthOnABoundedStack()
+    {
+        var position = StableOrderingKey.First;
+        var name = new OrdinaryPart([new LiteralToken("a")]);
+        var input = OverlayNode.OfPayload(ScalarPayload.Untyped("42"), position);
+        const int depth = 511;
+        for (var i = 0; i < depth; i++)
+        {
+            input = OverlayNode.Empty(NodeMarks.At(position)).WithChild(name, input);
+        }
+
+        OverlayNode? result = null;
+        var worker = new Thread(() => result = InputPhase.InferScalarKinds(input).Value, 128 * 1024);
+        worker.Start();
+        worker.Join();
+
+        var current = result.ShouldNotBeNull();
+        for (var i = 0; i < depth; i++)
+        {
+            current = current.Children[name];
+        }
+
+        current.Payload.ShouldNotBeNull().Kind.ShouldBe(ScalarKind.Integer);
+        current.Payload.ToCanonicalText().ShouldBe("42");
+    }
+
+    [Test]
+    public void ScalarInferenceSettlesBothFacetsAndPreservesTypedValues()
+    {
+        var position = StableOrderingKey.First;
+        var name = new OrdinaryPart([new LiteralToken("typed")]);
+        var typed = OverlayNode.OfPayload(ScalarPayload.OfString("007"), position);
+        var item = OverlayNode.OfPayload(ScalarPayload.Untyped("false"), position);
+        var input = OverlayNode.OfPayload(ScalarPayload.Untyped("true"), position)
+            .WithChild(name, typed)
+            .WithSequenceItem(7, SequenceItem.Numbered(item));
+
+        var result = InputPhase.InferScalarKinds(input).Value.ShouldNotBeNull();
+
+        result.Payload.ShouldNotBeNull().Boolean.ShouldBeTrue();
+        result.Children[name].ShouldBeSameAs(typed);
+        result.Children[name].Payload.ShouldNotBeNull().ToCanonicalText().ShouldBe("007");
+        result.Sequence[7].Node.Payload.ShouldNotBeNull().Boolean.ShouldBeFalse();
+        result.Sequence[7].Provenance.ShouldBe(OrderingProvenance.Explicit);
+        result.SequenceHighWater.ShouldBe(7);
+    }
 }

@@ -27,6 +27,7 @@ independently.
 
 ### Fixed
 
+- Use stack-safe scalar inference for deep input overlays.
 - Request mode `0600` when creating POSIX outputs and publication reports, leaving umask and
   inherited ACL policy to the operating system, and preserve existing modes and ACLs on rewrite.
   Remove the post-open permission reset and pass the mode correctly on Darwin arm64

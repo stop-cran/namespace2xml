@@ -1972,6 +1972,15 @@
       "status": "required",
       "assertions": [
         {
+          "text": "Scalar inference reaches a value at the default depth on a bounded worker stack.",
+          "evidence": {
+            "kind": "gate",
+            "name": "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.ScalarInferenceTests.ScalarInferenceHandlesTheDefaultDepthOnABoundedStack",
+            "artifact": "nunit-result",
+            "observation": "The direct test runs inference on a 128 KiB worker stack and checks the value at 512 nodes; the portable corpus cannot constrain the worker stack."
+          }
+        },
+        {
           "text": "Big-decimal canonical text ignores CurrentCulture.",
           "evidence": {
             "kind": "gate",
@@ -2042,6 +2051,7 @@
         "yaml-restricted-schema-and-scalar-kinds"
       ],
       "gates": [
+        "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.ScalarInferenceTests.ScalarInferenceHandlesTheDefaultDepthOnABoundedStack",
         "nunit:Namespace2Xml.UnitTests::Namespace2Xml.UnitTests.BigDecimalTests.CanonicalTextIgnoresTheCurrentCulture",
         "ci:.github/workflows/ci.yml::determinism",
         "nunit:Namespace2Xml.Conformance::Namespace2Xml.Conformance.RuntimeConfigurationTests.TheShippedToolRunsWithInvariantGlobalization"
